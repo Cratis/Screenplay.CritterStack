@@ -1,0 +1,240 @@
+<!--
+Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information.
+-->
+
+# Fresh-session prompt: implement source-to-Screenplay adapters
+
+Copy everything below this line into a fresh Pi session started in `/Volumes/sourcecode/repos/cratis/Screenplay`.
+
+---
+
+You are taking over the autonomous implementation of source-derived Screenplay generation for Marten and Marten + Wolverine applications.
+
+You have authority to inspect and modify the required Cratis repositories, use `gh` and `git`, create branches/worktrees, update dependency manifests where the implementation requires it, run builds/specs, make logical commits, push branches, create reviewed PRs with release notes and semantic labels, monitor CI, fix failures, merge green PRs, close resolved issues, and clean up branches. Never commit credentials, tokens, secrets, private user data, local agent artifacts, generated caches, or anything harmful to Cratis.
+
+Work autonomously. Make best-effort decisions from repository evidence and the purpose of Screenplay. Ask only when a decision is truly impossible to make safely from source, tests, documentation, or canonical samples.
+
+## Read first
+
+Read these files completely before editing:
+
+1. `/Volumes/sourcecode/repos/cratis/Screenplay/AGENTS.md`
+2. `/Volumes/sourcecode/repos/cratis/Screenplay/.ai/rules/framework.md`
+3. `/Volumes/sourcecode/repos/cratis/Screenplay/CRITTER_STACK_SCREENPLAY_RESEARCH_AND_ARCHITECTURE.md`
+4. `/Volumes/sourcecode/repos/cratis/Screenplay/CRITTER_STACK_SCREENPLAY_IMPLEMENTATION_HANDOVER.md`
+5. Relevant C#/spec/commit/PR rules and the `ship-changes` skill.
+6. Each repository's own `AGENTS.md` and `.agents/PROJECT.md` before changing that repository.
+
+Treat the two Critter Stack documents as the architectural baseline. Update the handover's current-status section as work lands.
+
+## Repositories and research baselines
+
+The following clones should exist under `/Volumes/sourcecode/repos`:
+
+- `cratis/Screenplay`
+- `cratis/Arc`
+- `cratis/cli`
+- `JasperFx`
+- `Marten`
+- `Wolverine`
+- `CritterStackHelpDesk`
+
+Additional corpus:
+
+- `~/CritterStackSamples`
+- `/Volumes/sourcecode/repos/Wolverine/src/Samples/IncidentService`
+
+Research baselines were:
+
+- Screenplay `a47cb2dd5f664f2aae351cd0986b8674475326e4`
+- Arc `1e4750ff5784d77a15330e21ed2b0d49e188116a`
+- JasperFx `da9fd17d69df5ff41940800bfb34ad4d88a88391`
+- Marten `a483b09f881f1576152aa42a27b37cc17fab252f`
+- Wolverine `af4807b5fb225ce7535c67785b74007fdad2dd9f`
+- CritterStackHelpDesk `b67659dd7ca6d8ff07e7b9dad20affc4a37b6062`
+
+Check current branches/statuses before acting. Never overwrite unrelated working-tree changes.
+
+## Mission
+
+Implement a source-first adapter architecture that can generate deterministic, valid `.play` definitions from:
+
+1. Marten applications;
+2. Marten + Wolverine applications;
+3. current and legacy Critter Stack conventions;
+4. future systems/frameworks/languages through a stable semantic seam.
+
+Preserve existing Arc generation behavior and compatibility.
+
+## Locked architecture
+
+Use this pipeline:
+
+```text
+adapter facts
+  -> resolved application graph
+  -> lowerable Screenplay model
+  -> Cratis.Screenplay AST
+  -> canonical printer
+  -> Screenplay compiler verification
+```
+
+Adapters emit facts/evidence, never `.play` strings and never AST nodes.
+
+Implement these packages for the MVP:
+
+```text
+Cratis.Screenplay.Generation.Contracts
+Cratis.Screenplay.Generation
+Cratis.Screenplay.Generation.DotNet
+Cratis.CritterStack.Screenplay
+```
+
+Keep `Cratis.Screenplay` as compiler/AST/printer.
+
+Keep the existing `Cratis.Arc.Screenplay` public API and generator path unchanged during the MVP. Do not move or type-forward its broad public model surface.
+
+The CLI continues owning `MSBuildWorkspace` initially. Do not implement an adapter-host executable, plugin discovery, JSON-RPC, runtime app startup, or a public out-of-process protocol yet. Make fact contracts serialization-friendly so these can be added when a real non-.NET adapter exists.
+
+## Hard semantic rules
+
+- Use Roslyn semantic symbols and metadata names, not textual method-name guesses where binding is available.
+- Use stable assembly/project + fully qualified symbol identities; short names are never merge keys.
+- Preserve evidence strength and source provenance.
+- Resolution is deterministic, idempotent, order-independent, and conflict preserving.
+- Never let adapter order decide a conflict.
+- Never classify an ordinary Wolverine cascade or broker publish as an appended event.
+- Interpret HTTP response wrappers and Marten aggregate context before classifying returns.
+- When a handler takes `IEventStream<T>`, direct appends are stream events; unrelated return values retain ordinary cascade semantics.
+- Do not infer aggregate/projection mappings absent from implemented `Apply`/projection source.
+- Marten alone does not define commands; require entry-point evidence.
+- Exclude generated code as primary evidence; use it only for corroboration.
+- Do not start hosts or connect to PostgreSQL by default.
+- Emit explicit stable diagnostics for recognized but omitted/approximated behavior.
+- Every generated document must compile and pass print/compile/print stability.
+
+## Practical execution order
+
+### 0. Inspect and align
+
+- Check package/version compatibility across Screenplay, Arc, and CLI.
+- Freeze existing Arc output/diagnostics with golden coverage before shared changes.
+- Do not create a downstream package dependency that can reproduce Screenplay AST `MissingMethodException` failures.
+
+### 1. Neutral generation core
+
+Add immutable documented fact/evidence/diagnostic contracts, deterministic resolution, lowerable model, AST emitter, printer, and verifier.
+
+Specs must prove shuffled-input determinism, duplicate idempotence, conflict diagnostics, provenance, valid output, and round-trip stability.
+
+### 2. .NET analysis utilities
+
+Add compilation/project context, symbol catalog, semantic-model routing, generated-source handling, source roots, type shapes, nullability, and bounded value flow. Do not put `MSBuildWorkspace` in this package.
+
+### 3. Marten foundation
+
+Use `~/CritterStackSamples/BankAccountES` first. Discover documents, identity, markerless events, stream starts/appends, snapshots, aggregate methods, projections, direct operations, and queries.
+
+Do not fabricate commands from storage calls without entry-point evidence.
+
+### 4. Wolverine + Marten context
+
+Use canonical `/Volumes/sourcecode/repos/Wolverine/src/Samples/IncidentService`.
+
+Support exact handler discovery, HTTP binding, route-only identity, optimistic version, `CreationResponse`, `EmptyResponse`, `UpdatedAggregate`, `Events`, `EventsToAppend`, `OutgoingMessages`, `IStartStream`, `IMartenOp`, direct appends/deletes, delayed dispatch, state validation, and query classification.
+
+### 5. CLI
+
+Add `--provider auto|arc|marten|critter-stack`.
+
+- Keep Arc on its existing path.
+- Load one workspace.
+- Direct project target includes its transitive project-reference closure.
+- One host in a solution may be selected automatically.
+- Multiple hosts must produce a diagnostic and require an explicit project target.
+- Never silently merge deployable hosts.
+- Preserve stdout/file/error behavior.
+- Replace integer severity casts with explicit mapping.
+
+Install and test the actual global tool from outside fixture repositories.
+
+### 6. Broaden compatibility
+
+Add:
+
+- `MartenWithProjectAspire` for Marten-only async/multi-stream/EventProjection;
+- `CritterStackHelpDesk` for Marten 6/Wolverine 1 and API/worker/contracts;
+- CqrsMinimalApi, OutboxDemo, BookingMonolith, Reports, one Fleet service, and ProjectManagement for their documented edge cases.
+
+### 7. Measure language gaps
+
+Do not expand the grammar speculatively. First inventory actual loss diagnostics. Then design the smallest high-value language additions, likely direct document operations, publish/cascade semantics, command outgoing messages, HTTP metadata, and projection lifecycle.
+
+Any AST capability added within the current major must use binary-compatible additive properties, not positional record constructor parameters.
+
+## Canonical acceptance assertions
+
+### BankAccountES
+
+- event returns under aggregate workflow become persisted events;
+- HTTP results do not;
+- aggregate/read state and identity are correct;
+- snapshots/reducers list only actual consumed events;
+- enabled validation is represented;
+- no database startup occurs.
+
+### IncidentService
+
+- Log produces `IncidentLogged`, with generated stream identity and 201 response kept separate;
+- Categorise uses route identity/version, appends `IncidentCategorised`, and returns 204;
+- Close appends `IncidentClosed`, returns updated aggregate, and delays `ArchiveIncident` as a message;
+- Archive appends `Archived` and records document deletion loss once;
+- Get is a query;
+- internal/inactive methods and comments do not become artifacts.
+
+### CritterStackHelpDesk
+
+- markerless contracts link across API and worker projects;
+- demos/tests are excluded or explicitly resolved;
+- one message may have multiple handlers/entry points;
+- stream type and projected decision state may differ;
+- event forwarding, local cascade, explicit publish, Rabbit transport, and side effect remain distinct;
+- generated sources do not duplicate artifacts;
+- absent auth/tenancy/saga/scheduling/upcast behavior is not invented.
+
+## Verification discipline
+
+For every logical unit:
+
+1. run proactive LSP diagnostics;
+2. build Debug and Release with zero errors and Release zero warnings;
+3. run affected specs;
+4. run project-wide diagnostics for edited files;
+5. inspect the full diff;
+6. commit only buildable coherent work.
+
+For public APIs, add/update documentation and release notes.
+
+Before PR merge:
+
+- search for a real related issue;
+- use the repository PR template;
+- choose the correct `minor`/`patch`/`major`/`no-release` label;
+- monitor CI to green;
+- merge only green, close fully resolved issues explicitly, verify closure, and clean branches.
+
+## Security
+
+Before every commit and PR:
+
+- scan the diff for credentials, tokens, private endpoints, connection strings, user data, generated secrets, local paths, `.pi/`, caches, and build outputs;
+- treat MSBuild evaluation as execution of repository-controlled code;
+- never emit environment values into facts/diagnostics;
+- constrain output paths;
+- do not auto-run repository-provided adapter binaries;
+- review every dependency manifest change explicitly.
+
+## Start now
+
+Begin by inspecting the current Screenplay branch and the two companion design documents, then execute Stage 0 and Stage 1. Do not merely produce another plan. Implement, specify, verify, commit, and ship each dependency-ordered stage while keeping the handover current.
