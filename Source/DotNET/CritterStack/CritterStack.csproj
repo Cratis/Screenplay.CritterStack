@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.CritterStack.Screenplay</AssemblyName>
+        <RootNamespace>Cratis.CritterStack.Screenplay</RootNamespace>
+        <IsPackable>true</IsPackable>
+        <IsTestProject>false</IsTestProject>
+        <EnablePackageValidation>false</EnablePackageValidation>
+        <Description>Generates verified Cratis Screenplay definitions from Marten and Wolverine source</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Cratis.Screenplay.Generation.Contracts" />
+        <PackageReference Include="Cratis.Screenplay.Generation" />
+        <PackageReference Include="Cratis.Screenplay.Generation.DotNet" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    </ItemGroup>
+</Project>
