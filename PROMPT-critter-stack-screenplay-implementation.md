@@ -5,7 +5,7 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 # Fresh-session prompt: implement source-to-Screenplay adapters
 
-Copy everything below this line into a fresh Pi session started in `/Volumes/sourcecode/repos/cratis/Screenplay`.
+Copy everything below this line into a fresh Pi session started in `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack`.
 
 ---
 
@@ -19,12 +19,14 @@ Work autonomously. Make best-effort decisions from repository evidence and the p
 
 Read these files completely before editing:
 
-1. `/Volumes/sourcecode/repos/cratis/Screenplay/AGENTS.md`
-2. `/Volumes/sourcecode/repos/cratis/Screenplay/.ai/rules/framework.md`
-3. `/Volumes/sourcecode/repos/cratis/Screenplay/CRITTER_STACK_SCREENPLAY_RESEARCH_AND_ARCHITECTURE.md`
-4. `/Volumes/sourcecode/repos/cratis/Screenplay/CRITTER_STACK_SCREENPLAY_IMPLEMENTATION_HANDOVER.md`
-5. Relevant C#/spec/commit/PR rules and the `ship-changes` skill.
-6. Each repository's own `AGENTS.md` and `.agents/PROJECT.md` before changing that repository.
+1. `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack/AGENTS.md`
+2. `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack/.ai/rules/framework.md`
+3. `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack/CRITTER_STACK_SCREENPLAY_RESEARCH_AND_ARCHITECTURE.md`
+4. `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack/CRITTER_STACK_SCREENPLAY_IMPLEMENTATION_HANDOVER.md`
+5. `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack/IMPLEMENTATION_STATUS.md`
+6. `/Volumes/sourcecode/repos/cratis/Screenplay.Generation/IMPLEMENTATION_STATUS.md`
+7. Relevant C#/spec/commit/PR rules and the `ship-changes` skill.
+8. Each repository's own `AGENTS.md` and `.agents/PROJECT.md` before changing that repository.
 
 Treat the two Critter Stack documents as the architectural baseline. Update the handover's current-status section as work lands.
 
@@ -33,6 +35,8 @@ Treat the two Critter Stack documents as the architectural baseline. Update the 
 The following clones should exist under `/Volumes/sourcecode/repos`:
 
 - `cratis/Screenplay`
+- `cratis/Screenplay.Generation`
+- `cratis/Screenplay.CritterStack`
 - `cratis/Arc`
 - `cratis/cli`
 - `JasperFx`
@@ -80,18 +84,30 @@ adapter facts
   -> Screenplay compiler verification
 ```
 
-Adapters emit facts/evidence, never `.play` strings and never AST nodes.
+Low-level adapters emit facts/evidence, never AST nodes. Ecosystem packages expose a complete compilation-in/source-out generator façade that composes the shared resolver/lowerer internally, matching the existing `Cratis.Arc.Screenplay` package.
 
-Implement these packages for the MVP:
+Repository/package ownership for the MVP:
 
 ```text
-Cratis.Screenplay.Generation.Contracts
-Cratis.Screenplay.Generation
-Cratis.Screenplay.Generation.DotNet
-Cratis.CritterStack.Screenplay
+Cratis/Screenplay
+  Cratis.Screenplay
+
+Cratis/Screenplay.Generation
+  Cratis.Screenplay.Generation.Contracts
+  Cratis.Screenplay.Generation
+  Cratis.Screenplay.Generation.DotNet
+
+Cratis/Screenplay.CritterStack
+  Cratis.CritterStack.Screenplay
+
+Cratis/Arc
+  Cratis.Arc.Screenplay
+
+Cratis/cli
+  workspace loading and generator selection
 ```
 
-Keep `Cratis.Screenplay` as compiler/AST/printer.
+Keep `Cratis.Screenplay` as compiler/AST/printer/editor only.
 
 Keep the existing `Cratis.Arc.Screenplay` public API and generator path unchanged during the MVP. Do not move or type-forward its broad public model surface.
 
@@ -116,9 +132,11 @@ The CLI continues owning `MSBuildWorkspace` initially. Do not implement an adapt
 
 ## Practical execution order
 
-### 0. Inspect and align
+### 0. Finish and release the shared SDK
 
-- Check package/version compatibility across Screenplay, Arc, and CLI.
+Work in `/Volumes/sourcecode/repos/cratis/Screenplay.Generation` first.
+
+- Check package/version compatibility across Screenplay, Generation, Arc, and CLI.
 - Freeze existing Arc output/diagnostics with golden coverage before shared changes.
 - Do not create a downstream package dependency that can reproduce Screenplay AST `MissingMethodException` failures.
 

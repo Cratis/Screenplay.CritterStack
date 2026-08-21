@@ -31,16 +31,16 @@ For the first implementation, official .NET adapters should run in-process over 
 
 The research was performed read-only against these local checkouts:
 
-| Repository | Baseline |
-| --- | --- |
-| Screenplay | `main`, `a47cb2dd5f664f2aae351cd0986b8674475326e4`, `v4.2.1-5-ga47cb2d` |
-| Arc | `main`, `1e4750ff5784d77a15330e21ed2b0d49e188116a` |
-| Cratis CLI | `7b287b8...`; shipped Arc Screenplay package 21.14.2 was also inspected |
-| JasperFx | `main`, `da9fd17d69df5ff41940800bfb34ad4d88a88391`, package 2.53.0 |
-| Marten | `master`, `a483b09f881f1576152aa42a27b37cc17fab252f`, package 9.28.0 |
-| Wolverine | `main`, `af4807b5fb225ce7535c67785b74007fdad2dd9f`, package 6.29.1 |
-| CritterStackSamples | local clone at `~/CritterStackSamples` |
-| CritterStackHelpDesk | `main`, `b67659dd7ca6d8ff07e7b9dad20affc4a37b6062`, Marten 6.3/Wolverine 1.11 |
+| Repository                | Baseline                                                                                     |
+| ------------------------- | -------------------------------------------------------------------------------------------- |
+| Screenplay                | `main`, `a47cb2dd5f664f2aae351cd0986b8674475326e4`, `v4.2.1-5-ga47cb2d`                      |
+| Arc                       | `main`, `1e4750ff5784d77a15330e21ed2b0d49e188116a`                                           |
+| Cratis CLI                | `7b287b8...`; shipped Arc Screenplay package 21.14.2 was also inspected                      |
+| JasperFx                  | `main`, `da9fd17d69df5ff41940800bfb34ad4d88a88391`, package 2.53.0                           |
+| Marten                    | `master`, `a483b09f881f1576152aa42a27b37cc17fab252f`, package 9.28.0                         |
+| Wolverine                 | `main`, `af4807b5fb225ce7535c67785b74007fdad2dd9f`, package 6.29.1                           |
+| CritterStackSamples       | local clone at `~/CritterStackSamples`                                                       |
+| CritterStackHelpDesk      | `main`, `b67659dd7ca6d8ff07e7b9dad20affc4a37b6062`, Marten 6.3/Wolverine 1.11                |
 | Wolverine IncidentService | canonical sample under `Wolverine/src/Samples/IncidentService`, Marten 9.23/Wolverine 6.29.1 |
 
 Official documentation reviewed included:
@@ -388,34 +388,42 @@ Marten and Wolverine should compose in phases:
 
 The integration layer augments evidence. It must not destructively replace Marten or Wolverine facts.
 
-## Package architecture
+## Repository and package architecture
 
-### Implement for the Critter Stack vertical slice
+The final topology follows the proven Arc model while separating release cadences:
 
 ```text
-Cratis.Screenplay
-  compiler, AST, printer, validator
+Cratis/Screenplay
+  Cratis.Screenplay
+    compiler, AST, printer, validator, editor tooling
 
-Cratis.Screenplay.Generation.Contracts
-  typed facts, evidence, source locations, diagnostics
-  no Roslyn or framework references
+Cratis/Screenplay.Generation
+  Cratis.Screenplay.Generation.Contracts
+    typed facts, evidence, source locations, diagnostics
+  Cratis.Screenplay.Generation
+    resolver, merger, lowerer, AST emitter, printer, verification
+  Cratis.Screenplay.Generation.DotNet
+    Compilation-facing context and reusable Roslyn/source utilities
+    no MSBuildWorkspace ownership
 
-Cratis.Screenplay.Generation
-  resolver, merger, lowerer, AST emitter, printer, verification
+Cratis/Screenplay.CritterStack
+  Cratis.CritterStack.Screenplay
+    Marten readers
+    Wolverine readers
+    Marten+Wolverine augmentation
+    complete compilation-in/source-out generator façade
 
-Cratis.Screenplay.Generation.DotNet
-  Compilation-facing context and reusable Roslyn/source utilities
-  no MSBuildWorkspace ownership
+Cratis/Arc
+  Cratis.Arc.Screenplay
+    existing complete Arc generator
 
-Cratis.CritterStack.Screenplay
-  Marten readers
-  Wolverine readers
-  Marten+Wolverine augmentation
+Cratis/cli
+  MSBuildWorkspace, host/provider selection, output
 ```
 
-These can initially live in the Screenplay repository. Keep `Cratis.Arc.Screenplay` in Arc unchanged during the MVP.
+The existing Arc architecture is the compatibility precedent: Arc publishes a package that accepts compilations and returns verified Screenplay source; CLI consumes it and owns workspace loading. The Critter Stack package should provide the same standalone experience while using the shared generation SDK internally.
 
-The Cratis CLI continues owning `MSBuildWorkspace` initially so its existing global-tool/MSBuild packaging behavior remains stable and one workspace can feed official .NET adapters.
+A separate generation repository avoids triggering Screenplay's combined NuGet/npm/VS Code release workflow for adapter SDK changes. A separate Critter Stack repository allows Marten/Wolverine compatibility to evolve without releasing the language/compiler or unrelated adapters.
 
 ### Future adapter seam
 
@@ -446,8 +454,8 @@ The current CLI hard-codes Arc in both provider construction and project filteri
 For the MVP:
 
 - add `--provider arc|marten|critter-stack|auto`;
-- keep Arc on its existing generator path;
-- send Marten/Critter Stack through the new facts pipeline;
+- keep Arc on its existing complete generator path;
+- invoke the complete Critter Stack generator package, which uses the shared facts pipeline internally;
 - load one workspace;
 - target a `.csproj` as the application root and include its transitive project-reference closure;
 - for a solution with one detected host, use that host and closure;

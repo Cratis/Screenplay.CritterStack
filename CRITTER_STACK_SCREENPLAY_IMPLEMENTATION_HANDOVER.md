@@ -23,11 +23,23 @@ Read the companion architecture first:
 ## Current status
 
 - Deep research of Screenplay, Arc, CLI, JasperFx, Marten, Wolverine, CritterStackSamples, canonical IncidentService, and CritterStackHelpDesk is complete.
-- Architecture is decided.
-- No source implementation existed at the start of this handover.
-- Screenplay package baseline is currently after v4.2.1.
-- Arc and CLI package references are materially older and must be aligned before cross-repository integration.
-- The implementation branch in Screenplay is `feat/source-generation-adapters`.
+- The existing Arc architecture is confirmed: `Cratis.Arc.Screenplay` is a NuGet package owned by Arc; it accepts Roslyn compilations, analyzes Arc/Chronicle source, creates the Screenplay AST/text, verifies it, and is consumed by Cratis CLI, which owns `MSBuildWorkspace`.
+- The final repository topology is decided and two public repositories have been created:
+  - <https://github.com/Cratis/Screenplay.Generation>
+  - <https://github.com/Cratis/Screenplay.CritterStack>
+- Screenplay itself has been restored to language/compiler/editor-only state. No generation or Critter Stack source remains there.
+- Shared generation contracts, resolver/lowerer, specs, and Roslyn SDK were moved before their first source commit to `/Volumes/sourcecode/repos/cratis/Screenplay.Generation`, branch `feat/generation-sdk`.
+- Critter Stack analysis, specs, research, this handover, and the fresh-session prompt were moved to `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack`, branch `feat/critter-stack-adapter`.
+- Implemented locally so far:
+  - typed facts/evidence/diagnostics;
+  - deterministic resolution and placement precedence;
+  - lowering for events, read models, reducers, commands, and queries;
+  - Roslyn catalogs/source/type utilities;
+  - Marten snapshot/single-stream discovery;
+  - initial Wolverine HTTP/handler/aggregate classification;
+  - real BankAccountES smoke generation with compiling `.play` and no diagnostics.
+- Canonical IncidentService builds cleanly and remains the next semantic acceptance fixture.
+- The SDK must be scaffolded, independently rebuilt, fixed for pre-release contract issues, released, and then consumed here through packages.
 
 Update this section whenever a stage lands.
 
@@ -35,9 +47,11 @@ Update this section whenever a stage lands.
 
 ### Implement now
 
-- `Cratis.Screenplay` remains the language compiler/AST/printer package.
-- Add neutral generation contracts, generation core, .NET analysis utilities, and Critter Stack adapter packages.
-- Adapters emit typed facts/evidence, never `.play` and never `ApplicationSyntax`.
+- `Cratis.Screenplay` remains the language compiler/AST/printer repository and package.
+- `Cratis.Screenplay.Generation` owns neutral contracts, resolution/lowering, verification, and the shared Roslyn SDK in its own repository/release line.
+- `Cratis.CritterStack.Screenplay` owns Marten/Wolverine interpretation in its own repository/release line.
+- Low-level adapters emit typed facts/evidence, never `ApplicationSyntax`.
+- Each ecosystem package exposes a complete compilation-in/source-out generator façade, matching the existing `Cratis.Arc.Screenplay` package experience.
 - One central resolver/lowerer/emitter verifies every generated document.
 - Use Roslyn semantic symbols and fully qualified metadata names.
 - Keep official .NET adapters in-process over one CLI-owned workspace for the MVP.
@@ -71,30 +85,36 @@ The contracts must be serialization-friendly so these can be introduced without 
 - Do not move/type-forward the broad Arc public model surface during the MVP.
 - Do not expand the Screenplay grammar before measuring actual loss from the first working generator.
 
-## Target package graph
-
-Add these projects to the Screenplay solution:
+## Target repository and package graph
 
 ```text
-Cratis.Screenplay.Generation.Contracts
-  -> no dependency on Roslyn, MSBuild, Arc, Marten, or Wolverine
+Cratis/Screenplay
+  Cratis.Screenplay
+    -> language/compiler/AST/printer/editor only
 
-Cratis.Screenplay.Generation
-  -> Cratis.Screenplay.Generation.Contracts
-  -> Cratis.Screenplay
+Cratis/Screenplay.Generation
+  Cratis.Screenplay.Generation.Contracts
+    -> no dependency on Roslyn, MSBuild, Arc, Marten, or Wolverine
+  Cratis.Screenplay.Generation
+    -> Contracts + Cratis.Screenplay
+  Cratis.Screenplay.Generation.DotNet
+    -> Contracts + Microsoft.CodeAnalysis
 
-Cratis.Screenplay.Generation.DotNet
-  -> Cratis.Screenplay.Generation.Contracts
-  -> Microsoft.CodeAnalysis.CSharp
+Cratis/Screenplay.CritterStack
+  Cratis.CritterStack.Screenplay
+    -> Contracts + Generation + Generation.DotNet
+    -> metadata-name matching only; no Marten/Wolverine runtime package dependency
+    -> exposes a complete generator façade like Cratis.Arc.Screenplay
 
-Cratis.CritterStack.Screenplay
-  -> Cratis.Screenplay.Generation.Contracts
-  -> Cratis.Screenplay.Generation
-  -> Cratis.Screenplay.Generation.DotNet
-  -> metadata-name matching only; no Marten/Wolverine runtime package dependency
+Cratis/Arc
+  Cratis.Arc.Screenplay
+    -> existing complete Arc generator, unchanged during MVP
+
+Cratis/cli
+  -> owns MSBuildWorkspace, project/host selection, output, and generator package selection
 ```
 
-The CLI owns `MSBuildWorkspace` initially and passes compilations/project metadata into the Critter Stack adapter.
+The Critter Stack package uses the shared SDK internally but remains independently consumable. The CLI passes loaded compilations to the complete Critter Stack generator, exactly as it does for Arc today.
 
 ## Semantic pipeline
 
@@ -441,19 +461,19 @@ Every diagnostic needs:
 
 ## Canonical test matrix
 
-| Fixture | Purpose |
-| --- | --- |
-| Existing Arc fixtures | byte-for-byte and diagnostic compatibility |
-| BankAccountES | event-sourced commands, snapshots, validation |
-| IncidentService | current aggregate/HTTP wrappers, route identity, delay, direct delete |
-| MartenWithProjectAspire | Marten-only async/multi-stream/EventProjection |
-| CritterStackHelpDesk | legacy APIs and multi-project API/worker/contracts |
-| CqrsMinimalApi | direct documents |
-| OutboxDemo | saga/outbox |
-| BookingMonolith | multiple entity loading |
-| Reports | `IMartenOp`, generated/custom identity |
-| Fleet service | broker topology, delayed messages, projection side effects |
-| ProjectManagement | manual Minimal API negative distinction |
+| Fixture                 | Purpose                                                               |
+| ----------------------- | --------------------------------------------------------------------- |
+| Existing Arc fixtures   | byte-for-byte and diagnostic compatibility                            |
+| BankAccountES           | event-sourced commands, snapshots, validation                         |
+| IncidentService         | current aggregate/HTTP wrappers, route identity, delay, direct delete |
+| MartenWithProjectAspire | Marten-only async/multi-stream/EventProjection                        |
+| CritterStackHelpDesk    | legacy APIs and multi-project API/worker/contracts                    |
+| CqrsMinimalApi          | direct documents                                                      |
+| OutboxDemo              | saga/outbox                                                           |
+| BookingMonolith         | multiple entity loading                                               |
+| Reports                 | `IMartenOp`, generated/custom identity                                |
+| Fleet service           | broker topology, delayed messages, projection side effects            |
+| ProjectManagement       | manual Minimal API negative distinction                               |
 
 For every fixture assert:
 
