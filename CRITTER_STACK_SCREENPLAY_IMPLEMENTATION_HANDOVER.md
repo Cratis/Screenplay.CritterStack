@@ -28,18 +28,23 @@ Read the companion architecture first:
   - <https://github.com/Cratis/Screenplay.Generation>
   - <https://github.com/Cratis/Screenplay.CritterStack>
 - Screenplay itself has been restored to language/compiler/editor-only state. No generation or Critter Stack source remains there.
-- Shared generation contracts, resolver/lowerer, specs, and Roslyn SDK were moved before their first source commit to `/Volumes/sourcecode/repos/cratis/Screenplay.Generation`, branch `feat/generation-sdk`.
-- Critter Stack analysis, specs, research, this handover, and the fresh-session prompt were moved to `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack`, branch `feat/critter-stack-adapter`.
+- Shared generation contracts, resolver/lowerer, specs, and Roslyn SDK were moved before their first source commit to `/Volumes/sourcecode/repos/cratis/Screenplay.Generation`.
+- Screenplay.Generation PR #1 merged green and created release/tag `v0.1.0`; package build/pack succeeded, but NuGet push is blocked by missing new-package trusted-publishing policies tracked in Screenplay.Generation issue #2.
+- Critter Stack analysis, specs, research, this handover, and the fresh-session prompt live in `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack`, branch `feat/critter-stack-adapter`.
 - Implemented locally so far:
   - typed facts/evidence/diagnostics;
   - deterministic resolution and placement precedence;
   - lowering for events, read models, reducers, commands, and queries;
   - Roslyn catalogs/source/type utilities;
   - Marten snapshot/single-stream discovery;
-  - initial Wolverine HTTP/handler/aggregate classification;
-  - real BankAccountES smoke generation with compiling `.play` and no diagnostics.
-- Canonical IncidentService builds cleanly and remains the next semantic acceptance fixture.
-- The SDK must be scaffolded, independently rebuilt, fixed for pre-release contract issues, released, and then consumed here through packages.
+  - Wolverine HTTP/handler/aggregate classification, response-wrapper exclusion, direct document deletion, and delayed-message consequence diagnostics;
+  - complete compilation-in/source-out Critter Stack generator façade;
+  - 33 adapter/generator specs;
+  - real BankAccountES smoke generation with compiling `.play` and no diagnostics;
+  - real canonical IncidentService generation with 18 artifacts, one explicit delayed-delivery warning, and no fabricated `UpdatedAggregate` event.
+- Arc PR #2594 updates `Cratis.Arc.Screenplay` to Screenplay 4.2.1/reaction syntax; 1,262 Screenplay specs and all three real Arc generation fixtures pass locally, with CI rerun after one unrelated hung Swagger job.
+- CLI branch `feat/critter-stack-screenplay` adds `auto|arc|marten|critter-stack` provider routing. Local package-feed validation passes 500 CLI specs, a zero-warning Release build, real Arc generation, real BankAccountES generation, and real IncidentService generation.
+- Remaining release-order blocker: publish Generation 0.1.0 after NuGet policy setup, then merge/release Critter Stack, then update CLI to published Arc/Critter versions and open its PR.
 
 Update this section whenever a stage lands.
 
