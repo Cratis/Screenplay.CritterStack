@@ -52,6 +52,9 @@ Repository boundaries:
 - Context-aware handling of aggregate returns, direct stream operations, HTTP query returns, document deletes, and command/read-model relationships.
 - Evidence-strength-based placements so exact Wolverine behavior overrides Marten heuristics.
 - Dedicated synthetic Marten specs.
+- Complete `CritterStackScreenplayGenerator` compilation-in/source-out façade matching the Arc package architecture.
+- Adapter version derived from assembly informational version.
+- Synthetic current Wolverine/Marten fixture covering start stream, aggregate events, response wrappers, `Events`, `OutgoingMessages`, external events, direct document deletion, and queries.
 
 ## Verified before repository split
 
@@ -65,25 +68,27 @@ Repository boundaries:
   - query endpoints;
   - correct distinction between aggregate event returns and HTTP results.
 - Canonical Wolverine IncidentService built cleanly.
+- The independent repository now builds Debug/Release with zero warnings/errors.
+- 31 adapter/generator specs pass.
+- Real canonical IncidentService generation succeeds with zero diagnostics and captures 17 artifacts, including Archive/Categorise/Close/Log commands, external `Archived`, query/read model/reducer, and document deletion.
+- `UpdatedAggregate` is correctly excluded from events.
+- Local package pack succeeded; nuspec dependency direction is Generation 0.1.0 + Roslyn only.
 
 ## Immediate dependency sequence
 
-1. Finish, review, merge, and release `Cratis/Screenplay.Generation`.
-2. Replace temporary local source references here with released package versions.
-3. Add a complete `CritterStackScreenplayGenerator` façade matching Arc's public experience.
-4. Rebuild and run synthetic specs independently.
-5. Add pinned BankAccountES and IncidentService acceptance fixtures.
-6. Complete current IncidentService semantics: response wrappers, route-only identity, `Events`, `OutgoingMessages`, delayed dispatch, external `Archived`, and direct delete evidence.
-7. Add legacy Marten 6/Wolverine 1 fixtures from CritterStackHelpDesk.
-8. Pack, inspect dependencies, scratch-consume, and release.
-9. Integrate the published package into Cratis CLI.
+1. Screenplay.Generation PR #1 is merged and tagged `v0.1.0`; build/pack passed, but NuGet push is blocked by missing trusted-publishing policies tracked in Screenplay.Generation issue #2.
+2. Once the policies exist, rerun publish and verify all three 0.1.0 packages on nuget.org.
+3. Run this repository's default package-reference restore against nuget.org, then open/merge/release the Critter Stack package.
+4. Add pinned BankAccountES and canonical IncidentService fixture projects for end-to-end acceptance beyond the committed semantic snippets.
+5. Preserve route-only identity, HTTP response metadata, and delayed dispatch as explicit diagnostics/provenance until the Screenplay language can represent them.
+6. Add legacy Marten 6/Wolverine 1 fixtures from CritterStackHelpDesk.
+7. Integrate the published package into Cratis CLI.
 
 ## Known implementation gaps
 
-- The package currently exposes only the low-level adapter, not the complete compilation-in/source-out façade.
-- Adapter version is hard-coded instead of derived from package informational version.
-- Wolverine source has only synthetic/real smoke evidence, not committed canonical specs yet.
-- `Events` collection expressions and `OutgoingMessages` need fuller body-value analysis.
+- NuGet trusted-publishing policies are not configured for the new SDK or adapter package IDs.
+- Wolverine source has committed synthetic canonical coverage and real smoke evidence, but not yet frozen full-project fixtures.
+- `Events` collection expressions are recognized; outgoing/delayed message relationships need fuller body-value analysis.
 - Route-only identities and HTTP response metadata are facts but current Screenplay syntax cannot represent them fully.
 - Validation/authorization discovery is not implemented yet.
 - Multiple deployable hosts and cross-project contract identity still need acceptance coverage.
