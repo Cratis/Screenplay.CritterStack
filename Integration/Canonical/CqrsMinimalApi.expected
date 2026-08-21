@@ -1,0 +1,16 @@
+# JasperFx/CritterStackSamples @ 2c94389bcb5face1070d0409ef284973e8aaceea
+source: command CreateStudentRequest
+source: command UpdateStudentRequest
+source: command DeleteStudent
+source: query GetAll => Student[]
+source: query GetById => Student?
+source: query GetByName => Student?
+source: readmodel Student
+not-source: projection Student
+not-source: reducer Student
+artifact: Document:Student
+relationship: Stores
+relationship: Deletes
+relationship: Reads
+diagnostic: MARTEN0003
+diagnostic: WOLVERINE0002

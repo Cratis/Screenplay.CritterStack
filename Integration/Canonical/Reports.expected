@@ -1,0 +1,7 @@
+# JasperFx/CritterStackSamples @ 2c94389bcb5face1070d0409ef284973e8aaceea
+source: command StartReport
+not-source: readmodel Report
+artifact: Document:Report
+relationship: Stores
+diagnostic: MARTEN0003
+diagnostic: WOLVERINE0002

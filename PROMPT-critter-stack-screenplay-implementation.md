@@ -137,13 +137,14 @@ The CLI continues owning `MSBuildWorkspace` initially. Do not implement an adapt
 - Arc PR #2594 is merged and Arc 22.0.0 is published against Screenplay 4.2.1.
 - CLI PR #84 is a green intentional draft with provider routing and net7/net9 framework-reference repair. Do not merge it before the new packages resolve from nuget.org.
 - Pinned canonical verification is merged in Critter Stack PR #11; issue #5 is closed.
+- Critter Stack PR #14 adds ordinary Marten document facts/relationships, `MARTEN0003`, CqrsMinimalApi/Reports canonical checks, and the first bounded delivery toward Marten issue #3. Check whether it merged before resuming.
 - Public adapter strategy is committed in `STRATEGY.md`.
 
 ## Exact resume sequence
 
 1. Check whether Generation issue #2 and Critter Stack issue #1 are resolved. If policies now exist, rerun publish runs `32435010554` and `32437573817`, verify all four package IDs on nuget.org, close the issues, and remove release-asset bootstrap restore steps.
 2. Mark CLI PR #84 ready, rerun normal nuget.org restore/CI, merge green, and monitor the CLI release plus installed-tool generation against Arc, BankAccountES, and IncidentService.
-3. If policies are still blocked, do not stall: implement Marten completeness (#3) or Wolverine completeness (#4) against the merged pinned canonical workflow.
+3. If PR #14 is still open, finish it first. If policies are still blocked afterward, continue the remaining Marten completeness (#3)—compiled queries, identity configuration, EventProjection, multi-stream grouping, lifecycle, aliases/upcasts, tenancy—or Wolverine completeness (#4) against the pinned canonical workflow.
 4. Enable package validation after publication (Generation #3, Critter Stack #7).
 5. Design language additions only from measured diagnostics in Cratis/Screenplay#128.
 

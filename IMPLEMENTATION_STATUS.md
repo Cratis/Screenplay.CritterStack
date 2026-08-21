@@ -51,6 +51,7 @@ Repository boundaries:
 - `Cratis.CritterStack.Screenplay` adapter implementing the shared .NET adapter interface.
 - Marten projection registration discovery for snapshots and explicit single-stream projections.
 - Markerless event discovery from `Apply`, `Create`, and `ShouldDelete` conventions.
+- Direct Marten document discovery from registration, Store, Insert, Update, Delete, Load, and Query usage, with Store/Update/Delete/Read relationships and `MARTEN0003` rather than invented read models.
 - Read-model/reducer/builds/consumes facts.
 - Wolverine HTTP and message-handler discovery with route/response/version/validation loss diagnostics.
 - Context-aware handling of aggregate returns, direct stream operations, HTTP query returns, document deletes, and command/read-model relationships.
@@ -73,7 +74,7 @@ Repository boundaries:
   - correct distinction between aggregate event returns and HTTP results.
 - Canonical Wolverine IncidentService built cleanly.
 - The independent repository now builds Debug/Release with zero warnings/errors.
-- 36 adapter/generator specs pass.
+- 43 adapter/generator specs pass.
 - Real canonical IncidentService generation succeeds and captures commands, outgoing/delayed messages, external `Archived`, query/read model/reducer, and document deletion with explicit WOLVERINE0001-0005 loss diagnostics.
 - `UpdatedAggregate` is correctly excluded from events.
 - Real Marten 6/Wolverine 1 CritterStackHelpDesk generation now produces a compiling document after project/module-name sanitization.
@@ -95,12 +96,14 @@ Repository boundaries:
 4. Rerun failed Critter Stack publish run `32437573817`; verify `Cratis.CritterStack.Screenplay` 0.1.0 resolves from nuget.org, then close Critter Stack issue #1.
 5. Remove temporary GitHub-release-asset bootstrap restore steps from Critter Stack and CLI workflows; use ordinary nuget.org restore and rerun all checks.
 6. Mark CLI PR #84 ready, confirm all checks green, merge it, and monitor the CLI release.
-7. Continue product work through tracked issues: Marten completeness (#3), Wolverine completeness (#4), package validation (#7), and Screenplay language gaps (`Cratis/Screenplay#128`).
+7. After PR #14, continue the remaining Marten #3 work: compiled queries, identity/configuration evidence, EventProjection, multi-stream grouping/fan-out, lifecycle/daemon/subscriptions, aliases/upcasts, and tenancy.
+8. Then continue Wolverine completeness (#4), package validation (#7), and Screenplay language gaps (`Cratis/Screenplay#128`).
 
 ## Known implementation gaps
 
 - NuGet trusted-publishing policies are not configured for the new SDK or adapter package IDs; this is the only blocker to merging the already-green CLI integration.
 - Pinned canonical verification is complete through PR #11 and closed issue #5. It verifies current BankAccountES, a license-attributed current IncidentService fixture, and legacy CritterStackHelpDesk at immutable upstream commits.
+- PR #14 extends canonical verification to CqrsMinimalApi and Reports and implements the first bounded part of Marten completeness issue #3.
 - `Events` and delayed `OutgoingMessages` collection expressions are recognized; direct bus calls, richer delivery options, and transport topology need fuller body-value analysis.
 - Route-only identities and HTTP response metadata are facts but current Screenplay syntax cannot represent them fully.
 - Validation/authorization discovery is not implemented yet.

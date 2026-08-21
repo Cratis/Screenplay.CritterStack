@@ -18,6 +18,7 @@ static class WellKnownTypes
     public const string WolverineLegacyAggregateHandlerAttribute = "Wolverine.Marten.AggregateHandlerAttribute";
     public const string WolverineLegacyWriteAggregateAttribute = "Wolverine.Marten.WriteAggregateAttribute";
     public const string WolverineHttpAggregateAttribute = "Wolverine.Http.Marten.AggregateAttribute";
+    public const string WolverineEntityAttribute = "Wolverine.Persistence.EntityAttribute";
     public const string WolverineEvents = "Wolverine.Marten.Events";
     public const string WolverineEventsToAppend = "Wolverine.Persistence.EventSourcing.EventsToAppend";
     public const string WolverineOutgoingMessages = "Wolverine.OutgoingMessages";

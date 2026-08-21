@@ -41,6 +41,7 @@ The compatibility plan uses:
 See:
 
 - [`STRATEGY.md`](STRATEGY.md) — why the adapter is public and how it supports visualization, interoperability, and migration
+- [`MVP_ACCEPTANCE.md`](MVP_ACCEPTANCE.md) — the explicit stopping criteria for a credible preview and a later 1.0
 - [`CRITTER_STACK_SCREENPLAY_RESEARCH_AND_ARCHITECTURE.md`](CRITTER_STACK_SCREENPLAY_RESEARCH_AND_ARCHITECTURE.md)
 - [`CRITTER_STACK_SCREENPLAY_IMPLEMENTATION_HANDOVER.md`](CRITTER_STACK_SCREENPLAY_IMPLEMENTATION_HANDOVER.md)
 - [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md)
