@@ -95,16 +95,17 @@ Repository boundaries:
 4. Rerun failed Critter Stack publish run `32437573817`; verify `Cratis.CritterStack.Screenplay` 0.1.0 resolves from nuget.org, then close Critter Stack issue #1.
 5. Remove temporary GitHub-release-asset bootstrap restore steps from Critter Stack and CLI workflows; use ordinary nuget.org restore and rerun all checks.
 6. Mark CLI PR #84 ready, confirm all checks green, merge it, and monitor the CLI release.
-7. Continue product work through tracked issues: pinned canonical fixtures (#5), Marten completeness (#3), Wolverine completeness (#4), package validation (#7), and Screenplay language gaps (`Cratis/Screenplay#128`).
+7. Continue product work through tracked issues: Marten completeness (#3), Wolverine completeness (#4), package validation (#7), and Screenplay language gaps (`Cratis/Screenplay#128`).
 
 ## Known implementation gaps
 
 - NuGet trusted-publishing policies are not configured for the new SDK or adapter package IDs; this is the only blocker to merging the already-green CLI integration.
-- Wolverine source has committed synthetic canonical coverage and real smoke evidence, but not yet frozen full-project fixtures.
+- Pinned canonical verification is complete through PR #11 and closed issue #5. It verifies current BankAccountES, a license-attributed current IncidentService fixture, and legacy CritterStackHelpDesk at immutable upstream commits.
 - `Events` and delayed `OutgoingMessages` collection expressions are recognized; direct bus calls, richer delivery options, and transport topology need fuller body-value analysis.
 - Route-only identities and HTTP response metadata are facts but current Screenplay syntax cannot represent them fully.
 - Validation/authorization discovery is not implemented yet.
-- Multiple deployable hosts and cross-project contract identity still need acceptance coverage.
+- Multiple deployable hosts and API/worker cross-project contract relationships still need acceptance coverage.
+- MSBuildWorkspace can omit framework reference packs for net7/net9 projects. Canonical verification now repairs these references, and CLI PR #84 carries the equivalent loader fix so error symbols cannot silently become artifacts.
 - The current production project reference to the full Generation package should remain only if required by the complete generator façade; low-level analysis code must depend only on Contracts and DotNet.
 
 ## Safety
