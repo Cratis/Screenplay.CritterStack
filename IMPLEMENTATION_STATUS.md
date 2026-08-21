@@ -37,9 +37,11 @@ Repository boundaries:
 
 - GitHub repository: <https://github.com/Cratis/Screenplay.CritterStack>
 - Local repository: `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack`
+- `main` is clean and synchronized with `origin/main`.
 - Initial adapter PR: <https://github.com/Cratis/Screenplay.CritterStack/pull/2> (merged).
-- Release/tag: `v0.1.0`.
-- NuGet publishing blocker: issue #1; the verified nupkg is attached to the GitHub release until the trusted-publishing policy exists.
+- Release/tag: [`v0.1.0`](https://github.com/Cratis/Screenplay.CritterStack/releases/tag/v0.1.0).
+- The verified `Cratis.CritterStack.Screenplay.0.1.0.nupkg` is attached to the GitHub release.
+- NuGet publishing blocker: [issue #1](https://github.com/Cratis/Screenplay.CritterStack/issues/1); nuget.org returns 404 until a trusted-publishing policy is created and the publish job is rerun.
 - Research/handover commit imported from the original unpublished Screenplay branch.
 - Source projects were moved here before their first source commit.
 - No `.pi`, credentials, `bin`, or `obj` artifacts were transferred.
@@ -77,19 +79,27 @@ Repository boundaries:
 - Real Marten 6/Wolverine 1 CritterStackHelpDesk generation now produces a compiling document after project/module-name sanitization.
 - Local package pack succeeded; nuspec dependency direction is Generation 0.1.0 + Roslyn only.
 
-## Immediate dependency sequence
+## Current cross-repository status
 
-1. Screenplay.Generation PR #1 is merged and tagged `v0.1.0`; build/pack passed, but NuGet push is blocked by missing trusted-publishing policies tracked in Screenplay.Generation issue #2.
-2. Once the policies exist, rerun publish and verify all three 0.1.0 packages on nuget.org.
-3. After policy setup, rerun Critter Stack publish run 32437573817 and verify package 0.1.0 on nuget.org; remove temporary release-asset bootstrap steps.
-4. Cratis/Arc#2594 is merged and `Cratis.Arc.Screenplay` 22.0.0 is published against Screenplay 4.2.1.
-5. Cratis/cli#84 is implemented and locally verified against real Arc, BankAccountES, and IncidentService source; it remains draft until the new packages are available from nuget.org.
-6. Add pinned canonical fixture projects (issue #5), complete Marten analysis (#3), and complete Wolverine analysis (#4).
-7. Design language additions from measured losses in Cratis/Screenplay#128.
+- [`Cratis/Screenplay.Generation` PR #1](https://github.com/Cratis/Screenplay.Generation/pull/1) is merged and tagged [`v0.1.0`](https://github.com/Cratis/Screenplay.Generation/releases/tag/v0.1.0).
+- All three Generation nupkgs are attached to the release, but nuget.org returns 404 until [Generation issue #2](https://github.com/Cratis/Screenplay.Generation/issues/2) is resolved.
+- [`Cratis/Arc` PR #2594](https://github.com/Cratis/Arc/pull/2594) is merged; `Cratis.Arc.Screenplay` 22.0.0 is published against Screenplay 4.2.1. Arc issue #2558 is closed.
+- [`Cratis/cli` PR #84](https://github.com/Cratis/cli/pull/84) is an intentional draft. All checks pass. It is locally and in CI verified against Arc, BankAccountES, and canonical IncidentService source, but must not merge until the new Generation and Critter Stack packages are available from nuget.org.
+- Local working trees for Screenplay, Screenplay.Generation, Screenplay.CritterStack, and the CLI feature branch are clean except Screenplay's ignored/untracked local `.pi/` state.
+
+## Exact continuation order
+
+1. In nuget.org, create trusted-publishing policies for the three `Cratis.Screenplay.Generation.*` package IDs using repository `Cratis/Screenplay.Generation` and workflow `.github/workflows/publish.yml`.
+2. Rerun failed Generation publish run `32435010554`; verify all three `0.1.0` package IDs resolve from nuget.org, then close Generation issue #2.
+3. Create the trusted-publishing policy for `Cratis.CritterStack.Screenplay` using repository `Cratis/Screenplay.CritterStack` and workflow `.github/workflows/publish.yml`.
+4. Rerun failed Critter Stack publish run `32437573817`; verify `Cratis.CritterStack.Screenplay` 0.1.0 resolves from nuget.org, then close Critter Stack issue #1.
+5. Remove temporary GitHub-release-asset bootstrap restore steps from Critter Stack and CLI workflows; use ordinary nuget.org restore and rerun all checks.
+6. Mark CLI PR #84 ready, confirm all checks green, merge it, and monitor the CLI release.
+7. Continue product work through tracked issues: pinned canonical fixtures (#5), Marten completeness (#3), Wolverine completeness (#4), package validation (#7), and Screenplay language gaps (`Cratis/Screenplay#128`).
 
 ## Known implementation gaps
 
-- NuGet trusted-publishing policies are not configured for the new SDK or adapter package IDs.
+- NuGet trusted-publishing policies are not configured for the new SDK or adapter package IDs; this is the only blocker to merging the already-green CLI integration.
 - Wolverine source has committed synthetic canonical coverage and real smoke evidence, but not yet frozen full-project fixtures.
 - `Events` and delayed `OutgoingMessages` collection expressions are recognized; direct bus calls, richer delivery options, and transport topology need fuller body-value analysis.
 - Route-only identities and HTTP response metadata are facts but current Screenplay syntax cannot represent them fully.
