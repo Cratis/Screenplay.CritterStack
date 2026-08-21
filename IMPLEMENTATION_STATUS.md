@@ -37,7 +37,9 @@ Repository boundaries:
 
 - GitHub repository: <https://github.com/Cratis/Screenplay.CritterStack>
 - Local repository: `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack`
-- Branch: `feat/critter-stack-adapter`
+- Initial adapter PR: <https://github.com/Cratis/Screenplay.CritterStack/pull/2> (merged).
+- Release/tag: `v0.1.0`.
+- NuGet publishing blocker: issue #1; the verified nupkg is attached to the GitHub release until the trusted-publishing policy exists.
 - Research/handover commit imported from the original unpublished Screenplay branch.
 - Source projects were moved here before their first source commit.
 - No `.pi`, credentials, `bin`, or `obj` artifacts were transferred.
@@ -48,7 +50,7 @@ Repository boundaries:
 - Marten projection registration discovery for snapshots and explicit single-stream projections.
 - Markerless event discovery from `Apply`, `Create`, and `ShouldDelete` conventions.
 - Read-model/reducer/builds/consumes facts.
-- Initial Wolverine HTTP and message-handler discovery.
+- Wolverine HTTP and message-handler discovery with route/response/version/validation loss diagnostics.
 - Context-aware handling of aggregate returns, direct stream operations, HTTP query returns, document deletes, and command/read-model relationships.
 - Evidence-strength-based placements so exact Wolverine behavior overrides Marten heuristics.
 - Dedicated synthetic Marten specs.
@@ -69,26 +71,27 @@ Repository boundaries:
   - correct distinction between aggregate event returns and HTTP results.
 - Canonical Wolverine IncidentService built cleanly.
 - The independent repository now builds Debug/Release with zero warnings/errors.
-- 31 adapter/generator specs pass.
-- Real canonical IncidentService generation succeeds with zero diagnostics and captures 17 artifacts, including Archive/Categorise/Close/Log commands, external `Archived`, query/read model/reducer, and document deletion.
+- 36 adapter/generator specs pass.
+- Real canonical IncidentService generation succeeds and captures commands, outgoing/delayed messages, external `Archived`, query/read model/reducer, and document deletion with explicit WOLVERINE0001-0005 loss diagnostics.
 - `UpdatedAggregate` is correctly excluded from events.
+- Real Marten 6/Wolverine 1 CritterStackHelpDesk generation now produces a compiling document after project/module-name sanitization.
 - Local package pack succeeded; nuspec dependency direction is Generation 0.1.0 + Roslyn only.
 
 ## Immediate dependency sequence
 
 1. Screenplay.Generation PR #1 is merged and tagged `v0.1.0`; build/pack passed, but NuGet push is blocked by missing trusted-publishing policies tracked in Screenplay.Generation issue #2.
 2. Once the policies exist, rerun publish and verify all three 0.1.0 packages on nuget.org.
-3. Run this repository's default package-reference restore against nuget.org, then open/merge/release the Critter Stack package.
-4. Add pinned BankAccountES and canonical IncidentService fixture projects for end-to-end acceptance beyond the committed semantic snippets.
-5. Preserve route-only identity, HTTP response metadata, and delayed dispatch as explicit diagnostics/provenance until the Screenplay language can represent them.
-6. Add legacy Marten 6/Wolverine 1 fixtures from CritterStackHelpDesk.
-7. Integrate the published package into Cratis CLI.
+3. After policy setup, rerun Critter Stack publish run 32437573817 and verify package 0.1.0 on nuget.org; remove temporary release-asset bootstrap steps.
+4. Cratis/Arc#2594 is merged and `Cratis.Arc.Screenplay` 22.0.0 is published against Screenplay 4.2.1.
+5. Cratis/cli#84 is implemented and locally verified against real Arc, BankAccountES, and IncidentService source; it remains draft until the new packages are available from nuget.org.
+6. Add pinned canonical fixture projects (issue #5), complete Marten analysis (#3), and complete Wolverine analysis (#4).
+7. Design language additions from measured losses in Cratis/Screenplay#128.
 
 ## Known implementation gaps
 
 - NuGet trusted-publishing policies are not configured for the new SDK or adapter package IDs.
 - Wolverine source has committed synthetic canonical coverage and real smoke evidence, but not yet frozen full-project fixtures.
-- `Events` collection expressions are recognized; outgoing/delayed message relationships need fuller body-value analysis.
+- `Events` and delayed `OutgoingMessages` collection expressions are recognized; direct bus calls, richer delivery options, and transport topology need fuller body-value analysis.
 - Route-only identities and HTTP response metadata are facts but current Screenplay syntax cannot represent them fully.
 - Validation/authorization discovery is not implemented yet.
 - Multiple deployable hosts and cross-project contract identity still need acceptance coverage.
