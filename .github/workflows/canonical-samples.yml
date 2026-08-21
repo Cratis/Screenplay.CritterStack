@@ -62,6 +62,8 @@ jobs:
       - name: Build canonical applications
         run: |
           dotnet build samples/critter-stack/BankAccountES/BankAccountES.csproj --configuration Debug
+          dotnet build samples/critter-stack/CqrsMinimalApi/CqrsMinimalApi.csproj --configuration Debug
+          dotnet build samples/critter-stack/Reports/Reports.csproj --configuration Debug
           dotnet build adapter/Integration/Canonical/IncidentService/IncidentService.csproj --configuration Debug
           dotnet build samples/helpdesk/Helpdesk.Api/Helpdesk.Api.csproj --configuration Debug
 
@@ -71,6 +73,20 @@ jobs:
             samples/critter-stack/BankAccountES/BankAccountES.csproj \
             adapter/Integration/Canonical/BankAccountES.expected \
             "${RUNNER_TEMP}/BankAccountES.play"
+
+      - name: Generate and verify document CRUD
+        run: |
+          dotnet adapter/Source/DotNET/Canonical/bin/Release/net10.0/Cratis.CritterStack.Screenplay.Canonical.dll \
+            samples/critter-stack/CqrsMinimalApi/CqrsMinimalApi.csproj \
+            adapter/Integration/Canonical/CqrsMinimalApi.expected \
+            "${RUNNER_TEMP}/CqrsMinimalApi.play"
+
+      - name: Generate and verify Marten operation returns
+        run: |
+          dotnet adapter/Source/DotNET/Canonical/bin/Release/net10.0/Cratis.CritterStack.Screenplay.Canonical.dll \
+            samples/critter-stack/Reports/Reports.csproj \
+            adapter/Integration/Canonical/Reports.expected \
+            "${RUNNER_TEMP}/Reports.play"
 
       - name: Generate and verify IncidentService
         run: |

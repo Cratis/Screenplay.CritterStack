@@ -91,7 +91,10 @@ static class WolverineFacts
         var commandSubject = request?.Type is INamedTypeSymbol requestType
             ? project.SubjectForType(requestType)
             : MethodSubject(project, method, "command");
-        var commandName = request?.Type.Name ?? method.ContainingType.Name.Replace("Endpoint", string.Empty, StringComparison.Ordinal);
+        var entity = method.Parameters.FirstOrDefault(IsEntityParameter);
+        var commandName = request?.Type.Name ?? (method.ContainingType.Name.EndsWith("Endpoints", StringComparison.Ordinal)
+            ? $"{method.Name}{entity?.Type.Name}"
+            : method.ContainingType.Name.Replace("Endpoint", string.Empty, StringComparison.Ordinal));
         var evidence = MethodEvidence(method, project, adapter, EvidenceStrength.Exact, $"Wolverine HTTP {endpoint.Verb} endpoint");
         var file = evidence.Source?.Path;
         var properties = request?.Type is INamedTypeSymbol commandType
@@ -238,7 +241,9 @@ static class WolverineFacts
 
         var evidence = MethodEvidence(endpoint.Method, project, adapter, EvidenceStrength.Exact, $"Wolverine HTTP {endpoint.Verb} endpoint");
         var querySubject = MethodSubject(project, endpoint.Method, "query");
-        var queryName = endpoint.Method.ContainingType.Name.Replace("Endpoint", string.Empty, StringComparison.Ordinal);
+        var queryName = endpoint.Method.ContainingType.Name.EndsWith("Endpoints", StringComparison.Ordinal)
+            ? endpoint.Method.Name
+            : endpoint.Method.ContainingType.Name.Replace("Endpoint", string.Empty, StringComparison.Ordinal);
         var placement = BehaviorPlacement(project, options, model.Name, queryName, GenerationSliceKind.StateView);
         var queryKey = new ArtifactKey { Subject = querySubject, Kind = ArtifactKind.Query };
         var modelSubject = project.SubjectForType(model);
@@ -502,7 +507,7 @@ static class WolverineFacts
     static IReadOnlyList<PropertyDefinition> RouteProperties(IMethodSymbol method) => QueryProperties(method);
 
     static IParameterSymbol? RequestParameter(IMethodSymbol method) => method.Parameters.FirstOrDefault(_ =>
-        IsSourceType(_.Type) && !IsAggregateParameter(_));
+        IsSourceType(_.Type) && !IsAggregateParameter(_) && !IsEntityParameter(_));
 
     static IParameterSymbol? AggregateParameter(
         IMethodSymbol method,
@@ -514,6 +519,9 @@ static class WolverineFacts
             ? method.Parameters.FirstOrDefault(_ => !SymbolEqualityComparer.Default.Equals(_, request) && IsSourceType(_.Type))
             : null);
     }
+
+    static bool IsEntityParameter(IParameterSymbol parameter) =>
+        DotNetSymbols.HasAttributeAssignableTo(parameter, WellKnownTypes.WolverineEntityAttribute);
 
     static bool IsAggregateParameter(IParameterSymbol parameter) =>
         DotNetSymbols.HasAttributeAssignableTo(parameter, WellKnownTypes.WolverineWriteModelAttribute) ||
