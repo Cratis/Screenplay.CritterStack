@@ -80,7 +80,7 @@ static class WolverineFacts
         if (string.Equals(endpoint.Verb, "GET", StringComparison.Ordinal) ||
             string.Equals(endpoint.Verb, "QUERY", StringComparison.Ordinal))
         {
-            AnalyzeQuery(project, options, adapter, endpoint, facts);
+            AnalyzeQuery(project, options, adapter, endpoint, facts, diagnostics);
             return;
         }
 
@@ -102,10 +102,53 @@ static class WolverineFacts
 
         facts.Add(Artifact($"wolverine:command:{commandSubject.Value}", commandKey, commandName, file, properties, evidence));
         facts.Add(Placement($"wolverine:placement:command:{commandSubject.Value}", commandKey, placement, evidence));
+        diagnostics.Add(new GenerationDiagnostic
+        {
+            Code = WolverineDiagnosticCodes.HttpMetadataOmitted,
+            Severity = GenerationDiagnosticSeverity.Information,
+            Message = $"HTTP {endpoint.Verb} route '{endpoint.Route}' for '{commandName}' is not represented by the current Screenplay language",
+            Source = evidence.Source,
+            Subject = commandSubject
+        });
 
         if (aggregate?.Type is INamedTypeSymbol aggregateType)
         {
-            AddReadModelAndRelationship(project, adapter, commandSubject, request?.Type as INamedTypeSymbol, aggregateType, facts, evidence);
+            var commandTypeSymbol = request?.Type as INamedTypeSymbol;
+            AddReadModelAndRelationship(project, adapter, commandSubject, commandTypeSymbol, aggregateType, facts, evidence);
+            if (commandTypeSymbol is not null && IdentityProperty(commandTypeSymbol, aggregateType) is null)
+            {
+                diagnostics.Add(new GenerationDiagnostic
+                {
+                    Code = WolverineDiagnosticCodes.RouteIdentityOmitted,
+                    Severity = GenerationDiagnosticSeverity.Warning,
+                    Message = $"The '{aggregateType.Name}' identity for '{commandName}' comes from the HTTP route rather than a command property and cannot be marked as a Screenplay identifier",
+                    Source = evidence.Source,
+                    Subject = commandSubject
+                });
+            }
+            if (commandTypeSymbol?.GetMembers().OfType<IPropertySymbol>().Any(_ => _.Name == "Version") == true)
+            {
+                diagnostics.Add(new GenerationDiagnostic
+                {
+                    Code = WolverineDiagnosticCodes.StreamVersionOmitted,
+                    Severity = GenerationDiagnosticSeverity.Information,
+                    Message = $"The expected stream version on '{commandName}' cannot be represented exactly by Screenplay concurrency",
+                    Source = evidence.Source,
+                    Subject = commandSubject
+                });
+            }
+        }
+
+        if (HasLifecycleValidation(method.ContainingType))
+        {
+            diagnostics.Add(new GenerationDiagnostic
+            {
+                Code = WolverineDiagnosticCodes.ValidationOmitted,
+                Severity = GenerationDiagnosticSeverity.Warning,
+                Message = $"Compound-handler validation for '{commandName}' is preserved by its handler file but cannot be declared as Screenplay validation",
+                Source = evidence.Source,
+                Subject = commandSubject
+            });
         }
 
         var eventTypes = aggregateWorkflow && !HasEventStreamParameter(method)
@@ -115,7 +158,8 @@ static class WolverineFacts
         foreach (var eventType in eventTypes.Concat(bodyEvents).Distinct(SymbolEqualityComparer.Default).OfType<INamedTypeSymbol>())
         {
             var declarative = eventTypes.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) &&
-                              !bodyEvents.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType));
+                              !bodyEvents.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) &&
+                              !HasLifecycleValidation(method.ContainingType);
             AddEventAndProduction(project, commandSubject, eventType, placement, evidence, declarative, facts);
         }
 
@@ -183,7 +227,8 @@ static class WolverineFacts
         DotNetAdapterOptions options,
         AdapterIdentity adapter,
         HttpEndpoint endpoint,
-        List<GenerationFact> facts)
+        List<GenerationFact> facts,
+        List<GenerationDiagnostic> diagnostics)
     {
         var (model, isCollection, isOptional) = WolverineReturnTypes.QueryModel(endpoint.Method.ReturnType);
         if (model is null || !IsSourceType(model))
@@ -207,6 +252,14 @@ static class WolverineFacts
             QueryProperties(endpoint.Method),
             evidence));
         facts.Add(Placement($"wolverine:placement:query:{querySubject.Value}", queryKey, placement, evidence));
+        diagnostics.Add(new GenerationDiagnostic
+        {
+            Code = WolverineDiagnosticCodes.HttpMetadataOmitted,
+            Severity = GenerationDiagnosticSeverity.Information,
+            Message = $"HTTP {endpoint.Verb} route '{endpoint.Route}' for query '{queryName}' is not represented by the current Screenplay language",
+            Source = evidence.Source,
+            Subject = querySubject
+        });
         facts.Add(Artifact(
             $"wolverine:read-model:{modelSubject.Value}",
             modelKey,
@@ -609,6 +662,11 @@ static class WolverineFacts
         var route = attribute.ConstructorArguments.FirstOrDefault().Value as string;
         return new(method, verb, route);
     }
+
+    static bool HasLifecycleValidation(INamedTypeSymbol type) => type.GetMembers()
+        .OfType<IMethodSymbol>()
+        .Any(_ => string.Equals(_.Name, "Validate", StringComparison.Ordinal) ||
+                  string.Equals(_.Name, "ValidateAsync", StringComparison.Ordinal));
 
     static bool IsHandler(INamedTypeSymbol type, IMethodSymbol method) =>
         (type.Name.EndsWith("Handler", StringComparison.Ordinal) ||

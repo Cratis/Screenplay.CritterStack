@@ -25,5 +25,8 @@ public class when_generating_a_wolverine_marten_application : given.a_wolverine_
     [Fact] void should_record_the_document_delete() => _result.Graph.Relationships.Any(_ => _.Key.Kind == RelationshipKind.Deletes).ShouldBeTrue();
     [Fact] void should_record_the_outgoing_message() => _result.Graph.Relationships.Any(_ => _.Key.Kind == RelationshipKind.Cascades).ShouldBeTrue();
     [Fact] void should_report_delayed_delivery_as_language_loss() => _result.Diagnostics.Select(_ => _.Code).ShouldContain(WolverineDiagnosticCodes.DelayedMessageOmitted);
+    [Fact] void should_report_http_metadata_as_language_loss() => _result.Diagnostics.Select(_ => _.Code).ShouldContain(WolverineDiagnosticCodes.HttpMetadataOmitted);
+    [Fact] void should_report_route_identity_as_language_loss() => _result.Diagnostics.Select(_ => _.Code).ShouldContain(WolverineDiagnosticCodes.RouteIdentityOmitted);
+    [Fact] void should_report_stream_version_as_language_loss() => _result.Diagnostics.Select(_ => _.Code).ShouldContain(WolverineDiagnosticCodes.StreamVersionOmitted);
     [Fact] void should_use_project_qualified_subject_ids() => _result.Graph.Artifacts.All(_ => _.Key.Subject.Value.StartsWith("dotnet://IncidentService/", StringComparison.Ordinal)).ShouldBeTrue();
 }

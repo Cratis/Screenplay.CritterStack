@@ -12,4 +12,24 @@ public static class WolverineDiagnosticCodes
     /// A one-shot delayed message dispatch could not be represented by the current Screenplay language.
     /// </summary>
     public const string DelayedMessageOmitted = "WOLVERINE0001";
+
+    /// <summary>
+    /// HTTP verb, route, response, or binding metadata could not be represented by the current Screenplay language.
+    /// </summary>
+    public const string HttpMetadataOmitted = "WOLVERINE0002";
+
+    /// <summary>
+    /// Wolverine optimistic/exclusive stream version semantics could not be represented exactly.
+    /// </summary>
+    public const string StreamVersionOmitted = "WOLVERINE0003";
+
+    /// <summary>
+    /// The aggregate identity comes from the HTTP route rather than a command property.
+    /// </summary>
+    public const string RouteIdentityOmitted = "WOLVERINE0004";
+
+    /// <summary>
+    /// Compound-handler validation was preserved through a handler file but not declared as Screenplay validation.
+    /// </summary>
+    public const string ValidationOmitted = "WOLVERINE0005";
 }
