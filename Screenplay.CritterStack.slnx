@@ -1,5 +1,6 @@
 <Solution>
     <Folder Name="/Source/">
+        <Project Path="Source/DotNET/Canonical/Canonical.csproj" />
         <Project Path="Source/DotNET/CritterStack.Specs/CritterStack.Specs.csproj" />
         <Project Path="Source/DotNET/CritterStack/CritterStack.csproj" />
     </Folder>

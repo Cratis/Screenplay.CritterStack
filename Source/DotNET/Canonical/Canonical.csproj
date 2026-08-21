@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.CritterStack.Screenplay.Canonical</AssemblyName>
+        <RootNamespace>Cratis.CritterStack.Screenplay.Canonical</RootNamespace>
+        <OutputType>Exe</OutputType>
+        <TargetFrameworks>net10.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>false</IsTestProject>
+        <DedicatedSpecsProject>true</DedicatedSpecsProject>
+        <IncludeAllContentForSelfExtract Condition="'$(PublishSingleFile)' == 'true'">true</IncludeAllContentForSelfExtract>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Build.Locator" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+        <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
+        <PackageReference Include="Microsoft.NET.StringTools" ExcludeAssets="runtime" PrivateAssets="all" />
+        <PackageReference Update="Microsoft.CodeAnalysis.Workspaces.Common" PrivateAssets="none" />
+        <ProjectReference Include="../CritterStack/CritterStack.csproj" />
+    </ItemGroup>
+</Project>

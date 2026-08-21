@@ -1,0 +1,15 @@
+# JasperFx/CritterStackSamples @ 2c94389bcb5face1070d0409ef284973e8aaceea
+source: command DepositFunds
+source: command WithdrawFunds
+source: command OpenAccount
+source: readmodel Account
+source: reducer AccountSnapshot => Account
+source: readmodel AccountTransactions
+source: query GetTransactions => AccountTransactions?
+source: event FundsDeposited
+source: event FundsWithdrawn
+not-source: event IResult
+artifact: Command:DepositFunds
+artifact: Reducer:AccountTransactionsProjection
+relationship: Produces
+relationship: Reads

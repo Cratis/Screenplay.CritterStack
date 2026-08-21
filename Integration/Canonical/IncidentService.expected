@@ -1,0 +1,20 @@
+# JasperFx/wolverine @ af4807b5fb225ce7535c67785b74007fdad2dd9f
+source: command LogIncident
+source: command CategoriseIncident
+source: command CloseIncident
+source: command ArchiveIncident
+source: query GetIncident => Incident?
+source: reducer IncidentSnapshot => Incident
+source: event IncidentLogged
+source: event IncidentCategorised
+source: event IncidentClosed
+source: event Archived
+not-source: event UpdatedAggregate
+artifact: Message:ArchiveIncident
+relationship: Cascades
+relationship: Deletes
+diagnostic: WOLVERINE0001
+diagnostic: WOLVERINE0002
+diagnostic: WOLVERINE0003
+diagnostic: WOLVERINE0004
+diagnostic: WOLVERINE0005
