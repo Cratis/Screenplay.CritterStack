@@ -1,0 +1,48 @@
+name: .NET Build
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: "10.0.x"
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - "**"
+    paths:
+      - "Source/DotNET/**"
+      - "*.props"
+      - "*.targets"
+      - "*.slnx"
+      - "global.json"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .Net
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Build & run tests
+        run: dotnet test --configuration Debug
+
+      # The version is a sentinel, not a release. Package validation compares assembly versions, and one
+      # below the baseline is rejected on that alone before the API surface is ever looked at - so it has to
+      # be set on the build, since the pack below reuses what this produces.
+      - name: Build Release
+        run: dotnet build --configuration Release -p:Version=9999.0.0
+
+      # Package validation only runs on pack, so a binary break was invisible until the release failed on
+      # main - which is how eight versions came to be tagged with no package on NuGet. Packing here puts the
+      # break in the pull request that causes it, which is what Directory.Build.props already claims happens.
+      - name: Pack
+        run: dotnet pack --no-build --configuration Release -o ./Artifacts/NuGet -p:Version=9999.0.0

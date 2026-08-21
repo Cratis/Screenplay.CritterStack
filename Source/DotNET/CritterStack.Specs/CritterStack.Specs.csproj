@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.CritterStack.Screenplay.Specs</AssemblyName>
+        <RootNamespace>Cratis.CritterStack.Screenplay</RootNamespace>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+        <DedicatedSpecsProject>true</DedicatedSpecsProject>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Cratis.Screenplay.Generation.Contracts" />
+        <PackageReference Include="Cratis.Screenplay.Generation" />
+        <PackageReference Include="Cratis.Screenplay.Generation.DotNet" />
+        <PackageReference Include="Cratis.Specifications" />
+        <PackageReference Include="Cratis.Specifications.XUnit" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.runner.visualstudio">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+
+        <ProjectReference Include="../CritterStack/CritterStack.csproj" />
+    </ItemGroup>
+</Project>
