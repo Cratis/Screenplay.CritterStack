@@ -89,9 +89,9 @@ Repository boundaries:
 
 ## Exact continuation order
 
-1. In nuget.org, create trusted-publishing policies for the three `Cratis.Screenplay.Generation.*` package IDs using repository `Cratis/Screenplay.Generation` and workflow `.github/workflows/publish.yml`.
+1. In nuget.org, manually create one owner-scoped trusted-publishing policy for GitHub owner `Cratis`, repository `Screenplay.Generation`, workflow filename `publish.yml`, and no environment. One policy covers all packages owned by the selected NuGet owner; do not create one per package ID. NuGet currently has no policy-management API/CLI—NuGet/NuGetGallery#10690 tracks that request.
 2. Rerun failed Generation publish run `32435010554`; verify all three `0.1.0` package IDs resolve from nuget.org, then close Generation issue #2.
-3. Create the trusted-publishing policy for `Cratis.CritterStack.Screenplay` using repository `Cratis/Screenplay.CritterStack` and workflow `.github/workflows/publish.yml`.
+3. Manually create one owner-scoped policy for GitHub owner `Cratis`, repository `Screenplay.CritterStack`, workflow filename `publish.yml`, and no environment.
 4. Rerun failed Critter Stack publish run `32437573817`; verify `Cratis.CritterStack.Screenplay` 0.1.0 resolves from nuget.org, then close Critter Stack issue #1.
 5. Remove temporary GitHub-release-asset bootstrap restore steps from Critter Stack and CLI workflows; use ordinary nuget.org restore and rerun all checks.
 6. Mark CLI PR #84 ready, confirm all checks green, merge it, and monitor the CLI release.
