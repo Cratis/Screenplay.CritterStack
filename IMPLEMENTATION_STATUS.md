@@ -88,18 +88,18 @@ Repository boundaries:
 - [`Cratis/cli` PR #84](https://github.com/Cratis/cli/pull/84) is merged in CLI `v2.11.0`. Its discoverable, allowlisted provider registry selects bundled source providers from semantic evidence, lets Critter Stack supersede its Marten foundation, and rejects unrelated provider ambiguity. `CLI0008` rejects authored-source compilation errors; `CLI0009` rejects ambiguous multi-host solutions; `CLI0010`/`CLI0011` reject no-match/multiple-provider auto detection.
 - PR #84 passed all four GitHub checks. Fresh local verification after merging current CLI main into the branch passed 568 CLI specs and a Release build with zero warnings and zero errors. Real auto-provider generation was also rechecked against BankAccountES and IncidentService.
 - CLI documentation PR #86 is merged. It labels Marten/Critter Stack generation as preview, explains discovery and trust boundaries, and documents `CLI0008`–`CLI0011`.
+- CLI `v2.11.0` published successfully to NuGet, GitHub release assets, and Homebrew. The Homebrew installation was upgraded from 2.10.1 to 2.11.0 and tested from `/tmp`: Arc, BankAccountES, and IncidentService generation plus validation all exited successfully. The generated files were 74, 160, and 133 lines respectively. Generation reported explicit known losses—Arc 2 warnings/2 information, BankAccountES 1 warning/9 information, IncidentService 4 warnings/6 information—and IncidentService validation retained 7 known undeclared-type warnings while Arc and BankAccountES validated without compiler diagnostics.
 - Local CLI worktree `/Volumes/sourcecode/repos/cratis/cli-critter` and its feature branch were removed after merge. The durable continuation root remains `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack`.
 
 ## Exact continuation order
 
-1. Confirm CLI `v2.11.0` publishing completed, install the released global tool from its ordinary distribution, and generate Arc, BankAccountES, and IncidentService Screenplays from a neutral directory outside every source repository.
-2. In nuget.org, manually create one owner-scoped trusted-publishing policy for GitHub owner `Cratis`, repository `Screenplay.Generation`, workflow filename `publish.yml`, and no environment. One policy covers all packages owned by the selected NuGet owner; do not create one per package ID. NuGet currently has no policy-management API/CLI—NuGet/NuGetGallery#10690 tracks that request.
-3. Rerun failed Generation publish run `32435010554`; verify all three `0.1.0` package IDs resolve from nuget.org, then close Generation issue #2.
-4. Manually create one owner-scoped policy for GitHub owner `Cratis`, repository `Screenplay.CritterStack`, workflow filename `publish.yml`, and no environment.
-5. Rerun failed Critter Stack publish run `32437573817`; verify `Cratis.CritterStack.Screenplay` 0.1.0 resolves from nuget.org, then close Critter Stack issue #1.
-6. Remove temporary GitHub-release-asset bootstrap restore steps from Critter Stack and CLI workflows; use ordinary nuget.org restore and rerun all checks.
-7. Enable package validation (Generation #3 and Critter Stack #7).
-8. Continue remaining Marten completeness (#3), Wolverine completeness (#4), and measured Screenplay language gaps (`Cratis/Screenplay#128`).
+1. In nuget.org, manually create one owner-scoped trusted-publishing policy for GitHub owner `Cratis`, repository `Screenplay.Generation`, workflow filename `publish.yml`, and no environment. One policy covers all packages owned by the selected NuGet owner; do not create one per package ID. NuGet currently has no policy-management API/CLI—NuGet/NuGetGallery#10690 tracks that request.
+2. Rerun failed Generation publish run `32435010554`; verify all three `0.1.0` package IDs resolve from nuget.org, then close Generation issue #2.
+3. Manually create one owner-scoped policy for GitHub owner `Cratis`, repository `Screenplay.CritterStack`, workflow filename `publish.yml`, and no environment.
+4. Rerun failed Critter Stack publish run `32437573817`; verify `Cratis.CritterStack.Screenplay` 0.1.0 resolves from nuget.org, then close Critter Stack issue #1.
+5. Remove temporary GitHub-release-asset bootstrap restore steps from Critter Stack and CLI workflows; use ordinary nuget.org restore and rerun all checks.
+6. Enable package validation (Generation #3 and Critter Stack #7).
+7. Continue remaining Marten completeness (#3), Wolverine completeness (#4), and measured Screenplay language gaps (`Cratis/Screenplay#128`).
 
 ## Known implementation gaps
 

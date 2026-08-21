@@ -22,7 +22,7 @@ The preview is acceptable when it safely produces a useful, compiling Screenplay
 - [ ] Temporary GitHub-release package restore bootstrap steps are removed.
 - [x] CLI PR #84 passes CI, merges, and creates the `v2.11.0` release.
 - [ ] CLI release workflows restore the adapter only from ordinary package sources; temporary release-asset bootstrap remains until nuget.org publication.
-- [ ] The installed `cratis` global tool generates Arc, Marten, and Critter Stack Screenplays outside source repositories.
+- [x] The Homebrew-installed `cratis` 2.11.0 tool generates and validates Arc, Marten, and Critter Stack Screenplays from `/tmp`, outside source repositories.
 
 ### Compatibility safety
 
