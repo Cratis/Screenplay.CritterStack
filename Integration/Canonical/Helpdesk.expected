@@ -1,0 +1,15 @@
+# JasperFx/CritterStackHelpDesk @ b67659dd7ca6d8ff07e7b9dad20affc4a37b6062
+source: module HelpdeskApi
+source: command LogIncident
+source: command CategoriseIncident
+source: readmodel IncidentDetails
+source: reducer IncidentDetailsProjection => IncidentDetails
+source: event IncidentLogged
+source: event IncidentCategorised
+not-source: module Helpdesk.Api
+not-source: event RingAllTheAlarms
+artifact: Aggregate:IncidentDetails
+relationship: Produces
+relationship: Reads
+diagnostic: WOLVERINE0002
+diagnostic: WOLVERINE0003
