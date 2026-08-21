@@ -4,6 +4,8 @@ Generate verified [Cratis Screenplay](https://github.com/Cratis/Screenplay) defi
 
 `Cratis.CritterStack.Screenplay` follows the same package architecture as `Cratis.Arc.Screenplay`: a host supplies Roslyn compilations, and the package analyzes framework conventions, builds one semantic application model, lowers it through the shared Screenplay generation SDK, prints canonical `.play` source, and verifies it with the Screenplay compiler.
 
+This is an independent Cratis compatibility project. It is not affiliated with or endorsed by JasperFx. Marten, Wolverine, JasperFx, and Critter Stack names belong to their respective owners. Generated models may require human review wherever diagnostics report semantic loss.
+
 ## Goals
 
 - Marten-only event stores, documents, aggregates, projections, and queries.
