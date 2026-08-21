@@ -776,7 +776,7 @@ static class WolverineFacts
         string slice,
         GenerationSliceKind kind) => new()
     {
-        Module = options.Module ?? project.Name,
+        Module = ScreenplayNames.Declaration(options.Module ?? project.Name),
         Features = [feature],
         Slice = slice,
         SliceKind = kind

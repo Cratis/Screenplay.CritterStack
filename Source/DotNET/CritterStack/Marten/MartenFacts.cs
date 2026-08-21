@@ -261,7 +261,7 @@ static class MartenFacts
         DotNetAdapterOptions options,
         string modelName) => new()
     {
-        Module = options.Module ?? project.Name,
+        Module = ScreenplayNames.Declaration(options.Module ?? project.Name),
         Features = [modelName],
         Slice = modelName,
         SliceKind = GenerationSliceKind.StateView
@@ -272,7 +272,7 @@ static class MartenFacts
         DotNetAdapterOptions options,
         string eventName) => new()
     {
-        Module = options.Module ?? project.Name,
+        Module = ScreenplayNames.Declaration(options.Module ?? project.Name),
         Features = ["Events"],
         Slice = eventName,
         SliceKind = GenerationSliceKind.StateView
