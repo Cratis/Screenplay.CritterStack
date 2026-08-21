@@ -44,7 +44,10 @@ Read the companion architecture first:
   - real canonical IncidentService generation with 18 artifacts, one explicit delayed-delivery warning, and no fabricated `UpdatedAggregate` event.
 - Arc PR #2594 is merged and `Cratis.Arc.Screenplay` 22.0.0 is published against Screenplay 4.2.1/reaction syntax. 1,262 Screenplay specs, all real Arc generation fixtures, and CI pass.
 - CLI PR #84 adds `auto|arc|marten|critter-stack` provider routing. It is an intentional draft with all checks green. Local and CI validation covers 500 CLI specs, 164 Chronicle integration specs, a zero-warning Release build, real Arc generation, real BankAccountES generation, and real IncidentService generation.
-- Remaining release-order blocker: configure nuget.org trusted-publishing policies, rerun the two failed package publish jobs, remove temporary release-asset restore bootstrap steps, then mark CLI PR #84 ready and merge.
+- CLI PR #84 also repairs a discovered MSBuildWorkspace defect where net7/net9 framework reference packs can be omitted, preventing unresolved `IResult`/framework symbols from becoming false artifacts or hiding projections and queries.
+- Critter Stack PR #11 adds pinned canonical verification and closes issue #5: current BankAccountES, current license-attributed IncidentService, and legacy CritterStackHelpDesk are checked against source/artifact/relationship/diagnostic expectations without starting applications or databases.
+- Public/private strategy is recorded in `STRATEGY.md`; the adapter remains public while customer-specific migration intelligence may remain private.
+- Remaining release-order blocker: Einar must configure two owner-scoped nuget.org trusted-publishing policies, after which the publish jobs can be rerun, temporary release-asset restore steps removed, and CLI PR #84 marked ready and merged.
 
 Update this section whenever a stage lands.
 

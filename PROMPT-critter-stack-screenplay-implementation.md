@@ -130,15 +130,30 @@ The CLI continues owning `MSBuildWorkspace` initially. Do not implement an adapt
 - Emit explicit stable diagnostics for recognized but omitted/approximated behavior.
 - Every generated document must compile and pass print/compile/print stability.
 
-## Practical execution order
+## Current checkpoint — do not repeat completed work
+
+- Screenplay.Generation PR #1 and Critter Stack PR #2 are merged; both repositories are tagged `v0.1.0`, build cleanly, and have verified nupkgs attached to their GitHub releases.
+- Nuget.org publication is blocked only by two UI-created owner-scoped trusted-publishing policies assigned to `@einari`: Generation issue #2 and Critter Stack issue #1. NuGet has no policy-management API/CLI.
+- Arc PR #2594 is merged and Arc 22.0.0 is published against Screenplay 4.2.1.
+- CLI PR #84 is a green intentional draft with provider routing and net7/net9 framework-reference repair. Do not merge it before the new packages resolve from nuget.org.
+- Pinned canonical verification is merged in Critter Stack PR #11; issue #5 is closed.
+- Public adapter strategy is committed in `STRATEGY.md`.
+
+## Exact resume sequence
+
+1. Check whether Generation issue #2 and Critter Stack issue #1 are resolved. If policies now exist, rerun publish runs `32435010554` and `32437573817`, verify all four package IDs on nuget.org, close the issues, and remove release-asset bootstrap restore steps.
+2. Mark CLI PR #84 ready, rerun normal nuget.org restore/CI, merge green, and monitor the CLI release plus installed-tool generation against Arc, BankAccountES, and IncidentService.
+3. If policies are still blocked, do not stall: implement Marten completeness (#3) or Wolverine completeness (#4) against the merged pinned canonical workflow.
+4. Enable package validation after publication (Generation #3, Critter Stack #7).
+5. Design language additions only from measured diagnostics in Cratis/Screenplay#128.
+
+The historical stages below explain architecture and acceptance criteria; most foundation stages are already delivered.
+
+## Practical execution history
 
 ### 0. Finish and release the shared SDK
 
-Work in `/Volumes/sourcecode/repos/cratis/Screenplay.Generation` first.
-
-- Check package/version compatibility across Screenplay, Generation, Arc, and CLI.
-- Freeze existing Arc output/diagnostics with golden coverage before shared changes.
-- Do not create a downstream package dependency that can reproduce Screenplay AST `MissingMethodException` failures.
+Completed except nuget.org trusted-publishing policy bootstrap.
 
 ### 1. Neutral generation core
 
@@ -255,4 +270,4 @@ Before every commit and PR:
 
 ## Start now
 
-Begin by inspecting the current Screenplay branch and the two companion design documents, then execute Stage 0 and Stage 1. Do not merely produce another plan. Implement, specify, verify, commit, and ship each dependency-ordered stage while keeping the handover current.
+Read the durable status files, inspect the two trusted-publishing issues and CLI PR #84, then follow the exact resume sequence above. Do not recreate repositories or redo Stages 0–5. Implement, specify, verify, commit, and ship the next unblocked dependency-ordered unit while keeping this handover current.
