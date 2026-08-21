@@ -85,19 +85,21 @@ Repository boundaries:
 - [`Cratis/Screenplay.Generation` PR #1](https://github.com/Cratis/Screenplay.Generation/pull/1) is merged and tagged [`v0.1.0`](https://github.com/Cratis/Screenplay.Generation/releases/tag/v0.1.0).
 - All three Generation nupkgs are attached to the release, but nuget.org returns 404 until [Generation issue #2](https://github.com/Cratis/Screenplay.Generation/issues/2) is resolved.
 - [`Cratis/Arc` PR #2594](https://github.com/Cratis/Arc/pull/2594) is merged; `Cratis.Arc.Screenplay` 22.0.0 is published against Screenplay 4.2.1. Arc issue #2558 is closed.
-- [`Cratis/cli` PR #84](https://github.com/Cratis/cli/pull/84) is an intentional draft. All checks pass. It is locally and in CI verified against Arc, BankAccountES, and canonical IncidentService source, but must not merge until the new Generation and Critter Stack packages are available from nuget.org.
-- Local working trees for Screenplay, Screenplay.Generation, Screenplay.CritterStack, and the CLI feature branch are clean except Screenplay's ignored/untracked local `.pi/` state.
+- [`Cratis/cli` PR #84](https://github.com/Cratis/cli/pull/84) is merged in CLI `v2.11.0`. Its discoverable, allowlisted provider registry selects bundled source providers from semantic evidence, lets Critter Stack supersede its Marten foundation, and rejects unrelated provider ambiguity. `CLI0008` rejects authored-source compilation errors; `CLI0009` rejects ambiguous multi-host solutions; `CLI0010`/`CLI0011` reject no-match/multiple-provider auto detection.
+- PR #84 passed all four GitHub checks. Fresh local verification after merging current CLI main into the branch passed 568 CLI specs and a Release build with zero warnings and zero errors. Real auto-provider generation was also rechecked against BankAccountES and IncidentService.
+- CLI documentation PR #86 is merged. It labels Marten/Critter Stack generation as preview, explains discovery and trust boundaries, and documents `CLI0008`–`CLI0011`.
+- Local CLI worktree `/Volumes/sourcecode/repos/cratis/cli-critter` and its feature branch were removed after merge. The durable continuation root remains `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack`.
 
 ## Exact continuation order
 
-1. In nuget.org, manually create one owner-scoped trusted-publishing policy for GitHub owner `Cratis`, repository `Screenplay.Generation`, workflow filename `publish.yml`, and no environment. One policy covers all packages owned by the selected NuGet owner; do not create one per package ID. NuGet currently has no policy-management API/CLI—NuGet/NuGetGallery#10690 tracks that request.
-2. Rerun failed Generation publish run `32435010554`; verify all three `0.1.0` package IDs resolve from nuget.org, then close Generation issue #2.
-3. Manually create one owner-scoped policy for GitHub owner `Cratis`, repository `Screenplay.CritterStack`, workflow filename `publish.yml`, and no environment.
-4. Rerun failed Critter Stack publish run `32437573817`; verify `Cratis.CritterStack.Screenplay` 0.1.0 resolves from nuget.org, then close Critter Stack issue #1.
-5. Remove temporary GitHub-release-asset bootstrap restore steps from Critter Stack and CLI workflows; use ordinary nuget.org restore and rerun all checks.
-6. Mark CLI PR #84 ready, confirm all checks green, merge it, and monitor the CLI release.
-7. After PR #14, continue the remaining Marten #3 work: compiled queries, identity/configuration evidence, EventProjection, multi-stream grouping/fan-out, lifecycle/daemon/subscriptions, aliases/upcasts, and tenancy.
-8. Then continue Wolverine completeness (#4), package validation (#7), and Screenplay language gaps (`Cratis/Screenplay#128`).
+1. Confirm CLI `v2.11.0` publishing completed, install the released global tool from its ordinary distribution, and generate Arc, BankAccountES, and IncidentService Screenplays from a neutral directory outside every source repository.
+2. In nuget.org, manually create one owner-scoped trusted-publishing policy for GitHub owner `Cratis`, repository `Screenplay.Generation`, workflow filename `publish.yml`, and no environment. One policy covers all packages owned by the selected NuGet owner; do not create one per package ID. NuGet currently has no policy-management API/CLI—NuGet/NuGetGallery#10690 tracks that request.
+3. Rerun failed Generation publish run `32435010554`; verify all three `0.1.0` package IDs resolve from nuget.org, then close Generation issue #2.
+4. Manually create one owner-scoped policy for GitHub owner `Cratis`, repository `Screenplay.CritterStack`, workflow filename `publish.yml`, and no environment.
+5. Rerun failed Critter Stack publish run `32437573817`; verify `Cratis.CritterStack.Screenplay` 0.1.0 resolves from nuget.org, then close Critter Stack issue #1.
+6. Remove temporary GitHub-release-asset bootstrap restore steps from Critter Stack and CLI workflows; use ordinary nuget.org restore and rerun all checks.
+7. Enable package validation (Generation #3 and Critter Stack #7).
+8. Continue remaining Marten completeness (#3), Wolverine completeness (#4), and measured Screenplay language gaps (`Cratis/Screenplay#128`).
 
 ## Known implementation gaps
 
@@ -107,8 +109,8 @@ Repository boundaries:
 - `Events` and delayed `OutgoingMessages` collection expressions are recognized; direct bus calls, richer delivery options, and transport topology need fuller body-value analysis.
 - Route-only identities and HTTP response metadata are facts but current Screenplay syntax cannot represent them fully.
 - Validation/authorization discovery is not implemented yet.
-- Multiple deployable hosts and API/worker cross-project contract relationships still need acceptance coverage.
-- MSBuildWorkspace can omit framework reference packs for net7/net9 projects. Canonical verification now repairs these references, and CLI PR #84 carries the equivalent loader fix so error symbols cannot silently become artifacts.
+- Ambiguous multiple deployable hosts now have CLI specification coverage and fail with `CLI0009`; richer API/worker cross-project contract relationships still need acceptance coverage.
+- MSBuildWorkspace can omit framework reference packs for net7/net9 projects. Canonical and CLI generation repair these references, and remaining authored-source errors now fail with `CLI0008` so error symbols cannot silently become artifacts.
 - The current production project reference to the full Generation package should remain only if required by the complete generator façade; low-level analysis code must depend only on Contracts and DotNet.
 
 ## Safety
