@@ -1,9 +1,8 @@
 name: Verify Semver Label
 
-# A merged pull request with no major/minor/patch label produces a Publish run that reports success while
-# skipping every publish step, because the release action resolves should-publish to false. That reads as a
-# release having happened when nothing was published. Requiring the label here turns a silent non-release into
-# a visible failure before the merge, where it costs nothing to fix.
+# Every pull request declares release intent explicitly: major/minor/patch publishes, while no-release states
+# that the change affects only internal tooling, specs, documentation, or automation. Omitting a label is never an
+# implicit no-release because it is indistinguishable from forgetting to label a consumer-facing change.
 #
 # It also closes a race the publish workflow cannot: a label added moments after the merge may land too late
 # for the release to pick it up. Demanding the label before the merge means there is nothing to race.
@@ -31,21 +30,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Require exactly one semantic version label
+      - name: Require exactly one release intent label
         env:
           LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
         run: |
-          count=$(printf '%s' "$LABELS" | jq '[.[] | select(. == "major" or . == "minor" or . == "patch")] | length')
+          count=$(printf '%s' "$LABELS" | jq '[.[] | select(. == "major" or . == "minor" or . == "patch" or . == "no-release")] | length')
 
           if [ "$count" -eq 1 ]; then
-            echo "Found one semantic version label."
+            echo "Found one release intent label."
             exit 0
           fi
 
           if [ "$count" -eq 0 ]; then
-            echo "::error::This pull request has no semantic version label. Add exactly one of major, minor or patch. Without one, merging produces a Publish run that succeeds while skipping every publish step, so no release is cut and nothing is published."
+            echo "::error::This pull request has no release intent label. Add exactly one of major, minor, patch, or no-release."
           else
-            echo "::error::This pull request carries $count semantic version labels. Exactly one of major, minor or patch is required, since the release version cannot be derived from more than one."
+            echo "::error::This pull request carries $count release intent labels. Exactly one of major, minor, patch, or no-release is required."
           fi
 
           exit 1

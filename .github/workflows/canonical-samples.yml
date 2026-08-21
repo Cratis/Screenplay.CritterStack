@@ -1,0 +1,87 @@
+name: Canonical Critter Stack Samples
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 1'
+  pull_request:
+    branches:
+      - '**'
+    paths:
+      - 'Source/DotNET/CritterStack/**'
+      - 'Source/DotNET/Canonical/**'
+      - 'Integration/Canonical/**'
+      - '.github/workflows/canonical-samples.yml'
+
+env:
+  DOTNET_VERSION: 10.0.x
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout adapter
+        uses: actions/checkout@v4
+        with:
+          path: adapter
+
+      - name: Checkout Critter Stack samples
+        uses: actions/checkout@v4
+        with:
+          repository: JasperFx/CritterStackSamples
+          ref: 2c94389bcb5face1070d0409ef284973e8aaceea
+          path: samples/critter-stack
+
+      - name: Checkout legacy HelpDesk sample
+        uses: actions/checkout@v4
+        with:
+          repository: JasperFx/CritterStackHelpDesk
+          ref: b67659dd7ca6d8ff07e7b9dad20affc4a37b6062
+          path: samples/helpdesk
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Download Screenplay generation SDK packages
+        working-directory: adapter
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download v0.1.0 --repo Cratis/Screenplay.Generation --pattern '*.nupkg' --dir ./Artifacts/Dependencies
+
+      - name: Restore and build adapter
+        working-directory: adapter
+        run: |
+          dotnet restore Screenplay.CritterStack.slnx --property:Configuration=Release --source ./Artifacts/Dependencies --source https://api.nuget.org/v3/index.json
+          dotnet build Screenplay.CritterStack.slnx --no-restore --configuration Release
+
+      - name: Build canonical applications
+        run: |
+          dotnet build samples/critter-stack/BankAccountES/BankAccountES.csproj --configuration Debug
+          dotnet build adapter/Integration/Canonical/IncidentService/IncidentService.csproj --configuration Debug
+          dotnet build samples/helpdesk/Helpdesk.Api/Helpdesk.Api.csproj --configuration Debug
+
+      - name: Generate and verify BankAccountES
+        run: |
+          dotnet adapter/Source/DotNET/Canonical/bin/Release/net10.0/Cratis.CritterStack.Screenplay.Canonical.dll \
+            samples/critter-stack/BankAccountES/BankAccountES.csproj \
+            adapter/Integration/Canonical/BankAccountES.expected \
+            "${RUNNER_TEMP}/BankAccountES.play"
+
+      - name: Generate and verify IncidentService
+        run: |
+          dotnet adapter/Source/DotNET/Canonical/bin/Release/net10.0/Cratis.CritterStack.Screenplay.Canonical.dll \
+            adapter/Integration/Canonical/IncidentService/IncidentService.csproj \
+            adapter/Integration/Canonical/IncidentService.expected \
+            "${RUNNER_TEMP}/IncidentService.play"
+
+      - name: Generate and verify legacy HelpDesk
+        run: |
+          dotnet adapter/Source/DotNET/Canonical/bin/Release/net10.0/Cratis.CritterStack.Screenplay.Canonical.dll \
+            samples/helpdesk/Helpdesk.Api/Helpdesk.Api.csproj \
+            adapter/Integration/Canonical/Helpdesk.expected \
+            "${RUNNER_TEMP}/Helpdesk.play"
