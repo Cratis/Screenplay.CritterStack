@@ -28,9 +28,9 @@ Read the companion architecture first:
   - <https://github.com/Cratis/Screenplay.Generation>
   - <https://github.com/Cratis/Screenplay.CritterStack>
 - Screenplay itself has been restored to language/compiler/editor-only state. No generation or Critter Stack source remains there.
-- Shared generation contracts, resolver/lowerer, specs, and Roslyn SDK were moved before their first source commit to `/Volumes/sourcecode/repos/cratis/Screenplay.Generation`.
-- Screenplay.Generation PR #1 merged green and created release/tag `v0.1.0`; package build/pack succeeded, but NuGet push is blocked by missing new-package trusted-publishing policies tracked in Screenplay.Generation issue #2.
-- Critter Stack analysis, specs, research, this handover, and the fresh-session prompt live in `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack`, branch `feat/critter-stack-adapter`.
+- Shared generation contracts, resolver/lowerer, specs, and Roslyn SDK live in `/Volumes/sourcecode/repos/cratis/Screenplay.Generation`; PR #1 is merged and `main` is clean.
+- Screenplay.Generation `v0.1.0` exists with all three verified nupkgs attached to the GitHub release. NuGet push is blocked only by missing trusted-publishing policies tracked in Screenplay.Generation issue #2.
+- Critter Stack analysis, specs, research, this handover, and the fresh-session prompt live on `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack/main`; initial PR #2 is merged and `v0.1.0` exists with the verified nupkg attached to the release.
 - Implemented locally so far:
   - typed facts/evidence/diagnostics;
   - deterministic resolution and placement precedence;
@@ -42,9 +42,9 @@ Read the companion architecture first:
   - 33 adapter/generator specs;
   - real BankAccountES smoke generation with compiling `.play` and no diagnostics;
   - real canonical IncidentService generation with 18 artifacts, one explicit delayed-delivery warning, and no fabricated `UpdatedAggregate` event.
-- Arc PR #2594 updates `Cratis.Arc.Screenplay` to Screenplay 4.2.1/reaction syntax; 1,262 Screenplay specs and all three real Arc generation fixtures pass locally, with CI rerun after one unrelated hung Swagger job.
-- CLI branch `feat/critter-stack-screenplay` adds `auto|arc|marten|critter-stack` provider routing. Local package-feed validation passes 500 CLI specs, a zero-warning Release build, real Arc generation, real BankAccountES generation, and real IncidentService generation.
-- Remaining release-order blocker: publish Generation 0.1.0 after NuGet policy setup, then merge/release Critter Stack, then update CLI to published Arc/Critter versions and open its PR.
+- Arc PR #2594 is merged and `Cratis.Arc.Screenplay` 22.0.0 is published against Screenplay 4.2.1/reaction syntax. 1,262 Screenplay specs, all real Arc generation fixtures, and CI pass.
+- CLI PR #84 adds `auto|arc|marten|critter-stack` provider routing. It is an intentional draft with all checks green. Local and CI validation covers 500 CLI specs, 164 Chronicle integration specs, a zero-warning Release build, real Arc generation, real BankAccountES generation, and real IncidentService generation.
+- Remaining release-order blocker: configure nuget.org trusted-publishing policies, rerun the two failed package publish jobs, remove temporary release-asset restore bootstrap steps, then mark CLI PR #84 ready and merge.
 
 Update this section whenever a stage lands.
 
