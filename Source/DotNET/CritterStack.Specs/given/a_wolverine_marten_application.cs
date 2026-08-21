@@ -12,6 +12,11 @@ public class a_wolverine_marten_application : Specification
             public class WolverineOptions;
             public class OutgoingMessages : System.Collections.Generic.List<object>;
             public interface ISideEffect;
+            public record DeliveryMessage<T>(T Message);
+            public static class DeliveryExtensions
+            {
+                public static DeliveryMessage<T> DelayedFor<T>(this T message) => new(message);
+            }
         }
 
         namespace Wolverine.Http
@@ -88,6 +93,8 @@ public class a_wolverine_marten_application : Specification
 
     const string ApplicationSource =
         """
+        using Wolverine;
+
         namespace IncidentService;
 
         public record IncidentLogged(System.Guid CustomerId, string Description);
@@ -140,7 +147,7 @@ public class a_wolverine_marten_application : Specification
             public static (Wolverine.Marten.UpdatedAggregate, Wolverine.Marten.Events, Wolverine.OutgoingMessages) Handle(
                 CloseIncident command,
                 [Wolverine.Http.Marten.Aggregate] Incident incident) =>
-                (new(), [new IncidentClosed(command.ClosedBy)], [new ArchiveIncident(incident.Id)]);
+                (new(), [new IncidentClosed(command.ClosedBy)], [new ArchiveIncident(incident.Id).DelayedFor()]);
         }
 
         public static class ArchiveIncidentHandler

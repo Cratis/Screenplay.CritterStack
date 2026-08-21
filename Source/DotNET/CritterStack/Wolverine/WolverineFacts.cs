@@ -48,6 +48,7 @@ static class WolverineFacts
         }
 
         var facts = new List<GenerationFact>();
+        var diagnostics = new List<GenerationDiagnostic>();
         var catalog = new DotNetArtifactCatalog(project.Compilation);
         foreach (var type in catalog.Types.Where(IsPublicSourceType))
         {
@@ -56,16 +57,16 @@ static class WolverineFacts
                 var endpoint = EndpointFor(method);
                 if (endpoint is not null)
                 {
-                    AnalyzeEndpoint(project, options, adapter, endpoint, facts);
+                    AnalyzeEndpoint(project, options, adapter, endpoint, facts, diagnostics);
                 }
                 else if (IsHandler(type, method))
                 {
-                    AnalyzeHandler(project, options, adapter, method, facts);
+                    AnalyzeHandler(project, options, adapter, method, facts, diagnostics);
                 }
             }
         }
 
-        return new(facts, []);
+        return new(facts, diagnostics);
     }
 
     static void AnalyzeEndpoint(
@@ -73,7 +74,8 @@ static class WolverineFacts
         DotNetAdapterOptions options,
         AdapterIdentity adapter,
         HttpEndpoint endpoint,
-        List<GenerationFact> facts)
+        List<GenerationFact> facts,
+        List<GenerationDiagnostic> diagnostics)
     {
         if (string.Equals(endpoint.Verb, "GET", StringComparison.Ordinal) ||
             string.Equals(endpoint.Verb, "QUERY", StringComparison.Ordinal))
@@ -118,6 +120,7 @@ static class WolverineFacts
         }
 
         AddDocumentDeletes(project, commandSubject, method, evidence, facts);
+        AddOutgoingMessages(project, commandSubject, method, evidence, facts, diagnostics);
     }
 
     static void AnalyzeHandler(
@@ -125,7 +128,8 @@ static class WolverineFacts
         DotNetAdapterOptions options,
         AdapterIdentity adapter,
         IMethodSymbol method,
-        List<GenerationFact> facts)
+        List<GenerationFact> facts,
+        List<GenerationDiagnostic> diagnostics)
     {
         var request = method.Parameters.FirstOrDefault(_ => IsSourceType(_.Type));
         if (request?.Type is not INamedTypeSymbol requestType)
@@ -171,6 +175,7 @@ static class WolverineFacts
         }
 
         AddDocumentDeletes(project, commandSubject, method, evidence, facts);
+        AddOutgoingMessages(project, commandSubject, method, evidence, facts, diagnostics);
     }
 
     static void AnalyzeQuery(
@@ -285,6 +290,80 @@ static class WolverineFacts
             eventSubject,
             evidence,
             discriminator: declarative ? "declarative" : "imperative"));
+    }
+
+    static void AddOutgoingMessages(
+        DotNetProjectCompilation project,
+        SubjectId sourceSubject,
+        IMethodSymbol method,
+        Evidence evidence,
+        List<GenerationFact> facts,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        foreach (var syntaxReference in method.DeclaringSyntaxReferences)
+        {
+            if (syntaxReference.GetSyntax() is not MethodDeclarationSyntax declaration)
+            {
+                continue;
+            }
+
+            var semanticModel = project.Compilation.GetSemanticModel(declaration.SyntaxTree);
+            foreach (var collection in declaration.DescendantNodes().OfType<CollectionExpressionSyntax>())
+            {
+                if (semanticModel.GetTypeInfo(collection).ConvertedType is not INamedTypeSymbol collectionType ||
+                    DotNetSubjectIds.MetadataName(collectionType.OriginalDefinition) != WellKnownTypes.WolverineOutgoingMessages)
+                {
+                    continue;
+                }
+
+                foreach (var element in collection.Elements.OfType<ExpressionElementSyntax>())
+                {
+                    if (semanticModel.GetTypeInfo(element.Expression).Type is not INamedTypeSymbol elementType)
+                    {
+                        continue;
+                    }
+
+                    var messageType = elementType.Name == "DeliveryMessage" && elementType.TypeArguments.FirstOrDefault() is INamedTypeSymbol delivered
+                        ? delivered
+                        : elementType;
+                    if (!IsEventPayloadType(messageType))
+                    {
+                        continue;
+                    }
+
+                    var messageSubject = project.SubjectForType(messageType);
+                    var delayed = element.Expression.DescendantNodesAndSelf()
+                        .OfType<InvocationExpressionSyntax>()
+                        .Any(_ => _.Expression.ToString().Contains("Delayed", StringComparison.Ordinal));
+                    facts.Add(Artifact(
+                        $"wolverine:message:{messageSubject.Value}",
+                        new ArtifactKey { Subject = messageSubject, Kind = ArtifactKind.Message },
+                        messageType.Name,
+                        SourceFileOf(messageType, project),
+                        DotNetTypeShapes.PropertiesOf(messageType),
+                        evidence));
+                    facts.Add(Relationship(
+                        $"wolverine:cascades:{sourceSubject.Value}:{messageSubject.Value}",
+                        sourceSubject,
+                        RelationshipKind.Cascades,
+                        messageSubject,
+                        evidence,
+                        discriminator: delayed ? "delayed" : "immediate"));
+
+                    if (delayed)
+                    {
+                        diagnostics.Add(new GenerationDiagnostic
+                        {
+                            Code = WolverineDiagnosticCodes.DelayedMessageOmitted,
+                            Severity = GenerationDiagnosticSeverity.Warning,
+                            Message = $"Handler '{method.ContainingType.Name}.{method.Name}' dispatches '{messageType.Name}' after a delay, which the current Screenplay language cannot represent",
+                            Source = evidence.Source,
+                            Subject = sourceSubject
+                        });
+                    }
+                }
+            }
+        }
     }
 
     static void AddDocumentDeletes(
