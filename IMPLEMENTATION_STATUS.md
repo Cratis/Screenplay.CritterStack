@@ -59,6 +59,7 @@ Repository boundaries:
 - Context-aware handling of aggregate returns, direct stream operations, HTTP query returns, document deletes, and command/read-model relationships.
 - Slot-level Wolverine return classification keeps HTTP responses, persisted events, persistence wrappers, cascades, `OutgoingMessages`, side effects, and direct `IEventStream<T>` consequences distinct.
 - Current and legacy Wolverine handler/return metadata, explicit and ignored handlers, and inactive open-generic/abstract handler types.
+- Exact authored `HandlerDiscovery.DisableConventionalDiscovery()` and `IncludeType<T>()` / `IncludeType(typeof(T))` configuration, same-compilation assembly inclusion, generated-source exclusion, and stable `WOLVERINE0007` diagnostics when custom predicates or external assembly scans cannot be resolved without guessing.
 - Exact direct bus send, publish, request/reply, scheduling, delivery-option scheduling, and topic-broadcast consequences with stable discriminators and no event fabrication.
 - Pure direct-bus handlers represented as reactions with message triggers and explicit lowering loss.
 - Evidence-strength-based placements so exact Wolverine behavior overrides Marten heuristics.
@@ -83,7 +84,7 @@ Repository boundaries:
   - correct distinction between aggregate event returns and HTTP results.
 - Canonical Wolverine IncidentService built cleanly.
 - The independent repository now builds Debug/Release with zero warnings/errors.
-- 92 adapter/generator specs pass.
+- 156 adapter/generator specs pass.
 - Real canonical IncidentService generation succeeds and captures commands, outgoing/delayed messages, external `Archived`, query/read model/reducer, and document deletion with explicit WOLVERINE0001-0005 loss diagnostics.
 - `UpdatedAggregate` is correctly excluded from events.
 - Real Marten 6/Wolverine 1 CritterStackHelpDesk generation now produces a compiling document after project/module-name sanitization.
@@ -124,7 +125,7 @@ Repository boundaries:
 - PR #14 extends canonical verification to CqrsMinimalApi and Reports and implements the first bounded part of Marten completeness issue #3.
 - Instance-based Marten projection registrations and direct async/live lifecycle constants are recognized; lifecycle remains a diagnostic-only loss until Screenplay can represent it. Projection daemon/subscription settings and computed lifecycle values are not yet analyzed.
 - CLI `v2.12.0` carries resolved package/assembly/capability provenance and explicit compatibility dimensions. Its committed package remains 0.1.0 until normal publication; local development can override to current 0.6.0 from `~/.nuget/cratis-local` and obtains `Canonical` support.
-- Current/legacy return slots, direct-stream cascades, direct bus delivery, and pure bus automations are classified. Return-only/`OutgoingMessages` automations, configured discovery policies, richer transport topology, sagas, DCB, subscriptions/forwarding, and projection side effects remain.
+- Current/legacy return slots, direct-stream cascades, direct bus delivery, pure bus automations, return-only/`OutgoingMessages` automations, and exact source-bound handler discovery activation are classified. Runtime/custom predicate discovery, external assembly and handler-module scanning, richer transport topology, sagas, DCB, subscriptions/forwarding, and projection side effects remain.
 - Route-only identities and HTTP response metadata are facts but current Screenplay syntax cannot represent them fully.
 - Validation/authorization discovery is not implemented yet.
 - Ambiguous multiple deployable hosts now have CLI specification coverage and fail with `CLI0009`; richer API/worker cross-project contract relationships still need acceptance coverage.

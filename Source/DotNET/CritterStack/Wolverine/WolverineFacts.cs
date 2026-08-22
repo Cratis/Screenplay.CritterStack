@@ -52,7 +52,8 @@ static class WolverineFacts
         }
 
         var facts = new List<GenerationFact>();
-        var diagnostics = new List<GenerationDiagnostic>();
+        var discovery = WolverineHandlerDiscovery.Discover(project);
+        var diagnostics = new List<GenerationDiagnostic>(discovery.Diagnostics);
         var catalog = new DotNetArtifactCatalog(project.Compilation);
         foreach (var type in catalog.Types.Where(_ => IsPublicSourceType(_) && !IsIgnored(_)))
         {
@@ -63,7 +64,7 @@ static class WolverineFacts
                 {
                     AnalyzeEndpoint(project, options, adapter, endpoint, facts, diagnostics);
                 }
-                else if (IsHandler(type, method))
+                else if (IsHandler(type, method, discovery.Policy))
                 {
                     AnalyzeHandler(project, options, adapter, method, facts, diagnostics);
                 }
@@ -874,37 +875,37 @@ static class WolverineFacts
         .Any(_ => string.Equals(_.Name, "Validate", StringComparison.Ordinal) ||
                   string.Equals(_.Name, "ValidateAsync", StringComparison.Ordinal));
 
-    static bool IsHandler(INamedTypeSymbol type, IMethodSymbol method)
+    static bool IsHandler(
+        INamedTypeSymbol type,
+        IMethodSymbol method,
+        WolverineHandlerDiscoveryPolicy discovery)
     {
-        if (type.IsGenericType || (type.IsAbstract && !type.IsStatic))
+        if (type.IsGenericType || (type.IsAbstract && !type.IsStatic) || !discovery.Includes(type))
         {
             return false;
         }
 
         var explicitMethod = DotNetSymbols.HasAttribute(method, WellKnownTypes.WolverineHandlerAttribute) ||
                              DotNetSymbols.HasAttribute(method, WellKnownTypes.WolverineLegacyHandlerAttribute);
-        if (explicitMethod)
-        {
-            return true;
-        }
-
-        var handlerType = type.Name.EndsWith("Handler", StringComparison.Ordinal) ||
-                          type.Name.EndsWith("Consumer", StringComparison.Ordinal) ||
-                          DotNetSymbols.Implements(type, "Wolverine.IWolverineHandler") ||
-                          DotNetSymbols.HasAttribute(type, WellKnownTypes.WolverineHandlerAttribute) ||
-                          DotNetSymbols.HasAttribute(type, WellKnownTypes.WolverineLegacyHandlerAttribute);
-        return handlerType && _handlerMethodNames.Contains(method.Name);
+        return explicitMethod || _handlerMethodNames.Contains(method.Name);
     }
 
-    static bool IsIgnored(ISymbol symbol) => DotNetSymbols.HasAttribute(symbol, WellKnownTypes.WolverineIgnoreAttribute);
+    static bool IsIgnored(ISymbol symbol) =>
+        DotNetSymbols.HasAttribute(symbol, WellKnownTypes.WolverineIgnoreAttribute) ||
+        DotNetSymbols.HasAttribute(symbol, WellKnownTypes.WolverineLegacyIgnoreAttribute);
 
     static bool IsPublicSourceType(INamedTypeSymbol type) =>
-        type.DeclaredAccessibility == Accessibility.Public && type.Locations.Any(_ => _.IsInSource);
+        type.DeclaredAccessibility == Accessibility.Public && type.Locations.Any(IsAuthoredSourceLocation);
 
     static bool IsPublicSourceMethod(IMethodSymbol method) =>
         method.DeclaredAccessibility == Accessibility.Public &&
         method.MethodKind == MethodKind.Ordinary &&
-        method.Locations.Any(_ => _.IsInSource);
+        method.Locations.Any(IsAuthoredSourceLocation);
+
+    static bool IsAuthoredSourceLocation(Location location) =>
+        location.IsInSource &&
+        location.SourceTree is not null &&
+        !DotNetGeneratedSource.IsGenerated(location.SourceTree);
 
     static bool IsSourceType(ITypeSymbol type) =>
         type is INamedTypeSymbol named && named.Locations.Any(_ => _.IsInSource);
