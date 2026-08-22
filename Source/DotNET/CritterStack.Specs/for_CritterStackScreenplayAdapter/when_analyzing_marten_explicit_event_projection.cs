@@ -15,6 +15,9 @@ public class when_analyzing_marten_explicit_event_projection : given.a_marten_ex
     [Fact] void should_preserve_store_update_and_delete_operations() => Targets(RelationshipKind.Stores, ArtifactKind.Document).ShouldContainOnly("ImportView");
     [Fact] void should_preserve_update_operations() => Targets(RelationshipKind.Updates, ArtifactKind.Document).ShouldContainOnly("ImportStatus");
     [Fact] void should_preserve_delete_and_delete_where_operations() => Targets(RelationshipKind.Deletes, ArtifactKind.Document).ShouldContainOnly("ImportView", "ImportAudit");
+    [Fact] void should_bind_store_operations_to_the_imported_event() => EventBoundTargets(RelationshipKind.Stores, "Imported").ShouldContainOnly("ImportView");
+    [Fact] void should_bind_update_operations_to_the_imported_event() => EventBoundTargets(RelationshipKind.Updates, "Imported").ShouldContainOnly("ImportStatus");
+    [Fact] void should_bind_delete_operations_to_the_removed_event() => EventBoundTargets(RelationshipKind.Deletes, "Removed").ShouldContainOnly("ImportView", "ImportAudit");
     [Fact] void should_not_use_teardown_as_operation_evidence() => Artifacts(ArtifactKind.Document).Select(NameOf).ShouldNotContain("TeardownOnly");
     [Fact] void should_not_infer_event_flow_from_an_arbitrary_switch_value() => Artifacts(ArtifactKind.Document).Select(NameOf).ShouldNotContain("HiddenDocument");
     [Fact] void should_not_fabricate_read_models_for_documents() => Artifacts(ArtifactKind.ReadModel).ShouldBeEmpty();
@@ -37,6 +40,16 @@ public class when_analyzing_marten_explicit_event_projection : given.a_marten_ex
                 .Where(_ => targets.Contains(_.Key.Subject))
                 .Select(NameOf)
         ];
+    }
+
+    IReadOnlyList<string> EventBoundTargets(RelationshipKind kind, string eventName)
+    {
+        var eventSubject = Artifacts(ArtifactKind.Event).Single(_ => NameOf(_) == eventName).Key.Subject.Value;
+        var targets = _graph.Relationships
+            .Where(_ => _.Key.Kind == kind && _.Key.Discriminator == eventSubject)
+            .Select(_ => _.Key.Target)
+            .ToHashSet();
+        return [.. Artifacts(ArtifactKind.Document).Where(_ => targets.Contains(_.Key.Subject)).Select(NameOf)];
     }
 
     static string NameOf(ResolvedArtifact artifact) => artifact.Variants.Single().Definition.Name;
