@@ -22,7 +22,7 @@ The canonical workflow pins source commits and verifies these exact package comb
 | BankAccountES | `JasperFx/CritterStackSamples@2c94389bcb5face1070d0409ef284973e8aaceea` | 9.20.0 | 6.23.1 | Aggregate handlers, snapshots, single-stream projection, commands, queries, and validation loss |
 | CqrsMinimalApi | `JasperFx/CritterStackSamples@2c94389bcb5face1070d0409ef284973e8aaceea` | 9.20.0 | 6.23.1 | Ordinary document CRUD, conventional identity, and HTTP entry points |
 | Reports | `JasperFx/CritterStackSamples@2c94389bcb5face1070d0409ef284973e8aaceea` | 9.20.1 | 6.23.1 | `IMartenOp`, document persistence, and custom typed conventional identity |
-| MartenWithProjectAspire | `JasperFx/CritterStackSamples@2c94389bcb5face1070d0409ef284973e8aaceea` | 9.20.1 | — | Generic and instance projection registration, async lifecycle, multi-stream projection, and exact `EventProjection.Create` document storage with explicit value-flow loss |
+| MartenWithProjectAspire | `JasperFx/CritterStackSamples@2c94389bcb5face1070d0409ef284973e8aaceea` | 9.20.1 | — | Generic and instance projection registration, async lifecycle, exact multi-stream identity/member grouping, direct and `IEvent<T>` fan-out child evidence, and exact `EventProjection.Create` document storage with explicit value-flow loss |
 | IncidentService | license-attributed fixture from `JasperFx/wolverine@af4807b5fb225ce7535c67785b74007fdad2dd9f` | 9.23.0 | 6.29.1 | Current HTTP aggregate workflow, response wrappers, direct append/delete, messages, delay, and query |
 | CritterStackHelpDesk | `JasperFx/CritterStackHelpDesk@b67659dd7ca6d8ff07e7b9dad20affc4a37b6062` | 6.3.0 | 1.11.1 | Legacy attributes/returns, API-worker contracts, event forwarding, and generated-source exclusion |
 
