@@ -29,7 +29,7 @@ public static class WolverineDiagnosticCodes
     public const string RouteIdentityOmitted = "WOLVERINE0004";
 
     /// <summary>
-    /// Compound-handler validation was preserved through a handler file but not declared as Screenplay validation.
+    /// Exact handler validation behavior could not be represented by the current generation contracts.
     /// </summary>
     public const string ValidationOmitted = "WOLVERINE0005";
 
@@ -42,4 +42,24 @@ public static class WolverineDiagnosticCodes
     /// Authored Wolverine handler discovery configuration could not be resolved exactly from source.
     /// </summary>
     public const string HandlerDiscoveryConfigurationUnresolved = "WOLVERINE0007";
+
+    /// <summary>
+    /// Exact Wolverine validation policy activation could not be represented by the current generation contracts.
+    /// </summary>
+    public const string ValidationPolicyOmitted = "WOLVERINE0008";
+
+    /// <summary>
+    /// Authored Wolverine validation configuration could not be resolved exactly from source.
+    /// </summary>
+    public const string ValidationConfigurationUnresolved = "WOLVERINE0009";
+
+    /// <summary>
+    /// Exact ASP.NET or Wolverine HTTP authorization behavior could not be represented by the current generation contracts.
+    /// </summary>
+    public const string AuthorizationOmitted = "WOLVERINE0010";
+
+    /// <summary>
+    /// Authored Wolverine HTTP authorization configuration could not be resolved exactly from source.
+    /// </summary>
+    public const string AuthorizationConfigurationUnresolved = "WOLVERINE0011";
 }
