@@ -3,12 +3,13 @@
 
 using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
+using Cratis.Screenplay.Generation.DotNet.Vogen;
 using Microsoft.CodeAnalysis;
 
 namespace Cratis.CritterStack.Screenplay;
 
 /// <summary>
-/// Defines a generator that creates a verified Screenplay definition from Marten and Wolverine source.
+/// Defines a generator that creates a verified Screenplay definition from composed .NET source semantics.
 /// </summary>
 public interface ICritterStackScreenplayGenerator
 {
@@ -32,19 +33,42 @@ public interface ICritterStackScreenplayGenerator
 }
 
 /// <summary>
-/// Generates verified Screenplay definitions from Marten and Wolverine source.
+/// Generates verified Screenplay definitions from independently composed .NET source adapters.
 /// </summary>
-/// <param name="adapter">The Critter Stack source adapter.</param>
+/// <param name="adapters">The independently identified source adapters.</param>
 /// <param name="generator">The shared Screenplay definition generator.</param>
 public sealed class CritterStackScreenplayGenerator(
-    IDotNetScreenplayAdapter adapter,
+    IReadOnlyList<IDotNetScreenplayAdapter> adapters,
     ScreenplayDefinitionGenerator generator) : ICritterStackScreenplayGenerator
 {
     /// <summary>
-    /// Initializes the generator with the default Critter Stack adapter and shared generation pipeline.
+    /// Initializes the generator with the default Vogen concept and Critter Stack adapters.
     /// </summary>
     public CritterStackScreenplayGenerator()
-        : this(new CritterStackScreenplayAdapter(), new ScreenplayDefinitionGenerator())
+        : this(
+            [new VogenConceptScreenplayAdapter(), new CritterStackScreenplayAdapter()],
+            new ScreenplayDefinitionGenerator())
+    {
+    }
+
+    /// <summary>
+    /// Initializes the generator with one adapter and a shared generation pipeline.
+    /// </summary>
+    /// <param name="adapter">The source adapter.</param>
+    /// <param name="generator">The shared Screenplay definition generator.</param>
+    public CritterStackScreenplayGenerator(
+        IDotNetScreenplayAdapter adapter,
+        ScreenplayDefinitionGenerator generator)
+        : this([adapter], generator)
+    {
+    }
+
+    /// <summary>
+    /// Initializes the generator with an externally composed adapter list and the default shared generation pipeline.
+    /// </summary>
+    /// <param name="adapters">The independently identified source adapters.</param>
+    public CritterStackScreenplayGenerator(IReadOnlyList<IDotNetScreenplayAdapter> adapters)
+        : this(adapters, new ScreenplayDefinitionGenerator())
     {
     }
 
@@ -70,17 +94,20 @@ public sealed class CritterStackScreenplayGenerator(
         CritterStackScreenplayOptions options)
     {
         var context = new DotNetAnalysisContext(projects);
-        var contribution = adapter.Analyze(
-            context,
-            new DotNetAdapterOptions
-            {
-                Module = options.Module,
-                NamespaceSegmentsToSkip = options.NamespaceSegmentsToSkip
-            });
+        var adapterOptions = new DotNetAdapterOptions
+        {
+            Module = options.Module,
+            NamespaceSegmentsToSkip = options.NamespaceSegmentsToSkip
+        };
+        var contributions = adapters
+            .Where(_ => _.CanAnalyze(context))
+            .Select(_ => _.Analyze(context, adapterOptions))
+            .ToArray();
+        var boundContributions = ConceptTypeReferenceBinder.Bind(context, contributions);
         var domain = options.Domain ?? (projects.Count == 1 ? projects[0].Name : "Application");
 
         return generator.Generate(
-            [contribution],
+            boundContributions,
             new ScreenplayGenerationOptions { Domain = domain });
     }
 }
