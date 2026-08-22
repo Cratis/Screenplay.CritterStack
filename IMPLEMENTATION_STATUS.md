@@ -68,12 +68,12 @@ Repository boundaries:
 - Pure direct-bus handlers represented as reactions with message triggers and explicit lowering loss.
 - Evidence-strength-based placements so exact Wolverine behavior overrides Marten heuristics.
 - Dedicated synthetic Marten specs.
-- Complete `CritterStackScreenplayGenerator` compilation-in/source-out façade matching the Arc package architecture.
+- Complete `CritterStackScreenplayGenerator` compilation-in/source-out façade matching the Arc package architecture, with default independent Vogen + Critter Stack composition, external adapter-list injection, and preserved contribution provenance.
 - Adapter version derived from assembly informational version.
 - Synthetic current Wolverine/Marten fixture covering start stream, aggregate events, response wrappers, `Events`, `OutgoingMessages`, external events, direct document deletion, and queries.
 - Pattern-discovery research maps Marten/Wolverine source evidence into State Change, State View, Automation, and Translation without conflating responses, cascades, publishes, side effects, or persisted events.
 - `COMPATIBILITY.md` records exact canonical package combinations, current source baselines, and explicit support tiers; CLI `v2.12.0` implements the planned NuGet provenance seam.
-- `VOGEN_CONCEPT_DISCOVERY_RESEARCH.md` establishes the reusable neutral-concept/Vogen architecture. Screenplay.Generation v0.2.0/v0.3.0 now provide neutral concept representation, attributes, subject-aware references, deterministic resolution, and lowering; validation remains in #6 before Vogen interpretation #7 and Critter Stack composition #25.
+- `VOGEN_CONCEPT_DISCOVERY_RESEARCH.md` establishes the reusable neutral-concept/Vogen architecture. Screenplay.Generation 0.7.0 supplies neutral concept validation and the separate Vogen adapter; the Critter Stack facade composes it without adding Vogen semantics to the Marten/Wolverine adapter.
 
 ## Verified before repository split
 
@@ -88,13 +88,13 @@ Repository boundaries:
   - correct distinction between aggregate event returns and HTTP results.
 - Canonical Wolverine IncidentService built cleanly.
 - The independent repository now builds Debug/Release with zero warnings/errors.
-- 331 Critter Stack specs pass in Debug on .NET 10 and in Release on .NET 8, .NET 9, and .NET 10: 1,324 passing target/configuration executions in the combined verification run.
+- 352 combined Critter Stack specs pass in Debug on .NET 10; the post-rebase Release build is warning-free on .NET 8, .NET 9, and .NET 10.
 - Real canonical IncidentService generation succeeds and captures commands, outgoing/delayed messages, external `Archived`, query/read model/reducer, document deletion, and compound validation with explicit WOLVERINE0001-0005 loss diagnostics.
 - `UpdatedAggregate` is correctly excluded from events.
 - Real Marten 6/Wolverine 1 CritterStackHelpDesk generation now produces a compiling document after project/module-name sanitization.
-- Pinned MartenWithProjectAspire generation verifies instance-registered async single-stream and multi-stream projections, exact authored `Day`/`Distance` daemon names, `DaemonMode.Solo`, exact `EventProjection.Create` document storage, and exact authored multi-stream `Identity`/`Identities` member selectors plus `FanOut` child evidence. Grouping, value-flow, ordinary-document, lifecycle, projection metadata, and daemon configuration losses remain explicit; arbitrary, computed, conditional, and tenancy grouping remains diagnostic-only.
-- A fresh six-fixture canonical run passed. The adapter Release build had zero warnings/errors; pinned external Reports, MartenWithProjectAspire, and legacy HelpDesk builds retained their documented upstream vulnerability/EOL/nullability warnings without suppression.
-- Local package validation succeeded against the public 0.1.0 baseline with sentinel version 9999.0.0; an isolated consumer restored and executed with the intended Generation 0.6.1 + Roslyn graph and no Vogen adapter.
+- Pinned MartenWithProjectAspire generation verifies projection grouping, EventProjection operations, exact projection metadata, and daemon mode while unresolved semantics remain explicit diagnostics.
+- A seven-fixture canonical run includes the pinned Cratis-owned Vogen 8.0.7 fixture; the six pre-existing non-Vogen outputs remain byte-identical.
+- Package validation uses the public 0.1.0 baseline with sentinel version 9999.0.0; the isolated consumer uses Generation 0.7.0 plus the separate Vogen adapter without a Vogen source-generator/runtime dependency in the production facade.
 - Verified v0.5.0 and v0.6.0 packages are attached to their GitHub releases and installed in `~/.nuget/cratis-local`; scratch consumers restore and execute without repository workflow changes.
 
 ## Current cross-repository status
@@ -119,8 +119,7 @@ Repository boundaries:
 5. Remove temporary GitHub-release-asset bootstrap restore steps from Critter Stack and CLI workflows; use ordinary nuget.org restore and rerun all checks.
 6. Enable package validation (Generation #3 and Critter Stack #7).
 7. Update CLI from the temporary adapter 0.1.0 bootstrap to the published current package so exact canonical package sets can be promoted from `SourceReviewed` to `Canonical`.
-8. Complete neutral concept validation in Screenplay.Generation #6, then implement authored-source Vogen interpretation (#7) and Critter Stack composition/canonical coverage (#25).
-9. Continue remaining Marten completeness (#3)—arbitrary multi-stream groupers/slicer replacements and tenancy-dependent grouping; event aliases/upcasts; richer tenancy; runtime/computed projection and subscription configuration; arbitrary query/projection expression reconstruction; non-Wolverine entry points; and `EventProjection` operations beyond the exact bounded set—or Wolverine completeness (#4), followed by measured Screenplay language gaps (`Cratis/Screenplay#128`).
+8. Complete Critter Stack Vogen composition/canonical coverage (#25), then continue remaining Marten completeness (#3)—aliases/upcasts, tenancy, richer daemon/subscription consequences, arbitrary expression reconstruction, and non-Wolverine entry points—or Wolverine completeness (#4), followed by measured Screenplay language gaps (`Cratis/Screenplay#128`).
 
 ## Known implementation gaps
 
@@ -135,7 +134,7 @@ Repository boundaries:
 - Validation/authorization discovery is deliberately source-bound: package presence alone has no effect; exact built-in policy activation and applied behavior are retained as `WOLVERINE0005` and `WOLVERINE0008`-`WOLVERINE0011` diagnostics because Generation 0.1.0 has no faithful neutral contracts. Runtime/custom validator registration, conditional policy activation, custom `IHttpPolicy` behavior, and broader ASP.NET route-group/fallback-policy data flow remain unresolved rather than guessed.
 - Ambiguous multiple deployable hosts now have CLI specification coverage and fail with `CLI0009`; richer API/worker cross-project contract relationships still need acceptance coverage.
 - MSBuildWorkspace can omit framework reference packs for net7/net9 projects. Canonical and CLI generation repair these references, and remaining authored-source errors now fail with `CLI0008` so error symbols cannot silently become artifacts.
-- The current production project reference to the full Generation package should remain only if required by the complete generator façade; low-level analysis code must depend only on Contracts and DotNet.
+- The production facade requires the full Generation and separate Vogen adapter packages; `CritterStackScreenplayAdapter` and the Marten/Wolverine readers remain independent of Vogen metadata and source-generator/runtime packages.
 
 ## Safety
 

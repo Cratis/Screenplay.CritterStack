@@ -1,6 +1,6 @@
 # Screenplay.CritterStack
 
-Generate verified [Cratis Screenplay](https://github.com/Cratis/Screenplay) definitions from Marten and Wolverine application source.
+Generate verified [Cratis Screenplay](https://github.com/Cratis/Screenplay) definitions from Marten, Wolverine, and independently composed .NET source semantics.
 
 `Cratis.CritterStack.Screenplay` follows the same package architecture as `Cratis.Arc.Screenplay`: a host supplies Roslyn compilations, and the package analyzes framework conventions, builds one semantic application model, lowers it through the shared Screenplay generation SDK, prints canonical `.play` source, and verifies it with the Screenplay compiler.
 
@@ -14,6 +14,7 @@ This is an independent Cratis compatibility project. It is not affiliated with o
 - Marten document identities from exact configuration, identity attributes, and conventions, without guessing unresolved expressions.
 - Marten compiled-query execution linked to proven Wolverine HTTP query entry points, including public plan parameters; unresolved nested executable flow reports `MARTEN0006` instead of guessing.
 - Marten + Wolverine HTTP and message handlers.
+- Vogen concepts, primitive representations, authored validation hooks, nullable usages, and explicit loss diagnostics through the separately composed `Cratis.Screenplay.Generation.DotNet.Vogen` adapter.
 - Current store-agnostic Wolverine event-sourcing APIs and legacy Marten-specific APIs.
 - Markerless event/message discovery from actual framework usage.
 - Deterministic output without starting the application or connecting to PostgreSQL.
@@ -23,14 +24,40 @@ This is an independent Cratis compatibility project. It is not affiliated with o
 
 ```text
 Roslyn compilations
-  -> Marten facts
-  -> Wolverine facts
-  -> Marten + Wolverine contextual interpretation
-  -> Cratis.Screenplay.Generation
+  -> Vogen concept contribution (when exact authored evidence exists)
+  -> Critter Stack Marten/Wolverine contribution (when framework evidence exists)
+  -> subject-aware concept usage binding
+  -> Cratis.Screenplay.Generation (all contributions, once)
   -> verified .play source
 ```
 
-The adapter matches framework APIs by metadata name and does not reference Marten or Wolverine runtime packages.
+`CritterStackScreenplayAdapter` remains a low-level Marten/Wolverine adapter and matches those framework APIs by metadata name without runtime package references. The generator facade depends on the separate Vogen adapter package; neither production package depends on the Vogen source-generator/runtime package used by analyzed applications.
+
+## Generator composition
+
+The parameterless facade composes Vogen and Critter Stack by default. Each adapter first identifies whether it can analyze the supplied projects, then contributes independently identified facts to one `ScreenplayDefinitionGenerator`:
+
+```csharp
+var result = new CritterStackScreenplayGenerator().Generate(
+    projects,
+    new CritterStackScreenplayOptions { Domain = "Ordering" });
+```
+
+Hosts can replace the default composition with one collection expression. Adapter order does not choose conflicts, and each contribution retains its own adapter identity and evidence:
+
+```csharp
+IDotNetScreenplayAdapter[] adapters =
+[
+    new VogenConceptScreenplayAdapter(),
+    new CritterStackScreenplayAdapter(),
+    externalAdapter
+];
+
+var generator = new CritterStackScreenplayGenerator(adapters);
+var result = generator.Generate(projects, options);
+```
+
+The existing `(IDotNetScreenplayAdapter, ScreenplayDefinitionGenerator)` constructor remains available for hosts that supply one adapter and their own shared pipeline.
 
 Shared generation infrastructure lives in [`Cratis/Screenplay.Generation`](https://github.com/Cratis/Screenplay.Generation). Cratis CLI owns `MSBuildWorkspace`, project/host selection, and output.
 
@@ -41,7 +68,8 @@ The compatibility plan uses:
 - Wolverine's current `src/Samples/IncidentService`;
 - `JasperFx/CritterStackHelpDesk` for Marten 6/Wolverine 1 behavior;
 - BankAccountES and other focused applications from the local Critter Stack sample corpus;
-- MartenWithProjectAspire for instance-registered async, multi-stream, and event projections.
+- MartenWithProjectAspire for instance-registered async, multi-stream, and event projections;
+- the repository-owned `VogenConcepts` fixture pinned to Vogen 8.0.7, Marten 9.29.0, and Wolverine 6.29.2.
 
 See:
 

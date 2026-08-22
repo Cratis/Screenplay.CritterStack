@@ -3,5 +3,6 @@
         <Project Path="Source/DotNET/Canonical/Canonical.csproj" />
         <Project Path="Source/DotNET/CritterStack.Specs/CritterStack.Specs.csproj" />
         <Project Path="Source/DotNET/CritterStack/CritterStack.csproj" />
+        <Project Path="Integration/Canonical/VogenConcepts/VogenConcepts.csproj" />
     </Folder>
 </Solution>
