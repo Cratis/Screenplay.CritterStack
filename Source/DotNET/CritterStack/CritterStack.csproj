@@ -4,7 +4,8 @@
         <RootNamespace>Cratis.CritterStack.Screenplay</RootNamespace>
         <IsPackable>true</IsPackable>
         <IsTestProject>false</IsTestProject>
-        <EnablePackageValidation>false</EnablePackageValidation>
+        <EnablePackageValidation>true</EnablePackageValidation>
+        <PackageValidationBaselineVersion>0.1.0</PackageValidationBaselineVersion>
         <Description>Generates verified Cratis Screenplay definitions from Marten and Wolverine source</Description>
     </PropertyGroup>
 

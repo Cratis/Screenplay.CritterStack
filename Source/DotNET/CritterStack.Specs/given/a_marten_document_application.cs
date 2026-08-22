@@ -109,7 +109,8 @@ public class a_marten_document_application : Specification
             Name = "Students",
             ProjectPath = "/workspace/Students/Students.csproj",
             SourceRoot = "/workspace",
-            Compilation = compilation
+            Compilation = compilation,
+            AuthoredSyntaxTrees = compilation.SyntaxTrees.ToHashSet()
         };
         Contribution = new CritterStackScreenplayAdapter().Analyze(
             new DotNetAnalysisContext([project]),

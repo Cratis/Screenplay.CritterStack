@@ -148,7 +148,8 @@ public class a_marten_explicit_event_projection_application : Specification
             Name = "Imports",
             ProjectPath = "/workspace/Imports/Imports.csproj",
             SourceRoot = "/workspace",
-            Compilation = compilation
+            Compilation = compilation,
+            AuthoredSyntaxTrees = compilation.SyntaxTrees.ToHashSet()
         };
         Contribution = new CritterStackScreenplayAdapter().Analyze(
             new DotNetAnalysisContext([project]),
