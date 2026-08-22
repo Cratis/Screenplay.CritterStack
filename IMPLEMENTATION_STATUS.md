@@ -88,7 +88,7 @@ Repository boundaries:
   - correct distinction between aggregate event returns and HTTP results.
 - Canonical Wolverine IncidentService built cleanly.
 - The independent repository now builds Debug/Release with zero warnings/errors.
-- The combined post-rebase Critter Stack spec count is updated by the final verification gate; Debug and Release remain warning-free.
+- 352 combined Critter Stack specs pass in Debug on .NET 10; the post-rebase Release build is warning-free on .NET 8, .NET 9, and .NET 10.
 - Real canonical IncidentService generation succeeds and captures commands, outgoing/delayed messages, external `Archived`, query/read model/reducer, document deletion, and compound validation with explicit WOLVERINE0001-0005 loss diagnostics.
 - `UpdatedAggregate` is correctly excluded from events.
 - Real Marten 6/Wolverine 1 CritterStackHelpDesk generation now produces a compiling document after project/module-name sanitization.
