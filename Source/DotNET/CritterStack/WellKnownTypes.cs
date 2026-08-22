@@ -14,6 +14,9 @@ static class WellKnownTypes
     public const string MartenDocumentMappingExpression = "Marten.MartenRegistry+DocumentMappingExpression`1";
     public const string JasperFxIdentityAttribute = "JasperFx.IdentityAttribute";
     public const string MartenProjectionOptions = "Marten.Events.Projections.ProjectionOptions";
+    public const string MartenProjection = "Marten.Events.Projections.IProjection";
+    public const string MartenProjectionBase = "Marten.Events.Projections.ProjectionBase";
+    public const string JasperFxProjectionBase = "JasperFx.Events.Projections.ProjectionBase";
     public const string MartenSingleStreamProjectionOneId = "Marten.Events.Aggregation.SingleStreamProjection`1";
     public const string MartenSingleStreamProjectionTwoIds = "Marten.Events.Aggregation.SingleStreamProjection`2";
     public const string MartenMultiStreamProjection = "Marten.Events.Projections.MultiStreamProjection`2";
@@ -24,6 +27,12 @@ static class WellKnownTypes
     public const string JasperFxSnapshotLifecycle = "JasperFx.Events.Projections.SnapshotLifecycle";
     public const string MartenProjectionLifecycle = "Marten.Events.Projections.ProjectionLifecycle";
     public const string MartenSnapshotLifecycle = "Marten.Events.Projections.SnapshotLifecycle";
+    public const string JasperFxDaemonMode = "JasperFx.Events.Daemon.DaemonMode";
+    public const string MartenDaemonMode = "Marten.Events.Daemon.Resiliency.DaemonMode";
+    public const string MartenSubscription = "Marten.Subscriptions.ISubscription";
+    public const string MartenSubscriptionBase = "Marten.Subscriptions.SubscriptionBase";
+    public const string MartenSubscriptionOptions = "Marten.Subscriptions.ISubscriptionOptions";
+    public const string JasperFxSubscriptionOptions = "JasperFx.Events.Subscriptions.ISubscriptionOptions";
     public const string WolverineOptions = "Wolverine.WolverineOptions";
     public const string WolverineHandlerDiscovery = "Wolverine.Configuration.HandlerDiscovery";
     public const string WolverineHttpOptions = "Wolverine.Http.WolverineHttpOptions";
