@@ -12,7 +12,9 @@ enum ExpectationKind
     Diagnostic,
     Artifact,
     Relationship,
-    Identifier
+    Identifier,
+    Grouping,
+    FanOut
 }
 
 sealed record Expectation(ExpectationKind Kind, string Value)
@@ -25,6 +27,8 @@ sealed record Expectation(ExpectationKind Kind, string Value)
         ExpectationKind.Artifact => result.Graph.Artifacts.Any(_ => $"{_.Key.Kind}:{_.Variants[0].Definition.Name}" == Value),
         ExpectationKind.Relationship => IsRelationshipIn(result, Value),
         ExpectationKind.Identifier => IsIdentifierIn(result, Value),
+        ExpectationKind.Grouping => IsGroupingIn(result, Value),
+        ExpectationKind.FanOut => IsFanOutIn(result, Value),
         _ => false
     };
 
@@ -74,6 +78,55 @@ sealed record Expectation(ExpectationKind Kind, string Value)
                        variant.Definition.Name == parts[1] &&
                        variant.Definition.Properties.Any(property => property.Name == parts[2] && property.IsIdentifier)));
     }
+
+    static bool IsGroupingIn(GeneratedScreenplayDefinition result, string value)
+    {
+        var parts = value.Split('|');
+        if (parts.Length != 4 || !bool.TryParse(parts[3], out var isOneToMany))
+        {
+            return false;
+        }
+
+        return result.Graph.Relationships.Any(relationship =>
+            relationship.Key.Kind == RelationshipKind.Consumes &&
+            ArtifactName(result, relationship.Key.Source, ArtifactKind.Reducer) == parts[0] &&
+            ArtifactName(result, relationship.Key.Target, ArtifactKind.Event) == parts[1] &&
+            relationship.Definitions.Any(definition =>
+                definition.Key.Discriminator?.StartsWith("marten:identit", StringComparison.Ordinal) == true &&
+                definition.TargetMember == parts[2] &&
+                definition.IsCollection == isOneToMany));
+    }
+
+    static bool IsFanOutIn(GeneratedScreenplayDefinition result, string value)
+    {
+        var parts = value.Split('|');
+        if (parts.Length != 4)
+        {
+            return false;
+        }
+
+        var parent = result.Graph.Artifacts
+            .FirstOrDefault(_ =>
+                _.Key.Kind == ArtifactKind.Event &&
+                _.Variants.Any(variant => variant.Definition.Name == parts[0]))?.Key.Subject.Value;
+        return parent is not null && result.Graph.Relationships.Any(relationship =>
+            relationship.Key.Kind == RelationshipKind.Consumes &&
+            ArtifactName(result, relationship.Key.Source, ArtifactKind.Reducer) is not null &&
+            ArtifactName(result, relationship.Key.Target, ArtifactKind.Event) == parts[1] &&
+            relationship.Definitions.Any(definition =>
+                definition.Key.Discriminator?.StartsWith($"marten:fan-out-child:{parent}:{parts[3]}:", StringComparison.Ordinal) == true &&
+                definition.SourceMember == parts[2] &&
+                definition.IsCollection));
+    }
+
+    static string? ArtifactName(
+        GeneratedScreenplayDefinition result,
+        SubjectId subject,
+        ArtifactKind kind) => result.Graph.Artifacts
+        .Where(_ => _.Key.Subject == subject && _.Key.Kind == kind)
+        .SelectMany(_ => _.Variants)
+        .Select(_ => _.Definition.Name)
+        .FirstOrDefault();
 }
 
 static class Expectations
@@ -102,6 +155,8 @@ static class Expectations
             "artifact" => ExpectationKind.Artifact,
             "relationship" => ExpectationKind.Relationship,
             "identifier" => ExpectationKind.Identifier,
+            "grouping" => ExpectationKind.Grouping,
+            "fan-out" => ExpectationKind.FanOut,
             _ => throw new InvalidExpectation(value)
         };
         return new(kind, value[(separator + 1)..].Trim());

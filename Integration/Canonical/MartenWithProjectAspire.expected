@@ -18,6 +18,9 @@ relationship: Stores
 relationship: Consumes Projection:DistanceProjection -> Event:Travel
 relationship: Builds Projection:DistanceProjection -> Document:Distance
 relationship: Stores Projection:DistanceProjection -> Document:Distance
+grouping: DayProjection|IDayEvent|day|false
+fan-out: Travel|Movement|movements|after-grouping
+fan-out: Travel|Stop|stops|after-grouping
 diagnostic: MARTEN0001
 diagnostic: MARTEN0002
 diagnostic: MARTEN0003
