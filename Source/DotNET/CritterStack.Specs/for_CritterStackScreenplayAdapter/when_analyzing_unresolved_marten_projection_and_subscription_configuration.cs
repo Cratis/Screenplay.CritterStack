@@ -12,7 +12,7 @@ public class when_analyzing_unresolved_marten_projection_and_subscription_config
     [Fact] void should_report_a_conditional_subscription_filter() => SubscriptionConfiguration.Any(_ => _.Message.Contains("ConditionalSubscription", StringComparison.Ordinal) && _.Message.Contains("IncludeType conditionally", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_report_a_computed_archived_policy() => SubscriptionConfiguration.Any(_ => _.Message.Contains("ConditionalSubscription", StringComparison.Ordinal) && _.Message.Contains("archived-event policy conditionally", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_report_an_unresolved_time_start() => SubscriptionConfiguration.Any(_ => _.Message.Contains("ConditionalSubscription", StringComparison.Ordinal) && _.Message.Contains("SubscribeFromTime", StringComparison.Ordinal)).ShouldBeTrue();
-    [Fact] void should_not_fabricate_a_computed_projection_name() => ProjectionMetadata.Any(_ => _.Message.Contains("daemon name 'computed'", StringComparison.Ordinal)).ShouldBeFalse();
+    [Fact] void should_not_fabricate_a_computed_projection_name() => ProjectionMetadata.Any(_ => _.Message.Contains("projection name 'computed'", StringComparison.Ordinal)).ShouldBeFalse();
     [Fact] void should_not_fabricate_a_conditional_filter_event() => Graph.Artifacts.Any(_ => _.Key.Kind == ArtifactKind.Event && _.Variants.Any(variant => variant.Definition.Name == "ConditionalSubscription")).ShouldBeFalse();
     [Fact] void should_not_classify_raw_subscription_storage() => Graph.Artifacts.Any(_ => _.Key.Kind == ArtifactKind.Document && _.Variants.Any(variant => variant.Definition.Name == "HiddenDocument")).ShouldBeFalse();
 

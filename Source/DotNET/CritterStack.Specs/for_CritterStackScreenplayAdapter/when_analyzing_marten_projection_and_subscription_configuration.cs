@@ -18,9 +18,9 @@ public class when_analyzing_marten_projection_and_subscription_configuration : g
     [Fact] void should_not_turn_raw_custom_projections_into_reducers() => ArtifactNames(ArtifactKind.Reducer).ShouldNotContain("RawProjection");
     [Fact] void should_not_place_raw_custom_projections_in_a_slice() => Graph.Placements.Any(_ => _.Artifact.Subject == ProjectionSubject("RawProjection")).ShouldBeFalse();
     [Fact] void should_not_link_arbitrary_custom_projection_consequences() => RelationshipsFrom("RawProjection").ShouldBeEmpty();
-    [Fact] void should_preserve_the_exact_projection_name() => ProjectionMetadata.Any(_ => _.Message.Contains("daemon name 'orders-summary'", StringComparison.Ordinal)).ShouldBeTrue();
-    [Fact] void should_preserve_the_exact_projection_version() => ProjectionMetadata.Any(_ => _.Message.Contains("daemon version '3'", StringComparison.Ordinal)).ShouldBeTrue();
-    [Fact] void should_preserve_the_exact_registration_name() => ProjectionMetadata.Any(_ => _.Message.Contains("registers daemon name 'raw-projection'", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_preserve_the_exact_projection_name() => ProjectionMetadata.Any(_ => _.Message.Contains("projection name 'orders-summary'", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_preserve_the_exact_projection_version() => ProjectionMetadata.Any(_ => _.Message.Contains("projection version '3'", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_preserve_the_exact_registration_name() => ProjectionMetadata.Any(_ => _.Message.Contains("registers projection name 'raw-projection'", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_preserve_service_registration_metadata() => ProjectionMetadata.Count(_ => _.Message.Contains("ServiceProjection", StringComparison.Ordinal) && (_.Message.Contains("service-projection", StringComparison.Ordinal) || _.Message.Contains("version '2'", StringComparison.Ordinal))).ShouldEqual(2);
     [Fact] void should_preserve_exact_non_inline_lifecycle_registration() => Contribution.Diagnostics.Count(_ => _.Code == MartenDiagnosticCodes.ProjectionLifecycleOmitted && (_.Message.Contains("OrderSummaryProjection", StringComparison.Ordinal) || _.Message.Contains("ServiceProjection", StringComparison.Ordinal))).ShouldEqual(2);
     [Fact] void should_preserve_exact_daemon_mode() => DaemonConfiguration.Any(_ => _.Message.Contains("mode 'Solo'", StringComparison.Ordinal)).ShouldBeTrue();
