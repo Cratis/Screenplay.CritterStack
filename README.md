@@ -9,7 +9,8 @@ This is an independent Cratis compatibility project. It is not affiliated with o
 ## Goals
 
 - Marten-only event stores, documents, aggregates, projections, and queries.
-- Generic and instance-based Marten projection registrations, with explicit diagnostics for unsupported async/live lifecycle semantics.
+- Generic and instance-based Marten projection registrations, with exact authored projection name/version evidence and explicit diagnostics for unsupported async/live lifecycle semantics.
+- Async daemon mode and first-class subscription registration/configuration evidence without inventing state views, automations, translations, events, messages, or document consequences from arbitrary processing code.
 - Marten document identities from exact configuration, identity attributes, and conventions, without guessing unresolved expressions.
 - Marten compiled-query execution linked to proven Wolverine HTTP query entry points, including public plan parameters; unresolved nested executable flow reports `MARTEN0006` instead of guessing.
 - Marten + Wolverine HTTP and message handlers.

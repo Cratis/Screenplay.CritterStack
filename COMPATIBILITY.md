@@ -22,7 +22,7 @@ The canonical workflow pins source commits and verifies these exact package comb
 | BankAccountES | `JasperFx/CritterStackSamples@2c94389bcb5face1070d0409ef284973e8aaceea` | 9.20.0 | 6.23.1 | Aggregate handlers, snapshots, single-stream projection, commands, queries, and validation loss |
 | CqrsMinimalApi | `JasperFx/CritterStackSamples@2c94389bcb5face1070d0409ef284973e8aaceea` | 9.20.0 | 6.23.1 | Ordinary document CRUD, conventional identity, and HTTP entry points |
 | Reports | `JasperFx/CritterStackSamples@2c94389bcb5face1070d0409ef284973e8aaceea` | 9.20.1 | 6.23.1 | `IMartenOp`, document persistence, and custom typed conventional identity |
-| MartenWithProjectAspire | `JasperFx/CritterStackSamples@2c94389bcb5face1070d0409ef284973e8aaceea` | 9.20.1 | — | Generic and instance projection registration, async lifecycle, exact multi-stream identity/member grouping, direct and `IEvent<T>` fan-out child evidence, and exact `EventProjection.Create` document storage with explicit value-flow loss |
+| MartenWithProjectAspire | `JasperFx/CritterStackSamples@2c94389bcb5face1070d0409ef284973e8aaceea` | 9.20.1 | — | Generic and instance projection registration, async lifecycle, authored `Name` metadata, `DaemonMode.Solo`, exact multi-stream identity/member grouping, direct and `IEvent<T>` fan-out child evidence, and exact `EventProjection.Create` document storage with explicit value-flow loss |
 | IncidentService | license-attributed fixture from `JasperFx/wolverine@af4807b5fb225ce7535c67785b74007fdad2dd9f` | 9.23.0 | 6.29.1 | Current HTTP aggregate workflow, response wrappers, direct append/delete, messages, delay, and query |
 | CritterStackHelpDesk | `JasperFx/CritterStackHelpDesk@b67659dd7ca6d8ff07e7b9dad20affc4a37b6062` | 6.3.0 | 1.11.1 | Legacy attributes/returns, API-worker contracts, event forwarding, and generated-source exclusion |
 
@@ -39,6 +39,8 @@ The source architecture was reviewed at:
 | JasperFx | `da9fd17d69df5ff41940800bfb34ad4d88a88391` | `V2.53.0-1` |
 | Marten | `a483b09f881f1576152aa42a27b37cc17fab252f` | `V9.28.0-10` |
 | Wolverine | `af4807b5fb225ce7535c67785b74007fdad2dd9f` | `V6.29.1` |
+
+The projection-metadata and subscription interpretation was checked directly against the pinned Marten and JasperFx commits above and against Marten `v6.3.0` / `v7.33.2` for legacy shape changes. Current Marten delegates projection `Name`/`Version`, subscription filtering and start policy, and daemon mode to JasperFx types; Marten 7 used `SubscriptionName`/`SubscriptionVersion`; Marten 6 used `ProjectionName`, had no projection version, and did not yet expose first-class event subscriptions. The adapter therefore matches exact metadata names and reports authored configuration as loss rather than treating one generation's property names as universal.
 
 On 2026-08-21, the NuGet registry listed Marten 9.29.0 and WolverineFx/WolverineFx.Marten 6.29.2 as the newest stable versions. These registry observations are drift indicators, not automatic support claims:
 
