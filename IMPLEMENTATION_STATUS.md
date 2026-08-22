@@ -87,7 +87,7 @@ Repository boundaries:
   - correct distinction between aggregate event returns and HTTP results.
 - Canonical Wolverine IncidentService built cleanly.
 - The independent repository now builds Debug/Release with zero warnings/errors.
-- 260 combined adapter/generator specs pass in Debug on .NET 10 and in Release on .NET 8, .NET 9, and .NET 10.
+- 286 combined adapter/generator specs pass in Debug on .NET 10 and in Release on .NET 8, .NET 9, and .NET 10.
 - Real canonical IncidentService generation succeeds and captures commands, outgoing/delayed messages, external `Archived`, query/read model/reducer, document deletion, and compound validation with explicit WOLVERINE0001-0005 loss diagnostics.
 - `UpdatedAggregate` is correctly excluded from events.
 - Real Marten 6/Wolverine 1 CritterStackHelpDesk generation now produces a compiling document after project/module-name sanitization.
