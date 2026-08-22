@@ -50,7 +50,7 @@ On 2026-08-21, the NuGet registry listed Marten 9.29.0 and WolverineFx/Wolverine
 
 Use these terms consistently:
 
-1. **Canonical** — the exact pinned package set and asserted behaviors pass CI.
+1. **Canonical** — the bundled adapter version passes the exact pinned package set and asserted behaviors in CI.
 2. **Source-reviewed** — framework source/docs were analyzed and metadata names are implemented, but no exact application fixture proves the behavior.
 3. **Recognized with loss** — the construct is detected and produces a stable diagnostic because Screenplay or the adapter cannot preserve it.
 4. **Unknown** — package/API generation is outside canonical evidence or uses unresolved customization; generation must not guess.
@@ -58,21 +58,23 @@ Use these terms consistently:
 
 The adapter should fail closed for a newer major version until canonical evidence exists. A newer patch or minor within a source-reviewed major may be attempted, but the result must identify the detected version and remain human-reviewed.
 
-## Version provenance plan
+## Version provenance
 
 Roslyn exposes assembly identities, but assembly versions do not always equal NuGet package versions. Exact package provenance belongs at the workspace boundary owned by Cratis CLI, where `project.assets.json` and the selected target framework are available.
 
-A future compatibility manifest should record:
+CLI `v2.12.0` implements the runtime provenance report. It records:
 
-- adapter version;
+- bundled adapter package version;
 - selected target framework;
 - package ID and resolved NuGet version when available;
 - referenced assembly identity/version as corroboration;
-- matched canonical/source-reviewed range;
-- support tier;
-- source commit for every canonical fixture;
-- diagnostics for unknown newer majors, legacy fallbacks, and unresolved API customization.
+- API capability fingerprints;
+- matched canonical/source-reviewed support tier;
+- recognition status;
+- semantic conformance;
+- Screenplay lowering fidelity;
+- diagnostics for unknown or unsupported framework generations and unresolved provider options.
 
-Capability fingerprints should corroborate package versions: one- versus two-argument `SingleStreamProjection`, lifecycle namespace, available `DeleteEvent<T>` forms, legacy versus store-agnostic Wolverine attributes, DCB/event-boundary APIs, persisted-event side-effect wrappers, and forwarding/subscription APIs. Recognition, semantic conformance, and Screenplay lowering fidelity are separate dimensions and must be reported separately.
+The initial capability fingerprints cover projection arity/families, lifecycle namespaces, compiled queries, subscriptions, current/legacy Wolverine handler and aggregate metadata, event-capture wrappers, DCB models, and side effects. Extend them with `DeleteEvent<T>` forms, event-boundary APIs, persisted-event side-effect wrappers, and forwarding APIs as those source-profile gaps land. Package versions, assembly capabilities, recognition, semantic conformance, and Screenplay lowering fidelity remain separate dimensions.
 
-Until that manifest exists, this file and the pinned canonical workflow are the compatibility contract.
+Canonical source commits stay in this file and the pinned workflow rather than being repeated in every generated result. This reference, the CLI provenance report, and the pinned canonical workflow together form the compatibility contract.
