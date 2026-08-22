@@ -18,11 +18,16 @@ static class MartenDocumentFacts
 
     public static MartenDiscoveryResult Discover(
         DotNetProjectCompilation project,
-        AdapterIdentity adapter)
+        AdapterIdentity adapter,
+        IReadOnlyList<MartenDocumentUsage> projectedDocuments)
     {
         var facts = new List<GenerationFact>();
         var diagnostics = new List<GenerationDiagnostic>();
-        var documents = new Dictionary<SubjectId, DocumentObservation>();
+        var documents = projectedDocuments
+            .GroupBy(_ => project.SubjectForType(_.Type))
+            .ToDictionary(
+                _ => _.Key,
+                _ => new DocumentObservation(_.First().Type, _.First().Evidence));
         foreach (var tree in project.Compilation.SyntaxTrees.Where(_ => !DotNetGeneratedSource.IsGenerated(_)))
         {
             var semanticModel = project.Compilation.GetSemanticModel(tree);
@@ -50,6 +55,12 @@ static class MartenDocumentFacts
                 }
 
                 var kind = RelationshipKindFor(method.Name);
+                if ((kind is RelationshipKind.Stores or RelationshipKind.Updates or RelationshipKind.Deletes) &&
+                    IsInEventProjection(invocation, semanticModel))
+                {
+                    continue;
+                }
+
                 if (kind is null && !_configurationMethods.Contains(method.Name))
                 {
                     continue;
@@ -127,7 +138,7 @@ static class MartenDocumentFacts
                 Subject = _.Key
             }));
 
-        return new(facts, diagnostics);
+        return new(facts, diagnostics, []);
     }
 
     static void ObserveIdentityConfiguration(
@@ -361,6 +372,12 @@ static class MartenDocumentFacts
                @namespace == "Wolverine.Marten" ||
                @namespace.StartsWith("Wolverine.Marten.", StringComparison.Ordinal);
     }
+
+    static bool IsInEventProjection(
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel) =>
+        semanticModel.GetEnclosingSymbol(invocation.SpanStart) is IMethodSymbol containingMethod &&
+        DotNetSymbols.IsOrInheritsFrom(containingMethod.ContainingType, WellKnownTypes.MartenEventProjection);
 
     static bool IsSourceType(INamedTypeSymbol type) => type.TypeKind != TypeKind.Error && type.Locations.Any(_ => _.IsInSource);
 

@@ -10,10 +10,27 @@ public class a_marten_async_projection_application : Specification
         namespace Marten
         {
             public interface IDocumentStore;
+            public interface IDocumentOperations
+            {
+                void Store<T>(params T[] documents);
+                void Insert<T>(params T[] documents);
+                void Update<T>(params T[] documents);
+                void Delete<T>(System.Guid id);
+                void DeleteWhere<T>(System.Linq.Expressions.Expression<System.Func<T, bool>> predicate);
+            }
             public class StoreOptions
             {
                 public Marten.Events.Projections.ProjectionOptions Projections { get; } = new();
             }
+        }
+
+        namespace JasperFx.Events
+        {
+            public interface IEvent
+            {
+                object Data { get; }
+            }
+            public interface IEvent<T> : IEvent;
         }
 
         namespace JasperFx.Events.Projections
@@ -21,6 +38,10 @@ public class a_marten_async_projection_application : Specification
             public enum ProjectionLifecycle { Inline, Async, Live }
             public enum SnapshotLifecycle { Inline, Async }
             public interface IProjection;
+            public class AsyncOptions
+            {
+                public void DeleteViewTypeOnTeardown<T>() { }
+            }
             public class ProjectionGraph
             {
                 public void Add(IProjection projection, ProjectionLifecycle lifecycle) { }
@@ -36,7 +57,10 @@ public class a_marten_async_projection_application : Specification
                 public void LiveStreamAggregation<T>() { }
             }
             public abstract class MultiStreamProjection<T, TId> : JasperFx.Events.Projections.IProjection;
-            public abstract class EventProjection : JasperFx.Events.Projections.IProjection;
+            public abstract class EventProjection : JasperFx.Events.Projections.IProjection
+            {
+                public JasperFx.Events.Projections.AsyncOptions Options { get; } = new();
+            }
         }
 
         namespace Marten.Events.Aggregation
@@ -82,6 +106,47 @@ public class a_marten_async_projection_application : Specification
             public int Started { get; set; }
         }
 
+        public class Distance
+        {
+            public System.Guid Id { get; set; }
+            public decimal Total { get; set; }
+        }
+
+        public class TripSummary
+        {
+            public System.Guid Id { get; set; }
+        }
+
+        public class TripIndex
+        {
+            public System.Guid Id { get; set; }
+        }
+
+        public class ActiveTrip
+        {
+            public System.Guid Id { get; set; }
+        }
+
+        public class TripArchive
+        {
+            public System.Guid Id { get; set; }
+        }
+
+        public class TripCleanup
+        {
+            public System.Guid Id { get; set; }
+        }
+
+        public class TeardownOnly
+        {
+            public System.Guid Id { get; set; }
+        }
+
+        public class HiddenDocument
+        {
+            public System.Guid Id { get; set; }
+        }
+
         public partial class TripProjection : Marten.Events.Aggregation.SingleStreamProjection<Trip, System.Guid>
         {
             public Trip Create(TripStarted e) => new();
@@ -94,7 +159,31 @@ public class a_marten_async_projection_application : Specification
             public void Apply(Day day, Movement e) { }
         }
 
-        public partial class DistanceProjection : Marten.Events.Projections.EventProjection;
+        public partial class DistanceProjection : Marten.Events.Projections.EventProjection
+        {
+            public DistanceProjection()
+            {
+                Options.DeleteViewTypeOnTeardown<Distance>();
+                Options.DeleteViewTypeOnTeardown<TeardownOnly>();
+            }
+
+            public Distance Create(Travel travel, JasperFx.Events.IEvent metadata) => new()
+            {
+                Id = System.Guid.Empty,
+                Total = travel.Movements[0].Distance
+            };
+
+            public void Project(TripEnded e, Marten.IDocumentOperations operations)
+            {
+                operations.Store(new TripSummary());
+                operations.Insert(new TripIndex());
+                operations.Update(new ActiveTrip());
+                operations.Delete<TripArchive>(System.Guid.Empty);
+                operations.DeleteWhere<TripCleanup>(_ => true);
+            }
+
+            public void Helper(Marten.IDocumentOperations operations) => operations.Store(new HiddenDocument());
+        }
 
         public static class Configuration
         {
