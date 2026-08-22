@@ -37,11 +37,11 @@ Repository boundaries:
 
 - GitHub repository: <https://github.com/Cratis/Screenplay.CritterStack>
 - Local repository: `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack`
-- The feature branch is rebased onto `main` / `origin/main` at the `v0.9.0` Wolverine validation-and-authorization release baseline.
+- `main` / `origin/main` is released as [`v0.15.0`](https://github.com/Cratis/Screenplay.CritterStack/releases/tag/v0.15.0) at `a0df0c22f112b98b353ca6a84072761de119c7ba`.
 - Initial adapter PR: <https://github.com/Cratis/Screenplay.CritterStack/pull/2> (merged).
-- Latest release/tag and rebase baseline: [`v0.9.0`](https://github.com/Cratis/Screenplay.CritterStack/releases/tag/v0.9.0) at `bfe7eb185ec7ac75a1016b934957899c807b64f7`.
-- The verified `Cratis.CritterStack.Screenplay.0.1.0.nupkg` remains attached to the `v0.1.0` GitHub release for temporary bootstrap restores.
-- NuGet publishing blocker: [issue #1](https://github.com/Cratis/Screenplay.CritterStack/issues/1); nuget.org returns 404 until a trusted-publishing policy is created and the publish job is rerun.
+- Trusted NuGet publication is operational; correct releases restore normally from nuget.org and are mirrored to `~/.nuget/cratis-local` after exact-tag verification.
+- Package validation uses the public `0.1.0` API baseline. The separate Vogen adapter uses its first correctly sourced `0.5.0` baseline in Screenplay.Generation.
+- Historical versions requiring manual unlisting are tracked in [issue #37](https://github.com/Cratis/Screenplay.CritterStack/issues/37); OIDC publishing credentials cannot delete or unlist.
 - Research/handover commit imported from the original unpublished Screenplay branch.
 - Source projects were moved here before their first source commit.
 - No `.pi`, credentials, `bin`, or `obj` artifacts were transferred.
@@ -95,9 +95,17 @@ Repository boundaries:
 - Pinned MartenWithProjectAspire generation verifies projection grouping, EventProjection operations, exact projection metadata, and daemon mode while unresolved semantics remain explicit diagnostics.
 - A seven-fixture canonical run includes the pinned Cratis-owned Vogen 8.0.7 fixture; the six pre-existing non-Vogen outputs remain byte-identical.
 - Package validation uses the public 0.1.0 baseline with sentinel version 9999.0.0; the isolated consumer uses Generation 0.7.0 plus the separate Vogen adapter without a Vogen source-generator/runtime dependency in the production facade.
-- Verified v0.5.0 and v0.6.0 packages are attached to their GitHub releases and installed in `~/.nuget/cratis-local`; scratch consumers restore and execute without repository workflow changes.
+- Exact-tag operational verification of current release assets, signatures, dependencies, local-feed installation, and clean consumers is repeated after each release; v0.15.0 verification is the current distribution gate.
 
 ## Current cross-repository status
+
+- Screenplay.Generation is released as `v0.7.0`: neutral concept representation/attributes/validation, exact subject references, authored Vogen discovery/validation, deterministic generation, package validation, and trusted publication are available as separate packages.
+- Critter Stack is released as `v0.15.0`: Generation `0.7.0`, package validation, Marten/Wolverine source interpretation, projection/daemon/subscription metadata, multi-stream grouping/fan-out, and default Vogen composition are shipped.
+- CLI is released as `v2.13.0` with published Generation `0.6.1` and Critter Stack `0.13.1`; it reports current canonical provenance and no longer uses package bootstrap or temporary assembly resolution. Updating it to Generation `0.7.0` + Critter Stack `0.15.0` is next.
+- CLI v2.13 distribution verification passed NuGet signature/install, all four native assets, Homebrew upgrade/test, deterministic generation, and validation for Arc plus six Critter/Marten fixtures. Package metadata correction is tracked in CLI #91.
+- Remaining coordinated issues are Generation #5, Critter Stack #3/#4/#29/#37, CLI #87/#91, and Screenplay #128.
+
+## Historical cross-repository delivery evidence
 
 - [`Cratis/Screenplay.Generation` PR #1](https://github.com/Cratis/Screenplay.Generation/pull/1) is merged and tagged [`v0.1.0`](https://github.com/Cratis/Screenplay.Generation/releases/tag/v0.1.0).
 - All three Generation nupkgs are attached to the release, but nuget.org returns 404 until [Generation issue #2](https://github.com/Cratis/Screenplay.Generation/issues/2) is resolved.
@@ -112,23 +120,21 @@ Repository boundaries:
 
 ## Exact continuation order
 
-1. In nuget.org, manually create one owner-scoped trusted-publishing policy for GitHub owner `Cratis`, repository `Screenplay.Generation`, workflow filename `publish.yml`, and no environment. One policy covers all packages owned by the selected NuGet owner; do not create one per package ID. NuGet currently has no policy-management API/CLI—NuGet/NuGetGallery#10690 tracks that request.
-2. Rerun failed Generation publish run `32435010554`; verify all three `0.1.0` package IDs resolve from nuget.org, then close Generation issue #2.
-3. Manually create one owner-scoped policy for GitHub owner `Cratis`, repository `Screenplay.CritterStack`, workflow filename `publish.yml`, and no environment.
-4. Rerun every failed Critter Stack release, including `32437573817` (0.1.0), `32540542422` (0.3.0), `32565807453` (0.4.0), `32567975867` (0.5.0), and `32568782112` (current 0.6.0); verify the package versions resolve from nuget.org, then close Critter Stack issue #1.
-5. Remove temporary GitHub-release-asset bootstrap restore steps from Critter Stack and CLI workflows; use ordinary nuget.org restore and rerun all checks.
-6. Enable package validation (Generation #3 and Critter Stack #7).
-7. Update CLI from the temporary adapter 0.1.0 bootstrap to the published current package so exact canonical package sets can be promoted from `SourceReviewed` to `Canonical`.
-8. Complete Critter Stack Vogen composition/canonical coverage (#25), then continue remaining Marten completeness (#3)—aliases/upcasts, tenancy, richer daemon/subscription consequences, arbitrary expression reconstruction, and non-Wolverine entry points—or Wolverine completeness (#4), followed by measured Screenplay language gaps (`Cratis/Screenplay#128`).
+1. Complete exact-tag operational verification for Generation `v0.7.0` and Critter Stack `v0.15.0`.
+2. Update CLI to Generation `0.7.0` + Critter Stack `0.15.0`, including installed-tool Vogen evidence and canonical provenance.
+3. Finish CLI #87's explicit workspace/target-framework contract and Generation #5's deterministic external-adapter consumer contract.
+4. Continue Marten #3—aliases/upcasts, tenancy, richer daemon/subscription consequences, arbitrary expression reconstruction, and non-Wolverine entry points—or Wolverine #4—compound middleware, sagas/DCB/multiple streams, transport topology, subscriptions/forwarding, and projection side effects.
+5. Add Screenplay language capabilities only from measured loss under `Cratis/Screenplay#128`.
+6. Keep Generation #13 and Critter Stack #37 open until a NuGet owner manually unlists the identified mispublished historical versions.
 
 ## Known implementation gaps
 
-- NuGet trusted-publishing policies are not configured for the new SDK or adapter package IDs; this blocks normal nuget.org restore and removal of the temporary release-asset bootstrap.
+- NuGet OIDC publication cannot delete or unlist the historically mispublished versions; manual owner action remains tracked separately.
 - Pinned canonical verification is complete through PR #11 and closed issue #5. It verifies current BankAccountES, a license-attributed current IncidentService fixture, and legacy CritterStackHelpDesk at immutable upstream commits.
 - PR #14 extends canonical verification to CqrsMinimalApi and Reports and implements the first bounded part of Marten completeness issue #3.
 - Instance-based Marten projection registrations and direct async/live lifecycle constants are recognized; lifecycle remains a diagnostic-only loss until Screenplay can represent it. Exact projection name/version, daemon mode, and first-class subscription registration/options are source-reviewed and diagnostic-only because the current Generation contracts have no subscription or daemon metadata artifact. Conditional/computed settings, arbitrary `SubscribeFromTime` expressions, non-constructor configuration helpers, manual daemon agent/shard operations, and arbitrary `ProcessEventsAsync` consequences remain unresolved rather than guessed. Authored `EventProjection.Create` returns and event-bound `IDocumentOperations.Store`/`Insert`/`Update`/`Delete`/`DeleteWhere` calls emit exact event, projection, document, and relationship facts without inventing read models; arbitrary body/value flow remains diagnostic-only. Exact directly-authored `MultiStreamProjection<T,TId>` identity/member and fan-out declarations retain neutral evidence, while custom groupers/slicers, computed or conditional selectors, and tenancy-dependent grouping fail closed with `MARTEN0001`. Computed lifecycle values, manual daemon shard operations, runtime subscription configuration, and other document operation families remain unanalyzed.
 - Compiled queries are linked from exact Marten execution calls to proven Wolverine HTTP query entry points, but arbitrary expression reconstruction and non-Wolverine application entry-point classification remain out of scope.
-- CLI `v2.12.0` carries resolved package/assembly/capability provenance and explicit compatibility dimensions. Its committed package remains 0.1.0 until normal publication; local development can override to current 0.6.0 from `~/.nuget/cratis-local` and obtains `Canonical` support.
+- CLI `v2.13.0` carries resolved package/assembly/capability provenance and explicit compatibility dimensions with Generation `0.6.1` and Critter Stack `0.13.1`. It must move to Generation `0.7.0` + Critter Stack `0.15.0` to expose default Vogen composition.
 - Current/legacy return slots, direct-stream cascades, direct bus delivery, pure bus automations, return-only/`OutgoingMessages` automations, and exact source-bound handler discovery activation are classified. Runtime/custom predicate discovery, external assembly and handler-module scanning, richer transport topology, sagas, DCB, subscriptions/forwarding, and projection side effects remain.
 - Route-only identities and HTTP response metadata are facts but current Screenplay syntax cannot represent them fully.
 - Validation/authorization discovery is deliberately source-bound: package presence alone has no effect; exact built-in policy activation and applied behavior are retained as `WOLVERINE0005` and `WOLVERINE0008`-`WOLVERINE0011` diagnostics because Generation 0.1.0 has no faithful neutral contracts. Runtime/custom validator registration, conditional policy activation, custom `IHttpPolicy` behavior, and broader ASP.NET route-group/fallback-policy data flow remain unresolved rather than guessed.
