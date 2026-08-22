@@ -19,6 +19,11 @@ static class WellKnownTypes
     public const string MartenProjectionLifecycle = "Marten.Events.Projections.ProjectionLifecycle";
     public const string MartenSnapshotLifecycle = "Marten.Events.Projections.SnapshotLifecycle";
     public const string WolverineOptions = "Wolverine.WolverineOptions";
+    public const string WolverineMessageBus = "Wolverine.IMessageBus";
+    public const string WolverineCommandBus = "Wolverine.ICommandBus";
+    public const string WolverineDestinationEndpoint = "Wolverine.IDestinationEndpoint";
+    public const string WolverineMessageBusExtensions = "Wolverine.MessageBusExtensions";
+    public const string WolverineDeliveryOptions = "Wolverine.DeliveryOptions";
     public const string WolverineHandlerAttribute = "Wolverine.Attributes.WolverineHandlerAttribute";
     public const string WolverineLegacyHandlerAttribute = "Wolverine.WolverineHandlerAttribute";
     public const string WolverineIgnoreAttribute = "Wolverine.Attributes.WolverineIgnoreAttribute";

@@ -32,4 +32,9 @@ public static class WolverineDiagnosticCodes
     /// Compound-handler validation was preserved through a handler file but not declared as Screenplay validation.
     /// </summary>
     public const string ValidationOmitted = "WOLVERINE0005";
+
+    /// <summary>
+    /// A direct Wolverine send, publish, request/reply, or delivery option could not be represented by Screenplay.
+    /// </summary>
+    public const string DirectMessageDeliveryOmitted = "WOLVERINE0006";
 }

@@ -168,6 +168,7 @@ static class WolverineFacts
 
         AddDocumentDeletes(project, commandSubject, method, evidence, facts);
         AddReturnConsequences(project, commandSubject, method, evidence, isHttpEndpoint: true, aggregateWorkflow, facts);
+        AddDirectBusConsequences(project, commandSubject, method, evidence, facts, diagnostics);
         AddOutgoingMessages(project, commandSubject, method, evidence, facts, diagnostics);
     }
 
@@ -224,6 +225,7 @@ static class WolverineFacts
 
         AddDocumentDeletes(project, commandSubject, method, evidence, facts);
         AddReturnConsequences(project, commandSubject, method, evidence, isHttpEndpoint: false, aggregateWorkflow, facts);
+        AddDirectBusConsequences(project, commandSubject, method, evidence, facts, diagnostics);
         AddOutgoingMessages(project, commandSubject, method, evidence, facts, diagnostics);
     }
 
@@ -352,6 +354,46 @@ static class WolverineFacts
             discriminator: declarative ? "declarative" : "imperative"));
     }
 
+    static void AddDirectBusConsequences(
+        DotNetProjectCompilation project,
+        SubjectId sourceSubject,
+        IMethodSymbol method,
+        Evidence evidence,
+        List<GenerationFact> facts,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        foreach (var consequence in WolverineBusConsequences.Discover(method, project))
+        {
+            if (consequence.MessageType is not INamedTypeSymbol messageType || !IsEventPayloadType(messageType))
+            {
+                continue;
+            }
+
+            var messageSubject = project.SubjectForType(messageType);
+            AddMessageRelationship(
+                project,
+                sourceSubject,
+                messageType,
+                evidence,
+                RelationshipKind.Publishes,
+                $"wolverine:publishes:{consequence.Discriminator}:{sourceSubject.Value}:{messageSubject.Value}",
+                consequence.Discriminator,
+                facts);
+            diagnostics.Add(new GenerationDiagnostic
+            {
+                Code = consequence.IsScheduled
+                    ? WolverineDiagnosticCodes.DelayedMessageOmitted
+                    : WolverineDiagnosticCodes.DirectMessageDeliveryOmitted,
+                Severity = GenerationDiagnosticSeverity.Warning,
+                Message = consequence.IsScheduled
+                    ? $"Handler '{method.ContainingType.Name}.{method.Name}' schedules '{messageType.Name}', which the current Screenplay language cannot represent"
+                    : $"Handler '{method.ContainingType.Name}.{method.Name}' performs Wolverine {consequence.Discriminator} delivery of '{messageType.Name}', which the current Screenplay language cannot represent",
+                Source = evidence.Source,
+                Subject = sourceSubject
+            });
+        }
+    }
+
     static void AddOutgoingMessages(
         DotNetProjectCompilation project,
         SubjectId sourceSubject,
@@ -360,14 +402,8 @@ static class WolverineFacts
         List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics)
     {
-        foreach (var syntaxReference in method.DeclaringSyntaxReferences)
+        foreach (var (declaration, semanticModel) in WolverineMethodSyntax.Declarations(method, project))
         {
-            if (syntaxReference.GetSyntax() is not MethodDeclarationSyntax declaration)
-            {
-                continue;
-            }
-
-            var semanticModel = project.Compilation.GetSemanticModel(declaration.SyntaxTree);
             foreach (var collection in declaration.DescendantNodes().OfType<CollectionExpressionSyntax>())
             {
                 if (semanticModel.GetTypeInfo(collection).ConvertedType is not INamedTypeSymbol collectionType ||
@@ -395,11 +431,12 @@ static class WolverineFacts
                     var delayed = element.Expression.DescendantNodesAndSelf()
                         .OfType<InvocationExpressionSyntax>()
                         .Any(_ => _.Expression.ToString().Contains("Delayed", StringComparison.Ordinal));
-                    AddMessageAndCascade(
+                    AddMessageRelationship(
                         project,
                         sourceSubject,
                         messageType,
                         evidence,
+                        RelationshipKind.Cascades,
                         $"wolverine:cascades:{sourceSubject.Value}:{messageSubject.Value}",
                         delayed ? "delayed" : "immediate",
                         facts);
@@ -441,22 +478,24 @@ static class WolverineFacts
             }
 
             var messageSubject = project.SubjectForType(messageType);
-            AddMessageAndCascade(
+            AddMessageRelationship(
                 project,
                 sourceSubject,
                 messageType,
                 evidence,
+                RelationshipKind.Cascades,
                 $"wolverine:cascades:return:{sourceSubject.Value}:{consequence.Slot}:{messageSubject.Value}",
                 $"return-slot:{consequence.Slot}",
                 facts);
         }
     }
 
-    static void AddMessageAndCascade(
+    static void AddMessageRelationship(
         DotNetProjectCompilation project,
         SubjectId sourceSubject,
         INamedTypeSymbol messageType,
         Evidence evidence,
+        RelationshipKind relationshipKind,
         string relationshipId,
         string discriminator,
         List<GenerationFact> facts)
@@ -472,7 +511,7 @@ static class WolverineFacts
         facts.Add(Relationship(
             relationshipId,
             sourceSubject,
-            RelationshipKind.Cascades,
+            relationshipKind,
             messageSubject,
             evidence,
             discriminator: discriminator));
@@ -506,14 +545,8 @@ static class WolverineFacts
 
     static IEnumerable<INamedTypeSymbol> DocumentDeletes(IMethodSymbol method, DotNetProjectCompilation project)
     {
-        foreach (var syntaxReference in method.DeclaringSyntaxReferences)
+        foreach (var (declaration, semanticModel) in WolverineMethodSyntax.Declarations(method, project))
         {
-            if (syntaxReference.GetSyntax() is not MethodDeclarationSyntax declaration)
-            {
-                continue;
-            }
-
-            var semanticModel = project.Compilation.GetSemanticModel(declaration.SyntaxTree);
             foreach (var invocation in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
                 if (semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol invoked &&
@@ -612,14 +645,8 @@ static class WolverineFacts
 
     static IEnumerable<ITypeSymbol> PersistenceEvents(IMethodSymbol method, DotNetProjectCompilation project)
     {
-        foreach (var syntaxReference in method.DeclaringSyntaxReferences)
+        foreach (var (declaration, semanticModel) in WolverineMethodSyntax.Declarations(method, project))
         {
-            if (syntaxReference.GetSyntax() is not MethodDeclarationSyntax declaration)
-            {
-                continue;
-            }
-
-            var semanticModel = project.Compilation.GetSemanticModel(declaration.SyntaxTree);
             foreach (var invocation in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
                 if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol invoked ||
