@@ -206,7 +206,8 @@ static class MartenEventProjectionFacts
                 projectionSubject,
                 operation.Kind,
                 documentSubject,
-                operation.Evidence));
+                operation.Evidence,
+                discriminator: eventSubject.Value));
         }
 
         return new(facts, diagnostics, documents);
@@ -376,13 +377,14 @@ static class MartenEventProjectionFacts
         SubjectId source,
         RelationshipKind kind,
         SubjectId target,
-        Evidence evidence) => new()
+        Evidence evidence,
+        string? discriminator = null) => new()
     {
         Id = new FactId { Value = id },
         Subject = source,
         Definition = new RelationshipDefinition
         {
-            Key = new RelationshipKey { Kind = kind, Source = source, Target = target }
+            Key = new RelationshipKey { Kind = kind, Source = source, Target = target, Discriminator = discriminator }
         },
         Evidence = evidence
     };
