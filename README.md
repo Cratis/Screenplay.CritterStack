@@ -9,6 +9,7 @@ This is an independent Cratis compatibility project. It is not affiliated with o
 ## Goals
 
 - Marten-only event stores, documents, aggregates, projections, and queries.
+- Generic and instance-based Marten projection registrations, with explicit diagnostics for unsupported async/live lifecycle semantics.
 - Marten + Wolverine HTTP and message handlers.
 - Current store-agnostic Wolverine event-sourcing APIs and legacy Marten-specific APIs.
 - Markerless event/message discovery from actual framework usage.
@@ -36,11 +37,14 @@ The compatibility plan uses:
 
 - Wolverine's current `src/Samples/IncidentService`;
 - `JasperFx/CritterStackHelpDesk` for Marten 6/Wolverine 1 behavior;
-- BankAccountES and other focused applications from the local Critter Stack sample corpus.
+- BankAccountES and other focused applications from the local Critter Stack sample corpus;
+- MartenWithProjectAspire for instance-registered async, multi-stream, and event projections.
 
 See:
 
 - [`STRATEGY.md`](STRATEGY.md) — why the adapter is public and how it supports visualization, interoperability, and migration
+- [`COMPATIBILITY.md`](COMPATIBILITY.md) — exact canonical package sets, research baselines, and support tiers
+- [`CRITTER_STACK_PATTERN_DISCOVERY_RESEARCH.md`](CRITTER_STACK_PATTERN_DISCOVERY_RESEARCH.md) — how source behavior maps to State Change, State View, Automation, and Translation
 - [`MVP_ACCEPTANCE.md`](MVP_ACCEPTANCE.md) — the explicit stopping criteria for a credible preview and a later 1.0
 - [`CRITTER_STACK_SCREENPLAY_RESEARCH_AND_ARCHITECTURE.md`](CRITTER_STACK_SCREENPLAY_RESEARCH_AND_ARCHITECTURE.md)
 - [`CRITTER_STACK_SCREENPLAY_IMPLEMENTATION_HANDOVER.md`](CRITTER_STACK_SCREENPLAY_IMPLEMENTATION_HANDOVER.md)

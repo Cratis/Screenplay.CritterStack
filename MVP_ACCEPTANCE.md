@@ -41,6 +41,7 @@ The preview is acceptable when it safely produces a useful, compiling Screenplay
 - [x] Legacy CritterStackHelpDesk verifies Marten 6/Wolverine 1 compatibility and valid module naming.
 - [x] CqrsMinimalApi verifies ordinary Marten documents and CRUD/query relationships without inventing an event projection.
 - [x] Reports verifies `IMartenOp` document persistence and custom identity source context.
+- [x] MartenWithProjectAspire verifies generic/instance async projection registration, multi-stream grouping loss, and `EventProjection` loss.
 - [x] Canonical sample checks run green in CI at pinned commits.
 
 ### Trust and honesty

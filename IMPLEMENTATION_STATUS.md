@@ -37,10 +37,10 @@ Repository boundaries:
 
 - GitHub repository: <https://github.com/Cratis/Screenplay.CritterStack>
 - Local repository: `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack`
-- `main` is clean and synchronized with `origin/main`.
+- `main` is synchronized with `origin/main` through the `v0.2.0` Marten document-analysis release.
 - Initial adapter PR: <https://github.com/Cratis/Screenplay.CritterStack/pull/2> (merged).
-- Release/tag: [`v0.1.0`](https://github.com/Cratis/Screenplay.CritterStack/releases/tag/v0.1.0).
-- The verified `Cratis.CritterStack.Screenplay.0.1.0.nupkg` is attached to the GitHub release.
+- Latest release/tag: [`v0.2.0`](https://github.com/Cratis/Screenplay.CritterStack/releases/tag/v0.2.0); normal NuGet publication remains blocked by trusted-publishing setup.
+- The verified `Cratis.CritterStack.Screenplay.0.1.0.nupkg` remains attached to the `v0.1.0` GitHub release for temporary bootstrap restores.
 - NuGet publishing blocker: [issue #1](https://github.com/Cratis/Screenplay.CritterStack/issues/1); nuget.org returns 404 until a trusted-publishing policy is created and the publish job is rerun.
 - Research/handover commit imported from the original unpublished Screenplay branch.
 - Source projects were moved here before their first source commit.
@@ -50,6 +50,8 @@ Repository boundaries:
 
 - `Cratis.CritterStack.Screenplay` adapter implementing the shared .NET adapter interface.
 - Marten projection registration discovery for snapshots and explicit single-stream projections.
+- Generic and instance-based projection registration discovery, including inherited JasperFx `Add(...)` APIs and configured-evidence provenance.
+- Explicit `MARTEN0004` diagnostics for async/live projection lifecycles that Screenplay cannot currently represent.
 - Markerless event discovery from `Apply`, `Create`, and `ShouldDelete` conventions.
 - Direct Marten document discovery from registration, Store, Insert, Update, Delete, Load, and Query usage, with Store/Update/Delete/Read relationships and `MARTEN0003` rather than invented read models.
 - Read-model/reducer/builds/consumes facts.
@@ -60,6 +62,8 @@ Repository boundaries:
 - Complete `CritterStackScreenplayGenerator` compilation-in/source-out façade matching the Arc package architecture.
 - Adapter version derived from assembly informational version.
 - Synthetic current Wolverine/Marten fixture covering start stream, aggregate events, response wrappers, `Events`, `OutgoingMessages`, external events, direct document deletion, and queries.
+- Pattern-discovery research maps Marten/Wolverine source evidence into State Change, State View, Automation, and Translation without conflating responses, cascades, publishes, side effects, or persisted events.
+- `COMPATIBILITY.md` records exact canonical package combinations, current source baselines, explicit support tiers, and the planned CLI-owned NuGet provenance seam.
 
 ## Verified before repository split
 
@@ -74,11 +78,13 @@ Repository boundaries:
   - correct distinction between aggregate event returns and HTTP results.
 - Canonical Wolverine IncidentService built cleanly.
 - The independent repository now builds Debug/Release with zero warnings/errors.
-- 43 adapter/generator specs pass.
+- 54 adapter/generator specs pass.
 - Real canonical IncidentService generation succeeds and captures commands, outgoing/delayed messages, external `Archived`, query/read model/reducer, and document deletion with explicit WOLVERINE0001-0005 loss diagnostics.
 - `UpdatedAggregate` is correctly excluded from events.
 - Real Marten 6/Wolverine 1 CritterStackHelpDesk generation now produces a compiling document after project/module-name sanitization.
-- Local package pack succeeded; nuspec dependency direction is Generation 0.1.0 + Roslyn only.
+- Pinned MartenWithProjectAspire generation verifies instance-registered async single-stream, multi-stream, and event projections with explicit `MARTEN0001`, `MARTEN0002`, and `MARTEN0004` loss diagnostics.
+- A fresh six-fixture canonical run passed. The adapter Release build had zero warnings/errors; pinned external Reports, MartenWithProjectAspire, and legacy HelpDesk builds retained their documented upstream vulnerability/EOL/nullability warnings without suppression.
+- Local package pack succeeded with sentinel version 9999.0.0; nuspec dependency direction remains Generation 0.1.0 + Roslyn only.
 
 ## Current cross-repository status
 
@@ -99,13 +105,15 @@ Repository boundaries:
 4. Rerun failed Critter Stack publish run `32437573817`; verify `Cratis.CritterStack.Screenplay` 0.1.0 resolves from nuget.org, then close Critter Stack issue #1.
 5. Remove temporary GitHub-release-asset bootstrap restore steps from Critter Stack and CLI workflows; use ordinary nuget.org restore and rerun all checks.
 6. Enable package validation (Generation #3 and Critter Stack #7).
-7. Continue remaining Marten completeness (#3), Wolverine completeness (#4), and measured Screenplay language gaps (`Cratis/Screenplay#128`).
+7. Add CLI-owned resolved-package provenance and support-tier reporting, then continue remaining Marten completeness (#3)—compiled queries, identity configuration, EventProjection document operations, multi-stream grouping/fan-out, daemon/subscription configuration, aliases/upcasts, and tenancy—or Wolverine completeness (#4), followed by measured Screenplay language gaps (`Cratis/Screenplay#128`).
 
 ## Known implementation gaps
 
-- NuGet trusted-publishing policies are not configured for the new SDK or adapter package IDs; this is the only blocker to merging the already-green CLI integration.
+- NuGet trusted-publishing policies are not configured for the new SDK or adapter package IDs; this blocks normal nuget.org restore and removal of the temporary release-asset bootstrap.
 - Pinned canonical verification is complete through PR #11 and closed issue #5. It verifies current BankAccountES, a license-attributed current IncidentService fixture, and legacy CritterStackHelpDesk at immutable upstream commits.
 - PR #14 extends canonical verification to CqrsMinimalApi and Reports and implements the first bounded part of Marten completeness issue #3.
+- Instance-based Marten projection registrations and direct async/live lifecycle constants are recognized; lifecycle remains a diagnostic-only loss until Screenplay can represent it. Projection daemon/subscription settings and computed lifecycle values are not yet analyzed.
+- Canonical package versions are documented, but generated results do not yet carry CLI-resolved NuGet provenance or an explicit compatibility support tier.
 - `Events` and delayed `OutgoingMessages` collection expressions are recognized; direct bus calls, richer delivery options, and transport topology need fuller body-value analysis.
 - Route-only identities and HTTP response metadata are facts but current Screenplay syntax cannot represent them fully.
 - Validation/authorization discovery is not implemented yet.

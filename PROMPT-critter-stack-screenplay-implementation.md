@@ -140,13 +140,15 @@ The CLI continues owning `MSBuildWorkspace` initially. Do not implement an adapt
 - CLI `v2.11.0` publishing succeeded for NuGet, GitHub assets, and Homebrew. The Homebrew-installed tool generated and validated Arc, BankAccountES, and IncidentService from `/tmp`; output was 74/160/133 lines. Generation diagnostics were 2 warnings/2 info, 1 warning/9 info, and 4 warnings/6 info respectively; IncidentService validation retained 7 known undeclared-type warnings while the other two had none.
 - Pinned canonical verification is merged in Critter Stack PR #11; issue #5 is closed.
 - Critter Stack PR #14 is merged. It adds ordinary Marten document facts/relationships, `MARTEN0003`, CqrsMinimalApi/Reports canonical checks, and the first bounded delivery toward Marten issue #3.
+- Marten projection discovery recognizes generic and instance registrations, including inherited JasperFx `Add(...)` APIs, preserves configured evidence, and reports unsupported async/live lifecycle semantics as `MARTEN0004`. Pinned MartenWithProjectAspire verification covers single-stream, multi-stream, and event projections.
 - Public adapter strategy is committed in `STRATEGY.md`.
+- Pattern-discovery research and a compatibility reference are committed. They define evidence-based State Change/State View/Automation/Translation classification, exact canonical package sets, source baselines, support tiers, and a future CLI-owned package-provenance manifest.
 
 ## Exact resume sequence
 
 1. Check whether Generation issue #2 and Critter Stack issue #1 are resolved. If policies now exist, rerun publish runs `32435010554` and `32437573817`, verify all four package IDs on nuget.org, close the issues, and remove release-asset bootstrap restore steps from Generation/Critter Stack/CLI workflows.
 2. Enable package validation after publication (Generation #3, Critter Stack #7).
-3. Continue remaining Marten completeness (#3)—compiled queries, identity configuration, EventProjection, multi-stream grouping, lifecycle, aliases/upcasts, tenancy—or Wolverine completeness (#4) against the pinned canonical workflow.
+3. Add CLI-owned resolved-package provenance and explicit support-tier reporting from `COMPATIBILITY.md`, then continue remaining Marten completeness (#3)—compiled queries, identity configuration, EventProjection document operations, multi-stream grouping/fan-out, daemon/subscription configuration, aliases/upcasts, tenancy—or Wolverine completeness (#4) against the pinned canonical workflow.
 4. Design language additions only from measured diagnostics in Cratis/Screenplay#128.
 
 The historical stages below explain architecture and acceptance criteria; most foundation stages are already delivered.
