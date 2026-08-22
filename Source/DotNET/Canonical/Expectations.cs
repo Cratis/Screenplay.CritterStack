@@ -10,6 +10,7 @@ enum ExpectationKind
     Source,
     NotSource,
     Diagnostic,
+    DiagnosticMessage,
     Artifact,
     Relationship,
     Identifier,
@@ -24,6 +25,7 @@ sealed record Expectation(ExpectationKind Kind, string Value)
         ExpectationKind.Source => result.Source.Contains(Value, StringComparison.Ordinal),
         ExpectationKind.NotSource => !result.Source.Contains(Value, StringComparison.Ordinal),
         ExpectationKind.Diagnostic => result.Diagnostics.Any(_ => _.Code == Value),
+        ExpectationKind.DiagnosticMessage => IsDiagnosticMessageIn(result, Value),
         ExpectationKind.Artifact => result.Graph.Artifacts.Any(_ => $"{_.Key.Kind}:{_.Variants[0].Definition.Name}" == Value),
         ExpectationKind.Relationship => IsRelationshipIn(result, Value),
         ExpectationKind.Identifier => IsIdentifierIn(result, Value),
@@ -33,6 +35,13 @@ sealed record Expectation(ExpectationKind Kind, string Value)
     };
 
     public override string ToString() => $"{Kind}: {Value}";
+
+    static bool IsDiagnosticMessageIn(GeneratedScreenplayDefinition result, string value)
+    {
+        var parts = value.Split('|', 2);
+        return parts.Length == 2 && result.Diagnostics.Any(_ =>
+            _.Code == parts[0] && _.Message.Contains(parts[1], StringComparison.Ordinal));
+    }
 
     static bool IsRelationshipIn(GeneratedScreenplayDefinition result, string value)
     {
@@ -152,6 +161,7 @@ static class Expectations
             "source" => ExpectationKind.Source,
             "not-source" => ExpectationKind.NotSource,
             "diagnostic" => ExpectationKind.Diagnostic,
+            "diagnostic-message" => ExpectationKind.DiagnosticMessage,
             "artifact" => ExpectationKind.Artifact,
             "relationship" => ExpectationKind.Relationship,
             "identifier" => ExpectationKind.Identifier,
