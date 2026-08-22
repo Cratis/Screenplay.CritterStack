@@ -12,11 +12,14 @@ source: key OrderKey
 source: correlationId CorrelationId
 source: referralCode CustomerCode?
 source: event OrderRegistered
+not-source: LegacyStorageEvent
+not-source: CurrentStorageEvent
 artifact: Concept:OrderKey
 artifact: Concept:CorrelationId
 artifact: Concept:CustomerCode
 artifact: Concept:NormalizedCode
 artifact-count: Concept|4
+artifact-count: Event|1
 evidence: Concept:CustomerCode|vogen|Integration/Canonical/VogenConcepts/Concepts.cs
 evidence: Command:RegisterOrder|cratis.critter-stack|Integration/Canonical/VogenConcepts/Ordering.cs
 evidence-count: Concept:CustomerCode|1
@@ -24,3 +27,7 @@ identifier: Document:Order:key
 not-identifier: Document:Order:correlationId
 diagnostic: VOG0002
 diagnostic: VOG0003
+diagnostic: MARTEN0011
+diagnostic-message: MARTEN0011|OrderRegistered
+diagnostic: MARTEN0012
+diagnostic-message: MARTEN0012|LegacyStorageEvent -> CurrentStorageEvent
