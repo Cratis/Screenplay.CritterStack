@@ -87,13 +87,13 @@ Repository boundaries:
   - correct distinction between aggregate event returns and HTTP results.
 - Canonical Wolverine IncidentService built cleanly.
 - The independent repository now builds Debug/Release with zero warnings/errors.
-- 286 combined adapter/generator specs pass in Debug on .NET 10 and in Release on .NET 8, .NET 9, and .NET 10.
+- 286 Critter Stack specs pass in Debug on .NET 10 and in Release on .NET 8, .NET 9, and .NET 10: 1,144 passing target/configuration executions in the combined verification run.
 - Real canonical IncidentService generation succeeds and captures commands, outgoing/delayed messages, external `Archived`, query/read model/reducer, document deletion, and compound validation with explicit WOLVERINE0001-0005 loss diagnostics.
 - `UpdatedAggregate` is correctly excluded from events.
 - Real Marten 6/Wolverine 1 CritterStackHelpDesk generation now produces a compiling document after project/module-name sanitization.
 - Pinned MartenWithProjectAspire generation verifies instance-registered async single-stream and multi-stream projections, exact `EventProjection.Create` document storage, and exact authored multi-stream `Identity`/`Identities` member selectors plus `FanOut` child evidence. Grouping, value-flow, ordinary-document, and lifecycle losses remain explicit; arbitrary, computed, conditional, and tenancy grouping remains diagnostic-only.
 - A fresh six-fixture canonical run passed. The adapter Release build had zero warnings/errors; pinned external Reports, MartenWithProjectAspire, and legacy HelpDesk builds retained their documented upstream vulnerability/EOL/nullability warnings without suppression.
-- Local package pack succeeded with sentinel version 9999.0.0; nuspec dependency direction remains Generation 0.1.0 + Roslyn only.
+- Local package validation succeeded against the public 0.1.0 baseline with sentinel version 9999.0.0; an isolated consumer restored and executed with the intended Generation 0.5.0 + Roslyn graph and no Vogen adapter.
 - Verified v0.5.0 and v0.6.0 packages are attached to their GitHub releases and installed in `~/.nuget/cratis-local`; scratch consumers restore and execute without repository workflow changes.
 
 ## Current cross-repository status
