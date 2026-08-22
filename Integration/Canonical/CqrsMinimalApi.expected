@@ -9,6 +9,7 @@ source: readmodel Student
 not-source: projection Student
 not-source: reducer Student
 artifact: Document:Student
+identifier: Document:Student:id
 relationship: Stores
 relationship: Deletes
 relationship: Reads

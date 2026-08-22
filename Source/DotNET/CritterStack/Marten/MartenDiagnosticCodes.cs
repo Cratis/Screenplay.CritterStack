@@ -27,4 +27,14 @@ public static class MartenDiagnosticCodes
     /// A configured projection lifecycle could not be represented.
     /// </summary>
     public const string ProjectionLifecycleOmitted = "MARTEN0004";
+
+    /// <summary>
+    /// A configured Marten document identity could not be resolved to an emitted member without guessing.
+    /// </summary>
+    public const string DocumentIdentityUnresolved = "MARTEN0005";
+
+    /// <summary>
+    /// A compiled-query call was found in a nested executable scope whose invocation from the containing endpoint could not be proven.
+    /// </summary>
+    public const string CompiledQueryFlowUnresolved = "MARTEN0006";
 }
