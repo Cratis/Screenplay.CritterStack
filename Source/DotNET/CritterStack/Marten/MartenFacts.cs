@@ -40,6 +40,12 @@ static class MartenFacts
 
         foreach (var registration in MartenProjectionDiscovery.Discover(project, adapter))
         {
+            if (string.Equals(registration.Lifecycle, "Async", StringComparison.Ordinal) ||
+                string.Equals(registration.Lifecycle, "Live", StringComparison.Ordinal))
+            {
+                diagnostics.Add(ProjectionLifecycleDiagnostic(project, registration));
+            }
+
             switch (registration.Kind)
             {
                 case ProjectionKind.Event:
@@ -301,5 +307,16 @@ static class MartenFacts
         Message = $"Event projection '{registration.Projection!.Name}' performs document operations that are not yet representable and was omitted",
         Source = registration.Evidence.Source,
         Subject = project.SubjectForType(registration.Projection)
+    };
+
+    static GenerationDiagnostic ProjectionLifecycleDiagnostic(
+        DotNetProjectCompilation project,
+        ProjectionRegistration registration) => new()
+    {
+        Code = MartenDiagnosticCodes.ProjectionLifecycleOmitted,
+        Severity = GenerationDiagnosticSeverity.Warning,
+        Message = $"Projection '{(registration.Projection ?? registration.Model).Name}' uses the {registration.Lifecycle} lifecycle, which is not expressible in the current Screenplay language",
+        Source = registration.Evidence.Source,
+        Subject = project.SubjectForType(registration.Projection ?? registration.Model)
     };
 }

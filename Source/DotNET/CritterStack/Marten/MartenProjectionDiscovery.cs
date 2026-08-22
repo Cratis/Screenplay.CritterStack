@@ -20,7 +20,10 @@ sealed record ProjectionRegistration(
     INamedTypeSymbol Model,
     INamedTypeSymbol? Projection,
     ProjectionKind Kind,
-    Evidence Evidence);
+    Evidence Evidence)
+{
+    public string? Lifecycle { get; init; }
+}
 
 static class MartenProjectionDiscovery
 {
@@ -30,6 +33,13 @@ static class MartenProjectionDiscovery
         WellKnownTypes.MartenSingleStreamProjectionTwoIds,
         "Marten.Events.Projections.SingleStreamProjection`1",
         "Marten.Events.Projections.SingleStreamProjection`2"
+    ];
+    static readonly HashSet<string> _projectionLifecycleTypes =
+    [
+        WellKnownTypes.JasperFxProjectionLifecycle,
+        WellKnownTypes.JasperFxSnapshotLifecycle,
+        WellKnownTypes.MartenProjectionLifecycle,
+        WellKnownTypes.MartenSnapshotLifecycle
     ];
 
     public static IReadOnlyList<ProjectionRegistration> Discover(
@@ -43,13 +53,13 @@ static class MartenProjectionDiscovery
             foreach (var invocation in tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
                 if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
-                    !IsMarten(method) ||
-                    method.TypeArguments.Length == 0)
+                    !IsMarten(method, invocation, semanticModel))
                 {
                     continue;
                 }
 
-                if (method.TypeArguments[0] is not INamedTypeSymbol type)
+                var type = ProjectionTypeFrom(method, invocation, semanticModel);
+                if (type is null)
                 {
                     continue;
                 }
@@ -66,13 +76,22 @@ static class MartenProjectionDiscovery
                 {
                     case "Snapshot":
                     case "LiveStreamAggregation":
-                        registrations.Add(new(type, null, ProjectionKind.Snapshot, evidence));
+                        registrations.Add(new(type, null, ProjectionKind.Snapshot, evidence)
+                        {
+                            Lifecycle = string.Equals(method.Name, "LiveStreamAggregation", StringComparison.Ordinal)
+                                ? "Live"
+                                : LifecycleFrom(invocation, semanticModel)
+                        });
                         break;
                     case "Add":
                         var shape = ShapeOf(type);
                         if (shape is not null)
                         {
-                            registrations.Add(shape with { Evidence = evidence });
+                            registrations.Add(shape with
+                            {
+                                Evidence = evidence,
+                                Lifecycle = LifecycleFrom(invocation, semanticModel)
+                            });
                         }
                         break;
                 }
@@ -121,13 +140,38 @@ static class MartenProjectionDiscovery
             return new(multiStreamModel, projection, ProjectionKind.MultiStream, null!);
         }
 
-        if (DotNetSymbols.IsOrInheritsFrom(projection, WellKnownTypes.MartenEventProjection))
+        if (DotNetSubjectIds.MetadataName(projection) != WellKnownTypes.MartenEventProjection &&
+            DotNetSymbols.IsOrInheritsFrom(projection, WellKnownTypes.MartenEventProjection))
         {
             return new(projection, projection, ProjectionKind.Event, null!);
         }
 
         return null;
     }
+
+    static INamedTypeSymbol? ProjectionTypeFrom(
+        IMethodSymbol method,
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel)
+    {
+        if (method.TypeArguments.FirstOrDefault() is INamedTypeSymbol typeArgument)
+        {
+            return typeArgument;
+        }
+
+        return invocation.ArgumentList.Arguments
+            .Select(_ => semanticModel.GetTypeInfo(_.Expression).Type)
+            .OfType<INamedTypeSymbol>()
+            .FirstOrDefault(_ => ShapeOf(_) is not null);
+    }
+
+    static string? LifecycleFrom(InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>
+        invocation.ArgumentList.Arguments
+            .Select(_ => semanticModel.GetSymbolInfo(_.Expression).Symbol)
+            .OfType<IFieldSymbol>()
+            .Where(_ => _projectionLifecycleTypes.Contains(DotNetSubjectIds.MetadataName(_.ContainingType)))
+            .Select(_ => _.Name)
+            .FirstOrDefault();
 
     static INamedTypeSymbol? BaseClosing(INamedTypeSymbol type, IEnumerable<string> metadataNames)
     {
@@ -143,9 +187,19 @@ static class MartenProjectionDiscovery
         return null;
     }
 
-    static bool IsMarten(IMethodSymbol method)
+    static bool IsMarten(
+        IMethodSymbol method,
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel)
     {
         var candidate = method.ReducedFrom ?? method;
-        return candidate.ContainingNamespace.ToDisplayString().StartsWith("Marten", StringComparison.Ordinal);
+        if (candidate.ContainingNamespace.ToDisplayString().StartsWith("Marten", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return invocation.Expression is MemberAccessExpressionSyntax memberAccess &&
+               semanticModel.GetTypeInfo(memberAccess.Expression).Type is INamedTypeSymbol receiver &&
+               DotNetSubjectIds.MetadataName(receiver.OriginalDefinition) == WellKnownTypes.MartenProjectionOptions;
     }
 }

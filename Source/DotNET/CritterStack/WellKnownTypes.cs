@@ -7,10 +7,15 @@ static class WellKnownTypes
 {
     public const string MartenDocumentStore = "Marten.IDocumentStore";
     public const string MartenStoreOptions = "Marten.StoreOptions";
+    public const string MartenProjectionOptions = "Marten.Events.Projections.ProjectionOptions";
     public const string MartenSingleStreamProjectionOneId = "Marten.Events.Aggregation.SingleStreamProjection`1";
     public const string MartenSingleStreamProjectionTwoIds = "Marten.Events.Aggregation.SingleStreamProjection`2";
     public const string MartenMultiStreamProjection = "Marten.Events.Projections.MultiStreamProjection`2";
     public const string MartenEventProjection = "Marten.Events.Projections.EventProjection";
+    public const string JasperFxProjectionLifecycle = "JasperFx.Events.Projections.ProjectionLifecycle";
+    public const string JasperFxSnapshotLifecycle = "JasperFx.Events.Projections.SnapshotLifecycle";
+    public const string MartenProjectionLifecycle = "Marten.Events.Projections.ProjectionLifecycle";
+    public const string MartenSnapshotLifecycle = "Marten.Events.Projections.SnapshotLifecycle";
     public const string WolverineOptions = "Wolverine.WolverineOptions";
     public const string WolverineHttpMethodAttribute = "Wolverine.Http.WolverineHttpMethodAttribute";
     public const string WolverineAggregateHandlerAttribute = "Wolverine.Persistence.EventSourcing.DeciderFunctionAttribute";

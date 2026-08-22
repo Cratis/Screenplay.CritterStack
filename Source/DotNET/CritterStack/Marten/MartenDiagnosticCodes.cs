@@ -22,4 +22,9 @@ public static class MartenDiagnosticCodes
     /// An ordinary Marten document is directly persisted or queried but cannot be declared by Screenplay.
     /// </summary>
     public const string DocumentModelOmitted = "MARTEN0003";
+
+    /// <summary>
+    /// A configured projection lifecycle could not be represented.
+    /// </summary>
+    public const string ProjectionLifecycleOmitted = "MARTEN0004";
 }

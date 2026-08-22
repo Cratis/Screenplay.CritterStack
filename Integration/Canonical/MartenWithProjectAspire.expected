@@ -1,0 +1,15 @@
+# JasperFx/CritterStackSamples @ 2c94389bcb5face1070d0409ef284973e8aaceea
+source: readmodel Trip
+source: reducer TripProjection => Trip
+source: readmodel Day
+source: reducer DayProjection => Day
+not-source: readmodel Distance
+artifact: ReadModel:Trip
+artifact: Reducer:TripProjection
+artifact: ReadModel:Day
+artifact: Reducer:DayProjection
+relationship: Builds
+relationship: Consumes
+diagnostic: MARTEN0001
+diagnostic: MARTEN0002
+diagnostic: MARTEN0004
