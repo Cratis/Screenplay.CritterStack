@@ -54,8 +54,6 @@ See:
 
 ## Build and test
 
-After the first Screenplay.Generation packages are published:
-
 ```shell
 dotnet test Screenplay.CritterStack.slnx --configuration Debug
 dotnet build Screenplay.CritterStack.slnx --configuration Release

@@ -15,11 +15,11 @@ The preview is acceptable when it safely produces a useful, compiling Screenplay
 
 ### Distribution
 
-- [ ] `Cratis.Screenplay.Generation.Contracts` 0.1.0 is available from nuget.org.
-- [ ] `Cratis.Screenplay.Generation` 0.1.0 is available from nuget.org.
-- [ ] `Cratis.Screenplay.Generation.DotNet` 0.1.0 is available from nuget.org.
-- [ ] `Cratis.CritterStack.Screenplay` 0.1.0 is available from nuget.org.
-- [ ] Temporary GitHub-release package restore bootstrap steps are removed.
+- [x] `Cratis.Screenplay.Generation.Contracts` 0.1.0 is available from nuget.org.
+- [x] `Cratis.Screenplay.Generation` 0.1.0 is available from nuget.org.
+- [x] `Cratis.Screenplay.Generation.DotNet` 0.1.0 is available from nuget.org.
+- [x] `Cratis.CritterStack.Screenplay` 0.1.0 is available from nuget.org.
+- [x] Temporary GitHub-release package restore bootstrap steps are removed from this repository.
 - [x] CLI PR #84 passes CI, merges, and creates the `v2.11.0` release.
 - [ ] CLI release workflows restore the adapter only from ordinary package sources; temporary release-asset bootstrap remains until nuget.org publication.
 - [x] The Homebrew-installed `cratis` 2.11.0 tool generates and validates Arc, Marten, and Critter Stack Screenplays from `/tmp`, outside source repositories.
@@ -32,7 +32,7 @@ The preview is acceptable when it safely produces a useful, compiling Screenplay
 - [x] A compilation with unresolved source errors fails generation instead of silently producing a smaller model (`CLI0008`).
 - [x] A solution containing several deployable hosts is rejected as ambiguous unless a project is targeted explicitly (`CLI0009`).
 - [x] Auto discovery rejects zero matches and unrelated multiple matches instead of guessing (`CLI0010`/`CLI0011`).
-- [ ] Package validation baselines are enabled after the first successful NuGet release.
+- [x] Package validation uses the public `Cratis.CritterStack.Screenplay` 0.1.0 baseline and runs during pull-request sentinel packing.
 
 ### Canonical behavior
 
@@ -83,4 +83,4 @@ A stable 1.0 should additionally require:
 
 ## Current recommendation
 
-The implementation, canonical behavior, CLI discovery, and safety gates are preview-ready. Finish normal nuget.org distribution, remove temporary package bootstrap, and verify the installed `v2.11.0` tool from outside the source repositories before announcing broad availability. Then gather real usage before expanding low-confidence edge cases or changing the Screenplay language further.
+The implementation, canonical behavior, CLI discovery, and safety gates are preview-ready. Critter Stack now restores Generation and validates package compatibility through nuget.org; remove the remaining CLI bootstrap and verify the installed tool from outside the source repositories before announcing broad availability. Then gather real usage before expanding low-confidence edge cases or changing the Screenplay language further.
