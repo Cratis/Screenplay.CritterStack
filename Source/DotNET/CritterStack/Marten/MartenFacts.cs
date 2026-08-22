@@ -39,8 +39,10 @@ static class MartenFacts
         var facts = new List<GenerationFact>();
         var diagnostics = new List<GenerationDiagnostic>();
         var documents = new List<MartenDocumentUsage>();
+        var registrations = MartenProjectionDiscovery.Discover(project, adapter);
+        diagnostics.AddRange(MartenConfigurationDiscovery.Discover(project, registrations));
 
-        foreach (var registration in MartenProjectionDiscovery.Discover(project, adapter))
+        foreach (var registration in registrations)
         {
             if (string.Equals(registration.Lifecycle, "Async", StringComparison.Ordinal) ||
                 string.Equals(registration.Lifecycle, "Live", StringComparison.Ordinal))
@@ -65,12 +67,33 @@ static class MartenFacts
                         registration.Projection!);
                     diagnostics.AddRange(multiStreamConfiguration.Diagnostics);
                     break;
+                case ProjectionKind.Custom:
+                    AddCustomProjectionFacts(project, registration, facts);
+                    diagnostics.Add(CustomProjectionDiagnostic(project, registration));
+                    continue;
             }
 
             AddAggregateProjectionFacts(project, options, adapter, registration, multiStreamConfiguration, facts);
         }
 
         return new(facts, diagnostics, documents);
+    }
+
+    static void AddCustomProjectionFacts(
+        DotNetProjectCompilation project,
+        ProjectionRegistration registration,
+        List<GenerationFact> facts)
+    {
+        var projection = registration.Projection!;
+        var subject = project.SubjectForType(projection);
+        facts.Add(Artifact(
+            $"marten:custom-projection:{subject.Value}",
+            subject,
+            ArtifactKind.Projection,
+            projection.Name,
+            SourceFileOf(projection, project),
+            [],
+            registration.Evidence));
     }
 
     static void AddAggregateProjectionFacts(
@@ -421,5 +444,16 @@ static class MartenFacts
         Message = $"Projection '{(registration.Projection ?? registration.Model).Name}' uses the {registration.Lifecycle} lifecycle, which is not expressible in the current Screenplay language",
         Source = registration.Evidence.Source,
         Subject = project.SubjectForType(registration.Projection ?? registration.Model)
+    };
+
+    static GenerationDiagnostic CustomProjectionDiagnostic(
+        DotNetProjectCompilation project,
+        ProjectionRegistration registration) => new()
+    {
+        Code = MartenDiagnosticCodes.CustomProcessingOmitted,
+        Severity = GenerationDiagnosticSeverity.Warning,
+        Message = $"Custom Marten projection '{registration.Projection!.Name}' is preserved as a neutral projection artifact, but its arbitrary processing consequences were not inferred",
+        Source = registration.Evidence.Source,
+        Subject = project.SubjectForType(registration.Projection)
     };
 }

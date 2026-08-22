@@ -37,4 +37,24 @@ public static class MartenDiagnosticCodes
     /// A compiled-query call was found in a nested executable scope whose invocation from the containing endpoint could not be proven.
     /// </summary>
     public const string CompiledQueryFlowUnresolved = "MARTEN0006";
+
+    /// <summary>
+    /// Authored projection daemon identity metadata could not be represented or resolved exactly.
+    /// </summary>
+    public const string ProjectionMetadataOmitted = "MARTEN0007";
+
+    /// <summary>
+    /// Async daemon hosting or shard configuration could not be represented or resolved exactly.
+    /// </summary>
+    public const string DaemonConfigurationOmitted = "MARTEN0008";
+
+    /// <summary>
+    /// A registered event subscription or its exact configuration could not be represented.
+    /// </summary>
+    public const string SubscriptionConfigurationOmitted = "MARTEN0009";
+
+    /// <summary>
+    /// Arbitrary custom projection or subscription processing consequences were deliberately not inferred.
+    /// </summary>
+    public const string CustomProcessingOmitted = "MARTEN0010";
 }
