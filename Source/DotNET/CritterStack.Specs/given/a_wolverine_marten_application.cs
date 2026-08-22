@@ -21,6 +21,25 @@ public class a_wolverine_marten_application : Specification
         namespace Wolverine
         {
             public class WolverineOptions;
+            public class DeliveryOptions
+            {
+                public System.TimeSpan? ScheduleDelay { get; set; }
+                public System.DateTimeOffset? ScheduledTime { get; set; }
+            }
+            public interface ICommandBus
+            {
+                System.Threading.Tasks.Task<T> InvokeAsync<T>(object message);
+            }
+            public interface IMessageBus : ICommandBus
+            {
+                System.Threading.Tasks.ValueTask SendAsync<T>(T message, DeliveryOptions? options = null);
+                System.Threading.Tasks.ValueTask PublishAsync<T>(T message, DeliveryOptions? options = null);
+                System.Threading.Tasks.ValueTask BroadcastToTopicAsync(string topicName, object message, DeliveryOptions? options = null);
+            }
+            public static class MessageBusExtensions
+            {
+                public static System.Threading.Tasks.ValueTask ScheduleAsync<T>(this IMessageBus bus, T message, System.TimeSpan delay, DeliveryOptions? options = null) => default;
+            }
             public interface IResponseAware : Wolverine.Configuration.IWolverineReturnType;
             public class OutgoingMessages : System.Collections.Generic.List<object>, Wolverine.Configuration.IWolverineReturnType;
             public interface ISideEffect : Wolverine.Configuration.IWolverineReturnType;
@@ -133,6 +152,18 @@ public class a_wolverine_marten_application : Specification
         public record AbstractEvent(System.Guid IncidentId);
         public record CheckIncident(System.Guid IncidentId);
         public record CheckIncidentResponse(bool Exists);
+        public record SendIncidentNotification(System.Guid IncidentId);
+        public record PublishIncidentNotification(System.Guid IncidentId);
+        public record RequestIncidentStatus(System.Guid IncidentId);
+        public record IncidentStatusResponse(bool Exists);
+        public record ScheduleIncidentReview(System.Guid IncidentId);
+        public record ScheduledIncidentPublication(System.Guid IncidentId);
+        public record TopicIncidentNotification(System.Guid IncidentId);
+        public record UnrelatedBusMessage(System.Guid IncidentId);
+        public class UnrelatedBus
+        {
+            public System.Threading.Tasks.ValueTask SendAsync<T>(T message) => default;
+        }
         public class AuditEffect : Wolverine.ISideEffect;
 
         public class Incident
@@ -206,9 +237,20 @@ public class a_wolverine_marten_application : Specification
         {
             public static NotifyIncidentNote Handle(
                 AppendIncidentNote command,
-                JasperFx.Events.IEventStream<Incident> stream)
+                JasperFx.Events.IEventStream<Incident> stream,
+                Wolverine.IMessageBus bus,
+                UnrelatedBus unrelatedBus)
             {
                 stream.AppendOne(new IncidentNoteAppended(command.Note));
+                _ = bus.SendAsync(new SendIncidentNotification(command.IncidentId));
+                _ = bus.PublishAsync(new PublishIncidentNotification(command.IncidentId));
+                _ = bus.InvokeAsync<IncidentStatusResponse>(new RequestIncidentStatus(command.IncidentId));
+                _ = bus.ScheduleAsync(new ScheduleIncidentReview(command.IncidentId), System.TimeSpan.FromMinutes(5));
+                _ = bus.PublishAsync(
+                    new ScheduledIncidentPublication(command.IncidentId),
+                    new Wolverine.DeliveryOptions { ScheduleDelay = System.TimeSpan.FromMinutes(10) });
+                _ = bus.BroadcastToTopicAsync("incidents", new TopicIncidentNotification(command.IncidentId));
+                _ = unrelatedBus.SendAsync(new UnrelatedBusMessage(command.IncidentId));
                 return new NotifyIncidentNote(command.IncidentId);
             }
         }
