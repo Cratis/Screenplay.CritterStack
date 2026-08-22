@@ -56,7 +56,12 @@ public class a_marten_async_projection_application : Specification
                 public void Snapshot<T>(JasperFx.Events.Projections.SnapshotLifecycle lifecycle) { }
                 public void LiveStreamAggregation<T>() { }
             }
-            public abstract class MultiStreamProjection<T, TId> : JasperFx.Events.Projections.IProjection;
+            public abstract class MultiStreamProjection<T, TId> : JasperFx.Events.Projections.IProjection
+            {
+                protected void Identity<TEvent>(System.Func<TEvent, TId> selector) { }
+                protected void Identities<TEvent>(System.Func<TEvent, System.Collections.Generic.IReadOnlyList<TId>> selector) { }
+                protected void FanOut<TEvent, TChild>(System.Func<TEvent, System.Collections.Generic.IEnumerable<TChild>> selector) { }
+            }
             public abstract class EventProjection : JasperFx.Events.Projections.IProjection
             {
                 public JasperFx.Events.Projections.AsyncOptions Options { get; } = new();
@@ -155,6 +160,12 @@ public class a_marten_async_projection_application : Specification
 
         public partial class DayProjection : Marten.Events.Projections.MultiStreamProjection<Day, int>
         {
+            public DayProjection()
+            {
+                Identity<TripStarted>(x => x.Day);
+                FanOut<Travel, Movement>(x => x.Movements);
+            }
+
             public void Apply(Day day, TripStarted e) { }
             public void Apply(Day day, Movement e) { }
         }
