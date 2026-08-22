@@ -57,4 +57,14 @@ public static class MartenDiagnosticCodes
     /// Arbitrary custom projection or subscription processing consequences were deliberately not inferred.
     /// </summary>
     public const string CustomProcessingOmitted = "MARTEN0010";
+
+    /// <summary>
+    /// Authored event alias, schema-version, or naming-style configuration cannot be represented without changing Event artifacts.
+    /// </summary>
+    public const string EventTypeConfigurationOmitted = "MARTEN0011";
+
+    /// <summary>
+    /// Authored event upcast registration cannot be represented without inventing event-evolution behavior.
+    /// </summary>
+    public const string EventUpcastConfigurationOmitted = "MARTEN0012";
 }
