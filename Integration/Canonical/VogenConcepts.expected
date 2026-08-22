@@ -1,0 +1,26 @@
+# Cratis-owned fixture: Vogen 8.0.7, Marten 9.29.0, Wolverine 6.29.2
+source-sha256: f63c311d6a9d05437fbfea3ffde95a8ccba91bc76b7b3acd3a64da1fbcc5e287
+source: concept OrderKey : Uuid
+source: concept CorrelationId : Uuid
+source: concept CustomerCode : String
+source: concept NormalizedCode : String
+source: rule Validate
+source: message "Customer codes cannot be blank"
+source: file Integration/Canonical/VogenConcepts/Concepts.cs
+source: command RegisterOrder
+source: key OrderKey
+source: correlationId CorrelationId
+source: referralCode CustomerCode?
+source: event OrderRegistered
+artifact: Concept:OrderKey
+artifact: Concept:CorrelationId
+artifact: Concept:CustomerCode
+artifact: Concept:NormalizedCode
+artifact-count: Concept|4
+evidence: Concept:CustomerCode|vogen|Integration/Canonical/VogenConcepts/Concepts.cs
+evidence: Command:RegisterOrder|cratis.critter-stack|Integration/Canonical/VogenConcepts/Ordering.cs
+evidence-count: Concept:CustomerCode|1
+identifier: Document:Order:key
+not-identifier: Document:Order:correlationId
+diagnostic: VOG0002
+diagnostic: VOG0003

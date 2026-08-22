@@ -1,6 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Security.Cryptography;
+using System.Text;
+
 using Cratis.Screenplay.Generation;
 
 namespace Cratis.CritterStack.Screenplay.Canonical;
@@ -9,11 +12,16 @@ enum ExpectationKind
 {
     Source,
     NotSource,
+    SourceHash,
     Diagnostic,
     DiagnosticMessage,
     Artifact,
+    ArtifactCount,
+    Evidence,
+    EvidenceCount,
     Relationship,
     Identifier,
+    NotIdentifier,
     Grouping,
     FanOut
 }
@@ -24,11 +32,16 @@ sealed record Expectation(ExpectationKind Kind, string Value)
     {
         ExpectationKind.Source => result.Source.Contains(Value, StringComparison.Ordinal),
         ExpectationKind.NotSource => !result.Source.Contains(Value, StringComparison.Ordinal),
+        ExpectationKind.SourceHash => IsSourceHash(result, Value),
         ExpectationKind.Diagnostic => result.Diagnostics.Any(_ => _.Code == Value),
         ExpectationKind.DiagnosticMessage => IsDiagnosticMessageIn(result, Value),
         ExpectationKind.Artifact => result.Graph.Artifacts.Any(_ => $"{_.Key.Kind}:{_.Variants[0].Definition.Name}" == Value),
+        ExpectationKind.ArtifactCount => IsArtifactCountIn(result, Value),
+        ExpectationKind.Evidence => IsEvidenceIn(result, Value),
+        ExpectationKind.EvidenceCount => IsEvidenceCountIn(result, Value),
         ExpectationKind.Relationship => IsRelationshipIn(result, Value),
         ExpectationKind.Identifier => IsIdentifierIn(result, Value),
+        ExpectationKind.NotIdentifier => !IsIdentifierIn(result, Value),
         ExpectationKind.Grouping => IsGroupingIn(result, Value),
         ExpectationKind.FanOut => IsFanOutIn(result, Value),
         _ => false
@@ -41,6 +54,45 @@ sealed record Expectation(ExpectationKind Kind, string Value)
         var parts = value.Split('|', 2);
         return parts.Length == 2 && result.Diagnostics.Any(_ =>
             _.Code == parts[0] && _.Message.Contains(parts[1], StringComparison.Ordinal));
+    }
+
+    static bool IsSourceHash(GeneratedScreenplayDefinition result, string value) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(result.Source)))
+            .Equals(value, StringComparison.OrdinalIgnoreCase);
+
+    static bool IsArtifactCountIn(GeneratedScreenplayDefinition result, string value)
+    {
+        var parts = value.Split('|');
+        return parts.Length == 2 &&
+               Enum.TryParse<ArtifactKind>(parts[0], out var kind) &&
+               int.TryParse(parts[1], out var count) &&
+               result.Graph.Artifacts.Count(_ => _.Key.Kind == kind) == count;
+    }
+
+    static bool IsEvidenceIn(GeneratedScreenplayDefinition result, string value)
+    {
+        var parts = value.Split('|');
+        var artifact = parts.Length == 3 ? ArtifactIn(result, parts[0]) : null;
+        return artifact?.Variants
+            .SelectMany(_ => _.Evidence)
+            .Any(_ => _.Adapter.Id == parts[1] && _.Source?.Path == parts[2]) == true;
+    }
+
+    static bool IsEvidenceCountIn(GeneratedScreenplayDefinition result, string value)
+    {
+        var parts = value.Split('|');
+        var artifact = parts.Length == 2 ? ArtifactIn(result, parts[0]) : null;
+        return artifact is not null &&
+               int.TryParse(parts[1], out var count) &&
+               artifact.Variants.Sum(_ => _.Evidence.Count) == count;
+    }
+
+    static ResolvedArtifact? ArtifactIn(GeneratedScreenplayDefinition result, string value)
+    {
+        var parts = value.Split(':', 2);
+        return parts.Length == 2 && Enum.TryParse<ArtifactKind>(parts[0], out var kind)
+            ? result.Graph.Artifacts.FirstOrDefault(_ => _.Key.Kind == kind && _.Variants.Any(variant => variant.Definition.Name == parts[1]))
+            : null;
     }
 
     static bool IsRelationshipIn(GeneratedScreenplayDefinition result, string value)
@@ -160,11 +212,16 @@ static class Expectations
         {
             "source" => ExpectationKind.Source,
             "not-source" => ExpectationKind.NotSource,
+            "source-sha256" => ExpectationKind.SourceHash,
             "diagnostic" => ExpectationKind.Diagnostic,
             "diagnostic-message" => ExpectationKind.DiagnosticMessage,
             "artifact" => ExpectationKind.Artifact,
+            "artifact-count" => ExpectationKind.ArtifactCount,
+            "evidence" => ExpectationKind.Evidence,
+            "evidence-count" => ExpectationKind.EvidenceCount,
             "relationship" => ExpectationKind.Relationship,
             "identifier" => ExpectationKind.Identifier,
+            "not-identifier" => ExpectationKind.NotIdentifier,
             "grouping" => ExpectationKind.Grouping,
             "fan-out" => ExpectationKind.FanOut,
             _ => throw new InvalidExpectation(value)
