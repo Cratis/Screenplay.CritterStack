@@ -14,6 +14,7 @@ on:
       - "**"
     paths:
       - "Source/DotNET/**"
+      - "Integration/PackageConsumer/**"
       - "*.props"
       - "*.targets"
       - "*.slnx"
@@ -32,15 +33,8 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      # Bootstrap the first adapter release while the new Generation package IDs await nuget.org trusted-publisher
-      # policy setup (Cratis/Screenplay.Generation#2). Remove this step once 0.1.0 is available from nuget.org.
-      - name: Download Screenplay generation SDK packages
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release download v0.1.0 --repo Cratis/Screenplay.Generation --pattern '*.nupkg' --dir ./Artifacts/Dependencies
-
       - name: Restore Debug
-        run: dotnet restore --property:Configuration=Debug --source ./Artifacts/Dependencies --source https://api.nuget.org/v3/index.json
+        run: dotnet restore --property:Configuration=Debug
 
       - name: Build & run tests
         run: dotnet test --configuration Debug --no-restore
@@ -49,7 +43,7 @@ jobs:
       # below the baseline is rejected on that alone before the API surface is ever looked at - so it has to
       # be set on the build, since the pack below reuses what this produces.
       - name: Restore Release
-        run: dotnet restore --property:Configuration=Release --source ./Artifacts/Dependencies --source https://api.nuget.org/v3/index.json
+        run: dotnet restore --property:Configuration=Release
 
       - name: Build Release
         run: dotnet build --no-restore --configuration Release -p:Version=9999.0.0
@@ -59,3 +53,15 @@ jobs:
       # break in the pull request that causes it, which is what Directory.Build.props already claims happens.
       - name: Pack
         run: dotnet pack --no-build --configuration Release -o ./Artifacts/NuGet -p:Version=9999.0.0
+
+      - name: Run clean package consumer
+        env:
+          NUGET_PACKAGES: ${{ runner.temp }}/critter-stack-consumer-packages
+        run: |
+          dotnet restore Integration/PackageConsumer/PackageConsumer.csproj \
+            --source ./Artifacts/NuGet \
+            --source https://api.nuget.org/v3/index.json \
+            -p:CritterStackPackageVersion=9999.0.0
+          dotnet run --project Integration/PackageConsumer/PackageConsumer.csproj \
+            --no-restore \
+            -p:CritterStackPackageVersion=9999.0.0

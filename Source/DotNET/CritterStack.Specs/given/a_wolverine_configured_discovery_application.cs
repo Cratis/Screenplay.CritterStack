@@ -244,7 +244,8 @@ public class a_wolverine_configured_discovery_application : Specification
             Name = "ConfiguredDiscovery",
             ProjectPath = "/workspace/ConfiguredDiscovery/ConfiguredDiscovery.csproj",
             SourceRoot = "/workspace",
-            Compilation = compilation
+            Compilation = compilation,
+            AuthoredSyntaxTrees = compilation.SyntaxTrees.ToHashSet()
         };
 
         var unresolvedCompilation = CSharpCompilation.Create(
@@ -260,7 +261,8 @@ public class a_wolverine_configured_discovery_application : Specification
             Name = "UnresolvedDiscovery",
             ProjectPath = "/workspace/UnresolvedDiscovery/UnresolvedDiscovery.csproj",
             SourceRoot = "/workspace",
-            Compilation = unresolvedCompilation
+            Compilation = unresolvedCompilation,
+            AuthoredSyntaxTrees = unresolvedCompilation.SyntaxTrees.ToHashSet()
         };
     }
 }

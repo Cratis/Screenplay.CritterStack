@@ -57,7 +57,8 @@ public sealed class CritterStackScreenplayGenerator(
                 new DotNetProjectCompilation
                 {
                     Name = name,
-                    Compilation = compilation
+                    Compilation = compilation,
+                    AuthoredSyntaxTrees = compilation.SyntaxTrees.ToHashSet()
                 }
             ],
             options);
