@@ -91,7 +91,7 @@ Repository boundaries:
 - Real canonical IncidentService generation succeeds and captures commands, outgoing/delayed messages, external `Archived`, query/read model/reducer, document deletion, and compound validation with explicit WOLVERINE0001-0005 loss diagnostics.
 - `UpdatedAggregate` is correctly excluded from events.
 - Real Marten 6/Wolverine 1 CritterStackHelpDesk generation now produces a compiling document after project/module-name sanitization.
-- Pinned MartenWithProjectAspire generation verifies instance-registered async single-stream, multi-stream, and event projections with explicit `MARTEN0001`, `MARTEN0002`, and `MARTEN0004` loss diagnostics.
+- Pinned MartenWithProjectAspire generation verifies instance-registered async single-stream and multi-stream projections plus exact `EventProjection.Create` document storage, with explicit grouping, value-flow, ordinary-document, and lifecycle diagnostics.
 - A fresh six-fixture canonical run passed. The adapter Release build had zero warnings/errors; pinned external Reports, MartenWithProjectAspire, and legacy HelpDesk builds retained their documented upstream vulnerability/EOL/nullability warnings without suppression.
 - Local package pack succeeded with sentinel version 9999.0.0; nuspec dependency direction remains Generation 0.1.0 + Roslyn only.
 - Verified v0.5.0 and v0.6.0 packages are attached to their GitHub releases and installed in `~/.nuget/cratis-local`; scratch consumers restore and execute without repository workflow changes.
@@ -119,14 +119,14 @@ Repository boundaries:
 6. Enable package validation (Generation #3 and Critter Stack #7).
 7. Update CLI from the temporary adapter 0.1.0 bootstrap to the published current package so exact canonical package sets can be promoted from `SourceReviewed` to `Canonical`.
 8. Complete neutral concept validation in Screenplay.Generation #6, then implement authored-source Vogen interpretation (#7) and Critter Stack composition/canonical coverage (#25).
-9. Continue remaining Marten completeness (#3)—`EventProjection` document operations, multi-stream identity/grouping/fan-out, lifecycle/name/version and daemon/subscription evidence, aliases/upcasts, and tenancy—or Wolverine completeness (#4), followed by measured Screenplay language gaps (`Cratis/Screenplay#128`).
+9. Continue remaining Marten completeness (#3)—multi-stream identity/grouping/fan-out, lifecycle/name/version and daemon/subscription evidence, aliases/upcasts, tenancy, and `EventProjection` operations beyond the exact bounded set—or Wolverine completeness (#4), followed by measured Screenplay language gaps (`Cratis/Screenplay#128`).
 
 ## Known implementation gaps
 
 - NuGet trusted-publishing policies are not configured for the new SDK or adapter package IDs; this blocks normal nuget.org restore and removal of the temporary release-asset bootstrap.
 - Pinned canonical verification is complete through PR #11 and closed issue #5. It verifies current BankAccountES, a license-attributed current IncidentService fixture, and legacy CritterStackHelpDesk at immutable upstream commits.
 - PR #14 extends canonical verification to CqrsMinimalApi and Reports and implements the first bounded part of Marten completeness issue #3.
-- Instance-based Marten projection registrations and direct async/live lifecycle constants are recognized; lifecycle remains a diagnostic-only loss until Screenplay can represent it. Projection names/versions, daemon/subscription settings, and computed lifecycle values are not yet analyzed.
+- Instance-based Marten projection registrations and direct async/live lifecycle constants are recognized; lifecycle remains a diagnostic-only loss until Screenplay can represent it. Authored `EventProjection.Create` returns and event-bound `IDocumentOperations.Store`/`Insert`/`Update`/`Delete`/`DeleteWhere` calls emit exact event, projection, document, and relationship facts without inventing read models; arbitrary body/value flow remains diagnostic-only. Projection names/versions, daemon/subscription settings, computed lifecycle values, and other document operation families are not yet analyzed.
 - Compiled queries are linked from exact Marten execution calls to proven Wolverine HTTP query entry points, but arbitrary expression reconstruction and non-Wolverine application entry-point classification remain out of scope.
 - CLI `v2.12.0` carries resolved package/assembly/capability provenance and explicit compatibility dimensions. Its committed package remains 0.1.0 until normal publication; local development can override to current 0.6.0 from `~/.nuget/cratis-local` and obtains `Canonical` support.
 - Current/legacy return slots, direct-stream cascades, direct bus delivery, pure bus automations, return-only/`OutgoingMessages` automations, and exact source-bound handler discovery activation are classified. Runtime/custom predicate discovery, external assembly and handler-module scanning, richer transport topology, sagas, DCB, subscriptions/forwarding, and projection side effects remain.

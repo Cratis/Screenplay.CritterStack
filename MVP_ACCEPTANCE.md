@@ -41,7 +41,7 @@ The preview is acceptable when it safely produces a useful, compiling Screenplay
 - [x] Legacy CritterStackHelpDesk verifies Marten 6/Wolverine 1 compatibility and valid module naming.
 - [x] CqrsMinimalApi verifies ordinary Marten documents and CRUD/query relationships without inventing an event projection.
 - [x] Reports verifies `IMartenOp` document persistence and custom identity source context.
-- [x] MartenWithProjectAspire verifies generic/instance async projection registration, multi-stream grouping loss, and `EventProjection` loss.
+- [x] MartenWithProjectAspire verifies generic/instance async projection registration, multi-stream grouping loss, and exact `EventProjection.Create` document storage without inventing a read model.
 - [x] Canonical sample checks run green in CI at pinned commits.
 
 ### Trust and honesty
@@ -57,7 +57,7 @@ The preview is acceptable when it safely produces a useful, compiling Screenplay
 
 These remain tracked compatibility work and should not block initial use when they produce honest diagnostics:
 
-- every Marten `EventProjection` operation;
+- `EventProjection` operations beyond exact authored `Create` returns and event-bound `IDocumentOperations.Store`/`Insert`/`Update`/`Delete`/`DeleteWhere` calls, plus arbitrary body/value reconstruction;
 - arbitrary multi-stream groupers and event slicers;
 - full compiled-query expression reconstruction;
 - all tenancy/database topologies;
