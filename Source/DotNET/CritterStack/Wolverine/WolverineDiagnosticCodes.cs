@@ -37,4 +37,9 @@ public static class WolverineDiagnosticCodes
     /// A direct Wolverine send, publish, request/reply, or delivery option could not be represented by Screenplay.
     /// </summary>
     public const string DirectMessageDeliveryOmitted = "WOLVERINE0006";
+
+    /// <summary>
+    /// Authored Wolverine handler discovery configuration could not be resolved exactly from source.
+    /// </summary>
+    public const string HandlerDiscoveryConfigurationUnresolved = "WOLVERINE0007";
 }
