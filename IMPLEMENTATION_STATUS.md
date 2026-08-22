@@ -68,7 +68,7 @@ Repository boundaries:
 - Synthetic current Wolverine/Marten fixture covering start stream, aggregate events, response wrappers, `Events`, `OutgoingMessages`, external events, direct document deletion, and queries.
 - Pattern-discovery research maps Marten/Wolverine source evidence into State Change, State View, Automation, and Translation without conflating responses, cascades, publishes, side effects, or persisted events.
 - `COMPATIBILITY.md` records exact canonical package combinations, current source baselines, and explicit support tiers; CLI `v2.12.0` implements the planned NuGet provenance seam.
-- `VOGEN_CONCEPT_DISCOVERY_RESEARCH.md` establishes the reusable neutral-concept/Vogen architecture and tracks delivery in Screenplay.Generation #6/#7 and Critter Stack #25.
+- `VOGEN_CONCEPT_DISCOVERY_RESEARCH.md` establishes the reusable neutral-concept/Vogen architecture. Screenplay.Generation v0.2.0/v0.3.0 now provide neutral concept representation, attributes, subject-aware references, deterministic resolution, and lowering; validation remains in #6 before Vogen interpretation #7 and Critter Stack composition #25.
 
 ## Verified before repository split
 
@@ -114,7 +114,7 @@ Repository boundaries:
 5. Remove temporary GitHub-release-asset bootstrap restore steps from Critter Stack and CLI workflows; use ordinary nuget.org restore and rerun all checks.
 6. Enable package validation (Generation #3 and Critter Stack #7).
 7. Update CLI from the temporary adapter 0.1.0 bootstrap to the published current package so exact canonical package sets can be promoted from `SourceReviewed` to `Canonical`.
-8. Implement neutral concept facts/lowering (Screenplay.Generation #6), authored-source Vogen interpretation (#7), and Critter Stack composition/canonical coverage (#25).
+8. Complete neutral concept validation in Screenplay.Generation #6, then implement authored-source Vogen interpretation (#7) and Critter Stack composition/canonical coverage (#25).
 9. Continue remaining Marten completeness (#3)—compiled queries, identity configuration, EventProjection document operations, multi-stream grouping/fan-out, daemon/subscription configuration, aliases/upcasts, and tenancy—or Wolverine completeness (#4), followed by measured Screenplay language gaps (`Cratis/Screenplay#128`).
 
 ## Known implementation gaps
