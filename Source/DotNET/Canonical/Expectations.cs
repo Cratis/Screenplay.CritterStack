@@ -23,12 +23,45 @@ sealed record Expectation(ExpectationKind Kind, string Value)
         ExpectationKind.NotSource => !result.Source.Contains(Value, StringComparison.Ordinal),
         ExpectationKind.Diagnostic => result.Diagnostics.Any(_ => _.Code == Value),
         ExpectationKind.Artifact => result.Graph.Artifacts.Any(_ => $"{_.Key.Kind}:{_.Variants[0].Definition.Name}" == Value),
-        ExpectationKind.Relationship => result.Graph.Relationships.Any(_ => _.Key.Kind.ToString() == Value),
+        ExpectationKind.Relationship => IsRelationshipIn(result, Value),
         ExpectationKind.Identifier => IsIdentifierIn(result, Value),
         _ => false
     };
 
     public override string ToString() => $"{Kind}: {Value}";
+
+    static bool IsRelationshipIn(GeneratedScreenplayDefinition result, string value)
+    {
+        var firstSpace = value.IndexOf(' ');
+        if (firstSpace < 0)
+        {
+            return result.Graph.Relationships.Any(_ => _.Key.Kind.ToString() == value);
+        }
+
+        var arrow = value.IndexOf(" -> ", firstSpace, StringComparison.Ordinal);
+        if (arrow < 0 || !Enum.TryParse<RelationshipKind>(value[..firstSpace], out var kind))
+        {
+            return false;
+        }
+
+        var source = value[(firstSpace + 1)..arrow];
+        var target = value[(arrow + 4)..];
+        return result.Graph.Relationships.Any(relationship =>
+            relationship.Key.Kind == kind &&
+            ArtifactMatches(result, relationship.Key.Source, source) &&
+            ArtifactMatches(result, relationship.Key.Target, target));
+    }
+
+    static bool ArtifactMatches(GeneratedScreenplayDefinition result, SubjectId subject, string value)
+    {
+        var parts = value.Split(':', 2);
+        return parts.Length == 2 &&
+               Enum.TryParse<ArtifactKind>(parts[0], out var kind) &&
+               result.Graph.Artifacts.Any(artifact =>
+                   artifact.Key.Subject == subject &&
+                   artifact.Key.Kind == kind &&
+                   artifact.Variants.Any(variant => variant.Definition.Name == parts[1]));
+    }
 
     static bool IsIdentifierIn(GeneratedScreenplayDefinition result, string value)
     {
