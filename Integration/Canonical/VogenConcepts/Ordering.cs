@@ -50,6 +50,18 @@ public sealed record OrderRegistered(
     NormalizedCode NormalizedCode);
 
 /// <summary>
+/// A legacy storage-only event schema used solely as authored upcast configuration evidence.
+/// </summary>
+/// <param name="CustomerCode">The legacy customer code.</param>
+public sealed record LegacyStorageEvent(CustomerCode CustomerCode);
+
+/// <summary>
+/// A current storage-only event schema used solely as authored upcast configuration evidence.
+/// </summary>
+/// <param name="CustomerCode">The current customer code.</param>
+public sealed record CurrentStorageEvent(CustomerCode CustomerCode);
+
+/// <summary>
 /// Configures the exact Marten identity member.
 /// </summary>
 public static class StorageConfiguration
@@ -58,7 +70,14 @@ public static class StorageConfiguration
     /// Configures order storage.
     /// </summary>
     /// <param name="options">The Marten options.</param>
-    public static void Configure(StoreOptions options) => options.Schema.For<Order>().Identity(_ => _.Key);
+    public static void Configure(StoreOptions options)
+    {
+        options.Events.MapEventType<OrderRegistered>("order-registered");
+        options.Events.Upcast<LegacyStorageEvent, CurrentStorageEvent>(
+            "legacy-storage-event",
+            legacy => new CurrentStorageEvent(legacy.CustomerCode));
+        options.Schema.For<Order>().Identity(_ => _.Key);
+    }
 }
 
 /// <summary>

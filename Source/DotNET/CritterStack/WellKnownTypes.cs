@@ -7,6 +7,19 @@ static class WellKnownTypes
 {
     public const string MartenDocumentStore = "Marten.IDocumentStore";
     public const string MartenStoreOptions = "Marten.StoreOptions";
+    public const string MartenEventStoreOptions = "Marten.Events.IEventStoreOptions";
+    public const string MartenEventStoreOptionsExtensions = "EventStoreOptionsExtensions";
+    public const string MartenEventAttribute = "Marten.Schema.MartenEventAttribute";
+    public const string JasperFxEventNamingStyle = "JasperFx.Events.EventNamingStyle";
+    public const string MartenJsonTransformation = "Marten.Services.Json.Transformations.JsonTransformation";
+    public const string MartenEventUpcasterInterface = "Marten.Services.Json.Transformations.IEventUpcaster";
+    public const string MartenClrEventUpcaster = "Marten.Services.Json.Transformations.EventUpcaster`2";
+    public const string MartenClrAsyncOnlyEventUpcaster = "Marten.Services.Json.Transformations.AsyncOnlyEventUpcaster`2";
+    public const string MartenRawEventUpcaster = "Marten.Services.Json.Transformations.EventUpcaster`1";
+    public const string MartenSystemTextJsonEventUpcaster = "Marten.Services.Json.Transformations.SystemTextJson.EventUpcaster`1";
+    public const string MartenSystemTextJsonAsyncOnlyEventUpcaster = "Marten.Services.Json.Transformations.SystemTextJson.AsyncOnlyEventUpcaster`1";
+    public const string MartenJsonNetEventUpcaster = "Marten.Services.Json.Transformations.JsonNet.EventUpcaster`1";
+    public const string MartenJsonNetAsyncOnlyEventUpcaster = "Marten.Services.Json.Transformations.JsonNet.AsyncOnlyEventUpcaster`1";
     public const string MartenQuerySession = "Marten.IQuerySession";
     public const string MartenBatchedQuery = "Marten.Services.BatchQuerying.IBatchedQuery";
     public const string MartenCompiledQuery = "Marten.Linq.ICompiledQuery`2";
