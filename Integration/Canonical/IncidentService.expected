@@ -9,7 +9,9 @@ source: event IncidentLogged
 source: event IncidentCategorised
 source: event IncidentClosed
 source: event Archived
+not-source: command PrioritiseIncident
 not-source: event UpdatedAggregate
+not-source: event ArchiveIncident
 artifact: Message:ArchiveIncident
 relationship: Cascades
 relationship: Deletes
