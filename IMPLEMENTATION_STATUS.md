@@ -63,7 +63,7 @@ Repository boundaries:
 - Adapter version derived from assembly informational version.
 - Synthetic current Wolverine/Marten fixture covering start stream, aggregate events, response wrappers, `Events`, `OutgoingMessages`, external events, direct document deletion, and queries.
 - Pattern-discovery research maps Marten/Wolverine source evidence into State Change, State View, Automation, and Translation without conflating responses, cascades, publishes, side effects, or persisted events.
-- `COMPATIBILITY.md` records exact canonical package combinations, current source baselines, explicit support tiers, and the planned CLI-owned NuGet provenance seam.
+- `COMPATIBILITY.md` records exact canonical package combinations, current source baselines, and explicit support tiers; CLI `v2.12.0` implements the planned NuGet provenance seam.
 
 ## Verified before repository split
 
@@ -95,6 +95,8 @@ Repository boundaries:
 - PR #84 passed all four GitHub checks. Fresh local verification after merging current CLI main into the branch passed 568 CLI specs and a Release build with zero warnings and zero errors. Real auto-provider generation was also rechecked against BankAccountES and IncidentService.
 - CLI documentation PR #86 is merged. It labels Marten/Critter Stack generation as preview, explains discovery and trust boundaries, and documents `CLI0008`–`CLI0011`.
 - CLI `v2.11.0` published successfully to NuGet, GitHub release assets, and Homebrew. The Homebrew installation was upgraded from 2.10.1 to 2.11.0 and tested from `/tmp`: Arc, BankAccountES, and IncidentService generation plus validation all exited successfully. The generated files were 74, 160, and 133 lines respectively. Generation reported explicit known losses—Arc 2 warnings/2 information, BankAccountES 1 warning/9 information, IncidentService 4 warnings/6 information—and IncidentService validation retained 7 known undeclared-type warnings while Arc and BankAccountES validated without compiler diagnostics.
+- [`Cratis/cli` PR #88](https://github.com/Cratis/cli/pull/88) is merged and released as `v2.12.0`. It adds selected-target `project.assets.json` package provenance, assembly identities, API capability fingerprints, and independent support-tier/recognition/semantic-conformance/lowering-fidelity reporting. `CLI0012`/`CLI0013` fail closed outside admitted framework generations, and `CLI0014` reports unsupported provider options. Verification passed 623 specs, a zero-warning/error Release build, all four PR checks, sentinel packing, and the full NuGet/native/GitHub/Homebrew release workflow.
+- CLI `v2.12.0` still bundles `Cratis.CritterStack.Screenplay` 0.1.0 from the temporary release-asset bootstrap. Exact application package sets therefore remain `SourceReviewed` rather than `Canonical` until adapter 0.3.0 is published and bundled. Five canonical applications generate successfully through the CLI; legacy HelpDesk correctly reports contradictory/failed lowering under the older bundled provider, while the current adapter independently passes all six fixtures.
 - Local CLI worktree `/Volumes/sourcecode/repos/cratis/cli-critter` and its feature branch were removed after merge. The durable continuation root remains `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack`.
 
 ## Exact continuation order
@@ -105,7 +107,8 @@ Repository boundaries:
 4. Rerun failed Critter Stack publish run `32437573817`; verify `Cratis.CritterStack.Screenplay` 0.1.0 resolves from nuget.org, then close Critter Stack issue #1.
 5. Remove temporary GitHub-release-asset bootstrap restore steps from Critter Stack and CLI workflows; use ordinary nuget.org restore and rerun all checks.
 6. Enable package validation (Generation #3 and Critter Stack #7).
-7. Add CLI-owned resolved-package provenance and support-tier reporting, then continue remaining Marten completeness (#3)—compiled queries, identity configuration, EventProjection document operations, multi-stream grouping/fan-out, daemon/subscription configuration, aliases/upcasts, and tenancy—or Wolverine completeness (#4), followed by measured Screenplay language gaps (`Cratis/Screenplay#128`).
+7. Update CLI from the temporary adapter 0.1.0 bootstrap to the published 0.3.0 package so exact canonical package sets can be promoted from `SourceReviewed` to `Canonical`.
+8. Continue remaining Marten completeness (#3)—compiled queries, identity configuration, EventProjection document operations, multi-stream grouping/fan-out, daemon/subscription configuration, aliases/upcasts, and tenancy—or Wolverine completeness (#4), followed by measured Screenplay language gaps (`Cratis/Screenplay#128`).
 
 ## Known implementation gaps
 
@@ -113,7 +116,7 @@ Repository boundaries:
 - Pinned canonical verification is complete through PR #11 and closed issue #5. It verifies current BankAccountES, a license-attributed current IncidentService fixture, and legacy CritterStackHelpDesk at immutable upstream commits.
 - PR #14 extends canonical verification to CqrsMinimalApi and Reports and implements the first bounded part of Marten completeness issue #3.
 - Instance-based Marten projection registrations and direct async/live lifecycle constants are recognized; lifecycle remains a diagnostic-only loss until Screenplay can represent it. Projection daemon/subscription settings and computed lifecycle values are not yet analyzed.
-- Canonical package versions are documented, but generated results do not yet carry CLI-resolved NuGet provenance or an explicit compatibility support tier.
+- CLI `v2.12.0` carries resolved package/assembly/capability provenance and explicit compatibility dimensions. Until adapter 0.3.0 is published and bundled, exact canonical application package sets remain capped at `SourceReviewed`.
 - `Events` and delayed `OutgoingMessages` collection expressions are recognized; direct bus calls, richer delivery options, and transport topology need fuller body-value analysis.
 - Route-only identities and HTTP response metadata are facts but current Screenplay syntax cannot represent them fully.
 - Validation/authorization discovery is not implemented yet.
