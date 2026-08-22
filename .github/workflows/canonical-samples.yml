@@ -47,16 +47,10 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Download Screenplay generation SDK packages
-        working-directory: adapter
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release download v0.1.0 --repo Cratis/Screenplay.Generation --pattern '*.nupkg' --dir ./Artifacts/Dependencies
-
       - name: Restore and build adapter
         working-directory: adapter
         run: |
-          dotnet restore Screenplay.CritterStack.slnx --property:Configuration=Release --source ./Artifacts/Dependencies --source https://api.nuget.org/v3/index.json
+          dotnet restore Screenplay.CritterStack.slnx --property:Configuration=Release
           dotnet build Screenplay.CritterStack.slnx --no-restore --configuration Release
 
       - name: Complete pinned Marten sample dependency

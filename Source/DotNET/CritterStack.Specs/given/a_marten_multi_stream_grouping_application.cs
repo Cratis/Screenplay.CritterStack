@@ -192,7 +192,8 @@ public class a_marten_multi_stream_grouping_application : Specification
             Name = "Orders",
             ProjectPath = "/workspace/Orders/Orders.csproj",
             SourceRoot = "/workspace",
-            Compilation = compilation
+            Compilation = compilation,
+            AuthoredSyntaxTrees = compilation.SyntaxTrees.ToHashSet()
         };
         Contribution = new CritterStackScreenplayAdapter().Analyze(
             new DotNetAnalysisContext([project]),

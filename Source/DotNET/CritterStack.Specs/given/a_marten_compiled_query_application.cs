@@ -212,11 +212,13 @@ public class a_marten_compiled_query_application : Specification
 
     void Establish()
     {
+        var frameworkTree = CSharpSyntaxTree.ParseText(FrameworkSource, path: "/workspace/Framework.cs");
+        var applicationTree = CSharpSyntaxTree.ParseText(ApplicationSource, path: "/workspace/Students/Students.cs");
         var compilation = CSharpCompilation.Create(
             "Students",
             [
-                CSharpSyntaxTree.ParseText(FrameworkSource, path: "/workspace/Framework.cs"),
-                CSharpSyntaxTree.ParseText(ApplicationSource, path: "/workspace/Students/Students.cs"),
+                frameworkTree,
+                applicationTree,
                 CSharpSyntaxTree.ParseText(GeneratedApplicationSource, path: "/workspace/Students/Internal/Generated/StudentsByName.g.cs")
             ],
             _references,
@@ -226,7 +228,8 @@ public class a_marten_compiled_query_application : Specification
             Name = "Students",
             ProjectPath = "/workspace/Students/Students.csproj",
             SourceRoot = "/workspace",
-            Compilation = compilation
+            Compilation = compilation,
+            AuthoredSyntaxTrees = new HashSet<SyntaxTree> { frameworkTree, applicationTree }
         };
         Contribution = new CritterStackScreenplayAdapter().Analyze(
             new DotNetAnalysisContext([project]),

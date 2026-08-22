@@ -495,11 +495,13 @@ public class a_wolverine_marten_application : Specification
 
     void Establish()
     {
+        var frameworkTree = CSharpSyntaxTree.ParseText(FrameworkSource, path: "/workspace/Framework.cs");
+        var applicationTree = CSharpSyntaxTree.ParseText(ApplicationSource, path: "/workspace/IncidentService/Incidents.cs");
         var compilation = CSharpCompilation.Create(
             "IncidentService",
             [
-                CSharpSyntaxTree.ParseText(FrameworkSource, path: "/workspace/Framework.cs"),
-                CSharpSyntaxTree.ParseText(ApplicationSource, path: "/workspace/IncidentService/Incidents.cs"),
+                frameworkTree,
+                applicationTree,
                 CSharpSyntaxTree.ParseText(GeneratedApplicationSource, path: "/workspace/IncidentService/Generated.g.cs")
             ],
             _references,
@@ -509,7 +511,8 @@ public class a_wolverine_marten_application : Specification
             Name = "IncidentService",
             ProjectPath = "/workspace/IncidentService/IncidentService.csproj",
             SourceRoot = "/workspace",
-            Compilation = compilation
+            Compilation = compilation,
+            AuthoredSyntaxTrees = new HashSet<SyntaxTree> { frameworkTree, applicationTree }
         };
     }
 }

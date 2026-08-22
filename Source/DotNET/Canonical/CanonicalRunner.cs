@@ -36,6 +36,9 @@ static class CanonicalRunner
                 continue;
             }
 
+            var authoredSyntaxTrees = (await Task.WhenAll(project.Documents.Select(_ => _.GetSyntaxTreeAsync())))
+                .OfType<SyntaxTree>()
+                .ToHashSet();
             var compilation = await project.GetCompilationAsync();
             if (compilation is null)
             {
@@ -59,7 +62,8 @@ static class CanonicalRunner
                 Name = project.Name,
                 ProjectPath = project.FilePath,
                 SourceRoot = sourceRoot,
-                Compilation = compilation
+                Compilation = compilation,
+                AuthoredSyntaxTrees = authoredSyntaxTrees
             });
         }
 
