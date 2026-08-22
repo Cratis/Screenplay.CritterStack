@@ -50,9 +50,9 @@ static class WolverineFacts
         var facts = new List<GenerationFact>();
         var diagnostics = new List<GenerationDiagnostic>();
         var catalog = new DotNetArtifactCatalog(project.Compilation);
-        foreach (var type in catalog.Types.Where(IsPublicSourceType))
+        foreach (var type in catalog.Types.Where(_ => IsPublicSourceType(_) && !IsIgnored(_)))
         {
-            foreach (var method in type.GetMembers().OfType<IMethodSymbol>().Where(IsPublicSourceMethod))
+            foreach (var method in type.GetMembers().OfType<IMethodSymbol>().Where(_ => IsPublicSourceMethod(_) && !IsIgnored(_)))
             {
                 var endpoint = EndpointFor(method);
                 if (endpoint is not null)
@@ -167,6 +167,7 @@ static class WolverineFacts
         }
 
         AddDocumentDeletes(project, commandSubject, method, evidence, facts);
+        AddReturnConsequences(project, commandSubject, method, evidence, isHttpEndpoint: true, aggregateWorkflow, facts);
         AddOutgoingMessages(project, commandSubject, method, evidence, facts, diagnostics);
     }
 
@@ -222,6 +223,7 @@ static class WolverineFacts
         }
 
         AddDocumentDeletes(project, commandSubject, method, evidence, facts);
+        AddReturnConsequences(project, commandSubject, method, evidence, isHttpEndpoint: false, aggregateWorkflow, facts);
         AddOutgoingMessages(project, commandSubject, method, evidence, facts, diagnostics);
     }
 
@@ -393,20 +395,14 @@ static class WolverineFacts
                     var delayed = element.Expression.DescendantNodesAndSelf()
                         .OfType<InvocationExpressionSyntax>()
                         .Any(_ => _.Expression.ToString().Contains("Delayed", StringComparison.Ordinal));
-                    facts.Add(Artifact(
-                        $"wolverine:message:{messageSubject.Value}",
-                        new ArtifactKey { Subject = messageSubject, Kind = ArtifactKind.Message },
-                        messageType.Name,
-                        SourceFileOf(messageType, project),
-                        DotNetTypeShapes.PropertiesOf(messageType),
-                        evidence));
-                    facts.Add(Relationship(
-                        $"wolverine:cascades:{sourceSubject.Value}:{messageSubject.Value}",
+                    AddMessageAndCascade(
+                        project,
                         sourceSubject,
-                        RelationshipKind.Cascades,
-                        messageSubject,
+                        messageType,
                         evidence,
-                        discriminator: delayed ? "delayed" : "immediate"));
+                        $"wolverine:cascades:{sourceSubject.Value}:{messageSubject.Value}",
+                        delayed ? "delayed" : "immediate",
+                        facts);
 
                     if (delayed)
                     {
@@ -422,6 +418,64 @@ static class WolverineFacts
                 }
             }
         }
+    }
+
+    static void AddReturnConsequences(
+        DotNetProjectCompilation project,
+        SubjectId sourceSubject,
+        IMethodSymbol method,
+        Evidence evidence,
+        bool isHttpEndpoint,
+        bool aggregateWorkflow,
+        List<GenerationFact> facts)
+    {
+        foreach (var consequence in WolverineReturnConsequences.Classify(
+                     method,
+                     isHttpEndpoint,
+                     aggregateWorkflow,
+                     HasEventStreamParameter(method)).Where(_ => _.Kind == WolverineReturnConsequenceKind.Cascade))
+        {
+            if (consequence.Type is not INamedTypeSymbol messageType || !IsEventPayloadType(messageType))
+            {
+                continue;
+            }
+
+            var messageSubject = project.SubjectForType(messageType);
+            AddMessageAndCascade(
+                project,
+                sourceSubject,
+                messageType,
+                evidence,
+                $"wolverine:cascades:return:{sourceSubject.Value}:{consequence.Slot}:{messageSubject.Value}",
+                $"return-slot:{consequence.Slot}",
+                facts);
+        }
+    }
+
+    static void AddMessageAndCascade(
+        DotNetProjectCompilation project,
+        SubjectId sourceSubject,
+        INamedTypeSymbol messageType,
+        Evidence evidence,
+        string relationshipId,
+        string discriminator,
+        List<GenerationFact> facts)
+    {
+        var messageSubject = project.SubjectForType(messageType);
+        facts.Add(Artifact(
+            $"wolverine:message:{messageSubject.Value}",
+            new ArtifactKey { Subject = messageSubject, Kind = ArtifactKind.Message },
+            messageType.Name,
+            SourceFileOf(messageType, project),
+            DotNetTypeShapes.PropertiesOf(messageType),
+            evidence));
+        facts.Add(Relationship(
+            relationshipId,
+            sourceSubject,
+            RelationshipKind.Cascades,
+            messageSubject,
+            evidence,
+            discriminator: discriminator));
     }
 
     static void AddDocumentDeletes(
@@ -535,12 +589,26 @@ static class WolverineFacts
         method.ContainingType.Name.EndsWith("AggregateHandler", StringComparison.Ordinal) ||
         method.Parameters.Any(IsAggregateParameter);
 
-    static bool HasEventStreamParameter(IMethodSymbol method) => method.Parameters.Any(_ =>
-        _.Type is INamedTypeSymbol named && named.IsGenericType && named.Name == "IEventStream");
+    static bool HasEventStreamParameter(IMethodSymbol method) => method.Parameters.Any(parameter =>
+    {
+        if (parameter.Type is not INamedTypeSymbol { IsGenericType: true } named)
+        {
+            return false;
+        }
+
+        var metadataName = DotNetSubjectIds.MetadataName(named.OriginalDefinition);
+        return string.Equals(metadataName, WellKnownTypes.JasperFxEventStream, StringComparison.Ordinal) ||
+               string.Equals(metadataName, WellKnownTypes.MartenLegacyEventStream, StringComparison.Ordinal);
+    });
 
     static IEnumerable<ITypeSymbol> AggregateReturnEvents(IMethodSymbol method) =>
-        WolverineReturnTypes.CreatedValues(method)
-            .Where(_ => !WolverineReturnTypes.IsSpecialReturn(_) && IsEventPayloadType(_));
+        WolverineReturnConsequences.Classify(
+                method,
+                isHttpEndpoint: false,
+                aggregateWorkflow: true,
+                hasEventStream: false)
+            .Where(_ => _.Kind == WolverineReturnConsequenceKind.PersistedEvent)
+            .Select(_ => _.Type);
 
     static IEnumerable<ITypeSymbol> PersistenceEvents(IMethodSymbol method, DotNetProjectCompilation project)
     {
@@ -676,12 +744,29 @@ static class WolverineFacts
         .Any(_ => string.Equals(_.Name, "Validate", StringComparison.Ordinal) ||
                   string.Equals(_.Name, "ValidateAsync", StringComparison.Ordinal));
 
-    static bool IsHandler(INamedTypeSymbol type, IMethodSymbol method) =>
-        (type.Name.EndsWith("Handler", StringComparison.Ordinal) ||
-         type.Name.EndsWith("Consumer", StringComparison.Ordinal) ||
-         DotNetSymbols.Implements(type, "Wolverine.IWolverineHandler") ||
-         DotNetSymbols.HasAttribute(type, "Wolverine.WolverineHandlerAttribute")) &&
-        (_handlerMethodNames.Contains(method.Name) || DotNetSymbols.HasAttribute(method, "Wolverine.WolverineHandlerAttribute"));
+    static bool IsHandler(INamedTypeSymbol type, IMethodSymbol method)
+    {
+        if (type.IsGenericType || (type.IsAbstract && !type.IsStatic))
+        {
+            return false;
+        }
+
+        var explicitMethod = DotNetSymbols.HasAttribute(method, WellKnownTypes.WolverineHandlerAttribute) ||
+                             DotNetSymbols.HasAttribute(method, WellKnownTypes.WolverineLegacyHandlerAttribute);
+        if (explicitMethod)
+        {
+            return true;
+        }
+
+        var handlerType = type.Name.EndsWith("Handler", StringComparison.Ordinal) ||
+                          type.Name.EndsWith("Consumer", StringComparison.Ordinal) ||
+                          DotNetSymbols.Implements(type, "Wolverine.IWolverineHandler") ||
+                          DotNetSymbols.HasAttribute(type, WellKnownTypes.WolverineHandlerAttribute) ||
+                          DotNetSymbols.HasAttribute(type, WellKnownTypes.WolverineLegacyHandlerAttribute);
+        return handlerType && _handlerMethodNames.Contains(method.Name);
+    }
+
+    static bool IsIgnored(ISymbol symbol) => DotNetSymbols.HasAttribute(symbol, WellKnownTypes.WolverineIgnoreAttribute);
 
     static bool IsPublicSourceType(INamedTypeSymbol type) =>
         type.DeclaredAccessibility == Accessibility.Public && type.Locations.Any(_ => _.IsInSource);
