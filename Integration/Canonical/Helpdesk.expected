@@ -13,3 +13,5 @@ relationship: Produces
 relationship: Reads
 diagnostic: WOLVERINE0002
 diagnostic: WOLVERINE0003
+diagnostic: WOLVERINE0005
+diagnostic: WOLVERINE0008
