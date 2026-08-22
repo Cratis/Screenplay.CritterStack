@@ -41,7 +41,7 @@ public sealed class CritterStackScreenplayAdapter : IDotNetScreenplayAdapter
             facts.AddRange(marten.Facts);
             diagnostics.AddRange(marten.Diagnostics);
 
-            var documents = Marten.MartenDocumentFacts.Discover(project, Identity);
+            var documents = Marten.MartenDocumentFacts.Discover(project, Identity, marten.Documents);
             facts.AddRange(documents.Facts);
             diagnostics.AddRange(documents.Diagnostics);
 

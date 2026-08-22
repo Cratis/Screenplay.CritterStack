@@ -14,7 +14,7 @@ public static class MartenDiagnosticCodes
     public const string MultiStreamGroupingOmitted = "MARTEN0001";
 
     /// <summary>
-    /// An arbitrary event projection could not be represented.
+    /// Arbitrary EventProjection document body, value, or predicate flow could not be represented.
     /// </summary>
     public const string EventProjectionOmitted = "MARTEN0002";
 
