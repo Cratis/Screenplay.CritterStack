@@ -13,3 +13,5 @@ artifact: Command:DepositFunds
 artifact: Reducer:AccountTransactionsProjection
 relationship: Produces
 relationship: Reads
+diagnostic: WOLVERINE0005
+diagnostic: WOLVERINE0008

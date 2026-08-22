@@ -60,6 +60,7 @@ Repository boundaries:
 - Slot-level Wolverine return classification keeps HTTP responses, persisted events, persistence wrappers, cascades, `OutgoingMessages`, side effects, and direct `IEventStream<T>` consequences distinct.
 - Current and legacy Wolverine handler/return metadata, explicit and ignored handlers, and inactive open-generic/abstract handler types.
 - Exact authored `HandlerDiscovery.DisableConventionalDiscovery()` and `IncludeType<T>()` / `IncludeType(typeof(T))` configuration, same-compilation assembly inclusion, generated-source exclusion, and stable `WOLVERINE0007` diagnostics when custom predicates or external assembly scans cannot be resolved without guessing.
+- Exact source-bound FluentValidation/DataAnnotations message and HTTP policy activation, validator/annotation applicability, compound `Validate`/`ValidateAsync` middleware, ASP.NET authorization attributes, anonymous overrides, and global Wolverine endpoint authorization, with stable diagnostics instead of invented relationships when current contracts cannot represent the behavior.
 - Exact direct bus send, publish, request/reply, scheduling, delivery-option scheduling, and topic-broadcast consequences with stable discriminators and no event fabrication.
 - Pure direct-bus handlers represented as reactions with message triggers and explicit lowering loss.
 - Evidence-strength-based placements so exact Wolverine behavior overrides Marten heuristics.
@@ -84,8 +85,8 @@ Repository boundaries:
   - correct distinction between aggregate event returns and HTTP results.
 - Canonical Wolverine IncidentService built cleanly.
 - The independent repository now builds Debug/Release with zero warnings/errors.
-- 156 adapter/generator specs pass.
-- Real canonical IncidentService generation succeeds and captures commands, outgoing/delayed messages, external `Archived`, query/read model/reducer, and document deletion with explicit WOLVERINE0001-0005 loss diagnostics.
+- 196 adapter/generator specs pass.
+- Real canonical IncidentService generation succeeds and captures commands, outgoing/delayed messages, external `Archived`, query/read model/reducer, document deletion, and compound validation with explicit WOLVERINE0001-0005 loss diagnostics.
 - `UpdatedAggregate` is correctly excluded from events.
 - Real Marten 6/Wolverine 1 CritterStackHelpDesk generation now produces a compiling document after project/module-name sanitization.
 - Pinned MartenWithProjectAspire generation verifies instance-registered async single-stream, multi-stream, and event projections with explicit `MARTEN0001`, `MARTEN0002`, and `MARTEN0004` loss diagnostics.
@@ -127,7 +128,7 @@ Repository boundaries:
 - CLI `v2.12.0` carries resolved package/assembly/capability provenance and explicit compatibility dimensions. Its committed package remains 0.1.0 until normal publication; local development can override to current 0.6.0 from `~/.nuget/cratis-local` and obtains `Canonical` support.
 - Current/legacy return slots, direct-stream cascades, direct bus delivery, pure bus automations, return-only/`OutgoingMessages` automations, and exact source-bound handler discovery activation are classified. Runtime/custom predicate discovery, external assembly and handler-module scanning, richer transport topology, sagas, DCB, subscriptions/forwarding, and projection side effects remain.
 - Route-only identities and HTTP response metadata are facts but current Screenplay syntax cannot represent them fully.
-- Validation/authorization discovery is not implemented yet.
+- Validation/authorization discovery is deliberately source-bound: package presence alone has no effect; exact built-in policy activation and applied behavior are retained as `WOLVERINE0005` and `WOLVERINE0008`-`WOLVERINE0011` diagnostics because Generation 0.1.0 has no faithful neutral contracts. Runtime/custom validator registration, conditional policy activation, custom `IHttpPolicy` behavior, and broader ASP.NET route-group/fallback-policy data flow remain unresolved rather than guessed.
 - Ambiguous multiple deployable hosts now have CLI specification coverage and fail with `CLI0009`; richer API/worker cross-project contract relationships still need acceptance coverage.
 - MSBuildWorkspace can omit framework reference packs for net7/net9 projects. Canonical and CLI generation repair these references, and remaining authored-source errors now fail with `CLI0008` so error symbols cannot silently become artifacts.
 - The current production project reference to the full Generation package should remain only if required by the complete generator façade; low-level analysis code must depend only on Contracts and DotNet.
