@@ -7,11 +7,23 @@ public class a_wolverine_marten_application : Specification
 {
     const string FrameworkSource =
         """
+        namespace Wolverine.Attributes
+        {
+            public class WolverineHandlerAttribute : System.Attribute;
+            public class WolverineIgnoreAttribute : System.Attribute;
+        }
+
+        namespace Wolverine.Configuration
+        {
+            public interface IWolverineReturnType;
+        }
+
         namespace Wolverine
         {
             public class WolverineOptions;
-            public class OutgoingMessages : System.Collections.Generic.List<object>;
-            public interface ISideEffect;
+            public interface IResponseAware : Wolverine.Configuration.IWolverineReturnType;
+            public class OutgoingMessages : System.Collections.Generic.List<object>, Wolverine.Configuration.IWolverineReturnType;
+            public interface ISideEffect : Wolverine.Configuration.IWolverineReturnType;
             public record DeliveryMessage<T>(T Message);
             public static class DeliveryExtensions
             {
@@ -25,9 +37,7 @@ public class a_wolverine_marten_application : Specification
             public class WolverinePostAttribute(string route) : WolverineHttpMethodAttribute(route);
             public class WolverineGetAttribute(string route) : WolverineHttpMethodAttribute(route);
             public class EmptyResponseAttribute : System.Attribute;
-            public interface IWolverineReturnType;
-            public interface IResponseAware;
-            public class CreationResponse<T>(string location, T value);
+            public class CreationResponse<T>(string location, T value) : Wolverine.IResponseAware;
         }
 
         namespace Wolverine.Persistence.EventSourcing
@@ -49,8 +59,8 @@ public class a_wolverine_marten_application : Specification
         namespace Wolverine.Marten
         {
             public class AggregateHandlerAttribute : Wolverine.Persistence.EventSourcing.DeciderFunctionAttribute;
-            public class Events : System.Collections.Generic.List<object>, Wolverine.Http.IWolverineReturnType;
-            public class UpdatedAggregate : Wolverine.Http.IResponseAware;
+            public class Events : System.Collections.Generic.List<object>, Wolverine.Configuration.IWolverineReturnType;
+            public class UpdatedAggregate : Wolverine.IResponseAware;
             public interface IStartStream : Wolverine.ISideEffect;
             public static class MartenOps
             {
@@ -61,6 +71,10 @@ public class a_wolverine_marten_application : Specification
         namespace JasperFx.Events
         {
             public record Archived(string Reason);
+            public interface IEventStream<T>
+            {
+                void AppendOne(object @event);
+            }
         }
 
         namespace Marten
@@ -104,6 +118,22 @@ public class a_wolverine_marten_application : Specification
         public record CategoriseIncident(string Category, int Version);
         public record CloseIncident(System.Guid ClosedBy, int Version);
         public record ArchiveIncident(System.Guid IncidentId);
+        public record AppendIncidentNote(System.Guid IncidentId, string Note);
+        public record IncidentNoteAppended(string Note);
+        public record NotifyIncidentNote(System.Guid IncidentId);
+        public record ExplicitCommand(System.Guid IncidentId);
+        public record ExplicitEvent(System.Guid IncidentId);
+        public record IgnoredCommand(System.Guid IncidentId);
+        public record IgnoredEvent(System.Guid IncidentId);
+        public record MethodIgnoredCommand(System.Guid IncidentId);
+        public record MethodIgnoredEvent(System.Guid IncidentId);
+        public record GenericCommand(System.Guid IncidentId);
+        public record GenericEvent(System.Guid IncidentId);
+        public record AbstractCommand(System.Guid IncidentId);
+        public record AbstractEvent(System.Guid IncidentId);
+        public record CheckIncident(System.Guid IncidentId);
+        public record CheckIncidentResponse(bool Exists);
+        public class AuditEffect : Wolverine.ISideEffect;
 
         public class Incident
         {
@@ -144,10 +174,10 @@ public class a_wolverine_marten_application : Specification
         public static class CloseIncidentEndpoint
         {
             [Wolverine.Http.WolverinePost("/api/incidents/{id}/close")]
-            public static (Wolverine.Marten.UpdatedAggregate, Wolverine.Marten.Events, Wolverine.OutgoingMessages) Handle(
+            public static (Wolverine.Marten.UpdatedAggregate, Wolverine.Marten.Events, Wolverine.OutgoingMessages, AuditEffect) Handle(
                 CloseIncident command,
                 [Wolverine.Http.Marten.Aggregate] Incident incident) =>
-                (new(), [new IncidentClosed(command.ClosedBy)], [new ArchiveIncident(incident.Id).DelayedFor()]);
+                (new(), [new IncidentClosed(command.ClosedBy)], [new ArchiveIncident(incident.Id).DelayedFor()], new());
         }
 
         public static class ArchiveIncidentHandler
@@ -164,6 +194,56 @@ public class a_wolverine_marten_application : Specification
             [Wolverine.Http.WolverineGet("/api/incidents/{id}")]
             public static System.Threading.Tasks.Task<Incident?> Get(System.Guid id) =>
                 System.Threading.Tasks.Task.FromResult<Incident?>(null);
+        }
+
+        public static class CheckIncidentEndpoint
+        {
+            [Wolverine.Http.WolverinePost("/api/incidents/check")]
+            public static CheckIncidentResponse Post(CheckIncident command) => new(true);
+        }
+
+        public static class AppendIncidentNoteHandler
+        {
+            public static NotifyIncidentNote Handle(
+                AppendIncidentNote command,
+                JasperFx.Events.IEventStream<Incident> stream)
+            {
+                stream.AppendOne(new IncidentNoteAppended(command.Note));
+                return new NotifyIncidentNote(command.IncidentId);
+            }
+        }
+
+        public static class ExplicitActions
+        {
+            [Wolverine.Attributes.WolverineHandler]
+            public static void Process(ExplicitCommand command, Marten.IDocumentSession session) =>
+                session.Events.Append(command.IncidentId, new ExplicitEvent(command.IncidentId));
+        }
+
+        [Wolverine.Attributes.WolverineIgnore]
+        public static class IgnoredHandler
+        {
+            public static void Handle(IgnoredCommand command, Marten.IDocumentSession session) =>
+                session.Events.Append(command.IncidentId, new IgnoredEvent(command.IncidentId));
+        }
+
+        public static class PartlyIgnoredHandler
+        {
+            [Wolverine.Attributes.WolverineIgnore]
+            public static void Handle(MethodIgnoredCommand command, Marten.IDocumentSession session) =>
+                session.Events.Append(command.IncidentId, new MethodIgnoredEvent(command.IncidentId));
+        }
+
+        public class GenericHandler<T>
+        {
+            public static void Handle(GenericCommand command, Marten.IDocumentSession session) =>
+                session.Events.Append(command.IncidentId, new GenericEvent(command.IncidentId));
+        }
+
+        public abstract class AbstractHandler
+        {
+            public void Handle(AbstractCommand command, Marten.IDocumentSession session) =>
+                session.Events.Append(command.IncidentId, new AbstractEvent(command.IncidentId));
         }
         """;
 
