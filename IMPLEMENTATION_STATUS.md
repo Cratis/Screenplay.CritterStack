@@ -37,9 +37,9 @@ Repository boundaries:
 
 - GitHub repository: <https://github.com/Cratis/Screenplay.CritterStack>
 - Local repository: `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack`
-- `main` is synchronized with `origin/main` through the `v0.6.0` Wolverine pure-automation release.
+- The feature branch is rebased onto `main` / `origin/main` at the `v0.9.0` Wolverine validation-and-authorization release baseline.
 - Initial adapter PR: <https://github.com/Cratis/Screenplay.CritterStack/pull/2> (merged).
-- Latest release/tag: [`v0.6.0`](https://github.com/Cratis/Screenplay.CritterStack/releases/tag/v0.6.0). Its release/restore/build/pack jobs succeeded; NuGet login remains blocked by trusted-publishing setup in run `32568782112`.
+- Latest release/tag and rebase baseline: [`v0.9.0`](https://github.com/Cratis/Screenplay.CritterStack/releases/tag/v0.9.0) at `bfe7eb185ec7ac75a1016b934957899c807b64f7`.
 - The verified `Cratis.CritterStack.Screenplay.0.1.0.nupkg` remains attached to the `v0.1.0` GitHub release for temporary bootstrap restores.
 - NuGet publishing blocker: [issue #1](https://github.com/Cratis/Screenplay.CritterStack/issues/1); nuget.org returns 404 until a trusted-publishing policy is created and the publish job is rerun.
 - Research/handover commit imported from the original unpublished Screenplay branch.
@@ -87,7 +87,7 @@ Repository boundaries:
   - correct distinction between aggregate event returns and HTTP results.
 - Canonical Wolverine IncidentService built cleanly.
 - The independent repository now builds Debug/Release with zero warnings/errors.
-- 196 adapter/generator specs pass before the combined Marten query feature gate.
+- 230 combined adapter/generator specs pass in Debug and in Release on .NET 8, .NET 9, and .NET 10.
 - Real canonical IncidentService generation succeeds and captures commands, outgoing/delayed messages, external `Archived`, query/read model/reducer, document deletion, and compound validation with explicit WOLVERINE0001-0005 loss diagnostics.
 - `UpdatedAggregate` is correctly excluded from events.
 - Real Marten 6/Wolverine 1 CritterStackHelpDesk generation now produces a compiling document after project/module-name sanitization.
