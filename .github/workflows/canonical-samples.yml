@@ -66,6 +66,7 @@ jobs:
           dotnet build samples/critter-stack/Reports/Reports.csproj --configuration Debug
           dotnet build samples/critter-stack/MartenWithProjectAspire/TripBuildingService/TripBuildingService.csproj --configuration Debug
           dotnet build adapter/Integration/Canonical/IncidentService/IncidentService.csproj --configuration Debug
+          dotnet build adapter/Integration/Canonical/VogenConcepts/VogenConcepts.csproj --configuration Debug
           dotnet build samples/helpdesk/Helpdesk.Api/Helpdesk.Api.csproj --configuration Debug
 
       - name: Generate and verify BankAccountES
@@ -102,6 +103,13 @@ jobs:
             adapter/Integration/Canonical/IncidentService/IncidentService.csproj \
             adapter/Integration/Canonical/IncidentService.expected \
             "${RUNNER_TEMP}/IncidentService.play"
+
+      - name: Generate and verify Vogen concepts
+        run: |
+          dotnet adapter/Source/DotNET/Canonical/bin/Release/net10.0/Cratis.CritterStack.Screenplay.Canonical.dll \
+            adapter/Integration/Canonical/VogenConcepts/VogenConcepts.csproj \
+            adapter/Integration/Canonical/VogenConcepts.expected \
+            "${RUNNER_TEMP}/VogenConcepts.play"
 
       - name: Generate and verify legacy HelpDesk
         run: |

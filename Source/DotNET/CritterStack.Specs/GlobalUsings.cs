@@ -5,6 +5,7 @@ global using Cratis.CritterStack.Screenplay.Marten;
 global using Cratis.CritterStack.Screenplay.Wolverine;
 global using Cratis.Screenplay.Generation;
 global using Cratis.Screenplay.Generation.DotNet;
+global using Cratis.Screenplay.Generation.DotNet.Vogen;
 global using Cratis.Specifications;
 global using Microsoft.CodeAnalysis;
 global using Microsoft.CodeAnalysis.CSharp;

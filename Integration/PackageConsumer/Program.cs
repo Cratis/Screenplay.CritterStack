@@ -27,6 +27,7 @@ ICritterStackScreenplayGenerator generatorContract = generator;
 var composedGenerator = new CritterStackScreenplayGenerator(
     new CritterStackScreenplayAdapter(),
     new ScreenplayDefinitionGenerator());
+var adapterListGenerator = new CritterStackScreenplayGenerator([new CritterStackScreenplayAdapter()]);
 
 AssertSuccess(generator.Generate(compilation, options));
 AssertSuccess(generator.Generate([project], options));
@@ -34,6 +35,8 @@ AssertSuccess(generatorContract.Generate(compilation, options));
 AssertSuccess(generatorContract.Generate([project], options));
 AssertSuccess(composedGenerator.Generate(compilation, options));
 AssertSuccess(composedGenerator.Generate([project], options));
+AssertSuccess(adapterListGenerator.Generate(compilation, options));
+AssertSuccess(adapterListGenerator.Generate([project], options));
 AssertDependencyGraph();
 
 static void AssertSuccess(GeneratedScreenplayDefinition result)
@@ -50,13 +53,14 @@ static void AssertDependencyGraph()
     using var document = JsonDocument.Parse(File.ReadAllText(dependencyFile));
     var libraries = document.RootElement.GetProperty("libraries");
 
-    AssertPackage(libraries, "Cratis.Screenplay.Generation.Contracts/0.6.1");
-    AssertPackage(libraries, "Cratis.Screenplay.Generation/0.6.1");
-    AssertPackage(libraries, "Cratis.Screenplay.Generation.DotNet/0.6.1");
+    AssertPackage(libraries, "Cratis.Screenplay.Generation.Contracts/0.7.0");
+    AssertPackage(libraries, "Cratis.Screenplay.Generation/0.7.0");
+    AssertPackage(libraries, "Cratis.Screenplay.Generation.DotNet/0.7.0");
+    AssertPackage(libraries, "Cratis.Screenplay.Generation.DotNet.Vogen/0.7.0");
 
-    if (libraries.EnumerateObject().Any(_ => _.Name.StartsWith("Cratis.Screenplay.Generation.DotNet.Vogen/", StringComparison.Ordinal)))
+    if (libraries.EnumerateObject().Any(_ => _.Name.StartsWith("Vogen/", StringComparison.Ordinal)))
     {
-        throw new InvalidOperationException("The Critter Stack package must not compose or depend on the Vogen adapter");
+        throw new InvalidOperationException("The generator facade must not bring the Vogen source-generator/runtime package into consumers");
     }
 }
 
