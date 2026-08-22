@@ -21,7 +21,8 @@ static class MartenDocumentFacts
         AdapterIdentity adapter)
     {
         var facts = new List<GenerationFact>();
-        var documents = new Dictionary<SubjectId, (INamedTypeSymbol Type, Evidence Evidence)>();
+        var diagnostics = new List<GenerationDiagnostic>();
+        var documents = new Dictionary<SubjectId, DocumentObservation>();
         foreach (var tree in project.Compilation.SyntaxTrees.Where(_ => !DotNetGeneratedSource.IsGenerated(_)))
         {
             var semanticModel = project.Compilation.GetSemanticModel(tree);
@@ -29,6 +30,22 @@ static class MartenDocumentFacts
             {
                 if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method || !IsMarten(method))
                 {
+                    continue;
+                }
+
+                if (IsIdentityConfiguration(method))
+                {
+                    ObserveIdentityConfiguration(project, adapter, invocation, method, semanticModel, documents, diagnostics);
+                    continue;
+                }
+
+                if (MartenCompiledQueryDiscovery.IsCompiledQueryExecution(method))
+                {
+                    if (MartenCompiledQueryDiscovery.TryResolve(invocation, semanticModel, out var plan))
+                    {
+                        var compiledEvidence = UsageEvidence(project, adapter, invocation, method.Name);
+                        documents.TryAdd(project.SubjectForType(plan.DocumentType), new(plan.DocumentType, compiledEvidence));
+                    }
                     continue;
                 }
 
@@ -44,15 +61,9 @@ static class MartenDocumentFacts
                     continue;
                 }
 
-                var evidence = new Evidence
-                {
-                    Adapter = adapter,
-                    Strength = EvidenceStrength.Exact,
-                    Source = DotNetSource.Range(invocation.GetLocation(), project.SourceRoot),
-                    Explanation = $"Marten document usage through {method.Name}"
-                };
+                var evidence = UsageEvidence(project, adapter, invocation, method.Name);
                 var documentSubject = project.SubjectForType(documentType);
-                documents[documentSubject] = (documentType, evidence);
+                documents.TryAdd(documentSubject, new(documentType, evidence));
                 if (kind is not null && semanticModel.GetEnclosingSymbol(invocation.SpanStart) is IMethodSymbol containingMethod)
                 {
                     var methodSubject = MethodSubject(project, containingMethod);
@@ -74,32 +85,248 @@ static class MartenDocumentFacts
             }
         }
 
-        foreach (var (subject, document) in documents.OrderBy(_ => _.Key.Value, StringComparer.Ordinal))
+        foreach (var (subject, observed) in documents.OrderBy(_ => _.Key.Value, StringComparer.Ordinal))
         {
+            var identityMember = observed.IdentityConfigurationUnresolved
+                ? null
+                : observed.IdentityMember ?? ConventionalIdentityMember(observed.Type);
+            var properties = DocumentPropertiesOf(observed.Type);
+            var identityProperty = identityMember is null
+                ? null
+                : properties.SingleOrDefault(_ => SymbolEqualityComparer.Default.Equals(_.Member, identityMember));
+            if (identityMember is not null && identityProperty is null)
+            {
+                diagnostics.Add(new GenerationDiagnostic
+                {
+                    Code = MartenDiagnosticCodes.DocumentIdentityUnresolved,
+                    Severity = GenerationDiagnosticSeverity.Warning,
+                    Message = $"Marten identity member '{identityMember.ContainingType?.Name}.{identityMember.Name}' cannot be represented uniquely in the emitted '{observed.Type.Name}' document property shape",
+                    Source = observed.IdentityEvidence?.Source ?? observed.RegistrationEvidence.Source,
+                    Subject = subject
+                });
+            }
+
             facts.Add(Artifact(
                 $"marten:document:{subject.Value}",
                 subject,
                 ArtifactKind.Document,
-                document.Type.Name,
-                SourceFileOf(document.Type, project),
-                DotNetTypeShapes.PropertiesOf(document.Type),
-                document.Evidence));
+                observed.Type.Name,
+                SourceFileOf(observed.Type, project),
+                [.. properties.Select(_ => _.Definition with { IsIdentifier = _ == identityProperty })],
+                observed.RegistrationEvidence));
         }
 
-        var diagnostics = documents
+        diagnostics.AddRange(documents
             .OrderBy(_ => _.Key.Value, StringComparer.Ordinal)
             .Select(_ => new GenerationDiagnostic
             {
                 Code = MartenDiagnosticCodes.DocumentModelOmitted,
                 Severity = GenerationDiagnosticSeverity.Information,
-                Message = $"Marten document '{_.Value.Type.Name}' is persisted or queried directly, but the current Screenplay language has no ordinary document-state declaration",
-                Source = _.Value.Evidence.Source,
+                Message = $"Marten document '{_.Value.Type.Name}' is persisted, queried, or explicitly configured, but the current Screenplay language has no ordinary document-state declaration",
+                Source = _.Value.RegistrationEvidence.Source,
                 Subject = _.Key
-            })
-            .ToArray();
+            }));
 
         return new(facts, diagnostics);
     }
+
+    static void ObserveIdentityConfiguration(
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter,
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol method,
+        SemanticModel semanticModel,
+        Dictionary<SubjectId, DocumentObservation> documents,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        var candidate = method.ReducedFrom ?? method;
+        if (candidate.ContainingType.TypeArguments.FirstOrDefault() is not INamedTypeSymbol documentType ||
+            !IsSourceType(documentType))
+        {
+            return;
+        }
+
+        var evidence = new Evidence
+        {
+            Adapter = adapter,
+            Strength = EvidenceStrength.Configured,
+            Source = DotNetSource.Range(invocation.GetLocation(), project.SourceRoot),
+            Explanation = $"Marten document identity configured through Schema.For<{documentType.Name}>().Identity(...)"
+        };
+        var subject = project.SubjectForType(documentType);
+        documents.TryAdd(subject, new(documentType, evidence));
+        var identityMember = ResolveIdentityMember(invocation, semanticModel, documentType);
+        if (identityMember is null)
+        {
+            var unresolved = documents[subject];
+            documents[subject] = unresolved with
+            {
+                RegistrationEvidence = evidence,
+                IdentityMember = null,
+                IdentityEvidence = evidence,
+                IdentityConfigurationUnresolved = true
+            };
+            diagnostics.Add(new GenerationDiagnostic
+            {
+                Code = MartenDiagnosticCodes.DocumentIdentityUnresolved,
+                Severity = GenerationDiagnosticSeverity.Warning,
+                Message = $"Marten identity configuration for '{documentType.Name}' is not a direct member expression and cannot be resolved safely",
+                Source = evidence.Source,
+                Subject = subject
+            });
+            return;
+        }
+
+        var observed = documents[subject];
+        documents[subject] = observed with
+        {
+            RegistrationEvidence = evidence,
+            IdentityMember = identityMember,
+            IdentityEvidence = evidence,
+            IdentityConfigurationUnresolved = false
+        };
+    }
+
+    static ISymbol? ResolveIdentityMember(
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel,
+        INamedTypeSymbol documentType)
+    {
+        if (invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is not LambdaExpressionSyntax lambda ||
+            lambda.ExpressionBody is null)
+        {
+            return null;
+        }
+
+        var expression = Unwrap(lambda.ExpressionBody);
+        if (expression is not MemberAccessExpressionSyntax memberAccess ||
+            Unwrap(memberAccess.Expression) is not IdentifierNameSyntax identifier ||
+            !string.Equals(identifier.Identifier.ValueText, LambdaParameterName(lambda), StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var member = semanticModel.GetSymbolInfo(memberAccess).Symbol;
+        return member is IPropertySymbol or IFieldSymbol && IsMemberOfDocumentType(member, documentType)
+            ? member
+            : null;
+    }
+
+    static ExpressionSyntax Unwrap(ExpressionSyntax expression)
+    {
+        while (true)
+        {
+            expression = expression switch
+            {
+                ParenthesizedExpressionSyntax parenthesized => parenthesized.Expression,
+                CastExpressionSyntax cast => cast.Expression,
+                _ => expression
+            };
+            if (expression is not (ParenthesizedExpressionSyntax or CastExpressionSyntax))
+            {
+                return expression;
+            }
+        }
+    }
+
+    static string? LambdaParameterName(LambdaExpressionSyntax lambda) => lambda switch
+    {
+        SimpleLambdaExpressionSyntax simple => simple.Parameter.Identifier.ValueText,
+        ParenthesizedLambdaExpressionSyntax { ParameterList.Parameters.Count: 1 } parenthesized =>
+            parenthesized.ParameterList.Parameters[0].Identifier.ValueText,
+        _ => null
+    };
+
+    static bool IsMemberOfDocumentType(ISymbol member, INamedTypeSymbol documentType)
+    {
+        for (var current = documentType; current is not null; current = current.BaseType)
+        {
+            if (SymbolEqualityComparer.Default.Equals(member.ContainingType, current))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    static IReadOnlyList<DocumentProperty> DocumentPropertiesOf(INamedTypeSymbol documentType)
+    {
+        var properties = new List<IPropertySymbol>();
+        for (var current = documentType; current is not null; current = current.BaseType)
+        {
+            properties.AddRange(current.GetMembers()
+                .OfType<IPropertySymbol>()
+                .Where(_ => !_.IsStatic &&
+                            !_.IsIndexer &&
+                            _.DeclaredAccessibility == Accessibility.Public &&
+                            _.GetMethod?.DeclaredAccessibility == Accessibility.Public &&
+                            properties.TrueForAll(existing => !string.Equals(existing.Name, _.Name, StringComparison.Ordinal)))
+                .OrderBy(SourceOrder)
+                .ThenBy(_ => _.Name, StringComparer.Ordinal));
+        }
+
+        return
+        [
+            .. properties.Select(_ => new DocumentProperty(
+                _,
+                new PropertyDefinition
+                {
+                    Name = LowerFirst(_.Name),
+                    Type = DotNetTypeShapes.TypeReferenceFor(_.Type)
+                }))
+        ];
+    }
+
+    static ISymbol? ConventionalIdentityMember(INamedTypeSymbol documentType)
+    {
+        var members = MembersOf(documentType).ToArray();
+        var attributedProperty = members.OfType<IPropertySymbol>().FirstOrDefault(HasIdentityAttribute);
+        var attributedField = members.OfType<IFieldSymbol>().FirstOrDefault(HasIdentityAttribute);
+        var idProperty = members.OfType<IPropertySymbol>().FirstOrDefault(_ => string.Equals(_.Name, "Id", StringComparison.OrdinalIgnoreCase));
+        var idField = members.OfType<IFieldSymbol>().FirstOrDefault(_ => string.Equals(_.Name, "Id", StringComparison.OrdinalIgnoreCase));
+        return (ISymbol?)attributedProperty ?? (ISymbol?)attributedField ?? (ISymbol?)idProperty ?? idField;
+    }
+
+    static IEnumerable<ISymbol> MembersOf(INamedTypeSymbol type)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            foreach (var member in current.GetMembers().Where(_ => !_.IsStatic))
+            {
+                yield return member;
+            }
+        }
+    }
+
+    static bool HasIdentityAttribute(ISymbol member) => member.GetAttributes().Any(_ =>
+        _.AttributeClass is not null &&
+        DotNetSubjectIds.MetadataName(_.AttributeClass) == WellKnownTypes.JasperFxIdentityAttribute);
+
+    static int SourceOrder(ISymbol member) => member.Locations
+        .Where(_ => _.IsInSource)
+        .Select(_ => _.SourceSpan.Start)
+        .DefaultIfEmpty(int.MaxValue)
+        .Min();
+
+    static bool IsIdentityConfiguration(IMethodSymbol method)
+    {
+        var candidate = method.ReducedFrom ?? method;
+        return candidate.Name == "Identity" &&
+               DotNetSubjectIds.MetadataName(candidate.ContainingType.OriginalDefinition) == WellKnownTypes.MartenDocumentMappingExpression;
+    }
+
+    static Evidence UsageEvidence(
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter,
+        InvocationExpressionSyntax invocation,
+        string methodName) => new()
+    {
+        Adapter = adapter,
+        Strength = EvidenceStrength.Exact,
+        Source = DotNetSource.Range(invocation.GetLocation(), project.SourceRoot),
+        Explanation = $"Marten document usage through {methodName}"
+    };
 
     static RelationshipKind? RelationshipKindFor(string methodName)
     {
@@ -129,8 +356,10 @@ static class MartenDocumentFacts
     {
         var candidate = method.ReducedFrom ?? method;
         var @namespace = candidate.ContainingNamespace.ToDisplayString();
-        return @namespace.StartsWith("Marten", StringComparison.Ordinal) ||
-               @namespace.StartsWith("Wolverine.Marten", StringComparison.Ordinal);
+        return @namespace == "Marten" ||
+               @namespace.StartsWith("Marten.", StringComparison.Ordinal) ||
+               @namespace == "Wolverine.Marten" ||
+               @namespace.StartsWith("Wolverine.Marten.", StringComparison.Ordinal);
     }
 
     static bool IsSourceType(INamedTypeSymbol type) => type.TypeKind != TypeKind.Error && type.Locations.Any(_ => _.IsInSource);
@@ -179,4 +408,17 @@ static class MartenDocumentFacts
         },
         Evidence = evidence
     };
+
+    static string LowerFirst(string value) => value.Length == 0
+        ? value
+        : $"{char.ToLowerInvariant(value[0])}{value[1..]}";
+
+    sealed record DocumentProperty(IPropertySymbol Member, PropertyDefinition Definition);
+
+    sealed record DocumentObservation(
+        INamedTypeSymbol Type,
+        Evidence RegistrationEvidence,
+        ISymbol? IdentityMember = null,
+        Evidence? IdentityEvidence = null,
+        bool IdentityConfigurationUnresolved = false);
 }

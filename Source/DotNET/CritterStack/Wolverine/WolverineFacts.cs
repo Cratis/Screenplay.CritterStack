@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.CritterStack.Screenplay.Marten;
 using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
@@ -356,6 +357,9 @@ static class WolverineFacts
         }
 
         var evidence = MethodEvidence(endpoint.Method, project, adapter, EvidenceStrength.Exact, $"Wolverine HTTP {endpoint.Verb} endpoint");
+        var compiledQueryDiscovery = MartenCompiledQueryDiscovery.Discover(endpoint.Method, querySubject, project, adapter);
+        var compiledQueries = compiledQueryDiscovery.Links;
+        diagnostics.AddRange(compiledQueryDiscovery.Diagnostics);
         var queryName = endpoint.Method.ContainingType.Name.EndsWith("Endpoints", StringComparison.Ordinal)
             ? endpoint.Method.Name
             : endpoint.Method.ContainingType.Name.Replace("Endpoint", string.Empty, StringComparison.Ordinal);
@@ -369,7 +373,7 @@ static class WolverineFacts
             queryKey,
             queryName,
             evidence.Source?.Path,
-            QueryProperties(endpoint.Method),
+            QueryProperties(endpoint.Method, compiledQueries.SelectMany(_ => _.Parameters)),
             evidence));
         facts.Add(Placement($"wolverine:placement:query:{querySubject.Value}", queryKey, placement, evidence));
         diagnostics.Add(new GenerationDiagnostic
@@ -404,6 +408,19 @@ static class WolverineFacts
             evidence,
             isCollection: isCollection,
             isOptional: isOptional));
+
+        foreach (var compiledQuery in compiledQueries
+                     .GroupBy(_ => project.SubjectForType(_.DocumentType))
+                     .Select(_ => _.First()))
+        {
+            var documentSubject = project.SubjectForType(compiledQuery.DocumentType);
+            facts.Add(Relationship(
+                $"wolverine:reads:compiled:{querySubject.Value}:{documentSubject.Value}",
+                querySubject,
+                RelationshipKind.Reads,
+                documentSubject,
+                compiledQuery.Evidence));
+        }
     }
 
     static void AddReadModelAndRelationship(
@@ -648,13 +665,6 @@ static class WolverineFacts
         foreach (var documentType in DocumentDeletes(method, project))
         {
             var documentSubject = project.SubjectForType(documentType);
-            facts.Add(Artifact(
-                $"wolverine:document:{documentSubject.Value}",
-                new ArtifactKey { Subject = documentSubject, Kind = ArtifactKind.Document },
-                documentType.Name,
-                SourceFileOf(documentType, project),
-                DotNetTypeShapes.PropertiesOf(documentType),
-                evidence));
             facts.Add(Relationship(
                 $"wolverine:deletes:{commandSubject.Value}:{documentSubject.Value}",
                 commandSubject,
@@ -705,19 +715,24 @@ static class WolverineFacts
         ];
     }
 
-    static IReadOnlyList<PropertyDefinition> QueryProperties(IMethodSymbol method)
+    static IReadOnlyList<PropertyDefinition> QueryProperties(
+        IMethodSymbol method,
+        IEnumerable<PropertyDefinition>? compiledParameters = null)
     {
-        var parameters = method.Parameters
+        var endpointParameters = method.Parameters
             .Where(_ => !IsInfrastructureParameter(_.Type) && !IsSourceType(_.Type))
-            .ToArray();
-        return
-        [
-            .. parameters.Select((parameter, index) => new PropertyDefinition
+            .Select((parameter, index) => new PropertyDefinition
             {
                 Name = LowerFirst(parameter.Name),
                 Type = DotNetTypeShapes.TypeReferenceFor(parameter.Type),
                 IsIdentifier = index == 0
-            })
+            });
+        return
+        [
+            .. endpointParameters
+                .Concat(compiledParameters ?? [])
+                .GroupBy(_ => _.Name, StringComparer.Ordinal)
+                .Select(_ => _.First())
         ];
     }
 
