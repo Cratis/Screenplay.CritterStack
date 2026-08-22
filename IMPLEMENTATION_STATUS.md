@@ -37,9 +37,9 @@ Repository boundaries:
 
 - GitHub repository: <https://github.com/Cratis/Screenplay.CritterStack>
 - Local repository: `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack`
-- `main` is synchronized with `origin/main` through the `v0.2.0` Marten document-analysis release.
+- `main` is synchronized with `origin/main` through the `v0.3.0` Marten projection-lifecycle release.
 - Initial adapter PR: <https://github.com/Cratis/Screenplay.CritterStack/pull/2> (merged).
-- Latest release/tag: [`v0.2.0`](https://github.com/Cratis/Screenplay.CritterStack/releases/tag/v0.2.0); normal NuGet publication remains blocked by trusted-publishing setup.
+- Latest release/tag: [`v0.3.0`](https://github.com/Cratis/Screenplay.CritterStack/releases/tag/v0.3.0). Its release/build/pack jobs succeeded; NuGet login remains blocked by trusted-publishing setup in run `32540542422`.
 - The verified `Cratis.CritterStack.Screenplay.0.1.0.nupkg` remains attached to the `v0.1.0` GitHub release for temporary bootstrap restores.
 - NuGet publishing blocker: [issue #1](https://github.com/Cratis/Screenplay.CritterStack/issues/1); nuget.org returns 404 until a trusted-publishing policy is created and the publish job is rerun.
 - Research/handover commit imported from the original unpublished Screenplay branch.
