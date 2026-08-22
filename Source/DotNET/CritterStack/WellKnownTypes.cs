@@ -12,12 +12,18 @@ static class WellKnownTypes
     public const string MartenSingleStreamProjectionTwoIds = "Marten.Events.Aggregation.SingleStreamProjection`2";
     public const string MartenMultiStreamProjection = "Marten.Events.Projections.MultiStreamProjection`2";
     public const string MartenEventProjection = "Marten.Events.Projections.EventProjection";
+    public const string MartenLegacyEventStream = "Marten.Events.Aggregation.IEventStream`1";
+    public const string JasperFxEventStream = "JasperFx.Events.IEventStream`1";
     public const string JasperFxProjectionLifecycle = "JasperFx.Events.Projections.ProjectionLifecycle";
     public const string JasperFxSnapshotLifecycle = "JasperFx.Events.Projections.SnapshotLifecycle";
     public const string MartenProjectionLifecycle = "Marten.Events.Projections.ProjectionLifecycle";
     public const string MartenSnapshotLifecycle = "Marten.Events.Projections.SnapshotLifecycle";
     public const string WolverineOptions = "Wolverine.WolverineOptions";
+    public const string WolverineHandlerAttribute = "Wolverine.Attributes.WolverineHandlerAttribute";
+    public const string WolverineLegacyHandlerAttribute = "Wolverine.WolverineHandlerAttribute";
+    public const string WolverineIgnoreAttribute = "Wolverine.Attributes.WolverineIgnoreAttribute";
     public const string WolverineHttpMethodAttribute = "Wolverine.Http.WolverineHttpMethodAttribute";
+    public const string WolverineEmptyResponseAttribute = "Wolverine.Http.EmptyResponseAttribute";
     public const string WolverineAggregateHandlerAttribute = "Wolverine.Persistence.EventSourcing.DeciderFunctionAttribute";
     public const string WolverineWriteModelAttribute = "Wolverine.Persistence.EventSourcing.WriteModelAttribute";
     public const string WolverineLegacyAggregateHandlerAttribute = "Wolverine.Marten.AggregateHandlerAttribute";
@@ -29,4 +35,8 @@ static class WellKnownTypes
     public const string WolverineOutgoingMessages = "Wolverine.OutgoingMessages";
     public const string WolverineStartStream = "Wolverine.Marten.IStartStream";
     public const string WolverineSideEffect = "Wolverine.ISideEffect";
+    public const string WolverineReturnType = "Wolverine.Configuration.IWolverineReturnType";
+    public const string WolverineLegacyReturnType = "Wolverine.Http.IWolverineReturnType";
+    public const string WolverineResponseAware = "Wolverine.IResponseAware";
+    public const string WolverineLegacyResponseAware = "Wolverine.Http.IResponseAware";
 }

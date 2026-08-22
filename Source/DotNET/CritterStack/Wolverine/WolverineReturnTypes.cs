@@ -16,8 +16,10 @@ static class WolverineReturnTypes
         WellKnownTypes.WolverineOutgoingMessages,
         WellKnownTypes.WolverineStartStream,
         WellKnownTypes.WolverineSideEffect,
-        "Wolverine.Http.IResponseAware",
-        "Wolverine.Http.IWolverineReturnType",
+        WellKnownTypes.WolverineResponseAware,
+        WellKnownTypes.WolverineLegacyResponseAware,
+        WellKnownTypes.WolverineReturnType,
+        WellKnownTypes.WolverineLegacyReturnType,
         "Wolverine.Http.UpdatedAggregate",
         "Wolverine.Marten.UpdatedAggregate",
         "Wolverine.Persistence.EventSourcing.UpdatedAggregate"
