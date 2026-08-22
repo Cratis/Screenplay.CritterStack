@@ -41,6 +41,7 @@ static class MartenFacts
         var documents = new List<MartenDocumentUsage>();
         var registrations = MartenProjectionDiscovery.Discover(project, adapter);
         diagnostics.AddRange(MartenConfigurationDiscovery.Discover(project, registrations));
+        diagnostics.AddRange(MartenEventSchemaConfigurationDiscovery.Discover(project));
 
         foreach (var registration in registrations)
         {
