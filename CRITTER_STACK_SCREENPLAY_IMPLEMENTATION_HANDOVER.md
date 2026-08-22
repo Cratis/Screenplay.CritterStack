@@ -22,6 +22,18 @@ Read the companion architecture first:
 
 ## Current status
 
+- `Cratis.Screenplay.Generation` is released as `v0.7.0`. Its independently versioned packages provide neutral facts/evidence/diagnostics, deterministic resolution/lowering/printing/compiler verification, authored .NET analysis, concepts, validation, and the separate Vogen adapter. Normal trusted NuGet publishing, package validation, and clean consumers are operational.
+- `Cratis.CritterStack.Screenplay` is released as `v0.15.0`. The facade composes independent Vogen and Marten/Wolverine contributions through one Generation pipeline while the low-level Critter Stack adapter remains Vogen-independent.
+- Critter Stack covers snapshots, direct document operations and identities, compiled-query entry points, EventProjection document consequences, current/legacy return classification, bus calls, pure/return automations, configured handler discovery, validation/authorization evidence, multi-stream identity/fan-out, and projection/daemon/subscription metadata.
+- 352 Critter Stack specs passed at the v0.15 composition gate. Debug/Release were warning-free across supported adapter TFMs. Seven canonical fixtures pass; the added Vogen 8.0.7 fixture proves concepts, validation, nullable usage, usage-driven identity, provenance, and explicit loss while the six existing outputs remain byte-stable.
+- `Cratis.Cli` is released as `v2.13.0` with published Generation `0.6.1` and Critter Stack `0.13.1`. It owns MSBuildWorkspace evaluation, project/provider/host selection, package/assembly/capability provenance, compatibility admission, output, and machine-readable diagnostics. Its NuGet/native/GitHub/Homebrew distributions and the Arc plus six Critter/Marten canonical flows have been operationally verified.
+- The immediate downstream step is to update CLI to Generation `0.7.0` and Critter Stack `0.15.0`, include Vogen composition in release evidence, and finish explicit target-framework selection under CLI issue #87.
+- Remaining implementation is tracked by Marten issue #3, Wolverine issue #4, Generation consumer-contract issue #5, CLI workflow issue #87, and Screenplay language issue #128. The durable cross-repository index is Critter Stack issue #29.
+- NuGet OIDC can publish but cannot unlist. Einar/NuGet ownership must manually unlist the historically mispublished versions tracked by Generation issue #13 and Critter Stack issue #37; correct current releases are unaffected.
+- No runtime host/database startup, generated-source semantic origination, adapter-owned AST/text, or event fabrication is permitted.
+
+## Historical delivery log
+
 - Deep research of Screenplay, Arc, CLI, JasperFx, Marten, Wolverine, CritterStackSamples, canonical IncidentService, and CritterStackHelpDesk is complete.
 - The existing Arc architecture is confirmed: `Cratis.Arc.Screenplay` is a NuGet package owned by Arc; it accepts Roslyn compilations, analyzes Arc/Chronicle source, creates the Screenplay AST/text, verifies it, and is consumed by Cratis CLI, which owns `MSBuildWorkspace`.
 - The final repository topology is decided and two public repositories have been created:
@@ -63,7 +75,7 @@ Read the companion architecture first:
 - `CRITTER_STACK_PATTERN_DISCOVERY_RESEARCH.md` defines the source-evidence and resolution rules for State Change, State View, Automation, and Translation patterns across Marten projections/subscriptions and Wolverine handlers/consequences. `COMPATIBILITY.md` records exact canonical package sets, source baselines, and support tiers; CLI `v2.12.0` implements its package-provenance plan.
 - Remaining distribution blocker: Einar must configure two owner-scoped nuget.org trusted-publishing policies. Current Critter Stack `v0.6.0` run `32568782112` passed release/restore/build/pack and failed only at NuGet OIDC login because no matching policy exists. CLI `v2.12.0` still declares the verified `v0.1.0` bootstrap package, while local development can override to current 0.6.0 from `~/.nuget/cratis-local`. Rerun every historical release after policy setup, then remove the bootstrap and update the bundled provider normally.
 
-Update this section whenever a stage lands.
+Keep the current-status section and issue #29 synchronized as later stages land. The historical log below it explains the dependency path and must not be treated as the resume sequence.
 
 ## Non-negotiable decisions
 

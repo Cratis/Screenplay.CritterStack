@@ -132,6 +132,16 @@ The CLI continues owning `MSBuildWorkspace` initially. Do not implement an adapt
 
 ## Current checkpoint — do not repeat completed work
 
+- Screenplay.Generation `v0.7.0`, Critter Stack `v0.15.0`, and CLI `v2.13.0` are released through normal trusted publication. Package validation and clean consumers are operational.
+- Generation owns neutral facts/evidence/diagnostics, deterministic composition/lowering/printing/compiler verification, .NET authored-source mechanics, concepts/validation, and a separate Vogen adapter.
+- Critter Stack composes independent Vogen and Marten/Wolverine contributions through one Generation pipeline. Its low-level adapter remains Vogen-independent. The v0.15 gate passed 352 specs and seven canonical fixtures while preserving the prior six outputs.
+- CLI v2.13 owns workspace evaluation and provider/host selection, consumes Generation 0.6.1 + Critter Stack 0.13.1 from nuget.org, and emits package/TFM/assembly/capability provenance plus independent compatibility dimensions. Distribution and Arc plus six Critter/Marten canonical flows are verified.
+- Immediate work: verify Generation v0.7/Critter v0.15 assets; update CLI to those packages and Vogen release evidence; finish explicit target-framework selection under CLI #87; close Generation #5; continue bounded Marten #3/Wolverine #4 increments.
+- Manual NuGet unlisting remains external-only: Generation #13 and Critter Stack #37. Do not attempt to republish old versions from current `main` or edit workflows to bypass immutable tags.
+- The durable continuation index is Critter Stack issue #29. Inspect its latest comments and all current repository/PR state before acting.
+
+## Historical checkpoint — retained for delivery context, not as current instructions
+
 - Screenplay.Generation PR #1 and Critter Stack PR #2 are merged; both repositories are tagged `v0.1.0`, build cleanly, and have verified nupkgs attached to their GitHub releases.
 - Nuget.org publication is blocked only by two UI-created owner-scoped trusted-publishing policies assigned to `@einari`: Generation issue #2 and Critter Stack issue #1. NuGet has no policy-management API/CLI.
 - Arc PR #2594 is merged and Arc 22.0.0 is published against Screenplay 4.2.1.
@@ -153,14 +163,14 @@ The CLI continues owning `MSBuildWorkspace` initially. Do not implement an adapt
 
 ## Exact resume sequence
 
-1. Check whether Generation issue #2 and Critter Stack issue #1 are resolved. If policies now exist, rerun Generation publish run `32435010554` and every Critter Stack release through current v0.6.0 run `32568782112`, verify the package IDs/versions on nuget.org, close the issues, and remove release-asset bootstrap restore steps from Generation/Critter Stack/CLI workflows.
-2. Enable package validation after publication (Generation #3, Critter Stack #7).
-3. After adapter publication, update CLI from the temporary 0.1.0 bootstrap to the current package and confirm exact package sets promote from `SourceReviewed` to `Canonical`.
-4. Complete neutral concept validation facts/resolution/lowering in Screenplay.Generation #6 without conflating validation with representation, attributes, or identity.
-5. Implement authored-source Vogen interpretation in Screenplay.Generation #7, then compose it with Critter Stack through the pinned canonical fixture in Critter Stack #25.
-6. Continue the remaining source-profile gaps from `CRITTER_STACK_PATTERN_DISCOVERY_RESEARCH.md`: return-only/`OutgoingMessages` automations, configured handler discovery/activation policies, transport topology, sagas, DCB, subscriptions/forwarding, and projection side effects. Preserve the slot-level consequence separation and direct-bus semantics landed through v0.6.0.
-7. Continue remaining Marten completeness (#3) or Wolverine completeness (#4) against the pinned canonical workflow.
-8. Design language additions only from measured diagnostics in Cratis/Screenplay#128.
+1. Read the latest Critter Stack roadmap issue #29 comment, inspect open PRs/issues and all repository/worktree statuses, and preserve unrelated changes.
+2. Verify exact-tag Generation `v0.7.0` and Critter Stack `v0.15.0` NuGet/release assets, signatures, repository commits, dependency graphs, package validation, clean consumers, and local-feed copies.
+3. Update CLI from Generation `0.6.1` + Critter Stack `0.13.1` to Generation `0.7.0` + Critter Stack `0.15.0`; prove Vogen composition through the installed tool and retain canonical provenance.
+4. Finish CLI #87's fail-closed workspace contract, starting with explicit multi-target-framework selection instead of the current silent deterministic choice.
+5. Audit and close Generation #5 with public API/package baselines, two clean consumers, external-adapter composition guidance, deterministic/typed-loss specs, and explicit prerelease support/versioning boundaries.
+6. Continue Marten #3 and Wolverine #4 as independent PR-sized source-reviewed increments. Preserve all semantic separations and run the seven-fixture canonical matrix for every Critter change.
+7. Design Screenplay additions only from measured diagnostics under Cratis/Screenplay#128.
+8. Leave Generation #13 and Critter Stack #37 open until a NuGet owner manually unlists the identified historical versions; OIDC publication credentials cannot do it.
 
 The historical stages below explain architecture and acceptance criteria; most foundation stages are already delivered.
 
