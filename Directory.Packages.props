@@ -5,9 +5,9 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.5.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.5.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.5.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.6.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.6.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.6.0" />
     <!-- Microsoft -->
     <PackageVersion Include="Microsoft.Build.Framework" Version="18.9.6" />
     <PackageVersion Include="Microsoft.Build.Locator" Version="1.11.2" />
