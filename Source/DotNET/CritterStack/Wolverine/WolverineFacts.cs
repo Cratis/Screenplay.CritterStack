@@ -193,8 +193,14 @@ static class WolverineFacts
             ? AggregateReturnEvents(method).ToArray()
             : [];
         var deletedDocuments = DocumentDeletes(method, project).ToArray();
+        var busConsequences = WolverineBusConsequences.Discover(method, project);
         if (bodyEvents.Length == 0 && returnEvents.Length == 0 && deletedDocuments.Length == 0)
         {
+            if (busConsequences.Count > 0)
+            {
+                AnalyzeAutomation(project, options, adapter, method, requestType, busConsequences, facts, diagnostics);
+            }
+
             return;
         }
 
@@ -225,8 +231,51 @@ static class WolverineFacts
 
         AddDocumentDeletes(project, commandSubject, method, evidence, facts);
         AddReturnConsequences(project, commandSubject, method, evidence, isHttpEndpoint: false, aggregateWorkflow, facts);
-        AddDirectBusConsequences(project, commandSubject, method, evidence, facts, diagnostics);
+        AddDirectBusConsequences(project, commandSubject, method, evidence, facts, diagnostics, busConsequences);
         AddOutgoingMessages(project, commandSubject, method, evidence, facts, diagnostics);
+    }
+
+    static void AnalyzeAutomation(
+        DotNetProjectCompilation project,
+        DotNetAdapterOptions options,
+        AdapterIdentity adapter,
+        IMethodSymbol method,
+        INamedTypeSymbol requestType,
+        IReadOnlyList<WolverineBusConsequence> busConsequences,
+        List<GenerationFact> facts,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        var requestSubject = project.SubjectForType(requestType);
+        var reactionSubject = MethodSubject(project, method, "reaction");
+        var evidence = MethodEvidence(method, project, adapter, EvidenceStrength.Exact, "Wolverine message handler with direct bus consequences");
+        var reactionName = method.ContainingType.Name.EndsWith("Handler", StringComparison.Ordinal)
+            ? method.ContainingType.Name[..^"Handler".Length]
+            : method.ContainingType.Name;
+        var placement = BehaviorPlacement(project, options, requestType.Name, reactionName, GenerationSliceKind.Automation);
+        var requestKey = new ArtifactKey { Subject = requestSubject, Kind = ArtifactKind.Message };
+        var reactionKey = new ArtifactKey { Subject = reactionSubject, Kind = ArtifactKind.Reaction };
+        facts.Add(Artifact(
+            $"wolverine:message:{requestSubject.Value}",
+            requestKey,
+            requestType.Name,
+            SourceFileOf(requestType, project),
+            DotNetTypeShapes.PropertiesOf(requestType),
+            evidence));
+        facts.Add(Artifact(
+            $"wolverine:reaction:{reactionSubject.Value}",
+            reactionKey,
+            reactionName,
+            evidence.Source?.Path,
+            [],
+            evidence));
+        facts.Add(Placement($"wolverine:placement:reaction:{reactionSubject.Value}", reactionKey, placement, evidence));
+        facts.Add(Relationship(
+            $"wolverine:handles:{reactionSubject.Value}:{requestSubject.Value}",
+            reactionSubject,
+            RelationshipKind.Handles,
+            requestSubject,
+            evidence));
+        AddDirectBusConsequences(project, reactionSubject, method, evidence, facts, diagnostics, busConsequences);
     }
 
     static void AnalyzeQuery(
@@ -360,9 +409,10 @@ static class WolverineFacts
         IMethodSymbol method,
         Evidence evidence,
         List<GenerationFact> facts,
-        List<GenerationDiagnostic> diagnostics)
+        List<GenerationDiagnostic> diagnostics,
+        IReadOnlyList<WolverineBusConsequence>? discovered = null)
     {
-        foreach (var consequence in WolverineBusConsequences.Discover(method, project))
+        foreach (var consequence in discovered ?? WolverineBusConsequences.Discover(method, project))
         {
             if (consequence.MessageType is not INamedTypeSymbol messageType || !IsEventPayloadType(messageType))
             {
