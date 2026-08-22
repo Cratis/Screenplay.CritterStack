@@ -53,7 +53,9 @@ static class WolverineFacts
 
         var facts = new List<GenerationFact>();
         var discovery = WolverineHandlerDiscovery.Discover(project);
+        var validationAuthorization = WolverineValidationAuthorizationDiscovery.Discover(project);
         var diagnostics = new List<GenerationDiagnostic>(discovery.Diagnostics);
+        diagnostics.AddRange(validationAuthorization.Diagnostics);
         var catalog = new DotNetArtifactCatalog(project.Compilation);
         foreach (var type in catalog.Types.Where(_ => IsPublicSourceType(_) && !IsIgnored(_)))
         {
@@ -62,11 +64,11 @@ static class WolverineFacts
                 var endpoint = EndpointFor(method);
                 if (endpoint is not null)
                 {
-                    AnalyzeEndpoint(project, options, adapter, endpoint, facts, diagnostics);
+                    AnalyzeEndpoint(project, options, adapter, endpoint, validationAuthorization, facts, diagnostics);
                 }
                 else if (IsHandler(type, method, discovery.Policy))
                 {
-                    AnalyzeHandler(project, options, adapter, method, facts, diagnostics);
+                    AnalyzeHandler(project, options, adapter, method, validationAuthorization, facts, diagnostics);
                 }
             }
         }
@@ -79,13 +81,14 @@ static class WolverineFacts
         DotNetAdapterOptions options,
         AdapterIdentity adapter,
         HttpEndpoint endpoint,
+        WolverineValidationAuthorizationDiscoveryResult validationAuthorization,
         List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics)
     {
         if (string.Equals(endpoint.Verb, "GET", StringComparison.Ordinal) ||
             string.Equals(endpoint.Verb, "QUERY", StringComparison.Ordinal))
         {
-            AnalyzeQuery(project, options, adapter, endpoint, facts, diagnostics);
+            AnalyzeQuery(project, options, adapter, endpoint, validationAuthorization, facts, diagnostics);
             return;
         }
 
@@ -147,18 +150,17 @@ static class WolverineFacts
             }
         }
 
-        if (HasLifecycleValidation(method.ContainingType))
+        if (request?.Type is INamedTypeSymbol validationRequestType)
         {
-            diagnostics.Add(new GenerationDiagnostic
-            {
-                Code = WolverineDiagnosticCodes.ValidationOmitted,
-                Severity = GenerationDiagnosticSeverity.Warning,
-                Message = $"Compound-handler validation for '{commandName}' is preserved by its handler file but cannot be declared as Screenplay validation",
-                Source = evidence.Source,
-                Subject = commandSubject
-            });
+            diagnostics.AddRange(validationAuthorization.ValidationDiagnostics(
+                method,
+                validationRequestType,
+                commandSubject,
+                isHttpEndpoint: true));
         }
+        diagnostics.AddRange(validationAuthorization.AuthorizationDiagnostics(method, commandSubject));
 
+        var hasCompoundValidation = validationAuthorization.HasCompoundValidation(method);
         var eventTypes = aggregateWorkflow && !HasEventStreamParameter(method)
             ? AggregateReturnEvents(method).ToArray()
             : [];
@@ -167,7 +169,7 @@ static class WolverineFacts
         {
             var declarative = eventTypes.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) &&
                               !bodyEvents.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) &&
-                              !HasLifecycleValidation(method.ContainingType);
+                              !hasCompoundValidation;
             AddEventAndProduction(project, commandSubject, eventType, placement, evidence, declarative, facts);
         }
 
@@ -188,6 +190,7 @@ static class WolverineFacts
         DotNetAdapterOptions options,
         AdapterIdentity adapter,
         IMethodSymbol method,
+        WolverineValidationAuthorizationDiscoveryResult validationAuthorization,
         List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics)
     {
@@ -229,6 +232,7 @@ static class WolverineFacts
                     automationReturns,
                     automationOutgoingMessages,
                     busConsequences,
+                    validationAuthorization,
                     facts,
                     diagnostics);
             }
@@ -237,6 +241,11 @@ static class WolverineFacts
         }
 
         var commandSubject = project.SubjectForType(requestType);
+        diagnostics.AddRange(validationAuthorization.ValidationDiagnostics(
+            method,
+            requestType,
+            commandSubject,
+            isHttpEndpoint: false));
         var evidence = MethodEvidence(method, project, adapter, EvidenceStrength.Exact, "Wolverine message handler with persistence effects");
         var placement = BehaviorPlacement(project, options, aggregate?.Type.Name ?? requestType.Name, requestType.Name, GenerationSliceKind.StateChange);
         var key = new ArtifactKey { Subject = commandSubject, Kind = ArtifactKind.Command };
@@ -276,11 +285,17 @@ static class WolverineFacts
         IReadOnlyList<WolverineReturnConsequence> returnConsequences,
         IReadOnlyList<WolverineOutgoingMessageConsequence> outgoingMessages,
         IReadOnlyList<WolverineBusConsequence> busConsequences,
+        WolverineValidationAuthorizationDiscoveryResult validationAuthorization,
         List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics)
     {
         var requestSubject = project.SubjectForType(requestType);
         var reactionSubject = MethodSubject(project, method, "reaction");
+        diagnostics.AddRange(validationAuthorization.ValidationDiagnostics(
+            method,
+            requestType,
+            reactionSubject,
+            isHttpEndpoint: false));
         var evidence = MethodEvidence(method, project, adapter, EvidenceStrength.Exact, "Wolverine message handler with direct bus or return automation consequences");
         var reactionName = method.ContainingType.Name.EndsWith("Handler", StringComparison.Ordinal)
             ? method.ContainingType.Name[..^"Handler".Length]
@@ -319,9 +334,21 @@ static class WolverineFacts
         DotNetAdapterOptions options,
         AdapterIdentity adapter,
         HttpEndpoint endpoint,
+        WolverineValidationAuthorizationDiscoveryResult validationAuthorization,
         List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics)
     {
+        var querySubject = MethodSubject(project, endpoint.Method, "query");
+        if (RequestParameter(endpoint.Method)?.Type is INamedTypeSymbol validationRequestType)
+        {
+            diagnostics.AddRange(validationAuthorization.ValidationDiagnostics(
+                endpoint.Method,
+                validationRequestType,
+                querySubject,
+                isHttpEndpoint: true));
+        }
+        diagnostics.AddRange(validationAuthorization.AuthorizationDiagnostics(endpoint.Method, querySubject));
+
         var (model, isCollection, isOptional) = WolverineReturnTypes.QueryModel(endpoint.Method.ReturnType);
         if (model is null || !IsSourceType(model))
         {
@@ -329,7 +356,6 @@ static class WolverineFacts
         }
 
         var evidence = MethodEvidence(endpoint.Method, project, adapter, EvidenceStrength.Exact, $"Wolverine HTTP {endpoint.Verb} endpoint");
-        var querySubject = MethodSubject(project, endpoint.Method, "query");
         var queryName = endpoint.Method.ContainingType.Name.EndsWith("Endpoints", StringComparison.Ordinal)
             ? endpoint.Method.Name
             : endpoint.Method.ContainingType.Name.Replace("Endpoint", string.Empty, StringComparison.Ordinal);
@@ -869,11 +895,6 @@ static class WolverineFacts
         var route = attribute.ConstructorArguments.FirstOrDefault().Value as string;
         return new(method, verb, route);
     }
-
-    static bool HasLifecycleValidation(INamedTypeSymbol type) => type.GetMembers()
-        .OfType<IMethodSymbol>()
-        .Any(_ => string.Equals(_.Name, "Validate", StringComparison.Ordinal) ||
-                  string.Equals(_.Name, "ValidateAsync", StringComparison.Ordinal));
 
     static bool IsHandler(
         INamedTypeSymbol type,
