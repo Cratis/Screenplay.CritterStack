@@ -13,6 +13,7 @@
         <PackageReference Include="Cratis.Screenplay.Generation.Contracts" />
         <PackageReference Include="Cratis.Screenplay.Generation" />
         <PackageReference Include="Cratis.Screenplay.Generation.DotNet" />
+        <PackageReference Include="Cratis.Screenplay.Generation.DotNet.Vogen" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     </ItemGroup>
 </Project>
