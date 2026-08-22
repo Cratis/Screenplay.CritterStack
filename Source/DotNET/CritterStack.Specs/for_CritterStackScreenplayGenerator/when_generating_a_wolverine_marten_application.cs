@@ -42,6 +42,10 @@ public class when_generating_a_wolverine_marten_application : given.a_wolverine_
     [Fact] void should_not_treat_a_request_reply_message_as_an_event() => _result.Source.ShouldNotContain("event RequestIncidentStatus");
     [Fact] void should_not_treat_a_scheduled_message_as_an_event() => _result.Source.ShouldNotContain("event ScheduleIncidentReview");
     [Fact] void should_not_treat_an_unrelated_bus_message_as_an_event() => _result.Source.ShouldNotContain("event UnrelatedBusMessage");
+    [Fact] void should_not_invent_a_command_for_a_pure_automation_trigger() => _result.Source.ShouldNotContain("command IncidentEscalated");
+    [Fact] void should_not_treat_a_pure_automation_message_as_an_event() => _result.Source.ShouldNotContain("event NotifyEscalation");
+    [Fact] void should_record_a_pure_bus_handler_as_a_reaction() => _result.Graph.Artifacts.Any(_ => _.Key.Kind == ArtifactKind.Reaction).ShouldBeTrue();
+    [Fact] void should_record_the_pure_automation_trigger_as_a_message() => _result.Graph.Artifacts.Any(_ => _.Key.Kind == ArtifactKind.Message && _.Key.Subject.Value.EndsWith("/IncidentService.IncidentEscalated", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_generate_get_incident_as_a_query() => _result.Source.ShouldContain("query GetIncident => Incident?");
     [Fact] void should_record_the_document_delete() => _result.Graph.Relationships.Any(_ => _.Key.Kind == RelationshipKind.Deletes).ShouldBeTrue();
     [Fact] void should_record_the_outgoing_message() => _result.Graph.Relationships.Any(_ => _.Key.Kind == RelationshipKind.Cascades).ShouldBeTrue();
@@ -54,8 +58,11 @@ public class when_generating_a_wolverine_marten_application : given.a_wolverine_
     [Fact] void should_record_delivery_option_scheduling_separately() => _result.Graph.Relationships.Any(_ => _.Key.Kind == RelationshipKind.Publishes && _.Key.Discriminator == "scheduled-publish").ShouldBeTrue();
     [Fact] void should_record_topic_broadcast_separately() => _result.Graph.Relationships.Any(_ => _.Key.Kind == RelationshipKind.Publishes && _.Key.Discriminator == "broadcast-topic").ShouldBeTrue();
     [Fact] void should_ignore_an_unrelated_send_method() => _result.Graph.Relationships.Any(_ => _.Key.Kind == RelationshipKind.Publishes && _.Key.Target.Value.EndsWith("/IncidentService.UnrelatedBusMessage", StringComparison.Ordinal)).ShouldBeFalse();
+    [Fact] void should_record_the_pure_automation_handler_relationship() => _result.Graph.Relationships.Any(_ => _.Key.Kind == RelationshipKind.Handles && _.Key.Target.Value.EndsWith("/IncidentService.IncidentEscalated", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_record_the_pure_automation_publish() => _result.Graph.Relationships.Any(_ => _.Key.Kind == RelationshipKind.Publishes && _.Key.Target.Value.EndsWith("/IncidentService.NotifyEscalation", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_report_delayed_delivery_as_language_loss() => _result.Diagnostics.Select(_ => _.Code).ShouldContain(WolverineDiagnosticCodes.DelayedMessageOmitted);
     [Fact] void should_report_direct_delivery_as_language_loss() => _result.Diagnostics.Select(_ => _.Code).ShouldContain("WOLVERINE0006");
+    [Fact] void should_report_reaction_lowering_as_language_loss() => _result.Diagnostics.Select(_ => _.Code).ShouldContain("GEN0004");
     [Fact] void should_report_http_metadata_as_language_loss() => _result.Diagnostics.Select(_ => _.Code).ShouldContain(WolverineDiagnosticCodes.HttpMetadataOmitted);
     [Fact] void should_report_route_identity_as_language_loss() => _result.Diagnostics.Select(_ => _.Code).ShouldContain(WolverineDiagnosticCodes.RouteIdentityOmitted);
     [Fact] void should_report_stream_version_as_language_loss() => _result.Diagnostics.Select(_ => _.Code).ShouldContain(WolverineDiagnosticCodes.StreamVersionOmitted);
