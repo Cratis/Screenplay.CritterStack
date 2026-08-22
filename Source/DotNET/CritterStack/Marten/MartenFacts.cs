@@ -9,7 +9,8 @@ namespace Cratis.CritterStack.Screenplay.Marten;
 
 sealed record MartenDiscoveryResult(
     IReadOnlyList<GenerationFact> Facts,
-    IReadOnlyList<GenerationDiagnostic> Diagnostics);
+    IReadOnlyList<GenerationDiagnostic> Diagnostics,
+    IReadOnlyList<MartenDocumentUsage> Documents);
 
 static class MartenFacts
 {
@@ -32,11 +33,12 @@ static class MartenFacts
         if (project.Compilation.GetTypeByMetadataName(WellKnownTypes.MartenStoreOptions) is null &&
             project.Compilation.GetTypeByMetadataName(WellKnownTypes.MartenDocumentStore) is null)
         {
-            return new([], []);
+            return new([], [], []);
         }
 
         var facts = new List<GenerationFact>();
         var diagnostics = new List<GenerationDiagnostic>();
+        var documents = new List<MartenDocumentUsage>();
 
         foreach (var registration in MartenProjectionDiscovery.Discover(project, adapter))
         {
@@ -49,7 +51,10 @@ static class MartenFacts
             switch (registration.Kind)
             {
                 case ProjectionKind.Event:
-                    diagnostics.Add(EventProjectionDiagnostic(project, registration));
+                    var eventProjection = MartenEventProjectionFacts.Discover(project, adapter, registration);
+                    facts.AddRange(eventProjection.Facts);
+                    diagnostics.AddRange(eventProjection.Diagnostics);
+                    documents.AddRange(eventProjection.Documents);
                     continue;
                 case ProjectionKind.MultiStream:
                     diagnostics.Add(MultiStreamDiagnostic(project, registration));
@@ -59,7 +64,7 @@ static class MartenFacts
             AddAggregateProjectionFacts(project, options, adapter, registration, facts);
         }
 
-        return new(facts, diagnostics);
+        return new(facts, diagnostics, documents);
     }
 
     static void AddAggregateProjectionFacts(
@@ -294,17 +299,6 @@ static class MartenFacts
         Code = MartenDiagnosticCodes.MultiStreamGroupingOmitted,
         Severity = GenerationDiagnosticSeverity.Warning,
         Message = $"Multi-stream projection '{registration.Projection!.Name}' is represented as an event reducer, but its grouping and fan-out semantics are not expressible in the current Screenplay language",
-        Source = registration.Evidence.Source,
-        Subject = project.SubjectForType(registration.Projection)
-    };
-
-    static GenerationDiagnostic EventProjectionDiagnostic(
-        DotNetProjectCompilation project,
-        ProjectionRegistration registration) => new()
-    {
-        Code = MartenDiagnosticCodes.EventProjectionOmitted,
-        Severity = GenerationDiagnosticSeverity.Warning,
-        Message = $"Event projection '{registration.Projection!.Name}' performs document operations that are not yet representable and was omitted",
         Source = registration.Evidence.Source,
         Subject = project.SubjectForType(registration.Projection)
     };
