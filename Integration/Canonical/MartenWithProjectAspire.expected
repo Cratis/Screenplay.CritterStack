@@ -4,12 +4,21 @@ source: reducer TripProjection => Trip
 source: readmodel Day
 source: reducer DayProjection => Day
 not-source: readmodel Distance
+not-source: event Distance
 artifact: ReadModel:Trip
 artifact: Reducer:TripProjection
 artifact: ReadModel:Day
 artifact: Reducer:DayProjection
+artifact: Projection:DistanceProjection
+artifact: Document:Distance
+identifier: Document:Distance:id
 relationship: Builds
 relationship: Consumes
+relationship: Stores
+relationship: Consumes Projection:DistanceProjection -> Event:Travel
+relationship: Builds Projection:DistanceProjection -> Document:Distance
+relationship: Stores Projection:DistanceProjection -> Document:Distance
 diagnostic: MARTEN0001
 diagnostic: MARTEN0002
+diagnostic: MARTEN0003
 diagnostic: MARTEN0004
