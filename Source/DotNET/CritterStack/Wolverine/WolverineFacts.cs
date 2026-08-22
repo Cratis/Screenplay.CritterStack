@@ -14,6 +14,8 @@ sealed record WolverineDiscoveryResult(
 
 sealed record HttpEndpoint(IMethodSymbol Method, string Verb, string? Route);
 
+sealed record WolverineOutgoingMessageConsequence(INamedTypeSymbol MessageType, bool Delayed);
+
 static class WolverineFacts
 {
     static readonly HashSet<string> _persistenceMethods =
@@ -24,6 +26,8 @@ static class WolverineFacts
         "AppendOptimistic",
         "StartStream"
     ];
+
+    static readonly HashSet<string> _documentPersistenceMethods = ["Delete", "DeleteWhere", "Insert", "Store", "Update"];
 
     static readonly HashSet<string> _handlerMethodNames =
     [
@@ -166,10 +170,16 @@ static class WolverineFacts
             AddEventAndProduction(project, commandSubject, eventType, placement, evidence, declarative, facts);
         }
 
+        var returnConsequences = WolverineReturnConsequences.Classify(
+            method,
+            isHttpEndpoint: true,
+            aggregateWorkflow,
+            HasEventStreamParameter(method));
+        var outgoingMessages = DiscoverOutgoingMessages(method, project);
         AddDocumentDeletes(project, commandSubject, method, evidence, facts);
-        AddReturnConsequences(project, commandSubject, method, evidence, isHttpEndpoint: true, aggregateWorkflow, facts);
+        AddReturnConsequences(project, commandSubject, returnConsequences, evidence, facts);
         AddDirectBusConsequences(project, commandSubject, method, evidence, facts, diagnostics);
-        AddOutgoingMessages(project, commandSubject, method, evidence, facts, diagnostics);
+        AddOutgoingMessages(project, commandSubject, method, outgoingMessages, evidence, facts, diagnostics);
     }
 
     static void AnalyzeHandler(
@@ -193,12 +203,33 @@ static class WolverineFacts
             ? AggregateReturnEvents(method).ToArray()
             : [];
         var deletedDocuments = DocumentDeletes(method, project).ToArray();
+        var hasDocumentPersistence = HasDocumentPersistence(method, project);
         var busConsequences = WolverineBusConsequences.Discover(method, project);
+        var returnConsequences = WolverineReturnConsequences.Classify(
+            method,
+            isHttpEndpoint: false,
+            aggregateWorkflow,
+            HasEventStreamParameter(method));
+        var outgoingMessages = DiscoverOutgoingMessages(method, project);
         if (bodyEvents.Length == 0 && returnEvents.Length == 0 && deletedDocuments.Length == 0)
         {
-            if (busConsequences.Count > 0)
+            var automationReturns = hasDocumentPersistence ? [] : returnConsequences;
+            var automationOutgoingMessages = hasDocumentPersistence ? [] : outgoingMessages;
+            if (busConsequences.Count > 0 ||
+                automationReturns.Any(IsCascadeConsequence) ||
+                automationOutgoingMessages.Count > 0)
             {
-                AnalyzeAutomation(project, options, adapter, method, requestType, busConsequences, facts, diagnostics);
+                AnalyzeAutomation(
+                    project,
+                    options,
+                    adapter,
+                    method,
+                    requestType,
+                    automationReturns,
+                    automationOutgoingMessages,
+                    busConsequences,
+                    facts,
+                    diagnostics);
             }
 
             return;
@@ -230,9 +261,9 @@ static class WolverineFacts
         }
 
         AddDocumentDeletes(project, commandSubject, method, evidence, facts);
-        AddReturnConsequences(project, commandSubject, method, evidence, isHttpEndpoint: false, aggregateWorkflow, facts);
+        AddReturnConsequences(project, commandSubject, returnConsequences, evidence, facts);
         AddDirectBusConsequences(project, commandSubject, method, evidence, facts, diagnostics, busConsequences);
-        AddOutgoingMessages(project, commandSubject, method, evidence, facts, diagnostics);
+        AddOutgoingMessages(project, commandSubject, method, outgoingMessages, evidence, facts, diagnostics);
     }
 
     static void AnalyzeAutomation(
@@ -241,13 +272,15 @@ static class WolverineFacts
         AdapterIdentity adapter,
         IMethodSymbol method,
         INamedTypeSymbol requestType,
+        IReadOnlyList<WolverineReturnConsequence> returnConsequences,
+        IReadOnlyList<WolverineOutgoingMessageConsequence> outgoingMessages,
         IReadOnlyList<WolverineBusConsequence> busConsequences,
         List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics)
     {
         var requestSubject = project.SubjectForType(requestType);
         var reactionSubject = MethodSubject(project, method, "reaction");
-        var evidence = MethodEvidence(method, project, adapter, EvidenceStrength.Exact, "Wolverine message handler with direct bus consequences");
+        var evidence = MethodEvidence(method, project, adapter, EvidenceStrength.Exact, "Wolverine message handler with direct bus or return automation consequences");
         var reactionName = method.ContainingType.Name.EndsWith("Handler", StringComparison.Ordinal)
             ? method.ContainingType.Name[..^"Handler".Length]
             : method.ContainingType.Name;
@@ -275,6 +308,8 @@ static class WolverineFacts
             RelationshipKind.Handles,
             requestSubject,
             evidence));
+        AddReturnConsequences(project, reactionSubject, returnConsequences, evidence, facts);
+        AddOutgoingMessages(project, reactionSubject, method, outgoingMessages, evidence, facts, diagnostics);
         AddDirectBusConsequences(project, reactionSubject, method, evidence, facts, diagnostics, busConsequences);
     }
 
@@ -444,14 +479,11 @@ static class WolverineFacts
         }
     }
 
-    static void AddOutgoingMessages(
-        DotNetProjectCompilation project,
-        SubjectId sourceSubject,
+    static List<WolverineOutgoingMessageConsequence> DiscoverOutgoingMessages(
         IMethodSymbol method,
-        Evidence evidence,
-        List<GenerationFact> facts,
-        List<GenerationDiagnostic> diagnostics)
+        DotNetProjectCompilation project)
     {
+        var consequences = new List<WolverineOutgoingMessageConsequence>();
         foreach (var (declaration, semanticModel) in WolverineMethodSyntax.Declarations(method, project))
         {
             foreach (var collection in declaration.DescendantNodes().OfType<CollectionExpressionSyntax>())
@@ -477,32 +509,49 @@ static class WolverineFacts
                         continue;
                     }
 
-                    var messageSubject = project.SubjectForType(messageType);
                     var delayed = element.Expression.DescendantNodesAndSelf()
                         .OfType<InvocationExpressionSyntax>()
                         .Any(_ => _.Expression.ToString().Contains("Delayed", StringComparison.Ordinal));
-                    AddMessageRelationship(
-                        project,
-                        sourceSubject,
-                        messageType,
-                        evidence,
-                        RelationshipKind.Cascades,
-                        $"wolverine:cascades:{sourceSubject.Value}:{messageSubject.Value}",
-                        delayed ? "delayed" : "immediate",
-                        facts);
-
-                    if (delayed)
-                    {
-                        diagnostics.Add(new GenerationDiagnostic
-                        {
-                            Code = WolverineDiagnosticCodes.DelayedMessageOmitted,
-                            Severity = GenerationDiagnosticSeverity.Warning,
-                            Message = $"Handler '{method.ContainingType.Name}.{method.Name}' dispatches '{messageType.Name}' after a delay, which the current Screenplay language cannot represent",
-                            Source = evidence.Source,
-                            Subject = sourceSubject
-                        });
-                    }
+                    consequences.Add(new(messageType, delayed));
                 }
+            }
+        }
+
+        return consequences;
+    }
+
+    static void AddOutgoingMessages(
+        DotNetProjectCompilation project,
+        SubjectId sourceSubject,
+        IMethodSymbol method,
+        IReadOnlyList<WolverineOutgoingMessageConsequence> consequences,
+        Evidence evidence,
+        List<GenerationFact> facts,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        foreach (var consequence in consequences)
+        {
+            var messageSubject = project.SubjectForType(consequence.MessageType);
+            AddMessageRelationship(
+                project,
+                sourceSubject,
+                consequence.MessageType,
+                evidence,
+                RelationshipKind.Cascades,
+                $"wolverine:cascades:{sourceSubject.Value}:{messageSubject.Value}",
+                consequence.Delayed ? "delayed" : "immediate",
+                facts);
+
+            if (consequence.Delayed)
+            {
+                diagnostics.Add(new GenerationDiagnostic
+                {
+                    Code = WolverineDiagnosticCodes.DelayedMessageOmitted,
+                    Severity = GenerationDiagnosticSeverity.Warning,
+                    Message = $"Handler '{method.ContainingType.Name}.{method.Name}' dispatches '{consequence.MessageType.Name}' after a delay, which the current Screenplay language cannot represent",
+                    Source = evidence.Source,
+                    Subject = sourceSubject
+                });
             }
         }
     }
@@ -510,23 +559,13 @@ static class WolverineFacts
     static void AddReturnConsequences(
         DotNetProjectCompilation project,
         SubjectId sourceSubject,
-        IMethodSymbol method,
+        IReadOnlyList<WolverineReturnConsequence> consequences,
         Evidence evidence,
-        bool isHttpEndpoint,
-        bool aggregateWorkflow,
         List<GenerationFact> facts)
     {
-        foreach (var consequence in WolverineReturnConsequences.Classify(
-                     method,
-                     isHttpEndpoint,
-                     aggregateWorkflow,
-                     HasEventStreamParameter(method)).Where(_ => _.Kind == WolverineReturnConsequenceKind.Cascade))
+        foreach (var consequence in consequences.Where(IsCascadeConsequence))
         {
-            if (consequence.Type is not INamedTypeSymbol messageType || !IsEventPayloadType(messageType))
-            {
-                continue;
-            }
-
+            var messageType = (INamedTypeSymbol)consequence.Type;
             var messageSubject = project.SubjectForType(messageType);
             AddMessageRelationship(
                 project,
@@ -539,6 +578,11 @@ static class WolverineFacts
                 facts);
         }
     }
+
+    static bool IsCascadeConsequence(WolverineReturnConsequence consequence) =>
+        consequence.Kind == WolverineReturnConsequenceKind.Cascade &&
+        consequence.Type is INamedTypeSymbol messageType &&
+        IsEventPayloadType(messageType);
 
     static void AddMessageRelationship(
         DotNetProjectCompilation project,
@@ -592,6 +636,15 @@ static class WolverineFacts
                 evidence));
         }
     }
+
+    static bool HasDocumentPersistence(IMethodSymbol method, DotNetProjectCompilation project) =>
+        WolverineMethodSyntax.Declarations(method, project).Any(declaration =>
+            declaration.Declaration.DescendantNodes()
+                .OfType<InvocationExpressionSyntax>()
+                .Select(invocation => declaration.SemanticModel.GetSymbolInfo(invocation).Symbol as IMethodSymbol)
+                .Any(invoked => invoked is not null &&
+                                _documentPersistenceMethods.Contains(invoked.Name) &&
+                                IsPersistenceNamespace(invoked)));
 
     static IEnumerable<INamedTypeSymbol> DocumentDeletes(IMethodSymbol method, DotNetProjectCompilation project)
     {

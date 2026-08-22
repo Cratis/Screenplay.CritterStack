@@ -1,6 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Screenplay.Generation.DotNet;
+using Cratis.Specifications;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+
 namespace Cratis.CritterStack.Screenplay.given;
 
 public class a_wolverine_marten_application : Specification
@@ -20,6 +25,7 @@ public class a_wolverine_marten_application : Specification
 
         namespace Wolverine
         {
+            public class WolverineHandlerAttribute : System.Attribute;
             public class WolverineOptions;
             public class DeliveryOptions
             {
@@ -52,6 +58,8 @@ public class a_wolverine_marten_application : Specification
 
         namespace Wolverine.Http
         {
+            public interface IWolverineReturnType;
+            public interface IResponseAware : IWolverineReturnType;
             public abstract class WolverineHttpMethodAttribute(string route) : System.Attribute;
             public class WolverinePostAttribute(string route) : WolverineHttpMethodAttribute(route);
             public class WolverineGetAttribute(string route) : WolverineHttpMethodAttribute(route);
@@ -107,6 +115,7 @@ public class a_wolverine_marten_application : Specification
             {
                 EventOperations Events { get; }
                 void Delete<T>(System.Guid id);
+                void Store<T>(T document);
             }
             public class EventOperations
             {
@@ -162,11 +171,51 @@ public class a_wolverine_marten_application : Specification
         public record UnrelatedBusMessage(System.Guid IncidentId);
         public record IncidentEscalated(System.Guid IncidentId);
         public record NotifyEscalation(System.Guid IncidentId);
+        public record ReturnOnlyTrigger(System.Guid IncidentId);
+        public record ReturnOnlyEventHappened(System.Guid IncidentId);
+        public record TupleReturnTrigger(System.Guid IncidentId);
+        public record FirstTupleCascade(System.Guid IncidentId);
+        public record SecondTupleCascade(System.Guid IncidentId);
+        public record OutgoingReturnTrigger(System.Guid IncidentId);
+        public record ImmediateOutgoingCascade(System.Guid IncidentId);
+        public record DelayedOutgoingCascade(System.Guid IncidentId);
+        public record MixedAutomationTrigger(System.Guid IncidentId);
+        public record MixedReturnedCascade(System.Guid IncidentId);
+        public record MixedPublishedMessage(System.Guid IncidentId);
+        public record ExcludedSlotsTrigger(System.Guid IncidentId);
+        public record CascadeAfterExcludedSlots(System.Guid IncidentId);
+        public record ResponseOnlyTrigger(System.Guid IncidentId);
+        public record SideEffectOnlyTrigger(System.Guid IncidentId);
+        public record CurrentWrapperOnlyTrigger(System.Guid IncidentId);
+        public record LegacyWrapperOnlyTrigger(System.Guid IncidentId);
+        public record PersistenceWrapperOnlyTrigger(System.Guid IncidentId);
+        public record LegacyPersistenceWrapperOnlyTrigger(System.Guid IncidentId);
+        public record StoreAndReturnTrigger(System.Guid IncidentId);
+        public record StoreReturnCascade(System.Guid IncidentId);
+        public record StoredDocument(System.Guid Id);
+        public record CurrentExplicitTrigger(System.Guid IncidentId);
+        public record CurrentExplicitCascade(System.Guid IncidentId);
+        public record LegacyExplicitTrigger(System.Guid IncidentId);
+        public record LegacyExplicitCascade(System.Guid IncidentId);
+        public record IgnoredReturnTrigger(System.Guid IncidentId);
+        public record IgnoredReturnCascade(System.Guid IncidentId);
+        public record GenericReturnTrigger(System.Guid IncidentId);
+        public record GenericReturnCascade(System.Guid IncidentId);
+        public record AbstractReturnTrigger(System.Guid IncidentId);
+        public record AbstractReturnCascade(System.Guid IncidentId);
+        public record InternalReturnTrigger(System.Guid IncidentId);
+        public record InternalReturnCascade(System.Guid IncidentId);
+        public record InvalidReturnCascade(System.Guid IncidentId);
+        public record MiddlewareTrigger(System.Guid IncidentId);
+        public record MiddlewareCascade(System.Guid IncidentId);
+        public record CompoundTrigger(System.Guid IncidentId);
         public class UnrelatedBus
         {
             public System.Threading.Tasks.ValueTask SendAsync<T>(T message) => default;
         }
         public class AuditEffect : Wolverine.ISideEffect;
+        public class CurrentReturnWrapper : Wolverine.Configuration.IWolverineReturnType;
+        public class LegacyReturnWrapper : Wolverine.Http.IWolverineReturnType;
 
         public class Incident
         {
@@ -261,6 +310,127 @@ public class a_wolverine_marten_application : Specification
         {
             public static void Handle(IncidentEscalated message, Wolverine.IMessageBus bus) =>
                 _ = bus.PublishAsync(new NotifyEscalation(message.IncidentId));
+        }
+
+        public static class ReturnOnlyHandler
+        {
+            public static ReturnOnlyEventHappened Handle(ReturnOnlyTrigger message) =>
+                new(message.IncidentId);
+        }
+
+        public static class TupleReturnHandler
+        {
+            public static (FirstTupleCascade, SecondTupleCascade) Handle(TupleReturnTrigger message) =>
+                (new(message.IncidentId), new(message.IncidentId));
+        }
+
+        public static class OutgoingReturnHandler
+        {
+            public static Wolverine.OutgoingMessages Handle(OutgoingReturnTrigger message) =>
+                [
+                    new ImmediateOutgoingCascade(message.IncidentId),
+                    new DelayedOutgoingCascade(message.IncidentId).DelayedFor()
+                ];
+        }
+
+        public static class MixedAutomationHandler
+        {
+            public static MixedReturnedCascade Handle(MixedAutomationTrigger message, Wolverine.IMessageBus bus)
+            {
+                _ = bus.PublishAsync(new MixedPublishedMessage(message.IncidentId));
+                return new(message.IncidentId);
+            }
+        }
+
+        public static class ExcludedSlotsHandler
+        {
+            public static (Wolverine.Http.CreationResponse<System.Guid>, AuditEffect, CascadeAfterExcludedSlots) Handle(ExcludedSlotsTrigger message) =>
+                (new("/excluded", message.IncidentId), new(), new(message.IncidentId));
+        }
+
+        public static class ResponseOnlyHandler
+        {
+            public static Wolverine.Http.CreationResponse<System.Guid> Handle(ResponseOnlyTrigger message) =>
+                new("/response", message.IncidentId);
+        }
+
+        public static class SideEffectOnlyHandler
+        {
+            public static AuditEffect Handle(SideEffectOnlyTrigger message) => new();
+        }
+
+        public static class CurrentWrapperOnlyHandler
+        {
+            public static CurrentReturnWrapper Handle(CurrentWrapperOnlyTrigger message) => new();
+        }
+
+        public static class LegacyWrapperOnlyHandler
+        {
+            public static LegacyReturnWrapper Handle(LegacyWrapperOnlyTrigger message) => new();
+        }
+
+        public static class PersistenceWrapperOnlyHandler
+        {
+            public static Wolverine.Persistence.EventSourcing.EventsToAppend Handle(PersistenceWrapperOnlyTrigger message) => [];
+        }
+
+        public static class LegacyPersistenceWrapperOnlyHandler
+        {
+            public static Wolverine.Marten.Events Handle(LegacyPersistenceWrapperOnlyTrigger message) => [];
+        }
+
+        public static class StoreAndReturnHandler
+        {
+            public static StoreReturnCascade Handle(StoreAndReturnTrigger message, Marten.IDocumentSession session)
+            {
+                session.Store(new StoredDocument(message.IncidentId));
+                return new(message.IncidentId);
+            }
+        }
+
+        public static class CurrentExplicitReturnActions
+        {
+            [Wolverine.Attributes.WolverineHandler]
+            public static CurrentExplicitCascade Process(CurrentExplicitTrigger message) => new(message.IncidentId);
+        }
+
+        public static class LegacyExplicitActions
+        {
+            [Wolverine.WolverineHandler]
+            public static LegacyExplicitCascade Process(LegacyExplicitTrigger message) => new(message.IncidentId);
+        }
+
+        [Wolverine.Attributes.WolverineIgnore]
+        public static class IgnoredReturnHandler
+        {
+            public static IgnoredReturnCascade Handle(IgnoredReturnTrigger message) => new(message.IncidentId);
+        }
+
+        public class GenericReturnHandler<T>
+        {
+            public static GenericReturnCascade Handle(GenericReturnTrigger message) => new(message.IncidentId);
+        }
+
+        public abstract class AbstractReturnHandler
+        {
+            public AbstractReturnCascade Handle(AbstractReturnTrigger message) => new(message.IncidentId);
+        }
+
+        internal static class InternalReturnHandler
+        {
+            public static InternalReturnCascade Handle(InternalReturnTrigger message) => new(message.IncidentId);
+        }
+
+        public static class InvalidReturnUtility
+        {
+            [Wolverine.Attributes.WolverineHandler]
+            public static InvalidReturnCascade Process(System.Guid id) => new(id);
+        }
+
+        public static class CompoundHandler
+        {
+            public static MiddlewareCascade Before(MiddlewareTrigger message) => new(message.IncidentId);
+            public static void Handle(CompoundTrigger message) { }
         }
 
         public static class ExplicitActions
