@@ -133,8 +133,8 @@ static class MartenConfigurationDiscovery
                     _ => null
                 };
                 var message = direct && value is not null
-                    ? $"Projection '{projection.Name}' configures daemon {MetadataLabel(property.Name)} '{value}', which is not expressible in the current Screenplay contracts"
-                    : $"Projection '{projection.Name}' configures daemon {MetadataLabel(property.Name)} with a conditional, computed, or otherwise non-constant value that could not be resolved safely";
+                    ? $"Projection '{projection.Name}' configures projection {MetadataLabel(property.Name)} '{value}', which is not expressible in the current Screenplay contracts"
+                    : $"Projection '{projection.Name}' configures projection {MetadataLabel(property.Name)} with a conditional, computed, or otherwise non-constant value that could not be resolved safely";
                 diagnostics.Add(Loss(
                     project,
                     projection,
@@ -219,8 +219,8 @@ static class MartenConfigurationDiscovery
                 projection,
                 MartenDiagnosticCodes.ProjectionMetadataOmitted,
                 value is null
-                    ? $"Projection '{projection.Name}' registers a computed or otherwise non-constant daemon name that could not be resolved safely"
-                    : $"Projection '{projection.Name}' registers daemon name '{value}', which is not expressible in the current Screenplay contracts",
+                    ? $"Projection '{projection.Name}' registers a computed or otherwise non-constant projection name that could not be resolved safely"
+                    : $"Projection '{projection.Name}' registers projection name '{value}', which is not expressible in the current Screenplay contracts",
                 nameArgument.GetLocation()));
         }
 
@@ -245,8 +245,8 @@ static class MartenConfigurationDiscovery
                     projection,
                     MartenDiagnosticCodes.ProjectionMetadataOmitted,
                     IsDirectScopeStatement(assignment, lambda) && value is not null
-                        ? $"Projection '{projection.Name}' registers daemon {MetadataLabel(property.Name)} '{value}', which is not expressible in the current Screenplay contracts"
-                        : $"Projection '{projection.Name}' registers daemon {MetadataLabel(property.Name)} conditionally or with a non-constant value that could not be resolved safely",
+                        ? $"Projection '{projection.Name}' registers projection {MetadataLabel(property.Name)} '{value}', which is not expressible in the current Screenplay contracts"
+                        : $"Projection '{projection.Name}' registers projection {MetadataLabel(property.Name)} conditionally or with a non-constant value that could not be resolved safely",
                     assignment.GetLocation()));
             }
         }

@@ -5,8 +5,8 @@ namespace Cratis.CritterStack.Screenplay.for_CritterStackScreenplayAdapter;
 
 public class when_analyzing_legacy_marten_projection_metadata : given.a_legacy_marten_projection_metadata_application
 {
-    [Fact] void should_preserve_legacy_projection_name_metadata() => ProjectionMetadata.Any(_ => _.Message.Contains("daemon name 'legacy-named'", StringComparison.Ordinal)).ShouldBeTrue();
-    [Fact] void should_preserve_legacy_registration_name_metadata() => ProjectionMetadata.Any(_ => _.Message.Contains("registers daemon name 'legacy-raw'", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_preserve_legacy_projection_name_metadata() => ProjectionMetadata.Any(_ => _.Message.Contains("projection name 'legacy-named'", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_preserve_legacy_registration_name_metadata() => ProjectionMetadata.Any(_ => _.Message.Contains("registers projection name 'legacy-raw'", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_preserve_the_non_inline_legacy_lifecycle() => Contribution.Diagnostics.Count(_ => _.Code == MartenDiagnosticCodes.ProjectionLifecycleOmitted).ShouldEqual(1);
     [Fact] void should_preserve_legacy_async_mode_assignment() => DaemonConfiguration.Any(_ => _.Message.Contains("AsyncMode 'HotCold'", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_preserve_legacy_daemon_registration() => DaemonConfiguration.Any(_ => _.Message.Contains("mode 'Solo'", StringComparison.Ordinal)).ShouldBeTrue();
