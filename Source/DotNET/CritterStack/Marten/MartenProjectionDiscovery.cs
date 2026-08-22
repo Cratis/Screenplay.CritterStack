@@ -13,7 +13,8 @@ enum ProjectionKind
     Snapshot,
     SingleStream,
     MultiStream,
-    Event
+    Event,
+    Custom
 }
 
 sealed record ProjectionRegistration(
@@ -41,6 +42,8 @@ static class MartenProjectionDiscovery
         WellKnownTypes.MartenProjectionLifecycle,
         WellKnownTypes.MartenSnapshotLifecycle
     ];
+
+    internal static IReadOnlySet<string> ProjectionLifecycleTypes => _projectionLifecycleTypes;
 
     public static IReadOnlyList<ProjectionRegistration> Discover(
         DotNetProjectCompilation project,
@@ -84,7 +87,8 @@ static class MartenProjectionDiscovery
                         });
                         break;
                     case "Add":
-                        var shape = ShapeOf(type);
+                    case "AddProjectionWithServices":
+                        var shape = ShapeOf(type) ?? CustomShapeOf(type);
                         if (shape is not null)
                         {
                             registrations.Add(shape with
@@ -149,6 +153,12 @@ static class MartenProjectionDiscovery
         return null;
     }
 
+    static ProjectionRegistration? CustomShapeOf(INamedTypeSymbol projection) =>
+        DotNetSubjectIds.MetadataName(projection) != WellKnownTypes.MartenProjection &&
+        projection.AllInterfaces.Any(_ => DotNetSubjectIds.MetadataName(_.OriginalDefinition) == WellKnownTypes.MartenProjection)
+            ? new(projection, projection, ProjectionKind.Custom, null!)
+            : null;
+
     static INamedTypeSymbol? ProjectionTypeFrom(
         IMethodSymbol method,
         InvocationExpressionSyntax invocation,
@@ -162,16 +172,37 @@ static class MartenProjectionDiscovery
         return invocation.ArgumentList.Arguments
             .Select(_ => semanticModel.GetTypeInfo(_.Expression).Type)
             .OfType<INamedTypeSymbol>()
-            .FirstOrDefault(_ => ShapeOf(_) is not null);
+            .FirstOrDefault(_ => ShapeOf(_) is not null || CustomShapeOf(_) is not null);
     }
 
-    static string? LifecycleFrom(InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>
-        invocation.ArgumentList.Arguments
-            .Select(_ => semanticModel.GetSymbolInfo(_.Expression).Symbol)
-            .OfType<IFieldSymbol>()
-            .Where(_ => _projectionLifecycleTypes.Contains(DotNetSubjectIds.MetadataName(_.ContainingType)))
-            .Select(_ => _.Name)
-            .FirstOrDefault();
+    static string? LifecycleFrom(InvocationExpressionSyntax invocation, SemanticModel semanticModel)
+    {
+        foreach (var argument in invocation.ArgumentList.Arguments)
+        {
+            if (semanticModel.GetSymbolInfo(argument.Expression).Symbol is IFieldSymbol field &&
+                _projectionLifecycleTypes.Contains(DotNetSubjectIds.MetadataName(field.ContainingType)))
+            {
+                return field.Name;
+            }
+
+            if (semanticModel.GetTypeInfo(argument.Expression).ConvertedType is not INamedTypeSymbol enumType ||
+                !_projectionLifecycleTypes.Contains(DotNetSubjectIds.MetadataName(enumType)) ||
+                semanticModel.GetConstantValue(argument.Expression) is not { HasValue: true, Value: not null } constant)
+            {
+                continue;
+            }
+
+            var member = enumType.GetMembers()
+                .OfType<IFieldSymbol>()
+                .FirstOrDefault(_ => _.HasConstantValue && Equals(_.ConstantValue, constant.Value));
+            if (member is not null)
+            {
+                return member.Name;
+            }
+        }
+
+        return null;
+    }
 
     static INamedTypeSymbol? BaseClosing(INamedTypeSymbol type, IEnumerable<string> metadataNames)
     {

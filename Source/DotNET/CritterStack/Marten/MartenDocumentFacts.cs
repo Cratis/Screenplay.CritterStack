@@ -55,8 +55,9 @@ static class MartenDocumentFacts
                 }
 
                 var kind = RelationshipKindFor(method.Name);
-                if ((kind is RelationshipKind.Stores or RelationshipKind.Updates or RelationshipKind.Deletes) &&
-                    IsInEventProjection(invocation, semanticModel))
+                if (((kind is RelationshipKind.Stores or RelationshipKind.Updates or RelationshipKind.Deletes) &&
+                     IsInEventProjection(invocation, semanticModel)) ||
+                    (kind is not null && IsInUnresolvedCustomProcessor(invocation, semanticModel)))
                 {
                     continue;
                 }
@@ -378,6 +379,12 @@ static class MartenDocumentFacts
         SemanticModel semanticModel) =>
         semanticModel.GetEnclosingSymbol(invocation.SpanStart) is IMethodSymbol containingMethod &&
         DotNetSymbols.IsOrInheritsFrom(containingMethod.ContainingType, WellKnownTypes.MartenEventProjection);
+
+    static bool IsInUnresolvedCustomProcessor(
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel) =>
+        semanticModel.GetEnclosingSymbol(invocation.SpanStart) is IMethodSymbol containingMethod &&
+        MartenConfigurationDiscovery.IsUnresolvedProcessorType(containingMethod.ContainingType);
 
     static bool IsSourceType(INamedTypeSymbol type) => type.TypeKind != TypeKind.Error && type.Locations.Any(_ => _.IsInSource);
 
