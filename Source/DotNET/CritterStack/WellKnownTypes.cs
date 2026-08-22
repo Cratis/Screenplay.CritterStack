@@ -7,6 +7,12 @@ static class WellKnownTypes
 {
     public const string MartenDocumentStore = "Marten.IDocumentStore";
     public const string MartenStoreOptions = "Marten.StoreOptions";
+    public const string MartenQuerySession = "Marten.IQuerySession";
+    public const string MartenBatchedQuery = "Marten.Services.BatchQuerying.IBatchedQuery";
+    public const string MartenCompiledQuery = "Marten.Linq.ICompiledQuery`2";
+    public const string MartenIgnoreAttribute = "Marten.Events.CodeGeneration.MartenIgnoreAttribute";
+    public const string MartenDocumentMappingExpression = "Marten.MartenRegistry+DocumentMappingExpression`1";
+    public const string JasperFxIdentityAttribute = "JasperFx.IdentityAttribute";
     public const string MartenProjectionOptions = "Marten.Events.Projections.ProjectionOptions";
     public const string MartenSingleStreamProjectionOneId = "Marten.Events.Aggregation.SingleStreamProjection`1";
     public const string MartenSingleStreamProjectionTwoIds = "Marten.Events.Aggregation.SingleStreamProjection`2";

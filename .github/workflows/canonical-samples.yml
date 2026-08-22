@@ -59,6 +59,12 @@ jobs:
           dotnet restore Screenplay.CritterStack.slnx --property:Configuration=Release --source ./Artifacts/Dependencies --source https://api.nuget.org/v3/index.json
           dotnet build Screenplay.CritterStack.slnx --no-restore --configuration Release
 
+      - name: Complete pinned Marten sample dependency
+        run: |
+          # The pinned TripBuildingService source uses Marten directly but omits its package reference.
+          # Add the exact compatibility-matrix version to the disposable checkout so a clean runner is reproducible.
+          dotnet add samples/critter-stack/MartenWithProjectAspire/TripBuildingService/TripBuildingService.csproj package Marten --version 9.20.1
+
       - name: Build canonical applications
         run: |
           dotnet build samples/critter-stack/BankAccountES/BankAccountES.csproj --configuration Debug
