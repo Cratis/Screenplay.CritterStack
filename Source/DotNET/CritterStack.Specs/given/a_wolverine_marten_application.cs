@@ -160,6 +160,8 @@ public class a_wolverine_marten_application : Specification
         public record ScheduledIncidentPublication(System.Guid IncidentId);
         public record TopicIncidentNotification(System.Guid IncidentId);
         public record UnrelatedBusMessage(System.Guid IncidentId);
+        public record IncidentEscalated(System.Guid IncidentId);
+        public record NotifyEscalation(System.Guid IncidentId);
         public class UnrelatedBus
         {
             public System.Threading.Tasks.ValueTask SendAsync<T>(T message) => default;
@@ -253,6 +255,12 @@ public class a_wolverine_marten_application : Specification
                 _ = unrelatedBus.SendAsync(new UnrelatedBusMessage(command.IncidentId));
                 return new NotifyIncidentNote(command.IncidentId);
             }
+        }
+
+        public static class IncidentEscalationHandler
+        {
+            public static void Handle(IncidentEscalated message, Wolverine.IMessageBus bus) =>
+                _ = bus.PublishAsync(new NotifyEscalation(message.IncidentId));
         }
 
         public static class ExplicitActions
