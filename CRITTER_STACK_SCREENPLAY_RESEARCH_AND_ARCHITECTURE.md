@@ -27,6 +27,8 @@ The most important architectural decision is that adapters contribute typed sema
 
 For the first implementation, official .NET adapters should run in-process over one Roslyn/MSBuild workspace. The semantic contracts must be serialization-friendly so an out-of-process protocol and adapters for other languages can be added later, but a plugin protocol and adapter-host executable should not delay the first Critter Stack vertical slice.
 
+The detailed behavior-classification follow-up is in [`CRITTER_STACK_PATTERN_DISCOVERY_RESEARCH.md`](CRITTER_STACK_PATTERN_DISCOVERY_RESEARCH.md). Exact canonical package combinations, source baselines, and support tiers are in [`COMPATIBILITY.md`](COMPATIBILITY.md).
+
 ## Research baseline
 
 The research was performed read-only against these local checkouts:
