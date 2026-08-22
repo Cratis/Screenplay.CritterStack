@@ -27,6 +27,6 @@ diagnostic: MARTEN0003
 diagnostic: MARTEN0004
 diagnostic: MARTEN0007
 diagnostic: MARTEN0008
-diagnostic-message: MARTEN0007|daemon name 'Day'
-diagnostic-message: MARTEN0007|daemon name 'Distance'
+diagnostic-message: MARTEN0007|projection name 'Day'
+diagnostic-message: MARTEN0007|projection name 'Distance'
 diagnostic-message: MARTEN0008|daemon mode 'Solo'
