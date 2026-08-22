@@ -32,6 +32,8 @@ public class when_analyzing_marten_async_projections : given.a_marten_async_proj
     [Fact] void should_report_the_multi_stream_grouping_gap() => Contribution.Diagnostics.Count(_ => _.Code == MartenDiagnosticCodes.MultiStreamGroupingOmitted).ShouldEqual(1);
     [Fact] void should_report_arbitrary_event_projection_value_flow_as_loss() => Contribution.Diagnostics.Single(_ => _.Code == MartenDiagnosticCodes.EventProjectionOmitted).Message.ShouldContain("arbitrary document body, value, and predicate flow");
     [Fact] void should_report_each_ordinary_document_state_gap() => Contribution.Diagnostics.Count(_ => _.Code == MartenDiagnosticCodes.DocumentModelOmitted).ShouldEqual(6);
+    [Fact] void should_preserve_legacy_multi_stream_identity_configuration() => Contribution.Facts.OfType<RelationshipFact>().Any(_ => _.Definition.Key.Kind == RelationshipKind.Consumes && _.Definition.Key.Discriminator?.StartsWith("marten:identity:", StringComparison.Ordinal) == true && _.Definition.TargetMember == "day").ShouldBeTrue();
+    [Fact] void should_preserve_legacy_multi_stream_fan_out_configuration() => Contribution.Facts.OfType<RelationshipFact>().Any(_ => _.Definition.Key.Kind == RelationshipKind.Consumes && _.Definition.Key.Discriminator?.StartsWith("marten:fan-out-child:", StringComparison.Ordinal) == true && _.Definition.SourceMember == "movements").ShouldBeTrue();
 
     IReadOnlyList<ResolvedArtifact> ReadModels => Artifacts(ArtifactKind.ReadModel);
 
