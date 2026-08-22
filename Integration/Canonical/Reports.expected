@@ -2,6 +2,7 @@
 source: command StartReport
 not-source: readmodel Report
 artifact: Document:Report
+identifier: Document:Report:id
 relationship: Stores
 diagnostic: MARTEN0003
 diagnostic: WOLVERINE0002

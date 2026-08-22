@@ -11,7 +11,8 @@ enum ExpectationKind
     NotSource,
     Diagnostic,
     Artifact,
-    Relationship
+    Relationship,
+    Identifier
 }
 
 sealed record Expectation(ExpectationKind Kind, string Value)
@@ -23,10 +24,23 @@ sealed record Expectation(ExpectationKind Kind, string Value)
         ExpectationKind.Diagnostic => result.Diagnostics.Any(_ => _.Code == Value),
         ExpectationKind.Artifact => result.Graph.Artifacts.Any(_ => $"{_.Key.Kind}:{_.Variants[0].Definition.Name}" == Value),
         ExpectationKind.Relationship => result.Graph.Relationships.Any(_ => _.Key.Kind.ToString() == Value),
+        ExpectationKind.Identifier => IsIdentifierIn(result, Value),
         _ => false
     };
 
     public override string ToString() => $"{Kind}: {Value}";
+
+    static bool IsIdentifierIn(GeneratedScreenplayDefinition result, string value)
+    {
+        var parts = value.Split(':');
+        return parts.Length == 3 &&
+               Enum.TryParse<ArtifactKind>(parts[0], out var kind) &&
+               result.Graph.Artifacts.Any(artifact =>
+                   artifact.Key.Kind == kind &&
+                   artifact.Variants.Any(variant =>
+                       variant.Definition.Name == parts[1] &&
+                       variant.Definition.Properties.Any(property => property.Name == parts[2] && property.IsIdentifier)));
+    }
 }
 
 static class Expectations
@@ -54,6 +68,7 @@ static class Expectations
             "diagnostic" => ExpectationKind.Diagnostic,
             "artifact" => ExpectationKind.Artifact,
             "relationship" => ExpectationKind.Relationship,
+            "identifier" => ExpectationKind.Identifier,
             _ => throw new InvalidExpectation(value)
         };
         return new(kind, value[(separator + 1)..].Trim());
