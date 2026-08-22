@@ -142,16 +142,17 @@ The CLI continues owning `MSBuildWorkspace` initially. Do not implement an adapt
 - Pinned canonical verification is merged in Critter Stack PR #11; issue #5 is closed.
 - Critter Stack PR #14 is merged. It adds ordinary Marten document facts/relationships, `MARTEN0003`, CqrsMinimalApi/Reports canonical checks, and the first bounded delivery toward Marten issue #3.
 - Critter Stack PR #18 is merged and released as `v0.3.0`. Marten projection discovery recognizes generic, instance, snapshot, and live registrations, including inherited JasperFx `Add(...)` APIs, preserves configured evidence, and reports unsupported async/live lifecycle semantics as `MARTEN0004`. Pinned MartenWithProjectAspire verification covers single-stream, multi-stream, and event projections.
+- Critter Stack PR #21 is merged and released as `v0.4.0`. Wolverine analysis recognizes current/legacy handler, ignore, return, response, and exact event-stream metadata; excludes ignored/open-generic/abstract handlers; classifies return slots before emitting facts; and preserves strict response/event/wrapper/cascade/`OutgoingMessages`/side-effect separation. Verification passed 72 specs, zero-warning/error builds, sentinel packing, all PR checks, and all six canonical fixtures.
 - Public adapter strategy is committed in `STRATEGY.md`.
 - Pattern-discovery research and a compatibility reference are committed. They define evidence-based State Change/State View/Automation/Translation classification, exact canonical package sets, source baselines, and support tiers; CLI `v2.12.0` implements the runtime package-provenance report.
-- Critter Stack `v0.3.0` publish run `32540542422` passed release/build/pack and failed only at NuGet OIDC login because the owner-scoped trusted-publishing policy is still absent.
+- Critter Stack `v0.4.0` publish run `32565807453` passed release/restore/build/pack and failed only at NuGet OIDC login because the owner-scoped trusted-publishing policy is still absent.
 
 ## Exact resume sequence
 
-1. Check whether Generation issue #2 and Critter Stack issue #1 are resolved. If policies now exist, rerun Generation publish run `32435010554` and Critter Stack runs `32437573817` (baseline 0.1.0) plus `32540542422` (current 0.3.0), verify the package IDs on nuget.org, close the issues, and remove release-asset bootstrap restore steps from Generation/Critter Stack/CLI workflows.
+1. Check whether Generation issue #2 and Critter Stack issue #1 are resolved. If policies now exist, rerun Generation publish run `32435010554` and Critter Stack runs `32437573817` (baseline 0.1.0), `32540542422` (0.3.0), and `32565807453` (current 0.4.0), verify the package IDs on nuget.org, close the issues, and remove release-asset bootstrap restore steps from Generation/Critter Stack/CLI workflows.
 2. Enable package validation after publication (Generation #3, Critter Stack #7).
-3. After adapter publication, update CLI from the temporary 0.1.0 bootstrap to 0.3.0 and confirm exact package sets promote from `SourceReviewed` to `Canonical`.
-4. Before broadening semantic discovery, correct the current source-profile gaps from `CRITTER_STACK_PATTERN_DISCOVERY_RESEARCH.md`: current Wolverine metadata names, slot-level consequence classification, handler activation/discovery rules, and strict consequence separation.
+3. After adapter publication, update CLI from the temporary 0.1.0 bootstrap to current 0.4.0 and confirm exact package sets promote from `SourceReviewed` to `Canonical`.
+4. Continue the remaining source-profile gaps from `CRITTER_STACK_PATTERN_DISCOVERY_RESEARCH.md`: configured handler discovery/activation policies, direct bus send/publish/request-reply, delivery options, transport topology, sagas, DCB, subscriptions/forwarding, and projection side effects. Preserve the slot-level consequence separation landed in v0.4.0.
 5. Continue remaining Marten completeness (#3) or Wolverine completeness (#4) against the pinned canonical workflow.
 6. Design language additions only from measured diagnostics in Cratis/Screenplay#128.
 
