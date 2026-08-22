@@ -103,7 +103,8 @@ public class a_critter_stack_application : Specification
                 Name = "BankAccountES",
                 ProjectPath = "/workspace/BankAccountES/BankAccountES.csproj",
                 SourceRoot = "/workspace",
-                Compilation = compilation
+                Compilation = compilation,
+                AuthoredSyntaxTrees = compilation.SyntaxTrees.ToHashSet()
             }
         ]);
         Adapter = new();

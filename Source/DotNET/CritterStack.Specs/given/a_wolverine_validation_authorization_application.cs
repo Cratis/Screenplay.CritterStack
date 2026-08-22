@@ -344,7 +344,8 @@ public class a_wolverine_validation_authorization_application : Specification
             Name = name,
             ProjectPath = $"/workspace/{name}/{name}.csproj",
             SourceRoot = "/workspace",
-            Compilation = compilation
+            Compilation = compilation,
+            AuthoredSyntaxTrees = compilation.SyntaxTrees.ToHashSet()
         };
     }
 }

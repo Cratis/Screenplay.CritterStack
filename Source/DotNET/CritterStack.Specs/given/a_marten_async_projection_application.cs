@@ -233,7 +233,8 @@ public class a_marten_async_projection_application : Specification
             Name = "Trips",
             ProjectPath = "/workspace/Trips/Trips.csproj",
             SourceRoot = "/workspace",
-            Compilation = compilation
+            Compilation = compilation,
+            AuthoredSyntaxTrees = compilation.SyntaxTrees.ToHashSet()
         };
         Contribution = new CritterStackScreenplayAdapter().Analyze(
             new DotNetAnalysisContext([project]),
