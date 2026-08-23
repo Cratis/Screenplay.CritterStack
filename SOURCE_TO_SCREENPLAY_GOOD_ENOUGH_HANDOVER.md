@@ -1,0 +1,190 @@
+<!--
+Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information.
+-->
+
+# Source-to-Screenplay good-enough handover
+
+## Conclusion
+
+The source-to-Screenplay **Preview foundation is good enough** once the active CLI package update is merged and operationally verified. Do not continue filling every Marten/Wolverine edge case as an open-ended program.
+
+The delivered foundation now proves the important architecture:
+
+```text
+trusted host source/workspace
+  -> independently identified neutral facts/evidence/diagnostics
+  -> deterministic conflict-visible resolution
+  -> one Generation lowerer
+  -> one Screenplay printer/compiler/round-trip check
+  -> CLI output plus separate provenance/diagnostics
+```
+
+Future work should prioritize **atomic adapter composition**, reusable evidence mechanics, and target-language capabilities. Framework-specific breadth continues only when a product need or canonical loss justifies it.
+
+## Current released baseline
+
+| Component | Release | Commit | State |
+| --- | --- | --- | --- |
+| Screenplay language | `4.2.1` | product release | Compiler/AST/printer target |
+| Screenplay.Generation | `v0.8.0` | `4ec7ef0031e0f1c74d1033e0a78234f40bbd65ff` | Typed fail-closed outcomes; four lockstep packages |
+| Critter Stack adapter | `v0.19.0` | `3585e9abba1d78bb1eb093e068d5beef6e609a1a` | Marten/Wolverine/Vogen composition through bounded DCB |
+| Arc adapter | `22.0.0` | published package | Mature legacy complete generator |
+| CLI | `v2.15.1` | `87b631fe85b7e96fc5a9e546cca4a521a130899f` | Current released tool; active branch updates it to Generation 0.8 + Critter 0.19 |
+
+Verified public package hashes and detailed evidence live on:
+
+- `Cratis/Screenplay.Generation#5` and `#17`;
+- `Cratis/Screenplay.CritterStack#3`, `#4`, and roadmap `#29`;
+- `Cratis/cli#87` and `#95`.
+
+## What is complete
+
+### Neutral Generation
+
+- Public `AdapterContribution` facts, evidence, source ranges, diagnostics, subjects, and fact identities.
+- Deterministic duplicate collapse, conflict variants, placement resolution, lowering, canonical printing, compiler verification, and round-trip stability.
+- Concepts with independent representation, attributes, named validation, exact subject references, and use-site optionality.
+- Typed diagnostic outcomes: `Unknown`, `Conflict`, and `Unsupported`.
+- `Unknown = -1` public fact discriminators; malformed/future values fail closed before resolution.
+- Package compatibility baseline `0.7.1`, current `0.8.0` packages, legacy `0.1`/`0.5` binary smoke, and current-source consumer.
+
+### Vogen
+
+Vogen support is **not semantically owned by Critter Stack**:
+
+- package: `Cratis.Screenplay.Generation.DotNet.Vogen`;
+- depends only on Generation.DotNet, not Marten, Wolverine, JasperFx, Arc, or the Vogen runtime/source-generator package;
+- emits neutral Concept, representation, and named validation facts;
+- generated Vogen members corroborate only; authored partial declarations originate semantics;
+- never infers identity from `Guid`, `Id`, generated members, normalization, or named instances.
+
+The analyzed application owns its optional `Vogen` package. The installed CLI bundles the Cratis Vogen **source adapter**, not the target runtime.
+
+The remaining coupling is orchestration: the current Critter compatibility facade composes Vogen by default, and CLI selects one complete provider. This is tracked and must be evolved before adding another adapter family.
+
+### Critter Stack behavior
+
+Canonical and synthetic evidence covers:
+
+- Marten snapshots, projections, compiled queries, documents, identities, EventProjection operations, multi-stream identity/fan-out, projection/daemon/subscription metadata;
+- Marten event aliases/upcasts (`MARTEN0011/0012`) and logical tenancy (`MARTEN0013`) as diagnostic-only evidence;
+- Wolverine handler discovery, return classification, bus consequences, automations, validation/authorization evidence, current/legacy event streams, receiver-targeted appends, and bounded DCB (`WOLVERINE0012-0015`);
+- strict separation among persisted events, messages, cascades, publishes, schedules, HTTP responses, side effects, saga state, document operations, and projection fan-out;
+- seven build-first canonical fixtures with deterministic source.
+
+`v0.19.0` Vogen canonical hash:
+
+```text
+688ab242f2f40c2a5334f61194af644bdb24b6d189083fc1a0c6878cf10cc745
+```
+
+Six non-Vogen outputs remained byte-identical through the DCB release.
+
+### CLI
+
+- Explicit project/workspace/provider/output workflow.
+- Explicit multi-target selection (`--framework`, `CLI0015`, `CLI0016`).
+- Conservative host/provider ambiguity handling.
+- Package, TFM, assembly, and API-capability provenance.
+- Independent support tier, recognition, semantic conformance, and lowering fidelity.
+- Signed NuGet tool, four native assets, Homebrew, deterministic machine output, and installed-tool fixture verification.
+- Forty-one characterization facts freeze current provider/facade limitations before atomic migration.
+
+## Vogen and future cross-cutting adapters
+
+The target architecture is:
+
+```text
+CLI built-in allowlisted adapter roster
+  primary: Marten, Wolverine, Arc-neutral bridge, EventStoreDB, ...
+  integration: Wolverine-Marten, ...
+  cross-cutting: Vogen, StronglyTypedId, FluentValidation, ...
+
+selection-only profile
+  -> independently probe/admit each adapter
+  -> run each adapter once over one immutable authored-source snapshot
+  -> validate/freeze contributions
+  -> central neutral derivation
+  -> resolve/lower/print/compile once
+```
+
+Profiles never own Vogen/validation semantics and never determine conflict precedence.
+
+Tracked architecture work:
+
+- Generation `#17`: atomic adapters and profiles;
+- Generation `#18`: authored-source and bounded Roslyn helpers;
+- Generation `#19`: granular type-use facts and central derivation lineage;
+- Generation `#20`: library-neutral validation contracts;
+- Generation `#21`: cross-host source-root/path policy;
+- Critter Stack `#44`: atomic Marten/Wolverine/integration identities;
+- CLI `#95`: selection-only profile roster;
+- Arc `#2600`: neutral contribution bridge with legacy parity;
+- Screenplay `#128`: measured target-language gaps.
+
+## Active finalization work
+
+### CLI current packages
+
+Worktree:
+
+```text
+/tmp/cli-generation080-critter019
+branch: chore/take-generation080-critter019
+```
+
+Purpose:
+
+- Critter Stack `0.19.0`;
+- all four Generation packages `0.8.0`;
+- Arc unchanged;
+- provider/docs/package-sentinel expectations updated;
+- intentional Generation 0.8 `GEN0004` aggregate-loss diagnostics reflected in specs.
+
+Finish its full gate, commit, open one patch PR, merge/release, verify installed tool, then close Generation `#5`.
+
+### Saga prototype — deliberately paused
+
+A substantial saga prototype exists but is **not part of the good-enough baseline**.
+
+```text
+worktree: /tmp/Critter-wolverine-sagas
+branch: feat/wolverine-saga-evidence
+stash: stash@{0}
+commit: f8c4b96ba7bd9ae6e5888cd6bd6f703a6a57183b
+message: prototype Wolverine saga evidence: 647 specs pass; requires independent review before ship
+```
+
+Do not apply and ship it automatically. Resume only after an independent architecture/code review, especially the Marten-to-Wolverine method-identity coupling introduced by the prototype.
+
+## Definition of good enough
+
+- [x] Generation 0.8 released, signed, assets attached, package compatibility and consumers verified.
+- [x] Critter Stack 0.19 released with Generation 0.8, deterministic canonical evidence, signed assets, and clean consumer.
+- [x] CLI 2.15.1 distribution verified with project-relative source-root behavior documented.
+- [ ] CLI updated to Generation 0.8 + Critter 0.19, released, and installed-tool verified.
+- [ ] Generation issue #5 closed after both current Cratis consumers are verified on 0.8.
+- [x] Atomic adapter migration and reusable learnings recorded in owning repositories.
+- [x] Historical package unlisting remains explicitly external/manual (`Generation#13`, `Critter#37`).
+- [x] No requirement to complete every remaining Marten/Wolverine item before ending the Preview-foundation program.
+
+When the two unchecked items pass, stop. The next phase begins only with an explicit product decision, preferably atomic composition rather than more framework breadth.
+
+## Verification caveats
+
+- macOS `/tmp` resolves to `/private/tmp`; this can break repository `.editorconfig`, SourceLink local-origin checks, and Vogen analyzer dependency loading. Use a non-symlinked home scratch path or exact Linux CI for Release verification.
+- Restore separately for Debug and Release multi-TFM builds.
+- Temporary `NUGET_PACKAGES` caches can leave `project.assets.json` pointing to deleted package folders. Re-restore external fixtures with the default cache before canonical generation.
+- Canonical runner uses repository-relative source paths; direct CLI project targeting uses project-relative paths. Semantics match but hashes differ. Generation `#21` owns the path contract.
+- OIDC publish credentials can publish but cannot unlist/delete.
+
+## Do not do
+
+- Do not add another combined stack facade for every library combination.
+- Do not move Vogen semantics into Critter, Marten, Wolverine, Arc, or CLI.
+- Do not let adapters emit Screenplay AST/text.
+- Do not concatenate `.play` documents.
+- Do not execute workspace-discovered plugins.
+- Do not add syntax without measured neutral facts and loss evidence.
+- Do not keep expanding #3/#4 merely because more upstream APIs exist.
