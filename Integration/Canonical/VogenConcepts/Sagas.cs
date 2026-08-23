@@ -45,7 +45,7 @@ public sealed class OrderSaga : Saga
     /// <summary>
     /// Gets or sets the saga identity.
     /// </summary>
-    public OrderKey Id { get; set; }
+    public OrderKey Id { get; set; } = OrderKey.From(Guid.Empty);
 
     /// <summary>
     /// Gets or sets the customer code tracked by the workflow.
