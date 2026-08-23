@@ -12,6 +12,7 @@ This is an independent Cratis compatibility project. It is not affiliated with o
 - Generic and instance-based Marten projection registrations, with exact authored projection name/version evidence and explicit diagnostics for unsupported async/live lifecycle semantics.
 - Async daemon mode and first-class subscription registration/configuration evidence without inventing state views, automations, translations, events, messages, or document consequences from arbitrary processing code.
 - Marten document identities from exact configuration, identity attributes, and conventions, without guessing unresolved expressions.
+- Authored Marten event/document tenancy declarations, attributes, and global policies retained as located `MARTEN0013` diagnostic evidence without inferring effective state, runtime tenant resolution, or database topology.
 - Authored Marten event aliases, schema-version helpers, naming style, and current upcast registrations retained as `MARTEN0011`/`MARTEN0012` diagnostic evidence without renaming or originating events or inferring upcast behavior.
 - Marten compiled-query execution linked to proven Wolverine HTTP query entry points, including public plan parameters; unresolved nested executable flow reports `MARTEN0006` instead of guessing.
 - Marten + Wolverine HTTP and message handlers.
