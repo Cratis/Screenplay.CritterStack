@@ -13,7 +13,7 @@ public class when_generating_targeted_wolverine_event_streams : given.a_wolverin
 
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_discover_append_one_for_the_first_model() => EventNames.ShouldContain("AccountDebited");
-    [Fact] void should_discover_params_append_many() => EventNames.ShouldContainOnly(["AccountAdjusted", "AccountApproved", "AccountClosed", "AccountDebited", "AccountReviewed", "BoundaryEvent", "DerivedStreamEvent", "FundsDeposited", "FundsMoved", "FundsWithdrawn", "GeneratedMemberEvent", "LegacyAppended", "OrderConfirmed", "OrderCredited", "OrderPacked", "OrderShipped", "RouteAppended", "SameNamedAttributeEvent", "UnmarkedEvent"]);
+    [Fact] void should_discover_params_append_many() => EventNames.ShouldContainOnly(["AccountAdjusted", "AccountApproved", "AccountClosed", "AccountDebited", "AccountReviewed", "BoundaryEvent", "DerivedStreamEvent", "FundsDeposited", "FundsMoved", "FundsWithdrawn", "GeneratedMemberEvent", "LegacyAppended", "OrderConfirmed", "OrderCredited", "OrderPacked", "OrderShipped", "RouteAppended", "SagaSiblingAppended", "SameNamedAttributeEvent", "UnmarkedEvent"]);
     [Fact] void should_discover_a_direct_array() => EventNames.ShouldContain("AccountAdjusted");
     [Fact] void should_discover_a_collection_expression() => EventNames.ShouldContain("OrderPacked");
     [Fact] void should_discover_a_direct_collection_initializer() => EventNames.ShouldContain("AccountReviewed");
@@ -62,6 +62,8 @@ public class when_generating_targeted_wolverine_event_streams : given.a_wolverin
     [Fact] void should_exclude_response_side_effect_and_saga_slots() => HasArtifactNamed("BoundaryResponse", "BoundaryEffect", "BoundarySaga").ShouldBeFalse();
     [Fact] void should_exclude_a_saga_only_handler() => HasArtifactNamed("SagaOnlyTrigger", "TransferSaga").ShouldBeFalse();
     [Fact] void should_exclude_saga_state_while_retaining_an_unrelated_return() => CascadesFrom("SagaMixed", "SagaFollowUp").Count.ShouldEqual(1);
+    [Fact] void should_exclude_saga_state_from_an_explicit_append_while_retaining_an_ordinary_sibling_event() => AppendFor("SagaMixedAppend", "SagaSiblingAppended").Key.Target.ShouldEqual(SubjectOf(ArtifactKind.Aggregate, "Account"));
+    [Fact] void should_not_append_saga_state_from_a_mixed_explicit_append() => AppendsFrom("SagaMixedAppend").Count.ShouldEqual(1);
     [Fact] void should_not_use_a_generated_partial_base_to_classify_saga_state() => CascadesFrom("GeneratedSaga", "GeneratedBaseSaga").Count.ShouldEqual(1);
     [Fact] void should_not_infer_from_an_unrelated_same_named_api() => EventNames.ShouldNotContain("UnrelatedEvent");
     [Fact] void should_keep_the_unrelated_api_return_as_a_cascade() => CascadesFrom("Unrelated", "UnrelatedCascade").Count.ShouldEqual(1);

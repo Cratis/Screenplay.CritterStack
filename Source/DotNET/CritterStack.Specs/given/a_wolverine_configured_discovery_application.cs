@@ -44,6 +44,7 @@ public class a_wolverine_configured_discovery_application : Specification
         {
             public class WolverineHandlerAttribute : System.Attribute;
             public class WolverineIgnoreAttribute : System.Attribute;
+            public abstract class Saga;
             public interface IWolverineHandler;
             public class WolverineOptions
             {
@@ -85,6 +86,10 @@ public class a_wolverine_configured_discovery_application : Specification
         public record MiddlewareTrigger(System.Guid Id);
         public record MiddlewareCascade(System.Guid Id);
         public record CompoundTrigger(System.Guid Id);
+        public record BeginIncludedSaga(System.Guid SagaId);
+        public record IncludedSagaTrigger(System.Guid SagaId);
+        public record BeginSuppressedSaga(System.Guid SagaId);
+        public record SuppressedSagaTrigger(System.Guid SagaId);
 
         public static class Configuration
         {
@@ -100,6 +105,7 @@ public class a_wolverine_configured_discovery_application : Specification
                 options.Discovery.IncludeType<CurrentMethodIgnoredActions>();
                 options.Discovery.IncludeType<LegacyMethodIgnoredActions>();
                 options.Discovery.IncludeType<CompoundActions>();
+                options.Discovery.IncludeType<IncludedSaga>();
                 options.Discovery.IncludeAssembly(typeof(Configuration).Assembly);
             }
         }
@@ -184,6 +190,18 @@ public class a_wolverine_configured_discovery_application : Specification
         {
             public static MiddlewareCascade Before(MiddlewareTrigger message) => new(message.Id);
             public static void Handle(CompoundTrigger message) { }
+        }
+
+        public sealed class IncludedSaga : Wolverine.Saga
+        {
+            public static IncludedSaga Start(BeginIncludedSaga message) => new();
+            public void Handle(IncludedSagaTrigger message) { }
+        }
+
+        public sealed class SuppressedSaga : Wolverine.Saga
+        {
+            public static SuppressedSaga Start(BeginSuppressedSaga message) => new();
+            public void Handle(SuppressedSagaTrigger message) { }
         }
         """;
 

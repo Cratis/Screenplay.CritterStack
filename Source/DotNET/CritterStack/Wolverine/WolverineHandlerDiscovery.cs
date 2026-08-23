@@ -215,6 +215,7 @@ sealed class WolverineHandlerDiscoveryPolicy(
 
         return type.Name.EndsWith("Handler", StringComparison.Ordinal) ||
                type.Name.EndsWith("Consumer", StringComparison.Ordinal) ||
+               DotNetSymbols.IsOrInheritsFrom(type, WellKnownTypes.WolverineSaga) ||
                DotNetSymbols.Implements(type, WellKnownTypes.WolverineHandlerInterface) ||
                HasHandlerAttribute(type) ||
                type.GetMembers().OfType<IMethodSymbol>().Any(HasHandlerAttribute);

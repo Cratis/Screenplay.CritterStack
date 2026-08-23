@@ -107,7 +107,7 @@ static class WolverineDcb
     static bool IsAdmittedAttribute(INamedTypeSymbol attributeType, DotNetProjectCompilation project)
     {
         if (project.Compilation.GetTypeByMetadataName(WellKnownTypes.WolverineDcbModelAttribute) is { } current &&
-            IsAuthoredOrMetadataSymbol(current, project) &&
+            WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(current, project) &&
             DotNetSymbols.IsOrInheritsFrom(attributeType, WellKnownTypes.WolverineDcbModelAttribute) &&
             IsAuthoredOrMetadataInheritance(attributeType, WellKnownTypes.WolverineDcbModelAttribute, project))
         {
@@ -115,7 +115,7 @@ static class WolverineDcb
         }
 
         return project.Compilation.GetTypeByMetadataName(WellKnownTypes.WolverineLegacyBoundaryModelAttribute) is { } legacy &&
-               IsAuthoredOrMetadataSymbol(legacy, project) &&
+               WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(legacy, project) &&
                DotNetSubjectIds.MetadataName(attributeType.OriginalDefinition) == WellKnownTypes.WolverineLegacyBoundaryModelAttribute;
     }
 
@@ -183,7 +183,7 @@ static class WolverineDcb
             DotNetSubjectIds.MetadataName(boundary.OriginalDefinition) == WellKnownTypes.JasperFxEventBoundary)
         {
             if (project.Compilation.GetTypeByMetadataName(WellKnownTypes.JasperFxEventBoundary) is not { } canonicalBoundary ||
-                !IsAuthoredOrMetadataSymbol(canonicalBoundary, project) ||
+                !WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(canonicalBoundary, project) ||
                 !SymbolEqualityComparer.Default.Equals(boundary.OriginalDefinition, canonicalBoundary) ||
                 boundary.TypeArguments[0] is not INamedTypeSymbol boundaryModel ||
                 !IsAuthoredSourceType(boundaryModel, project))
@@ -552,7 +552,7 @@ static class WolverineDcb
     static bool IsExactQueryType(ITypeSymbol? type, DotNetProjectCompilation project) =>
         type is INamedTypeSymbol named &&
         project.Compilation.GetTypeByMetadataName(WellKnownTypes.JasperFxEventTagQuery) is { } canonical &&
-        IsAuthoredOrMetadataSymbol(canonical, project) &&
+        WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(canonical, project) &&
         SymbolEqualityComparer.Default.Equals(named.OriginalDefinition, canonical);
 
     static string? SourceMember(
@@ -564,7 +564,7 @@ static class WolverineDcb
         operation = Unwrap(operation)!;
         if (request is not null &&
             operation is IPropertyReferenceOperation property &&
-            IsAuthoredOrMetadataSymbol(property.Property, project) &&
+            WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(property.Property, project) &&
             Unwrap(property.Instance) is IParameterReferenceOperation requestReference &&
             SymbolEqualityComparer.Default.Equals(requestReference.Parameter.Type, request.Type))
         {
@@ -669,7 +669,7 @@ static class WolverineDcb
         var method = invocation.TargetMethod;
         if (method.Name is not ("AppendOne" or "AppendMany") ||
             project.Compilation.GetTypeByMetadataName(WellKnownTypes.JasperFxEventBoundary) is not { } boundary ||
-            !IsAuthoredOrMetadataSymbol(boundary, project) ||
+            !WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(boundary, project) ||
             !SymbolEqualityComparer.Default.Equals(method.ContainingType.OriginalDefinition, boundary))
         {
             return false;
@@ -778,7 +778,7 @@ static class WolverineDcb
 
         var canonical = project.Compilation.GetTypeByMetadataName(DotNetSubjectIds.MetadataName(named.OriginalDefinition));
         return canonical is not null &&
-               IsAuthoredOrMetadataSymbol(canonical, project) &&
+               WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(canonical, project) &&
                SymbolEqualityComparer.Default.Equals(named.OriginalDefinition, canonical);
     }
 
@@ -868,7 +868,9 @@ static class WolverineDcb
         !DotNetSubjectIds.MetadataName(type.OriginalDefinition).StartsWith("System.", StringComparison.Ordinal);
 
     static bool IsAuthoredEventPayload(INamedTypeSymbol type, DotNetProjectCompilation project) =>
-        IsOrdinaryPayload(type) && IsAuthoredSourceType(type, project);
+        IsOrdinaryPayload(type) &&
+        IsAuthoredSourceType(type, project) &&
+        !WolverineSagaTypes.IsSagaState(type, project);
 
     static IEnumerable<ExpressionSyntax> DirectReturnExpressions(MethodDeclarationSyntax declaration)
     {
@@ -961,12 +963,6 @@ static class WolverineDcb
         location.SourceTree is not null &&
         project.AuthoredSyntaxTrees.Contains(location.SourceTree) &&
         !DotNetGeneratedSource.IsGenerated(location.SourceTree));
-
-    static bool IsAuthoredOrMetadataSymbol(ISymbol symbol, DotNetProjectCompilation project) => symbol.Locations.All(location =>
-        !location.IsInSource ||
-        (location.SourceTree is not null &&
-         project.AuthoredSyntaxTrees.Contains(location.SourceTree) &&
-         !DotNetGeneratedSource.IsGenerated(location.SourceTree)));
 
     static SourceRange? SourceOf(AttributeData? attribute, IParameterSymbol parameter, DotNetProjectCompilation project)
     {

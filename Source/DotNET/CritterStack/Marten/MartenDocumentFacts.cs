@@ -28,7 +28,7 @@ static class MartenDocumentFacts
             .ToDictionary(
                 _ => _.Key,
                 _ => new DocumentObservation(_.First().Type, _.First().Evidence));
-        foreach (var tree in project.Compilation.SyntaxTrees.Where(_ => !DotNetGeneratedSource.IsGenerated(_)))
+        foreach (var tree in project.AuthoredSyntaxTrees.Where(_ => !DotNetGeneratedSource.IsGenerated(_)))
         {
             var semanticModel = project.Compilation.GetSemanticModel(tree);
             foreach (var invocation in tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>())
@@ -78,12 +78,12 @@ static class MartenDocumentFacts
                 documents.TryAdd(documentSubject, new(documentType, evidence));
                 if (kind is not null && semanticModel.GetEnclosingSymbol(invocation.SpanStart) is IMethodSymbol containingMethod)
                 {
-                    var methodSubject = MethodSubject(project, containingMethod);
+                    var methodSubject = DotNetMethodIdentity.SubjectFor(project, containingMethod);
                     facts.Add(Artifact(
                         $"marten:handler:{methodSubject.Value}",
                         methodSubject,
                         ArtifactKind.Handler,
-                        $"{containingMethod.ContainingType.Name}.{containingMethod.Name}",
+                        DotNetMethodIdentity.DisplayName(containingMethod),
                         SourceFileOf(containingMethod, project),
                         [],
                         evidence));
@@ -387,11 +387,6 @@ static class MartenDocumentFacts
         MartenConfigurationDiscovery.IsUnresolvedProcessorType(containingMethod.ContainingType);
 
     static bool IsSourceType(INamedTypeSymbol type) => type.TypeKind != TypeKind.Error && type.Locations.Any(_ => _.IsInSource);
-
-    static SubjectId MethodSubject(DotNetProjectCompilation project, IMethodSymbol method) => new()
-    {
-        Value = $"{project.SubjectForType(method.ContainingType).Value}#method:{method.MetadataName}"
-    };
 
     static string? SourceFileOf(ISymbol symbol, DotNetProjectCompilation project) =>
         CritterStackSource.EvidenceFor(symbol, new AdapterIdentity { Id = "source", Version = "1" }, project, EvidenceStrength.Exact).Source?.Path;

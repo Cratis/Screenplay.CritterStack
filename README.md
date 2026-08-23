@@ -19,7 +19,8 @@ This is an independent Cratis compatibility project. It is not affiliated with o
 - Vogen concepts, primitive representations, authored validation hooks, nullable usages, and explicit loss diagnostics through the separately composed `Cratis.Screenplay.Generation.DotNet.Vogen` adapter.
 - Current store-agnostic Wolverine event-sourcing APIs and legacy Marten-specific APIs.
 - Target-aware exact current and legacy `IEventStream<T>` appends across multiple handler parameters, including commandless HTTP and metadata-only loaded streams, with per-binding identities and explicit diagnostics instead of first-stream guesses.
-- Bounded current and legacy Wolverine DCB evidence from authored `[DcbModel]` / `[BoundaryModel]` parameters, direct `EventTagQuery` fluent chains, exact boundary appends, and safe declarative returns, with `WOLVERINE0014`/`WOLVERINE0015` instead of invented stream or saga topology.
+- Bounded current and legacy Wolverine DCB evidence from authored `[DcbModel]` / `[BoundaryModel]` parameters, direct `EventTagQuery` fluent chains, exact boundary appends, and safe declarative returns, with `WOLVERINE0014`/`WOLVERINE0015` instead of invented stream topology.
+- Bounded authored Wolverine saga discovery for public concrete closed `Wolverine.Saga` state, grouped by message with Wolverine-compatible `SagaChain` admission. It preserves admitted role spellings and `Async` twins, constructor/returned-state creation constraints, collision-safe handler identities, exact correlation precedence (including inherited public members), cascades, timeouts, direct bus calls, and exact `MarkCompleted()` evidence. Saga state is excluded at every final HTTP query, message, and event admission boundary. `WOLVERINE0016` is a report-only realization/provenance diagnostic: Wolverine-managed lifecycle is intentionally not lowered because authored source does not safely establish a portable domain workflow. Screenplay uses ordinary Event Modeling building blocks; this is not a language-gap request, and generated `.play` bytes remain unchanged. `WOLVERINE0017` reports runtime-resolved correlation, while `WOLVERINE0018` reports rejected lifecycle shapes without inventing persistence or transport topology.
 - Markerless event/message discovery from actual framework usage.
 - Deterministic output without starting the application or connecting to PostgreSQL.
 - Explicit diagnostics whenever source behavior cannot be represented faithfully.
@@ -77,7 +78,7 @@ The compatibility plan uses:
 - `JasperFx/CritterStackHelpDesk` for Marten 6/Wolverine 1 behavior;
 - BankAccountES and other focused applications from the local Critter Stack sample corpus;
 - MartenWithProjectAspire for instance-registered async, multi-stream, and event projections;
-- the repository-owned `VogenConcepts` fixture pinned to Vogen 8.0.7, Marten 9.29.0, and Wolverine 6.29.2, including the canonical store-agnostic DCB APIs.
+- the repository-owned `VogenConcepts` fixture pinned to Vogen 8.0.7, Marten 9.29.0, and Wolverine 6.29.2, including the canonical store-agnostic DCB and authored saga APIs.
 
 See:
 
