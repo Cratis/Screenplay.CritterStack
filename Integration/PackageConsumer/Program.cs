@@ -53,10 +53,10 @@ static void AssertDependencyGraph()
     using var document = JsonDocument.Parse(File.ReadAllText(dependencyFile));
     var libraries = document.RootElement.GetProperty("libraries");
 
-    AssertPackage(libraries, "Cratis.Screenplay.Generation.Contracts/0.7.0");
-    AssertPackage(libraries, "Cratis.Screenplay.Generation/0.7.0");
-    AssertPackage(libraries, "Cratis.Screenplay.Generation.DotNet/0.7.0");
-    AssertPackage(libraries, "Cratis.Screenplay.Generation.DotNet.Vogen/0.7.0");
+    AssertPackage(libraries, "Cratis.Screenplay.Generation.Contracts/0.8.0");
+    AssertPackage(libraries, "Cratis.Screenplay.Generation/0.8.0");
+    AssertPackage(libraries, "Cratis.Screenplay.Generation.DotNet/0.8.0");
+    AssertPackage(libraries, "Cratis.Screenplay.Generation.DotNet.Vogen/0.8.0");
 
     if (libraries.EnumerateObject().Any(_ => _.Name.StartsWith("Vogen/", StringComparison.Ordinal)))
     {
