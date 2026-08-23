@@ -144,7 +144,7 @@ static class WolverineEventStreams
                     continue;
                 }
 
-                if (!TryGetPayloads(invocation, out var eventTypes))
+                if (!TryGetDirectPayloads(invocation, out var eventTypes))
                 {
                     unresolved.Add(new("the appended payload is not a direct object creation, params value, array, collection expression, or direct collection initializer", source));
                     continue;
@@ -155,6 +155,26 @@ static class WolverineEventStreams
         }
 
         return new(appends, unresolved, hasDirectWrite);
+    }
+
+    public static bool TryGetDirectPayloads(
+        IInvocationOperation invocation,
+        out IReadOnlyList<INamedTypeSymbol> eventTypes) => TryGetPayloads(invocation, out eventTypes);
+
+    public static bool TryGetDirectPayloads(
+        IOperation operation,
+        out IReadOnlyList<INamedTypeSymbol> eventTypes,
+        bool allowEmpty = false)
+    {
+        var payloads = new List<INamedTypeSymbol>();
+        if (!TryGetPayloads(operation, payloads, allowEmpty))
+        {
+            eventTypes = [];
+            return false;
+        }
+
+        eventTypes = payloads;
+        return true;
     }
 
     public static bool IsEventStream(ITypeSymbol type) => EventStreamInterfaces(type).Count > 0;

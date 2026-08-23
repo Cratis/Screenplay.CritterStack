@@ -72,4 +72,14 @@ public static class WolverineDiagnosticCodes
     /// An exact event stream append had an unresolved receiver target or payload.
     /// </summary>
     public const string EventWriteTargetUnresolved = "WOLVERINE0013";
+
+    /// <summary>
+    /// Dynamic Consistency Boundary routing or concurrency semantics could not be lowered exactly.
+    /// </summary>
+    public const string DcbBoundaryOmitted = "WOLVERINE0014";
+
+    /// <summary>
+    /// An admitted Dynamic Consistency Boundary query was outside the bounded source shapes.
+    /// </summary>
+    public const string DcbQueryUnresolved = "WOLVERINE0015";
 }
