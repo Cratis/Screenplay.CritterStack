@@ -41,8 +41,8 @@ public class when_generating_wolverine_saga_evidence : given.a_wolverine_saga_ap
     [Fact] void should_create_one_handler_artifact_per_admitted_method() => SagaHandlers.Count.ShouldEqual(40);
     [Fact] void should_keep_overloaded_handle_methods_distinct() => SagaHandlers.Where(_ => _.Variants.Single().Definition.Name.StartsWith("CorrelationSaga.Handle(", StringComparison.Ordinal)).Select(_ => _.Key.Subject).Distinct().Count().ShouldEqual(7);
     [Fact] void should_not_merge_overloaded_handler_relationships() => SagaHandles.Count(_ => HandlerName(_.Key.Source).StartsWith("CorrelationSaga.Handle(", StringComparison.Ordinal)).ShouldEqual(7);
-    [Fact] void should_not_create_a_message_for_returned_saga_state() => ArtifactNames(ArtifactKind.Message).Any(name => name is "BehaviorSaga" or "CorrelationSaga" or "RoleSaga").ShouldBeFalse();
-    [Fact] void should_not_create_an_event_for_returned_saga_state() => ArtifactNames(ArtifactKind.Event).Any(name => name is "BehaviorSaga" or "CorrelationSaga" or "RoleSaga").ShouldBeFalse();
+    [Fact] void should_not_create_a_message_for_returned_saga_state() => ArtifactNames(ArtifactKind.Message).Any(name => new[] { "BehaviorSaga", "CorrelationSaga", "RoleSaga" }.Contains(name, StringComparer.Ordinal)).ShouldBeFalse();
+    [Fact] void should_not_create_an_event_for_returned_saga_state() => ArtifactNames(ArtifactKind.Event).Any(name => new[] { "BehaviorSaga", "CorrelationSaga", "RoleSaga" }.Contains(name, StringComparer.Ordinal)).ShouldBeFalse();
     [Fact] void should_not_create_a_command_aggregate_or_read_model_for_saga_state() => _result.Graph.Artifacts.Any(_ => _.Variants.Any(variant => variant.Definition.Name == "BehaviorSaga") && _.Key.Kind is ArtifactKind.Command or ArtifactKind.Aggregate or ArtifactKind.ReadModel).ShouldBeFalse();
     [Fact] void should_not_produce_or_cascade_saga_state() => _result.Graph.Relationships.Any(_ => _.Key.Kind is RelationshipKind.Produces or RelationshipKind.Cascades && SagaSubjects.Contains(_.Key.Target)).ShouldBeFalse();
     [Fact] void should_preserve_non_state_tuple_slots_as_messages() => ArtifactNames(ArtifactKind.Message).ShouldContain("OrdinaryCascade");
@@ -57,7 +57,7 @@ public class when_generating_wolverine_saga_evidence : given.a_wolverine_saga_ap
     [Fact] void should_preserve_direct_publish_semantics() => PublishesFrom("BehaviorSaga.Consume(BusTrigger)", "DirectPublish", "publish").Count.ShouldEqual(1);
     [Fact] void should_preserve_direct_schedule_semantics() => PublishesFrom("BehaviorSaga.Consume(BusTrigger)", "DirectSchedule", "scheduled").Count.ShouldEqual(1);
     [Fact] void should_preserve_outgoing_message_cascades() => new[] { "OutgoingImmediate", "OutgoingDelayed" }.All(message => CascadesFrom("BehaviorSaga.Consumes(OutgoingTrigger)", message).Count == 1).ShouldBeTrue();
-    [Fact] void should_not_turn_responses_or_side_effects_into_messages() => ArtifactNames(ArtifactKind.Message).Any(name => name is "SagaResponse" or "SagaEffect").ShouldBeFalse();
+    [Fact] void should_not_turn_responses_or_side_effects_into_messages() => ArtifactNames(ArtifactKind.Message).Any(name => new[] { "SagaResponse", "SagaEffect" }.Contains(name, StringComparer.Ordinal)).ShouldBeFalse();
     [Fact] void should_not_invent_side_effect_topology_to_saga_state() => _result.Graph.Relationships.Any(_ => _.Key.Kind == RelationshipKind.SideEffect && SagaSubjects.Contains(_.Key.Target)).ShouldBeFalse();
     [Fact] void should_preserve_explicit_document_operations() => new[] { RelationshipKind.Stores, RelationshipKind.Updates, RelationshipKind.Deletes }.All(kind => _result.Graph.Relationships.Any(_ => _.Key.Kind == kind && _.Key.Target == Artifact(ArtifactKind.Document, "AuditDocument").Key.Subject)).ShouldBeTrue();
     [Fact] void should_not_invent_lifecycle_document_operations() => _result.Graph.Relationships.Any(_ => _.Key.Kind is RelationshipKind.Stores or RelationshipKind.Updates or RelationshipKind.Deletes && SagaSubjects.Contains(_.Key.Target)).ShouldBeFalse();
@@ -66,9 +66,9 @@ public class when_generating_wolverine_saga_evidence : given.a_wolverine_saga_ap
     [Fact] void should_not_confuse_an_unrelated_completion_method_with_wolverine_lifecycle() => Diagnostics(WolverineDiagnosticCodes.SagaWorkflowOmitted).Single(_ => _.Subject == Artifact(ArtifactKind.Saga, "CorrelationSaga").Key.Subject).Message.ShouldNotContain("MarkCompleted");
     [Fact] void should_report_runtime_correlation_for_each_fallback_handler() => Diagnostics(WolverineDiagnosticCodes.SagaCorrelationRuntime).Count.ShouldEqual(2);
     [Fact] void should_locate_all_saga_diagnostics_in_authored_source() => Diagnostics(WolverineDiagnosticCodes.SagaWorkflowOmitted).Concat(Diagnostics(WolverineDiagnosticCodes.SagaCorrelationRuntime)).All(_ => _.Source?.Path == "Orders/Sagas.cs").ShouldBeTrue();
-    [Fact] void should_deduplicate_saga_diagnostics_by_subject_and_code() => _result.Diagnostics.Where(_ => _.Code is WolverineDiagnosticCodes.SagaWorkflowOmitted or WolverineDiagnosticCodes.SagaCorrelationRuntime).GroupBy(_ => (_.Code, _.Subject)).All(_ => _.Count() == 1).ShouldBeTrue();
+    [Fact] void should_deduplicate_saga_diagnostics_by_subject_and_code() => _result.Diagnostics.Where(_ => _.Code == WolverineDiagnosticCodes.SagaWorkflowOmitted || _.Code == WolverineDiagnosticCodes.SagaCorrelationRuntime).GroupBy(_ => (_.Code, _.Subject)).All(_ => _.Count() == 1).ShouldBeTrue();
     [Fact] void should_generate_diagnostics_deterministically() => DiagnosticSignatures(_result).ShouldContainOnly(DiagnosticSignatures(_repeat));
-    [Fact] void should_not_admit_ignored_generic_abstract_internal_named_or_generated_sagas() => SagaNames.Any(name => name is "IgnoredSaga" or "LegacyIgnoredSaga" or "GenericSaga" or "AbstractSaga" or "InternalSaga" or "NamedOnlySaga" or "GeneratedOnlySaga").ShouldBeFalse();
+    [Fact] void should_not_admit_ignored_generic_abstract_internal_named_or_generated_sagas() => SagaNames.Any(name => new[] { "IgnoredSaga", "LegacyIgnoredSaga", "GenericSaga", "AbstractSaga", "InternalSaga", "NamedOnlySaga", "GeneratedOnlySaga" }.Contains(name, StringComparer.Ordinal)).ShouldBeFalse();
     [Fact] void should_not_admit_ignored_generic_static_primitive_or_parameterless_methods() => new[] { "IgnoredMethodMessage", "StaticExistingMessage", "GenericMethodMessage" }.Any(message => ArtifactNames(ArtifactKind.Message).Contains(message, StringComparer.Ordinal)).ShouldBeFalse();
     [Fact] void should_not_admit_a_saga_whose_base_originates_in_generated_source() => (SagaNames.Contains("GeneratedBaseSaga", StringComparer.Ordinal) || ArtifactNames(ArtifactKind.Message).Contains("GeneratedBaseMessage", StringComparer.Ordinal)).ShouldBeFalse();
     [Fact] void should_not_admit_generated_role_methods() => ArtifactNames(ArtifactKind.Message).ShouldNotContain("GeneratedRoleMessage");
@@ -137,7 +137,7 @@ public class when_generating_wolverine_saga_evidence : given.a_wolverine_saga_ap
     static IReadOnlyList<string> DiagnosticSignatures(GeneratedScreenplayDefinition result) =>
     [
         .. result.Diagnostics
-            .Where(_ => _.Code is WolverineDiagnosticCodes.SagaWorkflowOmitted or WolverineDiagnosticCodes.SagaCorrelationRuntime)
+            .Where(_ => _.Code == WolverineDiagnosticCodes.SagaWorkflowOmitted || _.Code == WolverineDiagnosticCodes.SagaCorrelationRuntime)
             .Select(_ => $"{_.Code}|{_.Subject.Value}|{_.Source?.Path}|{_.Source?.StartLine}|{_.Source?.StartColumn}|{_.Message}")
             .Order(StringComparer.Ordinal)
     ];
