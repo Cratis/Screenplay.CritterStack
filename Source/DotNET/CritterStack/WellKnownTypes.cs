@@ -87,4 +87,5 @@ static class WellKnownTypes
     public const string WolverineLegacyReturnType = "Wolverine.Http.IWolverineReturnType";
     public const string WolverineResponseAware = "Wolverine.IResponseAware";
     public const string WolverineLegacyResponseAware = "Wolverine.Http.IResponseAware";
+    public const string WolverineSaga = "Wolverine.Saga";
 }

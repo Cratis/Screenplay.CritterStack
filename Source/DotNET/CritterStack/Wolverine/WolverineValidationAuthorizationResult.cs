@@ -230,14 +230,19 @@ sealed class WolverineValidationAuthorizationDiscoveryResult(
     SourceRange? SourceOf(AttributeData attribute, ISymbol fallback)
     {
         var syntax = attribute.ApplicationSyntaxReference?.GetSyntax();
-        return syntax is null ? SourceOf(fallback) : DotNetSource.Range(syntax.GetLocation(), project.SourceRoot);
+        return syntax is null ||
+               !project.AuthoredSyntaxTrees.Contains(syntax.SyntaxTree) ||
+               DotNetGeneratedSource.IsGenerated(syntax.SyntaxTree)
+            ? SourceOf(fallback)
+            : DotNetSource.Range(syntax.GetLocation(), project.SourceRoot);
     }
 
     bool IsAuthoredSourceLocation(Location location) => location is
     {
         IsInSource: true,
         SourceTree: not null
-    } && !DotNetGeneratedSource.IsGenerated(location.SourceTree);
+    } && project.AuthoredSyntaxTrees.Contains(location.SourceTree) &&
+         !DotNetGeneratedSource.IsGenerated(location.SourceTree);
 
     string ScopeName(WolverineValidationPolicyScope scope) => scope == WolverineValidationPolicyScope.HttpEndpoints
         ? "HTTP endpoint"

@@ -17,6 +17,7 @@ This is an independent Cratis compatibility project. It is not affiliated with o
 - Marten + Wolverine HTTP and message handlers.
 - Vogen concepts, primitive representations, authored validation hooks, nullable usages, and explicit loss diagnostics through the separately composed `Cratis.Screenplay.Generation.DotNet.Vogen` adapter.
 - Current store-agnostic Wolverine event-sourcing APIs and legacy Marten-specific APIs.
+- Target-aware exact current and legacy `IEventStream<T>` appends across multiple handler parameters, including commandless HTTP and metadata-only loaded streams, with per-binding identities and explicit diagnostics instead of first-stream guesses.
 - Markerless event/message discovery from actual framework usage.
 - Deterministic output without starting the application or connecting to PostgreSQL.
 - Explicit diagnostics whenever source behavior cannot be represented faithfully.

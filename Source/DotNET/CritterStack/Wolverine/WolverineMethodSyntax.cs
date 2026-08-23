@@ -15,7 +15,9 @@ static class WolverineMethodSyntax
     {
         foreach (var syntaxReference in method.DeclaringSyntaxReferences)
         {
-            if (syntaxReference.GetSyntax() is MethodDeclarationSyntax declaration)
+            if (syntaxReference.GetSyntax() is MethodDeclarationSyntax declaration &&
+                project.AuthoredSyntaxTrees.Contains(declaration.SyntaxTree) &&
+                !DotNetGeneratedSource.IsGenerated(declaration.SyntaxTree))
             {
                 yield return (declaration, project.Compilation.GetSemanticModel(declaration.SyntaxTree));
             }

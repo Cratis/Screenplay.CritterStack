@@ -1,5 +1,5 @@
 # Cratis-owned fixture: Vogen 8.0.7, Marten 9.29.0, Wolverine 6.29.2
-source-sha256: f63c311d6a9d05437fbfea3ffde95a8ccba91bc76b7b3acd3a64da1fbcc5e287
+source-sha256: f90382df6046e122f36be4f1c083b1e4e8fafb8f32ee5f03f18d75b3dac52e1e
 source: concept OrderKey : Uuid
 source: concept CorrelationId : Uuid
 source: concept CustomerCode : String
@@ -12,14 +12,26 @@ source: key OrderKey
 source: correlationId CorrelationId
 source: referralCode CustomerCode?
 source: event OrderRegistered
+source: command TransferBetweenOrders
+source: sourceOrder OrderKey
+source: destinationOrder OrderKey
+source: event OrderDebited
+source: event OrderCredited
+source: file Integration/Canonical/VogenConcepts/EventStreams.cs
 not-source: LegacyStorageEvent
 not-source: CurrentStorageEvent
 artifact: Concept:OrderKey
 artifact: Concept:CorrelationId
 artifact: Concept:CustomerCode
 artifact: Concept:NormalizedCode
+artifact: Command:TransferBetweenOrders
+artifact: Event:OrderDebited
+artifact: Event:OrderCredited
 artifact-count: Concept|4
-artifact-count: Event|1
+artifact-count: Event|3
+relationship-count: Appends|Command:TransferBetweenOrders|Aggregate:Order|2
+not-identifier: Command:TransferBetweenOrders:sourceOrder
+not-identifier: Command:TransferBetweenOrders:destinationOrder
 evidence: Concept:CustomerCode|vogen|Integration/Canonical/VogenConcepts/Concepts.cs
 evidence: Command:RegisterOrder|cratis.critter-stack|Integration/Canonical/VogenConcepts/Ordering.cs
 evidence-count: Concept:CustomerCode|1
@@ -31,3 +43,6 @@ diagnostic: MARTEN0011
 diagnostic-message: MARTEN0011|OrderRegistered
 diagnostic: MARTEN0012
 diagnostic-message: MARTEN0012|LegacyStorageEvent -> CurrentStorageEvent
+diagnostic: WOLVERINE0012
+diagnostic-message: WOLVERINE0012|parameter 'source'
+diagnostic-message: WOLVERINE0012|parameter 'destination'

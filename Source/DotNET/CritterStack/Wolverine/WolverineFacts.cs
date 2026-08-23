@@ -58,9 +58,9 @@ static class WolverineFacts
         var diagnostics = new List<GenerationDiagnostic>(discovery.Diagnostics);
         diagnostics.AddRange(validationAuthorization.Diagnostics);
         var catalog = new DotNetArtifactCatalog(project.Compilation);
-        foreach (var type in catalog.Types.Where(_ => IsPublicSourceType(_) && !IsIgnored(_)))
+        foreach (var type in catalog.Types.Where(_ => IsPublicSourceType(_, project) && !IsIgnored(_)))
         {
-            foreach (var method in type.GetMembers().OfType<IMethodSymbol>().Where(_ => IsPublicSourceMethod(_) && !IsIgnored(_)))
+            foreach (var method in type.GetMembers().OfType<IMethodSymbol>().Where(_ => IsPublicSourceMethod(_, project) && !IsIgnored(_)))
             {
                 var endpoint = EndpointFor(method);
                 if (endpoint is not null)
@@ -96,9 +96,12 @@ static class WolverineFacts
         var method = endpoint.Method;
         var aggregateWorkflow = IsAggregateWorkflow(method);
         var request = RequestParameter(method);
+        var commandType = request?.Type as INamedTypeSymbol;
+        var streamBindings = WolverineEventStreams.Bindings(method, commandType, project);
+        var appendDiscovery = WolverineEventStreams.Appends(method, project, streamBindings);
         var aggregate = AggregateParameter(method, request, aggregateWorkflow);
-        var commandSubject = request?.Type is INamedTypeSymbol requestType
-            ? project.SubjectForType(requestType)
+        var commandSubject = commandType is not null
+            ? project.SubjectForType(commandType)
             : MethodSubject(project, method, "command");
         var entity = method.Parameters.FirstOrDefault(IsEntityParameter);
         var commandName = request?.Type.Name ?? (method.ContainingType.Name.EndsWith("Endpoints", StringComparison.Ordinal)
@@ -106,10 +109,11 @@ static class WolverineFacts
             : method.ContainingType.Name.Replace("Endpoint", string.Empty, StringComparison.Ordinal));
         var evidence = MethodEvidence(method, project, adapter, EvidenceStrength.Exact, $"Wolverine HTTP {endpoint.Verb} endpoint");
         var file = evidence.Source?.Path;
-        var properties = request?.Type is INamedTypeSymbol commandType
-            ? CommandProperties(commandType, aggregate?.Type as INamedTypeSymbol)
+        var properties = commandType is not null
+            ? CommandProperties(commandType, aggregate?.Type as INamedTypeSymbol, streamBindings)
             : RouteProperties(method);
-        var placement = BehaviorPlacement(project, options, aggregate?.Type.Name ?? commandName, commandName, GenerationSliceKind.StateChange);
+        var feature = StateFeature(commandName, aggregate?.Type as INamedTypeSymbol, streamBindings);
+        var placement = BehaviorPlacement(project, options, feature, commandName, GenerationSliceKind.StateChange);
         var commandKey = new ArtifactKey { Subject = commandSubject, Kind = ArtifactKind.Command };
 
         facts.Add(Artifact($"wolverine:command:{commandSubject.Value}", commandKey, commandName, file, properties, evidence));
@@ -125,9 +129,8 @@ static class WolverineFacts
 
         if (aggregate?.Type is INamedTypeSymbol aggregateType)
         {
-            var commandTypeSymbol = request?.Type as INamedTypeSymbol;
-            AddReadModelAndRelationship(project, adapter, commandSubject, commandTypeSymbol, aggregateType, facts, evidence);
-            if (commandTypeSymbol is not null && IdentityProperty(commandTypeSymbol, aggregateType) is null)
+            AddReadModelAndRelationship(project, adapter, commandSubject, commandType, aggregateType, facts, evidence);
+            if (commandType is not null && IdentityProperty(commandType, aggregateType) is null)
             {
                 diagnostics.Add(new GenerationDiagnostic
                 {
@@ -138,7 +141,7 @@ static class WolverineFacts
                     Subject = commandSubject
                 });
             }
-            if (commandTypeSymbol?.GetMembers().OfType<IPropertySymbol>().Any(_ => _.Name == "Version") == true)
+            if (commandType?.GetMembers().OfType<IPropertySymbol>().Any(_ => _.Name == "Version") == true)
             {
                 diagnostics.Add(new GenerationDiagnostic
                 {
@@ -151,19 +154,29 @@ static class WolverineFacts
             }
         }
 
-        if (request?.Type is INamedTypeSymbol validationRequestType)
+        AddEventStreamBindingFacts(
+            project,
+            adapter,
+            commandSubject,
+            commandName,
+            streamBindings,
+            isHttpEndpoint: true,
+            facts,
+            diagnostics);
+
+        if (commandType is not null)
         {
             diagnostics.AddRange(validationAuthorization.ValidationDiagnostics(
                 method,
-                validationRequestType,
+                commandType,
                 commandSubject,
                 isHttpEndpoint: true));
         }
         diagnostics.AddRange(validationAuthorization.AuthorizationDiagnostics(method, commandSubject));
 
         var hasCompoundValidation = validationAuthorization.HasCompoundValidation(method);
-        var eventTypes = aggregateWorkflow && !HasEventStreamParameter(method)
-            ? AggregateReturnEvents(method).ToArray()
+        var eventTypes = aggregateWorkflow && streamBindings.Count == 0
+            ? AggregateReturnEvents(method, project).ToArray()
             : [];
         var bodyEvents = PersistenceEvents(method, project).ToArray();
         foreach (var eventType in eventTypes.Concat(bodyEvents).Distinct(SymbolEqualityComparer.Default).OfType<INamedTypeSymbol>())
@@ -173,12 +186,14 @@ static class WolverineFacts
                               !hasCompoundValidation;
             AddEventAndProduction(project, commandSubject, eventType, placement, evidence, declarative, facts);
         }
+        AddEventStreamAppendFacts(project, adapter, commandSubject, placement, appendDiscovery, facts, diagnostics);
 
         var returnConsequences = WolverineReturnConsequences.Classify(
             method,
+            project,
             isHttpEndpoint: true,
             aggregateWorkflow,
-            HasEventStreamParameter(method));
+            streamBindings.Count > 0);
         var outgoingMessages = DiscoverOutgoingMessages(method, project);
         AddDocumentDeletes(project, commandSubject, method, evidence, facts);
         AddReturnConsequences(project, commandSubject, returnConsequences, evidence, facts);
@@ -195,28 +210,35 @@ static class WolverineFacts
         List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics)
     {
-        var request = method.Parameters.FirstOrDefault(_ => IsSourceType(_.Type));
+        var request = RequestParameter(method);
         if (request?.Type is not INamedTypeSymbol requestType)
         {
             return;
         }
 
         var aggregateWorkflow = IsAggregateWorkflow(method);
+        var streamBindings = WolverineEventStreams.Bindings(method, requestType, project);
+        var appendDiscovery = WolverineEventStreams.Appends(method, project, streamBindings);
         var aggregate = AggregateParameter(method, request, aggregateWorkflow);
         var bodyEvents = PersistenceEvents(method, project).ToArray();
-        var returnEvents = aggregateWorkflow && !HasEventStreamParameter(method)
-            ? AggregateReturnEvents(method).ToArray()
+        var returnEvents = aggregateWorkflow && streamBindings.Count == 0
+            ? AggregateReturnEvents(method, project).ToArray()
             : [];
         var deletedDocuments = DocumentDeletes(method, project).ToArray();
         var hasDocumentPersistence = HasDocumentPersistence(method, project);
         var busConsequences = WolverineBusConsequences.Discover(method, project);
         var returnConsequences = WolverineReturnConsequences.Classify(
             method,
+            project,
             isHttpEndpoint: false,
             aggregateWorkflow,
-            HasEventStreamParameter(method));
+            streamBindings.Count > 0);
         var outgoingMessages = DiscoverOutgoingMessages(method, project);
-        if (bodyEvents.Length == 0 && returnEvents.Length == 0 && deletedDocuments.Length == 0)
+        if (bodyEvents.Length == 0 &&
+            returnEvents.Length == 0 &&
+            deletedDocuments.Length == 0 &&
+            !appendDiscovery.HasDirectWrite &&
+            !streamBindings.Any(_ => _.LoadsModel))
         {
             var automationReturns = hasDocumentPersistence ? [] : returnConsequences;
             var automationOutgoingMessages = hasDocumentPersistence ? [] : outgoingMessages;
@@ -248,14 +270,15 @@ static class WolverineFacts
             commandSubject,
             isHttpEndpoint: false));
         var evidence = MethodEvidence(method, project, adapter, EvidenceStrength.Exact, "Wolverine message handler with persistence effects");
-        var placement = BehaviorPlacement(project, options, aggregate?.Type.Name ?? requestType.Name, requestType.Name, GenerationSliceKind.StateChange);
+        var feature = StateFeature(requestType.Name, aggregate?.Type as INamedTypeSymbol, streamBindings);
+        var placement = BehaviorPlacement(project, options, feature, requestType.Name, GenerationSliceKind.StateChange);
         var key = new ArtifactKey { Subject = commandSubject, Kind = ArtifactKind.Command };
         facts.Add(Artifact(
             $"wolverine:command:{commandSubject.Value}",
             key,
             requestType.Name,
             evidence.Source?.Path,
-            CommandProperties(requestType, aggregate?.Type as INamedTypeSymbol),
+            CommandProperties(requestType, aggregate?.Type as INamedTypeSymbol, streamBindings),
             evidence));
         facts.Add(Placement($"wolverine:placement:command:{commandSubject.Value}", key, placement, evidence));
 
@@ -263,6 +286,15 @@ static class WolverineFacts
         {
             AddReadModelAndRelationship(project, adapter, commandSubject, requestType, aggregateType, facts, evidence);
         }
+        AddEventStreamBindingFacts(
+            project,
+            adapter,
+            commandSubject,
+            requestType.Name,
+            streamBindings,
+            isHttpEndpoint: false,
+            facts,
+            diagnostics);
 
         foreach (var eventType in returnEvents.Concat(bodyEvents).Distinct(SymbolEqualityComparer.Default).OfType<INamedTypeSymbol>())
         {
@@ -270,6 +302,7 @@ static class WolverineFacts
                               !bodyEvents.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType));
             AddEventAndProduction(project, commandSubject, eventType, placement, evidence, declarative, facts);
         }
+        AddEventStreamAppendFacts(project, adapter, commandSubject, placement, appendDiscovery, facts, diagnostics);
 
         AddDocumentDeletes(project, commandSubject, method, evidence, facts);
         AddReturnConsequences(project, commandSubject, returnConsequences, evidence, facts);
@@ -453,6 +486,171 @@ static class WolverineFacts
             evidence,
             sourceMember: commandType is null ? null : IdentityPropertyName(commandType, aggregateType)));
     }
+
+    static void AddEventStreamBindingFacts(
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter,
+        SubjectId commandSubject,
+        string commandName,
+        IReadOnlyList<WolverineStateBinding> bindings,
+        bool isHttpEndpoint,
+        List<GenerationFact> facts,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        var aggregateSubjects = new HashSet<SubjectId>();
+        foreach (var binding in bindings.Where(_ => _.LoadsModel))
+        {
+            var evidence = StateBindingEvidence(
+                adapter,
+                binding,
+                $"Wolverine loads '{binding.ModelType.Name}' through exact IEventStream<T> parameter '{binding.Parameter.Name}'");
+            var aggregateSubject = project.SubjectForType(binding.ModelType);
+            if (aggregateSubjects.Add(aggregateSubject))
+            {
+                AddAggregateArtifact(project, aggregateSubject, binding.ModelType, evidence, facts);
+            }
+
+            facts.Add(Relationship(
+                $"wolverine:reads:{commandSubject.Value}:{binding.Discriminator}:{aggregateSubject.Value}",
+                commandSubject,
+                RelationshipKind.Reads,
+                aggregateSubject,
+                evidence,
+                sourceMember: binding.IdentityMember is null ? null : LowerFirst(binding.IdentityMember.Name),
+                discriminator: binding.Discriminator));
+
+            if (isHttpEndpoint && binding.IdentityMember is null)
+            {
+                diagnostics.Add(new GenerationDiagnostic
+                {
+                    Code = WolverineDiagnosticCodes.RouteIdentityOmitted,
+                    Severity = GenerationDiagnosticSeverity.Warning,
+                    Message = $"The '{binding.ModelType.Name}' identity for '{commandName}' stream parameter '{binding.Parameter.Name}' comes from HTTP route or binding metadata rather than a command property and cannot be marked as a Screenplay identifier",
+                    Source = binding.Identity.Source ?? binding.Source,
+                    Subject = commandSubject
+                });
+            }
+
+            if (binding.Version.Value is not null ||
+                binding.HasAmbiguousConventionalVersion ||
+                !string.Equals(binding.LoadStyle.Value, "Optimistic", StringComparison.Ordinal) ||
+                binding.Consistency.Value)
+            {
+                diagnostics.Add(new GenerationDiagnostic
+                {
+                    Code = WolverineDiagnosticCodes.StreamVersionOmitted,
+                    Severity = GenerationDiagnosticSeverity.Information,
+                    Message = binding.HasAmbiguousConventionalVersion
+                        ? $"The conventional Version member for '{commandName}' cannot be attributed safely to stream parameter '{binding.Parameter.Name}' because the handler loads multiple streams"
+                        : $"The version, load style, or consistency metadata for '{commandName}' stream parameter '{binding.Parameter.Name}' cannot be represented exactly by Screenplay concurrency",
+                    Source = binding.Version.Source ?? binding.LoadStyle.Source ?? binding.Consistency.Source ?? binding.Source,
+                    Subject = commandSubject
+                });
+            }
+
+            if (bindings.Count > 1)
+            {
+                diagnostics.Add(new GenerationDiagnostic
+                {
+                    Code = WolverineDiagnosticCodes.MultipleStreamMetadataOmitted,
+                    Severity = GenerationDiagnosticSeverity.Warning,
+                    Message = $"Handler '{commandName}' binds multiple event streams; target and identity for parameter '{binding.Parameter.Name}' are retained as neutral relationship metadata, but parameter-specific loading metadata cannot be lowered faithfully to the current Screenplay language",
+                    Source = binding.Source,
+                    Subject = commandSubject
+                });
+            }
+        }
+    }
+
+    static void AddEventStreamAppendFacts(
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter,
+        SubjectId commandSubject,
+        ArtifactPlacement placement,
+        WolverineEventStreamAppendDiscovery discovery,
+        List<GenerationFact> facts,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        foreach (var unresolved in discovery.Unresolved)
+        {
+            diagnostics.Add(new GenerationDiagnostic
+            {
+                Code = WolverineDiagnosticCodes.EventWriteTargetUnresolved,
+                Severity = GenerationDiagnosticSeverity.Warning,
+                Message = $"An exact IEventStream<T> append was not represented because {unresolved.Reason}",
+                Source = unresolved.Source,
+                Subject = commandSubject
+            });
+        }
+
+        var aggregateSubjects = new HashSet<SubjectId>();
+        var producedEvents = new HashSet<SubjectId>();
+        var appendRelationships = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var append in discovery.Appends)
+        {
+            var binding = append.Binding;
+            var aggregateSubject = project.SubjectForType(binding.ModelType);
+            var evidence = new Evidence
+            {
+                Adapter = adapter,
+                Strength = EvidenceStrength.Exact,
+                Source = append.Source,
+                Explanation = $"Exact IEventStream<{binding.ModelType.Name}> append through handler parameter '{binding.Parameter.Name}'"
+            };
+            if (aggregateSubjects.Add(aggregateSubject))
+            {
+                AddAggregateArtifact(project, aggregateSubject, binding.ModelType, evidence, facts);
+            }
+
+            foreach (var eventType in append.EventTypes)
+            {
+                var eventSubject = project.SubjectForType(eventType);
+                if (producedEvents.Add(eventSubject))
+                {
+                    AddEventAndProduction(project, commandSubject, eventType, placement, evidence, declarative: false, facts);
+                }
+
+                var relationshipDiscriminator = $"{binding.Discriminator}:event:{eventSubject.Value}";
+                if (!appendRelationships.Add(relationshipDiscriminator))
+                {
+                    continue;
+                }
+
+                facts.Add(Relationship(
+                    $"wolverine:appends:{commandSubject.Value}:{relationshipDiscriminator}:{aggregateSubject.Value}",
+                    commandSubject,
+                    RelationshipKind.Appends,
+                    aggregateSubject,
+                    evidence,
+                    sourceMember: binding.IdentityMember is null ? null : LowerFirst(binding.IdentityMember.Name),
+                    discriminator: relationshipDiscriminator));
+            }
+        }
+    }
+
+    static void AddAggregateArtifact(
+        DotNetProjectCompilation project,
+        SubjectId aggregateSubject,
+        INamedTypeSymbol aggregateType,
+        Evidence evidence,
+        List<GenerationFact> facts) => facts.Add(Artifact(
+        $"wolverine:aggregate:{aggregateSubject.Value}",
+        new ArtifactKey { Subject = aggregateSubject, Kind = ArtifactKind.Aggregate },
+        aggregateType.Name,
+        SourceFileOf(aggregateType, project),
+        DotNetTypeShapes.PropertiesOf(aggregateType),
+        evidence));
+
+    static Evidence StateBindingEvidence(
+        AdapterIdentity adapter,
+        WolverineStateBinding binding,
+        string explanation) => new()
+    {
+        Adapter = adapter,
+        Strength = EvidenceStrength.Exact,
+        Source = binding.Source,
+        Explanation = explanation
+    };
 
     static void AddEventAndProduction(
         DotNetProjectCompilation project,
@@ -702,9 +900,15 @@ static class WolverineFacts
 
     static IReadOnlyList<PropertyDefinition> CommandProperties(
         INamedTypeSymbol commandType,
-        INamedTypeSymbol? aggregateType)
+        INamedTypeSymbol? aggregateType,
+        IReadOnlyList<WolverineStateBinding> streamBindings)
     {
-        var identity = aggregateType is null ? IdentityProperty(commandType, null) : IdentityProperty(commandType, aggregateType);
+        var identity = streamBindings.Count switch
+        {
+            0 => aggregateType is null ? IdentityProperty(commandType, null) : IdentityProperty(commandType, aggregateType),
+            1 when streamBindings[0].LoadsModel => streamBindings[0].IdentityMember as IPropertySymbol,
+            _ => null
+        };
         return
         [
             .. DotNetTypeShapes.PropertiesOf(commandType)
@@ -739,16 +943,23 @@ static class WolverineFacts
     static IReadOnlyList<PropertyDefinition> RouteProperties(IMethodSymbol method) => QueryProperties(method);
 
     static IParameterSymbol? RequestParameter(IMethodSymbol method) => method.Parameters.FirstOrDefault(_ =>
-        IsSourceType(_.Type) && !IsAggregateParameter(_) && !IsEntityParameter(_));
+        IsSourceType(_.Type) &&
+        !IsAggregateParameter(_) &&
+        !IsEntityParameter(_) &&
+        !WolverineEventStreams.IsEventStream(_.Type));
 
     static IParameterSymbol? AggregateParameter(
         IMethodSymbol method,
         IParameterSymbol? request,
         bool aggregateWorkflow)
     {
-        var attributed = method.Parameters.FirstOrDefault(IsAggregateParameter);
+        var attributed = method.Parameters.FirstOrDefault(_ =>
+            IsAggregateParameter(_) && !WolverineEventStreams.IsEventStream(_.Type));
         return attributed ?? (aggregateWorkflow
-            ? method.Parameters.FirstOrDefault(_ => !SymbolEqualityComparer.Default.Equals(_, request) && IsSourceType(_.Type))
+            ? method.Parameters.FirstOrDefault(_ =>
+                !SymbolEqualityComparer.Default.Equals(_, request) &&
+                IsSourceType(_.Type) &&
+                !WolverineEventStreams.IsEventStream(_.Type))
             : null);
     }
 
@@ -757,8 +968,8 @@ static class WolverineFacts
 
     static bool IsAggregateParameter(IParameterSymbol parameter) =>
         DotNetSymbols.HasAttributeAssignableTo(parameter, WellKnownTypes.WolverineWriteModelAttribute) ||
-        DotNetSymbols.HasAttributeAssignableTo(parameter, WellKnownTypes.WolverineLegacyWriteAggregateAttribute) ||
-        DotNetSymbols.HasAttributeAssignableTo(parameter, WellKnownTypes.WolverineHttpAggregateAttribute);
+        DotNetSymbols.HasAttribute(parameter, WellKnownTypes.WolverineLegacyWriteAggregateAttribute) ||
+        DotNetSymbols.HasAttribute(parameter, WellKnownTypes.WolverineHttpAggregateAttribute);
 
     static bool IsAggregateWorkflow(IMethodSymbol method) =>
         DotNetSymbols.HasAttributeAssignableTo(method, WellKnownTypes.WolverineAggregateHandlerAttribute) ||
@@ -767,21 +978,12 @@ static class WolverineFacts
         method.ContainingType.Name.EndsWith("AggregateHandler", StringComparison.Ordinal) ||
         method.Parameters.Any(IsAggregateParameter);
 
-    static bool HasEventStreamParameter(IMethodSymbol method) => method.Parameters.Any(parameter =>
-    {
-        if (parameter.Type is not INamedTypeSymbol { IsGenericType: true } named)
-        {
-            return false;
-        }
-
-        var metadataName = DotNetSubjectIds.MetadataName(named.OriginalDefinition);
-        return string.Equals(metadataName, WellKnownTypes.JasperFxEventStream, StringComparison.Ordinal) ||
-               string.Equals(metadataName, WellKnownTypes.MartenLegacyEventStream, StringComparison.Ordinal);
-    });
-
-    static IEnumerable<ITypeSymbol> AggregateReturnEvents(IMethodSymbol method) =>
+    static IEnumerable<ITypeSymbol> AggregateReturnEvents(
+        IMethodSymbol method,
+        DotNetProjectCompilation project) =>
         WolverineReturnConsequences.Classify(
                 method,
+                project,
                 isHttpEndpoint: false,
                 aggregateWorkflow: true,
                 hasEventStream: false)
@@ -794,6 +996,12 @@ static class WolverineFacts
         {
             foreach (var invocation in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
+                if (semanticModel.GetOperation(invocation) is Microsoft.CodeAnalysis.Operations.IInvocationOperation operation &&
+                    WolverineEventStreams.IsExactAppend(operation, project))
+                {
+                    continue;
+                }
+
                 if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol invoked ||
                     !_persistenceMethods.Contains(invoked.Name) ||
                     !IsPersistenceNamespace(invoked))
@@ -859,8 +1067,7 @@ static class WolverineFacts
         var @namespace = candidate.ContainingNamespace.ToDisplayString();
         return @namespace.StartsWith("Marten", StringComparison.Ordinal) ||
                @namespace.StartsWith("JasperFx.Events", StringComparison.Ordinal) ||
-               @namespace.StartsWith("Wolverine.Marten", StringComparison.Ordinal) ||
-               candidate.ContainingType.Name == "IEventStream";
+               @namespace.StartsWith("Wolverine.Marten", StringComparison.Ordinal);
     }
 
     static string? IdentityPropertyName(INamedTypeSymbol command, INamedTypeSymbol? aggregate)
@@ -872,7 +1079,9 @@ static class WolverineFacts
     static IPropertySymbol? IdentityProperty(INamedTypeSymbol command, INamedTypeSymbol? aggregate)
     {
         var properties = command.GetMembers().OfType<IPropertySymbol>().ToArray();
-        var attributed = properties.FirstOrDefault(_ => _.GetAttributes().Any(attribute => attribute.AttributeClass?.Name == "IdentityAttribute"));
+        var attributed = properties.FirstOrDefault(_ => _.GetAttributes().Any(attribute =>
+            attribute.AttributeClass is { } attributeType &&
+            DotNetSubjectIds.MetadataName(attributeType.OriginalDefinition) == WellKnownTypes.JasperFxIdentityAttribute));
         if (attributed is not null)
         {
             return attributed;
@@ -930,17 +1139,18 @@ static class WolverineFacts
         DotNetSymbols.HasAttribute(symbol, WellKnownTypes.WolverineIgnoreAttribute) ||
         DotNetSymbols.HasAttribute(symbol, WellKnownTypes.WolverineLegacyIgnoreAttribute);
 
-    static bool IsPublicSourceType(INamedTypeSymbol type) =>
-        type.DeclaredAccessibility == Accessibility.Public && type.Locations.Any(IsAuthoredSourceLocation);
+    static bool IsPublicSourceType(INamedTypeSymbol type, DotNetProjectCompilation project) =>
+        type.DeclaredAccessibility == Accessibility.Public && type.Locations.Any(_ => IsAuthoredSourceLocation(_, project));
 
-    static bool IsPublicSourceMethod(IMethodSymbol method) =>
+    static bool IsPublicSourceMethod(IMethodSymbol method, DotNetProjectCompilation project) =>
         method.DeclaredAccessibility == Accessibility.Public &&
         method.MethodKind == MethodKind.Ordinary &&
-        method.Locations.Any(IsAuthoredSourceLocation);
+        method.Locations.Any(_ => IsAuthoredSourceLocation(_, project));
 
-    static bool IsAuthoredSourceLocation(Location location) =>
+    static bool IsAuthoredSourceLocation(Location location, DotNetProjectCompilation project) =>
         location.IsInSource &&
         location.SourceTree is not null &&
+        project.AuthoredSyntaxTrees.Contains(location.SourceTree) &&
         !DotNetGeneratedSource.IsGenerated(location.SourceTree);
 
     static bool IsSourceType(ITypeSymbol type) =>
@@ -954,6 +1164,11 @@ static class WolverineFacts
 
     static bool IsInfrastructureParameter(ITypeSymbol type)
     {
+        if (WolverineEventStreams.IsEventStream(type))
+        {
+            return true;
+        }
+
         if (type.SpecialType != SpecialType.None || type is not INamedTypeSymbol named)
         {
             return type.SpecialType != SpecialType.None;
@@ -1028,6 +1243,24 @@ static class WolverineFacts
         },
         Evidence = evidence
     };
+
+    static string StateFeature(
+        string requestName,
+        INamedTypeSymbol? aggregateType,
+        IReadOnlyList<WolverineStateBinding> streamBindings)
+    {
+        if (aggregateType is not null)
+        {
+            return aggregateType.Name;
+        }
+
+        var models = streamBindings
+            .Select(_ => _.ModelType)
+            .GroupBy(DotNetSubjectIds.MetadataName, StringComparer.Ordinal)
+            .Select(_ => _.First())
+            .ToArray();
+        return models.Length == 1 ? models[0].Name : requestName;
+    }
 
     static ArtifactPlacement BehaviorPlacement(
         DotNetProjectCompilation project,
