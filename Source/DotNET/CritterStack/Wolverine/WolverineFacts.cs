@@ -95,11 +95,12 @@ static class WolverineFacts
 
         var method = endpoint.Method;
         var aggregateWorkflow = IsAggregateWorkflow(method);
-        var request = RequestParameter(method);
+        var request = RequestParameter(method, project);
         var commandType = request?.Type as INamedTypeSymbol;
+        var dcb = WolverineDcb.Discover(method, request, project, isHttpEndpoint: true);
         var streamBindings = WolverineEventStreams.Bindings(method, commandType, project);
         var appendDiscovery = WolverineEventStreams.Appends(method, project, streamBindings);
-        var aggregate = AggregateParameter(method, request, aggregateWorkflow);
+        var aggregate = dcb is null ? AggregateParameter(method, request, aggregateWorkflow) : null;
         var commandSubject = commandType is not null
             ? project.SubjectForType(commandType)
             : MethodSubject(project, method, "command");
@@ -112,7 +113,7 @@ static class WolverineFacts
         var properties = commandType is not null
             ? CommandProperties(commandType, aggregate?.Type as INamedTypeSymbol, streamBindings)
             : RouteProperties(method);
-        var feature = StateFeature(commandName, aggregate?.Type as INamedTypeSymbol, streamBindings);
+        var feature = StateFeature(commandName, aggregate?.Type as INamedTypeSymbol, streamBindings, dcb?.ModelType);
         var placement = BehaviorPlacement(project, options, feature, commandName, GenerationSliceKind.StateChange);
         var commandKey = new ArtifactKey { Subject = commandSubject, Kind = ArtifactKind.Command };
 
@@ -163,6 +164,7 @@ static class WolverineFacts
             isHttpEndpoint: true,
             facts,
             diagnostics);
+        AddDcbFacts(project, adapter, commandSubject, commandName, dcb, facts, diagnostics);
 
         if (commandType is not null)
         {
@@ -175,14 +177,22 @@ static class WolverineFacts
         diagnostics.AddRange(validationAuthorization.AuthorizationDiagnostics(method, commandSubject));
 
         var hasCompoundValidation = validationAuthorization.HasCompoundValidation(method);
-        var eventTypes = aggregateWorkflow && streamBindings.Count == 0
-            ? AggregateReturnEvents(method, project).ToArray()
-            : [];
-        var bodyEvents = PersistenceEvents(method, project).ToArray();
+        IReadOnlyList<ITypeSymbol> eventTypes = [];
+        if (dcb is not null)
+        {
+            eventTypes = dcb.EventTypes;
+        }
+        else if (aggregateWorkflow && streamBindings.Count == 0)
+        {
+            eventTypes = [.. AggregateReturnEvents(method, project)];
+        }
+        var bodyEvents = dcb is null ? PersistenceEvents(method, project).ToArray() : [];
         foreach (var eventType in eventTypes.Concat(bodyEvents).Distinct(SymbolEqualityComparer.Default).OfType<INamedTypeSymbol>())
         {
+            var isImperativeDcbEvent = dcb?.ImperativeEventTypes.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) ?? false;
             var declarative = eventTypes.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) &&
                               !bodyEvents.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) &&
+                              !isImperativeDcbEvent &&
                               !hasCompoundValidation;
             AddEventAndProduction(project, commandSubject, eventType, placement, evidence, declarative, facts);
         }
@@ -192,8 +202,8 @@ static class WolverineFacts
             method,
             project,
             isHttpEndpoint: true,
-            aggregateWorkflow,
-            streamBindings.Count > 0);
+            aggregateWorkflow || dcb is { IsBoundaryParameter: false },
+            dcb is null && streamBindings.Count > 0);
         var outgoingMessages = DiscoverOutgoingMessages(method, project);
         AddDocumentDeletes(project, commandSubject, method, evidence, facts);
         AddReturnConsequences(project, commandSubject, returnConsequences, evidence, facts);
@@ -210,20 +220,27 @@ static class WolverineFacts
         List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics)
     {
-        var request = RequestParameter(method);
+        var request = RequestParameter(method, project);
         if (request?.Type is not INamedTypeSymbol requestType)
         {
             return;
         }
 
         var aggregateWorkflow = IsAggregateWorkflow(method);
+        var dcb = WolverineDcb.Discover(method, request, project, isHttpEndpoint: false);
         var streamBindings = WolverineEventStreams.Bindings(method, requestType, project);
         var appendDiscovery = WolverineEventStreams.Appends(method, project, streamBindings);
-        var aggregate = AggregateParameter(method, request, aggregateWorkflow);
-        var bodyEvents = PersistenceEvents(method, project).ToArray();
-        var returnEvents = aggregateWorkflow && streamBindings.Count == 0
-            ? AggregateReturnEvents(method, project).ToArray()
-            : [];
+        var aggregate = dcb is null ? AggregateParameter(method, request, aggregateWorkflow) : null;
+        var bodyEvents = dcb is null ? PersistenceEvents(method, project).ToArray() : [];
+        IReadOnlyList<ITypeSymbol> returnEvents = [];
+        if (dcb is not null)
+        {
+            returnEvents = dcb.EventTypes;
+        }
+        else if (aggregateWorkflow && streamBindings.Count == 0)
+        {
+            returnEvents = [.. AggregateReturnEvents(method, project)];
+        }
         var deletedDocuments = DocumentDeletes(method, project).ToArray();
         var hasDocumentPersistence = HasDocumentPersistence(method, project);
         var busConsequences = WolverineBusConsequences.Discover(method, project);
@@ -231,14 +248,15 @@ static class WolverineFacts
             method,
             project,
             isHttpEndpoint: false,
-            aggregateWorkflow,
-            streamBindings.Count > 0);
+            aggregateWorkflow || dcb is { IsBoundaryParameter: false },
+            dcb is null && streamBindings.Count > 0);
         var outgoingMessages = DiscoverOutgoingMessages(method, project);
         if (bodyEvents.Length == 0 &&
-            returnEvents.Length == 0 &&
+            returnEvents.Count == 0 &&
             deletedDocuments.Length == 0 &&
             !appendDiscovery.HasDirectWrite &&
-            !streamBindings.Any(_ => _.LoadsModel))
+            !streamBindings.Any(_ => _.LoadsModel) &&
+            dcb is null)
         {
             var automationReturns = hasDocumentPersistence ? [] : returnConsequences;
             var automationOutgoingMessages = hasDocumentPersistence ? [] : outgoingMessages;
@@ -270,7 +288,7 @@ static class WolverineFacts
             commandSubject,
             isHttpEndpoint: false));
         var evidence = MethodEvidence(method, project, adapter, EvidenceStrength.Exact, "Wolverine message handler with persistence effects");
-        var feature = StateFeature(requestType.Name, aggregate?.Type as INamedTypeSymbol, streamBindings);
+        var feature = StateFeature(requestType.Name, aggregate?.Type as INamedTypeSymbol, streamBindings, dcb?.ModelType);
         var placement = BehaviorPlacement(project, options, feature, requestType.Name, GenerationSliceKind.StateChange);
         var key = new ArtifactKey { Subject = commandSubject, Kind = ArtifactKind.Command };
         facts.Add(Artifact(
@@ -295,11 +313,14 @@ static class WolverineFacts
             isHttpEndpoint: false,
             facts,
             diagnostics);
+        AddDcbFacts(project, adapter, commandSubject, requestType.Name, dcb, facts, diagnostics);
 
         foreach (var eventType in returnEvents.Concat(bodyEvents).Distinct(SymbolEqualityComparer.Default).OfType<INamedTypeSymbol>())
         {
+            var isImperativeDcbEvent = dcb?.ImperativeEventTypes.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) ?? false;
             var declarative = returnEvents.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) &&
-                              !bodyEvents.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType));
+                              !bodyEvents.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) &&
+                              !isImperativeDcbEvent;
             AddEventAndProduction(project, commandSubject, eventType, placement, evidence, declarative, facts);
         }
         AddEventStreamAppendFacts(project, adapter, commandSubject, placement, appendDiscovery, facts, diagnostics);
@@ -373,7 +394,7 @@ static class WolverineFacts
         List<GenerationDiagnostic> diagnostics)
     {
         var querySubject = MethodSubject(project, endpoint.Method, "query");
-        if (RequestParameter(endpoint.Method)?.Type is INamedTypeSymbol validationRequestType)
+        if (RequestParameter(endpoint.Method, project)?.Type is INamedTypeSymbol validationRequestType)
         {
             diagnostics.AddRange(validationAuthorization.ValidationDiagnostics(
                 endpoint.Method,
@@ -485,6 +506,99 @@ static class WolverineFacts
             aggregateSubject,
             evidence,
             sourceMember: commandType is null ? null : IdentityPropertyName(commandType, aggregateType)));
+    }
+
+    static void AddDcbFacts(
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter,
+        SubjectId commandSubject,
+        string commandName,
+        WolverineDcbDiscovery? dcb,
+        List<GenerationFact> facts,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        if (dcb is null)
+        {
+            return;
+        }
+
+        var aggregateSubject = project.SubjectForType(dcb.ModelType);
+        var evidence = new Evidence
+        {
+            Adapter = adapter,
+            Strength = EvidenceStrength.Exact,
+            Source = dcb.Source,
+            Explanation = $"Authored Wolverine DCB model parameter '{dcb.Parameter.Name}' with an EventTagQuery companion"
+        };
+        AddAggregateArtifact(project, aggregateSubject, dcb.ModelType, evidence, facts);
+        facts.Add(Relationship(
+            $"wolverine:reads:{commandSubject.Value}:{dcb.Discriminator}:{aggregateSubject.Value}",
+            commandSubject,
+            RelationshipKind.Reads,
+            aggregateSubject,
+            evidence,
+            sourceMember: dcb.SourceMember,
+            discriminator: dcb.Discriminator));
+
+        foreach (var condition in dcb.Conditions)
+        {
+            var tagSubject = project.SubjectForType(condition.TagType);
+            var eventSubject = condition.EventType is null ? null : project.SubjectForType(condition.EventType);
+            var discriminator = $"{dcb.Discriminator}:condition:{condition.Ordinal}:tag:{tagSubject.Value}:event:{eventSubject?.Value ?? "any"}";
+            var conditionEvidence = evidence with
+            {
+                Source = condition.Source ?? dcb.QuerySource,
+                Explanation = condition.EventType is null
+                    ? $"Exact DCB condition {condition.Ordinal} matches any event tagged with '{condition.TagType.Name}'"
+                    : $"Exact DCB condition {condition.Ordinal} matches '{condition.EventType.Name}' tagged with '{condition.TagType.Name}'"
+            };
+            facts.Add(Relationship(
+                $"wolverine:reads:{commandSubject.Value}:{discriminator}:{aggregateSubject.Value}",
+                commandSubject,
+                RelationshipKind.Reads,
+                aggregateSubject,
+                conditionEvidence,
+                sourceMember: condition.SourceMember,
+                discriminator: discriminator));
+        }
+
+        foreach (var eventType in dcb.QueryEventTypes)
+        {
+            var eventSubject = project.SubjectForType(eventType);
+            var eventEvidence = evidence with
+            {
+                Source = dcb.QuerySource,
+                Explanation = $"Explicit historical event type in the authored DCB EventTagQuery for '{commandName}'"
+            };
+            facts.Add(Artifact(
+                $"wolverine:dcb:query-event:{commandSubject.Value}:{eventSubject.Value}",
+                new ArtifactKey { Subject = eventSubject, Kind = ArtifactKind.Event },
+                eventType.Name,
+                SourceFileOf(eventType, project),
+                DotNetTypeShapes.PropertiesOf(eventType),
+                eventEvidence));
+        }
+
+        diagnostics.Add(new GenerationDiagnostic
+        {
+            Code = WolverineDiagnosticCodes.DcbBoundaryOmitted,
+            Severity = GenerationDiagnosticSeverity.Information,
+            Message = $"The DCB consistency boundary for '{commandName}' parameter '{dcb.Parameter.Name}' is retained as neutral Aggregate/Reads evidence, but tag routing and boundary concurrency cannot be represented by the current Screenplay language",
+            Source = dcb.Source,
+            Subject = commandSubject
+        });
+
+        if (!dcb.QueryResolved)
+        {
+            diagnostics.Add(new GenerationDiagnostic
+            {
+                Code = WolverineDiagnosticCodes.DcbQueryUnresolved,
+                Severity = GenerationDiagnosticSeverity.Warning,
+                Message = $"The EventTagQuery companion '{dcb.Companion.Name}' for '{commandName}' is outside the bounded direct fluent-chain shapes and was not interpreted",
+                Source = dcb.QuerySource,
+                Subject = commandSubject
+            });
+        }
     }
 
     static void AddEventStreamBindingFacts(
@@ -942,11 +1056,12 @@ static class WolverineFacts
 
     static IReadOnlyList<PropertyDefinition> RouteProperties(IMethodSymbol method) => QueryProperties(method);
 
-    static IParameterSymbol? RequestParameter(IMethodSymbol method) => method.Parameters.FirstOrDefault(_ =>
+    static IParameterSymbol? RequestParameter(IMethodSymbol method, DotNetProjectCompilation project) => method.Parameters.FirstOrDefault(_ =>
         IsSourceType(_.Type) &&
         !IsAggregateParameter(_) &&
         !IsEntityParameter(_) &&
-        !WolverineEventStreams.IsEventStream(_.Type));
+        !WolverineEventStreams.IsEventStream(_.Type) &&
+        !WolverineDcb.HasAttributedParameter(_, project));
 
     static IParameterSymbol? AggregateParameter(
         IMethodSymbol method,
@@ -1247,11 +1362,17 @@ static class WolverineFacts
     static string StateFeature(
         string requestName,
         INamedTypeSymbol? aggregateType,
-        IReadOnlyList<WolverineStateBinding> streamBindings)
+        IReadOnlyList<WolverineStateBinding> streamBindings,
+        INamedTypeSymbol? dcbModelType = null)
     {
         if (aggregateType is not null)
         {
             return aggregateType.Name;
+        }
+
+        if (dcbModelType is not null)
+        {
+            return dcbModelType.Name;
         }
 
         var models = streamBindings

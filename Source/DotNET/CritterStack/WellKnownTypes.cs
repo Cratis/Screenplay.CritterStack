@@ -43,6 +43,8 @@ static class WellKnownTypes
     public const string MartenEventProjection = "Marten.Events.Projections.EventProjection";
     public const string MartenLegacyEventStream = "Marten.Events.Aggregation.IEventStream`1";
     public const string JasperFxEventStream = "JasperFx.Events.IEventStream`1";
+    public const string JasperFxEventBoundary = "JasperFx.Events.Tags.IEventBoundary`1";
+    public const string JasperFxEventTagQuery = "JasperFx.Events.Tags.EventTagQuery";
     public const string JasperFxProjectionLifecycle = "JasperFx.Events.Projections.ProjectionLifecycle";
     public const string JasperFxSnapshotLifecycle = "JasperFx.Events.Projections.SnapshotLifecycle";
     public const string MartenProjectionLifecycle = "Marten.Events.Projections.ProjectionLifecycle";
@@ -80,6 +82,8 @@ static class WellKnownTypes
     public const string WolverineHttpMethodAttribute = "Wolverine.Http.WolverineHttpMethodAttribute";
     public const string WolverineEmptyResponseAttribute = "Wolverine.Http.EmptyResponseAttribute";
     public const string WolverineAggregateHandlerAttribute = "Wolverine.Persistence.EventSourcing.DeciderFunctionAttribute";
+    public const string WolverineDcbModelAttribute = "Wolverine.Persistence.EventSourcing.DcbModelAttribute";
+    public const string WolverineLegacyBoundaryModelAttribute = "Wolverine.Marten.BoundaryModelAttribute";
     public const string WolverineWriteModelAttribute = "Wolverine.Persistence.EventSourcing.WriteModelAttribute";
     public const string WolverineLegacyAggregateHandlerAttribute = "Wolverine.Marten.AggregateHandlerAttribute";
     public const string WolverineLegacyWriteAggregateAttribute = "Wolverine.Marten.WriteAggregateAttribute";
