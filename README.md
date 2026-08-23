@@ -63,7 +63,11 @@ var result = generator.Generate(projects, options);
 
 The existing `(IDotNetScreenplayAdapter, ScreenplayDefinitionGenerator)` constructor remains available for hosts that supply one adapter and their own shared pipeline.
 
-Shared generation infrastructure lives in [`Cratis/Screenplay.Generation`](https://github.com/Cratis/Screenplay.Generation). Cratis CLI owns `MSBuildWorkspace`, project/host selection, and output.
+Shared generation infrastructure lives in [`Cratis/Screenplay.Generation`](https://github.com/Cratis/Screenplay.Generation). Cratis CLI owns `MSBuildWorkspace`, project/host selection, output, and the source context supplied for each selected project. The host must map its exact authored `Project.Documents` syntax trees and choose the stable project identity, display root, and case policy; adapters consume that context and do not infer source identity from physical Roslyn paths.
+
+The canonical runner uses source-path policy v1 with workspace-relative display paths and ordinal identity casing. Its stable project identity is the repository-relative project path without the `.csproj` extension, and each source identity uses the project-relative document path. This preserves the existing displayed paths while keeping physical checkout roots out of identities and policy reporting.
+
+A compatibility-only heuristic can supply a legacy display range for a source-backed referenced-project symbol **after** Critter Stack's existing semantic discovery has admitted that symbol. It considers only declarations accepted by the shared authored-source heuristic, orders safe workspace-relative ranges deterministically, excludes generated names and headers, and never participates in artifact or fact admission. The range carries no `SourceFileIdentity`. This fallback requires a fully qualified `SourceRoot` and a declaration beneath it; otherwise `Source` is omitted rather than exposing an absolute path or basename. The strict location path never admits generated or out-of-context trees. The `Generate(Compilation, ...)` convenience overload has neither host-owned source context nor a safe source root, so its evidence omits source provenance. Hosts that need stable identity must call the project-aware overload with an explicit source context.
 
 ## Canonical fixtures
 
