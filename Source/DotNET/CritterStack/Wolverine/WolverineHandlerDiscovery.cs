@@ -34,7 +34,7 @@ static class WolverineHandlerDiscovery
                     }
                     break;
                 case "IncludeType":
-                    if (TryGetIncludedType(call, out var includedType) && IsAuthoredSourceType(includedType))
+                    if (TryGetIncludedType(call, out var includedType) && IsAuthoredSourceType(includedType, project))
                     {
                         if (!explicitTypes.Exists(_ => SymbolEqualityComparer.Default.Equals(_, includedType)))
                         {
@@ -83,7 +83,7 @@ static class WolverineHandlerDiscovery
     static IEnumerable<ConfigurationCall> ConfigurationCalls(DotNetProjectCompilation project)
     {
         foreach (var tree in project.Compilation.SyntaxTrees
-                     .Where(_ => !DotNetGeneratedSource.IsGenerated(_))
+                     .Where(_ => project.AuthoredSyntaxTrees.Contains(_) && !DotNetGeneratedSource.IsGenerated(_))
                      .OrderBy(_ => _.FilePath, StringComparer.Ordinal))
         {
             var semanticModel = project.Compilation.GetSemanticModel(tree);
@@ -161,9 +161,10 @@ static class WolverineHandlerDiscovery
                SymbolEqualityComparer.Default.Equals(markerType.ContainingAssembly, project.Compilation.Assembly);
     }
 
-    static bool IsAuthoredSourceType(INamedTypeSymbol type) => type.Locations.Any(_ =>
+    static bool IsAuthoredSourceType(INamedTypeSymbol type, DotNetProjectCompilation project) => type.Locations.Any(_ =>
         _.IsInSource &&
         _.SourceTree is not null &&
+        project.AuthoredSyntaxTrees.Contains(_.SourceTree) &&
         !DotNetGeneratedSource.IsGenerated(_.SourceTree));
 
     static GenerationDiagnostic UnresolvedDiagnostic(
