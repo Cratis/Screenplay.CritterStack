@@ -62,4 +62,14 @@ public static class WolverineDiagnosticCodes
     /// Authored Wolverine HTTP authorization configuration could not be resolved exactly from source.
     /// </summary>
     public const string AuthorizationConfigurationUnresolved = "WOLVERINE0011";
+
+    /// <summary>
+    /// Parameter-specific metadata for a handler with multiple event streams could not be lowered faithfully.
+    /// </summary>
+    public const string MultipleStreamMetadataOmitted = "WOLVERINE0012";
+
+    /// <summary>
+    /// An exact event stream append had an unresolved receiver target or payload.
+    /// </summary>
+    public const string EventWriteTargetUnresolved = "WOLVERINE0013";
 }
