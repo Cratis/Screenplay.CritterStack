@@ -11,6 +11,9 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Cratis.Screenplay.Generation" />
+        <PackageReference Include="Cratis.Screenplay.Generation.Contracts" />
+        <PackageReference Include="Cratis.Screenplay.Generation.DotNet" />
         <PackageReference Include="Microsoft.Build.Locator" />
         <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />

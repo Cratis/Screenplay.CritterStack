@@ -56,6 +56,9 @@ static class WolverineReturnConsequences
         ];
     }
 
+    public static bool IsTimeoutMessage(INamedTypeSymbol type) =>
+        IsAssignableTo(type, WellKnownTypes.WolverineTimeoutMessage);
+
     static WolverineReturnConsequenceKind Classify(
         ITypeSymbol type,
         int slot,
@@ -74,6 +77,11 @@ static class WolverineReturnConsequences
         if (IsSagaState(named, project))
         {
             return WolverineReturnConsequenceKind.SagaState;
+        }
+
+        if (IsTimeoutMessage(named))
+        {
+            return WolverineReturnConsequenceKind.Cascade;
         }
 
         if (metadataName == WellKnownTypes.WolverineOutgoingMessages)
