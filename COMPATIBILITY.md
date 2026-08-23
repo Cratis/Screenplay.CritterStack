@@ -67,6 +67,10 @@ The adapter should fail closed for a newer major version until canonical evidenc
 
 Roslyn exposes assembly identities, but assembly versions do not always equal NuGet package versions. Exact package provenance belongs at the workspace boundary owned by Cratis CLI, where `project.assets.json` and the selected target framework are available.
 
+Source-path provenance is host-owned at the same boundary. The canonical policy is version 1, `Workspace` display root, and `Ordinal` case handling. Canonical project identity is the `/`-normalized repository-relative project path without `.csproj`; document identity is project-relative, while displayed paths remain repository-relative. The host maps the exact authored `Project.Documents` trees and fails rooted, outside-root, traversing, or missing mappings. Adapters use strict project-aware ranges: generated and out-of-context trees do not become source evidence.
+
+For compatibility with source-backed project references, Critter Stack may attach a legacy display range to a symbol only after normal semantic admission. The heuristic is provenance decoration, not discovery: it cannot originate or admit an artifact, fact, or diagnostic. It considers only declarations admitted by the shared authored-source heuristic, orders their safe relative ranges deterministically, and excludes generated filenames and headers. It never creates `SourceFileIdentity`. A fully qualified `SourceRoot` and a declaration beneath that root are mandatory; absent or relative roots and outside-root declarations produce no `Source`, with no absolute-path or basename fallback. The `Generate(Compilation, ...)` convenience overload supplies no safe root or host-owned source context and therefore omits source provenance.
+
 CLI `v2.12.0` implements the runtime provenance report. It records:
 
 - bundled adapter package version;

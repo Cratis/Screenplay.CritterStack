@@ -71,7 +71,7 @@ static class MartenProjectionDiscovery
                 {
                     Adapter = adapter,
                     Strength = EvidenceStrength.Configured,
-                    Source = DotNetSource.Range(invocation.GetLocation(), project.SourceRoot),
+                    Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
                     Explanation = $"Marten projection registration through {method.Name}"
                 };
 
@@ -112,11 +112,11 @@ static class MartenProjectionDiscovery
 
             registrations.Add(projection with
             {
-                Evidence = DotNetSource.EvidenceFor(
+                Evidence = CritterStackSource.EvidenceFor(
                     projection.Projection!,
                     adapter,
+                    project,
                     EvidenceStrength.Conventional,
-                    project.SourceRoot,
                     "The type derives from a Marten projection base")
             });
         }

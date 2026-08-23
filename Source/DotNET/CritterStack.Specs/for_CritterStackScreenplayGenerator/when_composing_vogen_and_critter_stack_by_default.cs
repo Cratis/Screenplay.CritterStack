@@ -20,7 +20,13 @@ public class when_composing_vogen_and_critter_stack_by_default : given.a_compose
     [Fact] void should_preserve_the_constant_validation_message() => _result.Source.ShouldContain("message \"Customer codes cannot be blank\"");
     [Fact] void should_keep_vogen_concept_provenance() => EvidenceFor(ArtifactKind.Concept, "CustomerCode").Single().Adapter.Id.ShouldEqual("vogen");
     [Fact] void should_keep_critter_stack_command_provenance() => EvidenceFor(ArtifactKind.Command, "PlaceOrder").Single().Adapter.Id.ShouldEqual("cratis.critter-stack");
+    [Fact] void should_keep_the_vogen_display_path() => EvidenceFor(ArtifactKind.Concept, "CustomerCode").Single().Source.Path.ShouldEqual("Ordering/Application.cs");
+    [Fact] void should_keep_the_critter_stack_display_path() => EvidenceFor(ArtifactKind.Command, "PlaceOrder").Single().Source.Path.ShouldEqual("Ordering/Application.cs");
+    [Fact] void should_attach_stable_source_identity_to_vogen_evidence() => EvidenceFor(ArtifactKind.Concept, "CustomerCode").Single().Source.FileIdentity.ShouldEqual(SourceIdentity);
+    [Fact] void should_attach_stable_source_identity_to_critter_stack_evidence() => EvidenceFor(ArtifactKind.Command, "PlaceOrder").Single().Source.FileIdentity.ShouldEqual(SourceIdentity);
     [Fact] void should_exclude_generated_only_vogen_declarations() => _result.Graph.Artifacts.Any(_ => _.Variants.Any(variant => variant.Definition.Name == "GeneratedOnly")).ShouldBeFalse();
+
+    static SourceFileIdentity SourceIdentity => new() { Project = "Ordering/Ordering", Path = "Application.cs" };
 
     IReadOnlyList<Evidence> EvidenceFor(ArtifactKind kind, string name) => _result.Graph.Artifacts
         .Single(_ => _.Key.Kind == kind && _.Variants.Any(variant => variant.Definition.Name == name))

@@ -223,9 +223,7 @@ sealed class WolverineValidationAuthorizationDiscoveryResult(
         Subject = subject
     };
 
-    SourceRange? SourceOf(ISymbol symbol) => DotNetSource.Range(
-        symbol.Locations.First(IsAuthoredSourceLocation),
-        project.SourceRoot);
+    SourceRange? SourceOf(ISymbol symbol) => CritterStackSource.RangeForProject(symbol.Locations.First(IsAuthoredSourceLocation), project);
 
     SourceRange? SourceOf(AttributeData attribute, ISymbol fallback)
     {
@@ -234,7 +232,7 @@ sealed class WolverineValidationAuthorizationDiscoveryResult(
                !project.AuthoredSyntaxTrees.Contains(syntax.SyntaxTree) ||
                DotNetGeneratedSource.IsGenerated(syntax.SyntaxTree)
             ? SourceOf(fallback)
-            : DotNetSource.Range(syntax.GetLocation(), project.SourceRoot);
+            : CritterStackSource.RangeForProject(syntax.GetLocation(), project);
     }
 
     bool IsAuthoredSourceLocation(Location location) => location is

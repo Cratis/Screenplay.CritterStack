@@ -295,12 +295,12 @@ static class WolverineDcb
             var expression = QueryExpression(declaration);
             if (expression is null)
             {
-                return ([], false, null, DotNetSource.Range(declaration.GetLocation(), project.SourceRoot));
+                return ([], false, null, CritterStackSource.RangeForProject(declaration.GetLocation(), project));
             }
 
             var operation = semanticModel.GetOperation(expression);
             operation = UnwrapQueryResult(operation);
-            var source = DotNetSource.Range(expression.GetLocation(), project.SourceRoot);
+            var source = CritterStackSource.RangeForProject(expression.GetLocation(), project);
             if (operation is null || !TryParseChain(operation, semanticModel, request, handler, project, out var conditions, out var sourceMember))
             {
                 return ([], false, null, source);
@@ -972,7 +972,7 @@ static class WolverineDcb
     {
         if (attribute?.ApplicationSyntaxReference?.GetSyntax() is { } syntax)
         {
-            return DotNetSource.Range(syntax.GetLocation(), project.SourceRoot);
+            return CritterStackSource.RangeForProject(syntax.GetLocation(), project);
         }
 
         return SourceOf(parameter, project);
@@ -985,14 +985,14 @@ static class WolverineDcb
             candidate.SourceTree is not null &&
             project.AuthoredSyntaxTrees.Contains(candidate.SourceTree) &&
             !DotNetGeneratedSource.IsGenerated(candidate.SourceTree));
-        return location is null ? null : DotNetSource.Range(location, project.SourceRoot);
+        return location is null ? null : CritterStackSource.RangeForProject(location, project);
     }
 
     static SourceRange? SourceOf(IInvocationOperation invocation, SemanticModel semanticModel, DotNetProjectCompilation project)
     {
         var syntax = invocation.Syntax;
         return semanticModel.SyntaxTree == syntax.SyntaxTree
-            ? DotNetSource.Range(syntax.GetLocation(), project.SourceRoot)
+            ? CritterStackSource.RangeForProject(syntax.GetLocation(), project)
             : null;
     }
 

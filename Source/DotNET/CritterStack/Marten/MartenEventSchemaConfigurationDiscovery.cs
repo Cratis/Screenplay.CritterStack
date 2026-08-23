@@ -633,13 +633,13 @@ static class MartenEventSchemaConfigurationDiscovery
         INamedTypeSymbol? eventType,
         string message,
         Location location) => new()
-    {
-        Code = MartenDiagnosticCodes.EventTypeConfigurationOmitted,
-        Severity = GenerationDiagnosticSeverity.Warning,
-        Message = $"{message}. This authored declaration is retained as diagnostic evidence only; it does not rename, version, originate, or duplicate a Screenplay Event artifact, and runtime execution or precedence is not asserted",
-        Source = DotNetSource.Range(location, project.SourceRoot),
-        Subject = eventType is null ? ProjectSubject(project) : project.SubjectForType(eventType)
-    };
+        {
+            Code = MartenDiagnosticCodes.EventTypeConfigurationOmitted,
+            Severity = GenerationDiagnosticSeverity.Warning,
+            Message = $"{message}. This authored declaration is retained as diagnostic evidence only; it does not rename, version, originate, or duplicate a Screenplay Event artifact, and runtime execution or precedence is not asserted",
+            Source = CritterStackSource.RangeForProject(location, project),
+            Subject = eventType is null ? ProjectSubject(project) : project.SubjectForType(eventType)
+        };
 
     static GenerationDiagnostic UnresolvedEventConfiguration(
         DotNetProjectCompilation project,
@@ -655,13 +655,13 @@ static class MartenEventSchemaConfigurationDiscovery
         INamedTypeSymbol? target,
         string message,
         Location location) => new()
-    {
-        Code = MartenDiagnosticCodes.EventUpcastConfigurationOmitted,
-        Severity = GenerationDiagnosticSeverity.Warning,
-        Message = $"{message}. This authored declaration is retained as diagnostic evidence only; it does not originate Event or Upcast artifacts or infer behavioral relationships, and runtime execution, reachability, ordering, or precedence is not asserted",
-        Source = DotNetSource.Range(location, project.SourceRoot),
-        Subject = target is null ? ProjectSubject(project) : project.SubjectForType(target)
-    };
+        {
+            Code = MartenDiagnosticCodes.EventUpcastConfigurationOmitted,
+            Severity = GenerationDiagnosticSeverity.Warning,
+            Message = $"{message}. This authored declaration is retained as diagnostic evidence only; it does not originate Event or Upcast artifacts or infer behavioral relationships, and runtime execution, reachability, ordering, or precedence is not asserted",
+            Source = CritterStackSource.RangeForProject(location, project),
+            Subject = target is null ? ProjectSubject(project) : project.SubjectForType(target)
+        };
 
     static GenerationDiagnostic UnresolvedUpcastConfiguration(
         DotNetProjectCompilation project,

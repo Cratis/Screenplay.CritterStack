@@ -1,4 +1,5 @@
 # JasperFx/CritterStackHelpDesk @ b67659dd7ca6d8ff07e7b9dad20affc4a37b6062
+source-sha256: c6b9c6f5727b3664a47a3efac3be02cfa7234c6c8bb72a1fcf14884bc09a82c3
 source: module HelpdeskApi
 source: command LogIncident
 source: command CategoriseIncident

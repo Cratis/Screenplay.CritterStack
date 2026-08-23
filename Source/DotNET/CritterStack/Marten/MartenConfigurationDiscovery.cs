@@ -168,7 +168,7 @@ static class MartenConfigurationDiscovery
             Message = mode is null
                 ? "Marten async daemon mode is computed or otherwise non-constant and could not be resolved safely"
                 : $"Marten async daemon mode '{mode}' is configured; daemon hosting and shard execution configuration are not expressible in the current Screenplay contracts",
-            Source = DotNetSource.Range(invocation.GetLocation(), project.SourceRoot),
+            Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
             Subject = ProjectSubject(project)
         });
     }
@@ -193,7 +193,7 @@ static class MartenConfigurationDiscovery
             Message = mode is null
                 ? "Marten projection daemon AsyncMode is computed or otherwise non-constant and could not be resolved safely"
                 : $"Marten projection daemon AsyncMode '{mode}' is configured; daemon hosting and shard execution configuration are not expressible in the current Screenplay contracts",
-            Source = DotNetSource.Range(assignment.GetLocation(), project.SourceRoot),
+            Source = CritterStackSource.RangeForProject(assignment.GetLocation(), project),
             Subject = ProjectSubject(project)
         });
     }
@@ -280,7 +280,7 @@ static class MartenConfigurationDiscovery
             Message = projection is null
                 ? "Marten projection lifecycle is computed or otherwise non-constant and could not be resolved safely"
                 : $"Projection '{projection.Name}' uses a computed or otherwise non-constant lifecycle that could not be resolved safely",
-            Source = DotNetSource.Range(lifecycleArgument.GetLocation(), project.SourceRoot),
+            Source = CritterStackSource.RangeForProject(lifecycleArgument.GetLocation(), project),
             Subject = projection is null ? ProjectSubject(project) : project.SubjectForType(projection)
         });
     }
@@ -470,7 +470,7 @@ static class MartenConfigurationDiscovery
                 Code = MartenDiagnosticCodes.CustomProcessingOmitted,
                 Severity = GenerationDiagnosticSeverity.Warning,
                 Message = $"Marten {kind} '{type.Name}' has arbitrary {method.Name} consequences; no State View, Automation, Translation, document operation, message, or event consequence was inferred",
-                Source = DotNetSource.Range(location, project.SourceRoot),
+                Source = CritterStackSource.RangeForProject(location, project),
                 Subject = project.SubjectForType(type)
             });
         }
@@ -693,13 +693,13 @@ static class MartenConfigurationDiscovery
         string code,
         string message,
         Location location) => new()
-    {
-        Code = code,
-        Severity = GenerationDiagnosticSeverity.Warning,
-        Message = message,
-        Source = DotNetSource.Range(location, project.SourceRoot),
-        Subject = project.SubjectForType(subject)
-    };
+        {
+            Code = code,
+            Severity = GenerationDiagnosticSeverity.Warning,
+            Message = message,
+            Source = CritterStackSource.RangeForProject(location, project),
+            Subject = project.SubjectForType(subject)
+        };
 
     static SubjectId ProjectSubject(DotNetProjectCompilation project) => new()
     {

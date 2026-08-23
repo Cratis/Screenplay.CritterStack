@@ -493,12 +493,7 @@ static class WolverineFacts
             aggregateType.Name,
             SourceFileOf(aggregateType, project),
             DotNetTypeShapes.PropertiesOf(aggregateType),
-            DotNetSource.EvidenceFor(
-                aggregateType,
-                adapter,
-                EvidenceStrength.Conventional,
-                project.SourceRoot,
-                "Wolverine loads this model as aggregate decision state")));
+            CritterStackSource.EvidenceFor(aggregateType, adapter, project, EvidenceStrength.Conventional, "Wolverine loads this model as aggregate decision state")));
         facts.Add(Relationship(
             $"wolverine:reads:{commandSubject.Value}:{aggregateSubject.Value}",
             commandSubject,
@@ -759,12 +754,12 @@ static class WolverineFacts
         AdapterIdentity adapter,
         WolverineStateBinding binding,
         string explanation) => new()
-    {
-        Adapter = adapter,
-        Strength = EvidenceStrength.Exact,
-        Source = binding.Source,
-        Explanation = explanation
-    };
+        {
+            Adapter = adapter,
+            Strength = EvidenceStrength.Exact,
+            Source = binding.Source,
+            Explanation = explanation
+        };
 
     static void AddEventAndProduction(
         DotNetProjectCompilation project,
@@ -1304,31 +1299,31 @@ static class WolverineFacts
         string? file,
         IReadOnlyList<PropertyDefinition> properties,
         Evidence evidence) => new()
-    {
-        Id = new FactId { Value = id },
-        Subject = key.Subject,
-        Definition = new ArtifactDefinition
         {
-            Key = key,
-            Name = name,
-            File = file,
-            Properties = properties
-        },
-        Evidence = evidence
-    };
+            Id = new FactId { Value = id },
+            Subject = key.Subject,
+            Definition = new ArtifactDefinition
+            {
+                Key = key,
+                Name = name,
+                File = file,
+                Properties = properties
+            },
+            Evidence = evidence
+        };
 
     static ArtifactPlacementFact Placement(
         string id,
         ArtifactKey artifact,
         ArtifactPlacement placement,
         Evidence evidence) => new()
-    {
-        Id = new FactId { Value = id },
-        Subject = artifact.Subject,
-        Artifact = artifact,
-        Placement = placement,
-        Evidence = evidence
-    };
+        {
+            Id = new FactId { Value = id },
+            Subject = artifact.Subject,
+            Artifact = artifact,
+            Placement = placement,
+            Evidence = evidence
+        };
 
     static RelationshipFact Relationship(
         string id,
@@ -1340,24 +1335,24 @@ static class WolverineFacts
         string? discriminator = null,
         bool isCollection = false,
         bool isOptional = false) => new()
-    {
-        Id = new FactId { Value = id },
-        Subject = source,
-        Definition = new RelationshipDefinition
         {
-            Key = new RelationshipKey
+            Id = new FactId { Value = id },
+            Subject = source,
+            Definition = new RelationshipDefinition
             {
-                Kind = kind,
-                Source = source,
-                Target = target,
-                Discriminator = discriminator
+                Key = new RelationshipKey
+                {
+                    Kind = kind,
+                    Source = source,
+                    Target = target,
+                    Discriminator = discriminator
+                },
+                SourceMember = sourceMember,
+                IsCollection = isCollection,
+                IsOptional = isOptional
             },
-            SourceMember = sourceMember,
-            IsCollection = isCollection,
-            IsOptional = isOptional
-        },
-        Evidence = evidence
-    };
+            Evidence = evidence
+        };
 
     static string StateFeature(
         string requestName,
@@ -1389,12 +1384,12 @@ static class WolverineFacts
         string feature,
         string slice,
         GenerationSliceKind kind) => new()
-    {
-        Module = ScreenplayNames.Declaration(options.Module ?? project.Name),
-        Features = [feature],
-        Slice = slice,
-        SliceKind = kind
-    };
+        {
+            Module = ScreenplayNames.Declaration(options.Module ?? project.Name),
+            Features = [feature],
+            Slice = slice,
+            SliceKind = kind
+        };
 
     static Evidence MethodEvidence(
         IMethodSymbol method,
@@ -1402,7 +1397,7 @@ static class WolverineFacts
         AdapterIdentity adapter,
         EvidenceStrength strength,
         string explanation) =>
-        DotNetSource.EvidenceFor(method, adapter, strength, project.SourceRoot, explanation);
+        CritterStackSource.EvidenceFor(method, adapter, project, strength, explanation);
 
     static SubjectId MethodSubject(DotNetProjectCompilation project, IMethodSymbol method, string role) => new()
     {
@@ -1410,7 +1405,7 @@ static class WolverineFacts
     };
 
     static string? SourceFileOf(ISymbol symbol, DotNetProjectCompilation project) =>
-        DotNetSource.EvidenceFor(symbol, new AdapterIdentity { Id = "source", Version = "1" }, EvidenceStrength.Exact, project.SourceRoot).Source?.Path;
+        CritterStackSource.EvidenceFor(symbol, new AdapterIdentity { Id = "source", Version = "1" }, project, EvidenceStrength.Exact).Source?.Path;
 
     static string LowerFirst(string value) => value.Length == 0
         ? value

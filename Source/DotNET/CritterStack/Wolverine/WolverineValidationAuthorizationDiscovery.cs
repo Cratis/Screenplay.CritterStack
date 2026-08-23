@@ -89,7 +89,7 @@ static class WolverineValidationAuthorizationDiscovery
             optionsResolved = false;
         }
 
-        var source = DotNetSource.Range(call.Invocation.GetLocation(), project.SourceRoot);
+        var source = CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project);
         var subject = ConfigurationSubject(project, call);
         policies.Add(new(
             kind,
@@ -126,7 +126,7 @@ static class WolverineValidationAuthorizationDiscovery
         }
 
         policies.Add(new(
-            DotNetSource.Range(call.Invocation.GetLocation(), project.SourceRoot),
+            CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project),
             ConfigurationSubject(project, call),
             $"'{description}'"));
     }
@@ -172,7 +172,7 @@ static class WolverineValidationAuthorizationDiscovery
         }
 
         policies.Add(new(
-            DotNetSource.Range(call.Invocation.GetLocation(), project.SourceRoot),
+            CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project),
             ConfigurationSubject(project, call),
             "'ConfigureEndpoints(... RequireAuthorization(...))'"));
     }
@@ -325,15 +325,15 @@ static class WolverineValidationAuthorizationDiscovery
         ExpressionSyntax expression,
         IParameterSymbol parameter,
         SemanticModel semanticModel) => expression switch
-    {
-        IdentifierNameSyntax identifier => SymbolEqualityComparer.Default.Equals(
-            semanticModel.GetSymbolInfo(identifier).Symbol,
-            parameter),
-        MemberAccessExpressionSyntax memberAccess => IsRootedInParameter(memberAccess.Expression, parameter, semanticModel),
-        ParenthesizedExpressionSyntax parenthesized => IsRootedInParameter(parenthesized.Expression, parameter, semanticModel),
-        CastExpressionSyntax cast => IsRootedInParameter(cast.Expression, parameter, semanticModel),
-        _ => false
-    };
+        {
+            IdentifierNameSyntax identifier => SymbolEqualityComparer.Default.Equals(
+                semanticModel.GetSymbolInfo(identifier).Symbol,
+                parameter),
+            MemberAccessExpressionSyntax memberAccess => IsRootedInParameter(memberAccess.Expression, parameter, semanticModel),
+            ParenthesizedExpressionSyntax parenthesized => IsRootedInParameter(parenthesized.Expression, parameter, semanticModel),
+            CastExpressionSyntax cast => IsRootedInParameter(cast.Expression, parameter, semanticModel),
+            _ => false
+        };
 
     static bool IsValidationActivation(
         string containingType,
@@ -420,25 +420,25 @@ static class WolverineValidationAuthorizationDiscovery
         DotNetProjectCompilation project,
         ConfigurationCall call,
         string reason) => new()
-    {
-        Code = WolverineDiagnosticCodes.ValidationConfigurationUnresolved,
-        Severity = GenerationDiagnosticSeverity.Warning,
-        Message = $"Wolverine validation call '{call.Method.Name}' was not applied because {reason}",
-        Source = DotNetSource.Range(call.Invocation.GetLocation(), project.SourceRoot),
-        Subject = ConfigurationSubject(project, call)
-    };
+        {
+            Code = WolverineDiagnosticCodes.ValidationConfigurationUnresolved,
+            Severity = GenerationDiagnosticSeverity.Warning,
+            Message = $"Wolverine validation call '{call.Method.Name}' was not applied because {reason}",
+            Source = CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project),
+            Subject = ConfigurationSubject(project, call)
+        };
 
     static GenerationDiagnostic UnresolvedAuthorization(
         DotNetProjectCompilation project,
         ConfigurationCall call,
         string reason) => new()
-    {
-        Code = WolverineDiagnosticCodes.AuthorizationConfigurationUnresolved,
-        Severity = GenerationDiagnosticSeverity.Warning,
-        Message = $"Wolverine authorization configuration call '{call.Method.Name}' was not applied because {reason}",
-        Source = DotNetSource.Range(call.Invocation.GetLocation(), project.SourceRoot),
-        Subject = ConfigurationSubject(project, call)
-    };
+        {
+            Code = WolverineDiagnosticCodes.AuthorizationConfigurationUnresolved,
+            Severity = GenerationDiagnosticSeverity.Warning,
+            Message = $"Wolverine authorization configuration call '{call.Method.Name}' was not applied because {reason}",
+            Source = CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project),
+            Subject = ConfigurationSubject(project, call)
+        };
 
     static SubjectId ConfigurationSubject(DotNetProjectCompilation project, ConfigurationCall call)
     {

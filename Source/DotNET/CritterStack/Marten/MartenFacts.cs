@@ -297,12 +297,7 @@ static class MartenFacts
 
             yield return (
                 eventType,
-                DotNetSource.EvidenceFor(
-                    method,
-                    adapter,
-                    EvidenceStrength.Conventional,
-                    project.SourceRoot,
-                    $"Marten treats {method.Name} as an event evolution method"));
+                CritterStackSource.EvidenceFor(method, adapter, project, EvidenceStrength.Conventional, $"Marten treats {method.Name} as an event evolution method"));
         }
     }
 
@@ -342,31 +337,31 @@ static class MartenFacts
         string? file,
         IReadOnlyList<PropertyDefinition> properties,
         Evidence evidence) => new()
-    {
-        Id = new FactId { Value = id },
-        Subject = subject,
-        Definition = new ArtifactDefinition
         {
-            Key = new ArtifactKey { Subject = subject, Kind = kind },
-            Name = name,
-            File = file,
-            Properties = properties
-        },
-        Evidence = evidence
-    };
+            Id = new FactId { Value = id },
+            Subject = subject,
+            Definition = new ArtifactDefinition
+            {
+                Key = new ArtifactKey { Subject = subject, Kind = kind },
+                Name = name,
+                File = file,
+                Properties = properties
+            },
+            Evidence = evidence
+        };
 
     static ArtifactPlacementFact Placement(
         string id,
         ArtifactKey artifact,
         ArtifactPlacement placement,
         Evidence evidence) => new()
-    {
-        Id = new FactId { Value = id },
-        Subject = artifact.Subject,
-        Artifact = artifact,
-        Placement = placement,
-        Evidence = evidence
-    };
+        {
+            Id = new FactId { Value = id },
+            Subject = artifact.Subject,
+            Artifact = artifact,
+            Placement = placement,
+            Evidence = evidence
+        };
 
     static RelationshipFact Relationship(
         string id,
@@ -378,24 +373,24 @@ static class MartenFacts
         string? targetMember = null,
         string? discriminator = null,
         bool isCollection = false) => new()
-    {
-        Id = new FactId { Value = id },
-        Subject = source,
-        Definition = new RelationshipDefinition
         {
-            Key = new RelationshipKey
+            Id = new FactId { Value = id },
+            Subject = source,
+            Definition = new RelationshipDefinition
             {
-                Kind = kind,
-                Source = source,
-                Target = target,
-                Discriminator = discriminator
+                Key = new RelationshipKey
+                {
+                    Kind = kind,
+                    Source = source,
+                    Target = target,
+                    Discriminator = discriminator
+                },
+                SourceMember = sourceMember,
+                TargetMember = targetMember,
+                IsCollection = isCollection
             },
-            SourceMember = sourceMember,
-            TargetMember = targetMember,
-            IsCollection = isCollection
-        },
-        Evidence = evidence
-    };
+            Evidence = evidence
+        };
 
     static string EvidenceId(Evidence evidence) => evidence.Source is null
         ? "unknown"
@@ -405,57 +400,57 @@ static class MartenFacts
         DotNetProjectCompilation project,
         DotNetAdapterOptions options,
         string modelName) => new()
-    {
-        Module = ScreenplayNames.Declaration(options.Module ?? project.Name),
-        Features = [modelName],
-        Slice = modelName,
-        SliceKind = GenerationSliceKind.StateView
-    };
+        {
+            Module = ScreenplayNames.Declaration(options.Module ?? project.Name),
+            Features = [modelName],
+            Slice = modelName,
+            SliceKind = GenerationSliceKind.StateView
+        };
 
     static ArtifactPlacement EventPlacementFor(
         DotNetProjectCompilation project,
         DotNetAdapterOptions options,
         string eventName) => new()
-    {
-        Module = ScreenplayNames.Declaration(options.Module ?? project.Name),
-        Features = ["Events"],
-        Slice = eventName,
-        SliceKind = GenerationSliceKind.StateView
-    };
+        {
+            Module = ScreenplayNames.Declaration(options.Module ?? project.Name),
+            Features = ["Events"],
+            Slice = eventName,
+            SliceKind = GenerationSliceKind.StateView
+        };
 
     static string? SourceFileOf(ISymbol symbol, DotNetProjectCompilation project) =>
-        DotNetSource.EvidenceFor(symbol, new AdapterIdentity { Id = "source", Version = "1" }, EvidenceStrength.Exact, project.SourceRoot).Source?.Path;
+        CritterStackSource.EvidenceFor(symbol, new AdapterIdentity { Id = "source", Version = "1" }, project, EvidenceStrength.Exact).Source?.Path;
 
     static GenerationDiagnostic MultiStreamDiagnostic(
         DotNetProjectCompilation project,
         ProjectionRegistration registration) => new()
-    {
-        Code = MartenDiagnosticCodes.MultiStreamGroupingOmitted,
-        Severity = GenerationDiagnosticSeverity.Warning,
-        Message = $"Multi-stream projection '{registration.Projection!.Name}' is represented as an event reducer; exact authored grouping and fan-out declarations are retained as neutral evidence, but those semantics are not expressible in the current Screenplay language",
-        Source = registration.Evidence.Source,
-        Subject = project.SubjectForType(registration.Projection)
-    };
+        {
+            Code = MartenDiagnosticCodes.MultiStreamGroupingOmitted,
+            Severity = GenerationDiagnosticSeverity.Warning,
+            Message = $"Multi-stream projection '{registration.Projection!.Name}' is represented as an event reducer; exact authored grouping and fan-out declarations are retained as neutral evidence, but those semantics are not expressible in the current Screenplay language",
+            Source = registration.Evidence.Source,
+            Subject = project.SubjectForType(registration.Projection)
+        };
 
     static GenerationDiagnostic ProjectionLifecycleDiagnostic(
         DotNetProjectCompilation project,
         ProjectionRegistration registration) => new()
-    {
-        Code = MartenDiagnosticCodes.ProjectionLifecycleOmitted,
-        Severity = GenerationDiagnosticSeverity.Warning,
-        Message = $"Projection '{(registration.Projection ?? registration.Model).Name}' uses the {registration.Lifecycle} lifecycle, which is not expressible in the current Screenplay language",
-        Source = registration.Evidence.Source,
-        Subject = project.SubjectForType(registration.Projection ?? registration.Model)
-    };
+        {
+            Code = MartenDiagnosticCodes.ProjectionLifecycleOmitted,
+            Severity = GenerationDiagnosticSeverity.Warning,
+            Message = $"Projection '{(registration.Projection ?? registration.Model).Name}' uses the {registration.Lifecycle} lifecycle, which is not expressible in the current Screenplay language",
+            Source = registration.Evidence.Source,
+            Subject = project.SubjectForType(registration.Projection ?? registration.Model)
+        };
 
     static GenerationDiagnostic CustomProjectionDiagnostic(
         DotNetProjectCompilation project,
         ProjectionRegistration registration) => new()
-    {
-        Code = MartenDiagnosticCodes.CustomProcessingOmitted,
-        Severity = GenerationDiagnosticSeverity.Warning,
-        Message = $"Custom Marten projection '{registration.Projection!.Name}' is preserved as a neutral projection artifact, but its arbitrary processing consequences were not inferred",
-        Source = registration.Evidence.Source,
-        Subject = project.SubjectForType(registration.Projection)
-    };
+        {
+            Code = MartenDiagnosticCodes.CustomProcessingOmitted,
+            Severity = GenerationDiagnosticSeverity.Warning,
+            Message = $"Custom Marten projection '{registration.Projection!.Name}' is preserved as a neutral projection artifact, but its arbitrary processing consequences were not inferred",
+            Source = registration.Evidence.Source,
+            Subject = project.SubjectForType(registration.Projection)
+        };
 }
