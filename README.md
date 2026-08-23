@@ -19,6 +19,7 @@ This is an independent Cratis compatibility project. It is not affiliated with o
 - Vogen concepts, primitive representations, authored validation hooks, nullable usages, and explicit loss diagnostics through the separately composed `Cratis.Screenplay.Generation.DotNet.Vogen` adapter.
 - Current store-agnostic Wolverine event-sourcing APIs and legacy Marten-specific APIs.
 - Target-aware exact current and legacy `IEventStream<T>` appends across multiple handler parameters, including commandless HTTP and metadata-only loaded streams, with per-binding identities and explicit diagnostics instead of first-stream guesses.
+- Bounded current and legacy Wolverine DCB evidence from authored `[DcbModel]` / `[BoundaryModel]` parameters, direct `EventTagQuery` fluent chains, exact boundary appends, and safe declarative returns, with `WOLVERINE0014`/`WOLVERINE0015` instead of invented stream or saga topology.
 - Markerless event/message discovery from actual framework usage.
 - Deterministic output without starting the application or connecting to PostgreSQL.
 - Explicit diagnostics whenever source behavior cannot be represented faithfully.
@@ -72,7 +73,7 @@ The compatibility plan uses:
 - `JasperFx/CritterStackHelpDesk` for Marten 6/Wolverine 1 behavior;
 - BankAccountES and other focused applications from the local Critter Stack sample corpus;
 - MartenWithProjectAspire for instance-registered async, multi-stream, and event projections;
-- the repository-owned `VogenConcepts` fixture pinned to Vogen 8.0.7, Marten 9.29.0, and Wolverine 6.29.2.
+- the repository-owned `VogenConcepts` fixture pinned to Vogen 8.0.7, Marten 9.29.0, and Wolverine 6.29.2, including the canonical store-agnostic DCB APIs.
 
 See:
 
