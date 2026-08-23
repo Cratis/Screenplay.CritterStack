@@ -77,7 +77,7 @@ public class a_composed_vogen_critter_stack_application : Specification
 
     static readonly IReadOnlyList<MetadataReference> _references =
     [
-        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
             .Split(Path.PathSeparator)
             .Select(_ => MetadataReference.CreateFromFile(_))
     ];
@@ -86,7 +86,7 @@ public class a_composed_vogen_critter_stack_application : Specification
 
     void Establish()
     {
-        var frameworkTree = CSharpSyntaxTree.ParseText(FrameworkSource, path: "/workspace/Framework.cs");
+        var frameworkTree = CSharpSyntaxTree.ParseText(FrameworkSource, path: "/workspace/Ordering/Framework.cs");
         var applicationTree = CSharpSyntaxTree.ParseText(ApplicationSource, path: "/workspace/Ordering/Application.cs");
         var compilation = CSharpCompilation.Create(
             "Ordering",
@@ -102,6 +102,28 @@ public class a_composed_vogen_critter_stack_application : Specification
             Name = "Ordering",
             ProjectPath = "/workspace/Ordering/Ordering.csproj",
             SourceRoot = "/workspace",
+            SourceContext = DotNetSourcePaths.Create(
+                "Ordering/Ordering",
+                new DotNetSourcePathPolicy
+                {
+                    Version = 1,
+                    DisplayRoot = DotNetSourceDisplayRoot.Workspace,
+                    CasePolicy = DotNetSourcePathCasePolicy.Ordinal
+                },
+                [
+                    new DotNetSourceDocument
+                    {
+                        SyntaxTree = frameworkTree,
+                        ProjectRelativePath = "Framework.cs",
+                        WorkspaceRelativePath = "Ordering/Framework.cs"
+                    },
+                    new DotNetSourceDocument
+                    {
+                        SyntaxTree = applicationTree,
+                        ProjectRelativePath = "Application.cs",
+                        WorkspaceRelativePath = "Ordering/Application.cs"
+                    }
+                ]),
             Compilation = compilation,
             AuthoredSyntaxTrees = new HashSet<SyntaxTree> { frameworkTree, applicationTree }
         };

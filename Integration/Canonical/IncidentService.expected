@@ -1,4 +1,5 @@
 # JasperFx/wolverine @ af4807b5fb225ce7535c67785b74007fdad2dd9f
+source-sha256: 78d8201b1b4dc2ec0097e0748bda7d37bf01ebf99a4803c35652bbc8c4d0b1ba
 source: command LogIncident
 source: command CategoriseIncident
 source: command CloseIncident

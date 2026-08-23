@@ -134,7 +134,7 @@ static class WolverineEventStreams
                 }
 
                 hasDirectWrite = true;
-                var source = DotNetSource.Range(invocationSyntax.GetLocation(), project.SourceRoot);
+                var source = CritterStackSource.RangeForProject(invocationSyntax.GetLocation(), project);
                 if (ReceiverParameter(invocation.Instance) is not { } receiver ||
                     bindings.FirstOrDefault(binding =>
                         SymbolEqualityComparer.Default.Equals(binding.Parameter, receiver) &&
@@ -421,7 +421,7 @@ static class WolverineEventStreams
             location.SourceTree is not null &&
             project.AuthoredSyntaxTrees.Contains(location.SourceTree) &&
             !DotNetGeneratedSource.IsGenerated(location.SourceTree));
-        return location is null ? fallback : DotNetSource.Range(location, project.SourceRoot);
+        return location is null ? fallback : CritterStackSource.RangeForProject(location, project);
     }
 
     static SourceRange? SourceOf(
@@ -433,7 +433,7 @@ static class WolverineEventStreams
             project.AuthoredSyntaxTrees.Contains(syntax.SyntaxTree) &&
             !DotNetGeneratedSource.IsGenerated(syntax.SyntaxTree))
         {
-            return DotNetSource.Range(syntax.GetLocation(), project.SourceRoot);
+            return CritterStackSource.RangeForProject(syntax.GetLocation(), project);
         }
 
         var location = parameter.Locations.FirstOrDefault(candidate =>
@@ -441,7 +441,7 @@ static class WolverineEventStreams
             candidate.SourceTree is not null &&
             project.AuthoredSyntaxTrees.Contains(candidate.SourceTree) &&
             !DotNetGeneratedSource.IsGenerated(candidate.SourceTree));
-        return location is null ? null : DotNetSource.Range(location, project.SourceRoot);
+        return location is null ? null : CritterStackSource.RangeForProject(location, project);
     }
 
     static string? NamedString(AttributeData? attribute, string name) =>

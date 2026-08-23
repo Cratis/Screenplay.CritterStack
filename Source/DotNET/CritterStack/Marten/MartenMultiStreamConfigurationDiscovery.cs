@@ -58,11 +58,11 @@ static class MartenMultiStreamConfigurationDiscovery
                 Loss(
                     project,
                     projection,
-                    DotNetSource.EvidenceFor(
+                    CritterStackSource.EvidenceFor(
                         projection,
                         adapter,
+                        project,
                         EvidenceStrength.Exact,
-                        project.SourceRoot,
                         "The projection derives indirectly from MultiStreamProjection<T,TId>"),
                     $"Multi-stream projection '{projection.Name}' does not directly derive from the exact Marten MultiStreamProjection<T,TId> base, so inherited grouping configuration was not interpreted")
             ]);
@@ -135,7 +135,7 @@ static class MartenMultiStreamConfigurationDiscovery
                 {
                     Adapter = adapter,
                     Strength = EvidenceStrength.Exact,
-                    Source = DotNetSource.Range(assignment.GetLocation(), project.SourceRoot),
+                    Source = CritterStackSource.RangeForProject(assignment.GetLocation(), project),
                     Explanation = "Marten multi-stream tenancy grouping assignment"
                 };
                 diagnostics.Add(Loss(
@@ -379,25 +379,25 @@ static class MartenMultiStreamConfigurationDiscovery
         AdapterIdentity adapter,
         InvocationExpressionSyntax invocation,
         string methodName) => new()
-    {
-        Adapter = adapter,
-        Strength = EvidenceStrength.Exact,
-        Source = DotNetSource.Range(invocation.GetLocation(), project.SourceRoot),
-        Explanation = $"Marten multi-stream configuration through {methodName}"
-    };
+        {
+            Adapter = adapter,
+            Strength = EvidenceStrength.Exact,
+            Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
+            Explanation = $"Marten multi-stream configuration through {methodName}"
+        };
 
     static GenerationDiagnostic Loss(
         DotNetProjectCompilation project,
         INamedTypeSymbol projection,
         Evidence evidence,
         string message) => new()
-    {
-        Code = MartenDiagnosticCodes.MultiStreamGroupingOmitted,
-        Severity = GenerationDiagnosticSeverity.Warning,
-        Message = message,
-        Source = evidence.Source,
-        Subject = project.SubjectForType(projection)
-    };
+        {
+            Code = MartenDiagnosticCodes.MultiStreamGroupingOmitted,
+            Severity = GenerationDiagnosticSeverity.Warning,
+            Message = message,
+            Source = evidence.Source,
+            Subject = project.SubjectForType(projection)
+        };
 
     static string LowerFirst(string value) => value.Length == 0
         ? value

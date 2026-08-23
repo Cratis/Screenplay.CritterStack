@@ -162,7 +162,7 @@ static class MartenDocumentFacts
         {
             Adapter = adapter,
             Strength = EvidenceStrength.Configured,
-            Source = DotNetSource.Range(invocation.GetLocation(), project.SourceRoot),
+            Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
             Explanation = $"Marten document identity configured through Schema.For<{documentType.Name}>().Identity(...)"
         };
         var subject = project.SubjectForType(documentType);
@@ -333,12 +333,12 @@ static class MartenDocumentFacts
         AdapterIdentity adapter,
         InvocationExpressionSyntax invocation,
         string methodName) => new()
-    {
-        Adapter = adapter,
-        Strength = EvidenceStrength.Exact,
-        Source = DotNetSource.Range(invocation.GetLocation(), project.SourceRoot),
-        Explanation = $"Marten document usage through {methodName}"
-    };
+        {
+            Adapter = adapter,
+            Strength = EvidenceStrength.Exact,
+            Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
+            Explanation = $"Marten document usage through {methodName}"
+        };
 
     static RelationshipKind? RelationshipKindFor(string methodName)
     {
@@ -394,7 +394,7 @@ static class MartenDocumentFacts
     };
 
     static string? SourceFileOf(ISymbol symbol, DotNetProjectCompilation project) =>
-        DotNetSource.EvidenceFor(symbol, new AdapterIdentity { Id = "source", Version = "1" }, EvidenceStrength.Exact, project.SourceRoot).Source?.Path;
+        CritterStackSource.EvidenceFor(symbol, new AdapterIdentity { Id = "source", Version = "1" }, project, EvidenceStrength.Exact).Source?.Path;
 
     static ArtifactFact Artifact(
         string id,
@@ -404,18 +404,18 @@ static class MartenDocumentFacts
         string? file,
         IReadOnlyList<PropertyDefinition> properties,
         Evidence evidence) => new()
-    {
-        Id = new FactId { Value = id },
-        Subject = subject,
-        Definition = new ArtifactDefinition
         {
-            Key = new ArtifactKey { Subject = subject, Kind = kind },
-            Name = name,
-            File = file,
-            Properties = properties
-        },
-        Evidence = evidence
-    };
+            Id = new FactId { Value = id },
+            Subject = subject,
+            Definition = new ArtifactDefinition
+            {
+                Key = new ArtifactKey { Subject = subject, Kind = kind },
+                Name = name,
+                File = file,
+                Properties = properties
+            },
+            Evidence = evidence
+        };
 
     static RelationshipFact Relationship(
         string id,
@@ -423,15 +423,15 @@ static class MartenDocumentFacts
         RelationshipKind kind,
         SubjectId target,
         Evidence evidence) => new()
-    {
-        Id = new FactId { Value = id },
-        Subject = source,
-        Definition = new RelationshipDefinition
         {
-            Key = new RelationshipKey { Kind = kind, Source = source, Target = target }
-        },
-        Evidence = evidence
-    };
+            Id = new FactId { Value = id },
+            Subject = source,
+            Definition = new RelationshipDefinition
+            {
+                Key = new RelationshipKey { Kind = kind, Source = source, Target = target }
+            },
+            Evidence = evidence
+        };
 
     static string LowerFirst(string value) => value.Length == 0
         ? value

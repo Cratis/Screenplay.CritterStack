@@ -181,7 +181,7 @@ static class WolverineHandlerDiscovery
             Code = WolverineDiagnosticCodes.HandlerDiscoveryConfigurationUnresolved,
             Severity = GenerationDiagnosticSeverity.Warning,
             Message = $"Wolverine handler discovery call '{call.Method.Name}' was not applied because {reason}",
-            Source = DotNetSource.Range(call.Invocation.GetLocation(), project.SourceRoot),
+            Source = CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project),
             Subject = subject
         };
     }

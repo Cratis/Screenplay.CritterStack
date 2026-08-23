@@ -21,6 +21,7 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
 
+        <ProjectReference Include="../Canonical/Canonical.csproj" Condition="'$(Configuration)' == 'Debug'" />
         <ProjectReference Include="../CritterStack/CritterStack.csproj" />
     </ItemGroup>
 </Project>
