@@ -1,4 +1,5 @@
 # JasperFx/CritterStackSamples @ 2c94389bcb5face1070d0409ef284973e8aaceea
+source-sha256: 06b77a1bb5b7b243e6167081891dd33d1c52e67a3ad2ace4f2b1071151a08958
 source: readmodel Trip
 source: reducer TripProjection => Trip
 source: readmodel Day

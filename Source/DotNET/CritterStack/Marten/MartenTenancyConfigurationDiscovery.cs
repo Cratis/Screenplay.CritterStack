@@ -244,13 +244,13 @@ static class MartenTenancyConfigurationDiscovery
         SubjectId subject,
         string message,
         Location location) => new()
-    {
-        Code = MartenDiagnosticCodes.TenancyConfigurationOmitted,
-        Severity = GenerationDiagnosticSeverity.Warning,
-        Message = $"{message}. This authored declaration is retained as diagnostic evidence only; it does not originate, duplicate, or modify Screenplay artifacts or relationships, and runtime execution or precedence is not asserted",
-        Source = DotNetSource.Range(location, project.SourceRoot),
-        Subject = subject
-    };
+        {
+            Code = MartenDiagnosticCodes.TenancyConfigurationOmitted,
+            Severity = GenerationDiagnosticSeverity.Warning,
+            Message = $"{message}. This authored declaration is retained as diagnostic evidence only; it does not originate, duplicate, or modify Screenplay artifacts or relationships, and runtime execution or precedence is not asserted",
+            Source = CritterStackSource.RangeForProject(location, project),
+            Subject = subject
+        };
 
     static string? MetadataName(ITypeSymbol type) => type is INamedTypeSymbol named
         ? DotNetSubjectIds.MetadataName(named.OriginalDefinition)

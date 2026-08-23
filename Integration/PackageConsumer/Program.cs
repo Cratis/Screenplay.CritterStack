@@ -18,6 +18,22 @@ var options = new CritterStackScreenplayOptions
 var project = new DotNetProjectCompilation
 {
     Name = "PackageConsumer",
+    SourceContext = DotNetSourcePaths.Create(
+        "Integration/PackageConsumer/PackageConsumer",
+        new DotNetSourcePathPolicy
+        {
+            Version = 1,
+            DisplayRoot = DotNetSourceDisplayRoot.Workspace,
+            CasePolicy = DotNetSourcePathCasePolicy.Ordinal
+        },
+        [
+            new DotNetSourceDocument
+            {
+                SyntaxTree = syntaxTree,
+                ProjectRelativePath = "Marker.cs",
+                WorkspaceRelativePath = "Integration/PackageConsumer/Marker.cs"
+            }
+        ]),
     Compilation = compilation,
     AuthoredSyntaxTrees = new HashSet<Microsoft.CodeAnalysis.SyntaxTree> { syntaxTree }
 };
@@ -37,6 +53,7 @@ AssertSuccess(composedGenerator.Generate(compilation, options));
 AssertSuccess(composedGenerator.Generate([project], options));
 AssertSuccess(adapterListGenerator.Generate(compilation, options));
 AssertSuccess(adapterListGenerator.Generate([project], options));
+AssertSourceContext(project, syntaxTree);
 AssertDependencyGraph();
 
 static void AssertSuccess(GeneratedScreenplayDefinition result)
@@ -47,16 +64,31 @@ static void AssertSuccess(GeneratedScreenplayDefinition result)
     }
 }
 
+static void AssertSourceContext(DotNetProjectCompilation project, Microsoft.CodeAnalysis.SyntaxTree syntaxTree)
+{
+    var range = DotNetSource.RangeForProject(syntaxTree.GetRoot().GetLocation(), project) ??
+                throw new InvalidOperationException("The project-aware source range was not created");
+    if (range.Path != "Integration/PackageConsumer/Marker.cs" ||
+        range.FileIdentity != new SourceFileIdentity
+        {
+            Project = "Integration/PackageConsumer/PackageConsumer",
+            Path = "Marker.cs"
+        })
+    {
+        throw new InvalidOperationException("The project-aware source range did not preserve display path and stable identity");
+    }
+}
+
 static void AssertDependencyGraph()
 {
     var dependencyFile = Path.Combine(AppContext.BaseDirectory, "PackageConsumer.deps.json");
     using var document = JsonDocument.Parse(File.ReadAllText(dependencyFile));
     var libraries = document.RootElement.GetProperty("libraries");
 
-    AssertPackage(libraries, "Cratis.Screenplay.Generation.Contracts/0.8.0");
-    AssertPackage(libraries, "Cratis.Screenplay.Generation/0.8.0");
-    AssertPackage(libraries, "Cratis.Screenplay.Generation.DotNet/0.8.0");
-    AssertPackage(libraries, "Cratis.Screenplay.Generation.DotNet.Vogen/0.8.0");
+    AssertPackage(libraries, "Cratis.Screenplay.Generation.Contracts/0.9.0");
+    AssertPackage(libraries, "Cratis.Screenplay.Generation/0.9.0");
+    AssertPackage(libraries, "Cratis.Screenplay.Generation.DotNet/0.9.0");
+    AssertPackage(libraries, "Cratis.Screenplay.Generation.DotNet.Vogen/0.9.0");
 
     if (libraries.EnumerateObject().Any(_ => _.Name.StartsWith("Vogen/", StringComparison.Ordinal)))
     {

@@ -1,4 +1,5 @@
 # JasperFx/CritterStackSamples @ 2c94389bcb5face1070d0409ef284973e8aaceea
+source-sha256: dd429ea98b665d8c485141ca06f77198e38186daa45917e5492375760a7e2620
 source: command StartReport
 not-source: readmodel Report
 artifact: Document:Report
