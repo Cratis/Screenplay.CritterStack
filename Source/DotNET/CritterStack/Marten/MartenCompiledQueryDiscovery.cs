@@ -65,7 +65,7 @@ static class MartenCompiledQueryDiscovery
                         Code = MartenDiagnosticCodes.CompiledQueryFlowUnresolved,
                         Severity = GenerationDiagnosticSeverity.Warning,
                         Message = $"Marten compiled query '{plan.PlanType.Name}' is inside a nested executable scope whose invocation from endpoint '{entryPoint.ContainingType.Name}.{entryPoint.Name}' could not be proven",
-                        Source = DotNetSource.Range(invocation.GetLocation(), project.SourceRoot),
+                        Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
                         Subject = entryPointSubject
                     });
                     continue;
@@ -80,7 +80,7 @@ static class MartenCompiledQueryDiscovery
                     {
                         Adapter = adapter,
                         Strength = EvidenceStrength.Exact,
-                        Source = DotNetSource.Range(invocation.GetLocation(), project.SourceRoot),
+                        Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
                         Explanation = $"Marten compiled query '{plan.PlanType.Name}' is executed by application query entry point '{entryPoint.ContainingType.Name}.{entryPoint.Name}'"
                     }));
             }
