@@ -20,6 +20,7 @@ enum ExpectationKind
     Evidence,
     EvidenceCount,
     Relationship,
+    RelationshipCount,
     Identifier,
     NotIdentifier,
     Grouping,
@@ -40,6 +41,7 @@ sealed record Expectation(ExpectationKind Kind, string Value)
         ExpectationKind.Evidence => IsEvidenceIn(result, Value),
         ExpectationKind.EvidenceCount => IsEvidenceCountIn(result, Value),
         ExpectationKind.Relationship => IsRelationshipIn(result, Value),
+        ExpectationKind.RelationshipCount => IsRelationshipCountIn(result, Value),
         ExpectationKind.Identifier => IsIdentifierIn(result, Value),
         ExpectationKind.NotIdentifier => !IsIdentifierIn(result, Value),
         ExpectationKind.Grouping => IsGroupingIn(result, Value),
@@ -115,6 +117,18 @@ sealed record Expectation(ExpectationKind Kind, string Value)
             relationship.Key.Kind == kind &&
             ArtifactMatches(result, relationship.Key.Source, source) &&
             ArtifactMatches(result, relationship.Key.Target, target));
+    }
+
+    static bool IsRelationshipCountIn(GeneratedScreenplayDefinition result, string value)
+    {
+        var parts = value.Split('|');
+        return parts.Length == 4 &&
+               Enum.TryParse<RelationshipKind>(parts[0], out var kind) &&
+               int.TryParse(parts[3], out var count) &&
+               result.Graph.Relationships.Count(relationship =>
+                   relationship.Key.Kind == kind &&
+                   ArtifactMatches(result, relationship.Key.Source, parts[1]) &&
+                   ArtifactMatches(result, relationship.Key.Target, parts[2])) == count;
     }
 
     static bool ArtifactMatches(GeneratedScreenplayDefinition result, SubjectId subject, string value)
@@ -220,6 +234,7 @@ static class Expectations
             "evidence" => ExpectationKind.Evidence,
             "evidence-count" => ExpectationKind.EvidenceCount,
             "relationship" => ExpectationKind.Relationship,
+            "relationship-count" => ExpectationKind.RelationshipCount,
             "identifier" => ExpectationKind.Identifier,
             "not-identifier" => ExpectationKind.NotIdentifier,
             "grouping" => ExpectationKind.Grouping,
