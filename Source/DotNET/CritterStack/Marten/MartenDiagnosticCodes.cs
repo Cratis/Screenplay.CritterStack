@@ -67,4 +67,9 @@ public static class MartenDiagnosticCodes
     /// Authored event upcast registration cannot be represented without inventing event-evolution behavior.
     /// </summary>
     public const string EventUpcastConfigurationOmitted = "MARTEN0012";
+
+    /// <summary>
+    /// Authored logical tenancy configuration cannot be represented without inventing effective runtime behavior.
+    /// </summary>
+    public const string TenancyConfigurationOmitted = "MARTEN0013";
 }

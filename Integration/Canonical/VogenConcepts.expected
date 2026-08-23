@@ -20,6 +20,8 @@ source: event OrderCredited
 source: file Integration/Canonical/VogenConcepts/EventStreams.cs
 not-source: LegacyStorageEvent
 not-source: CurrentStorageEvent
+not-source: MultiTenantedEvidenceOnly
+not-source: SingleTenantedEvidenceOnly
 artifact: Concept:OrderKey
 artifact: Concept:CorrelationId
 artifact: Concept:CustomerCode
@@ -28,6 +30,7 @@ artifact: Command:TransferBetweenOrders
 artifact: Event:OrderDebited
 artifact: Event:OrderCredited
 artifact-count: Concept|4
+artifact-count: Document|1
 artifact-count: Event|3
 relationship-count: Appends|Command:TransferBetweenOrders|Aggregate:Order|2
 not-identifier: Command:TransferBetweenOrders:sourceOrder
@@ -43,6 +46,16 @@ diagnostic: MARTEN0011
 diagnostic-message: MARTEN0011|OrderRegistered
 diagnostic: MARTEN0012
 diagnostic-message: MARTEN0012|LegacyStorageEvent -> CurrentStorageEvent
+diagnostic: MARTEN0013
+diagnostic-message: MARTEN0013|event tenancy-style declaration 'Single'
+diagnostic-message: MARTEN0013|event tenancy-style declaration 'Conjoined'
+diagnostic-message: MARTEN0013|document tenancy declaration 'MultiTenanted' for 'Order'
+diagnostic-message: MARTEN0013|document tenancy declaration 'SingleTenanted' for 'Order'
+diagnostic-message: MARTEN0013|document tenancy declaration 'MultiTenantedWithPartitioning' for 'Order'
+diagnostic-message: MARTEN0013|[MultiTenanted] document tenancy declaration for 'MultiTenantedEvidenceOnly'
+diagnostic-message: MARTEN0013|[SingleTenanted] document tenancy declaration for 'SingleTenantedEvidenceOnly'
+diagnostic-message: MARTEN0013|project-wide document tenancy policy declaration 'AllDocumentsAreMultiTenanted'
+diagnostic-message: MARTEN0013|project-wide document tenancy policy declaration 'AllDocumentsAreMultiTenantedWithPartitioning'
 diagnostic: WOLVERINE0012
 diagnostic-message: WOLVERINE0012|parameter 'source'
 diagnostic-message: WOLVERINE0012|parameter 'destination'
