@@ -113,6 +113,7 @@ public class a_wolverine_targeted_event_stream_application : Specification
         public record UnrelatedCommand(System.Guid Id);
         public record SagaOnlyTrigger(System.Guid Id);
         public record SagaMixedTrigger(System.Guid Id);
+        public record SagaMixedAppend(System.Guid Id);
         public record GeneratedSagaTrigger(System.Guid Id);
         public record InspectAccount(System.Guid AccountId);
         public record ConventionalVersionCommand(System.Guid FromId, System.Guid ToId, long Version);
@@ -160,6 +161,7 @@ public class a_wolverine_targeted_event_stream_application : Specification
         public record BoundaryCascade(System.Guid Id);
         public record UnrelatedCascade(System.Guid Id);
         public record SagaFollowUp(System.Guid Id);
+        public record SagaSiblingAppended(System.Guid Id);
         public record RouteFollowUp(System.Guid Id);
         public record RouteAppended(System.Guid Id);
         public record LegacyAppended(System.Guid Id);
@@ -394,6 +396,12 @@ public class a_wolverine_targeted_event_stream_application : Specification
         {
             public static (TransferSaga, SagaFollowUp) Handle(SagaMixedTrigger command) =>
                 (new(), new(command.Id));
+        }
+
+        public static class SagaMixedAppendHandler
+        {
+            public static void Handle(SagaMixedAppend command, JasperFx.Events.IEventStream<Account> stream) =>
+                stream.AppendMany(new TransferSaga(), new SagaSiblingAppended(command.Id));
         }
         """;
 

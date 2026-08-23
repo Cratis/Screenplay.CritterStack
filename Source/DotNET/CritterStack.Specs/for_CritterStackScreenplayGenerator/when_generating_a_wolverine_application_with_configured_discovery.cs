@@ -27,6 +27,8 @@ public class when_generating_a_wolverine_application_with_configured_discovery :
     [Fact] void should_honor_the_current_method_ignore_attribute() => HasMessage("CurrentMethodIgnoredTrigger").ShouldBeFalse();
     [Fact] void should_honor_the_legacy_method_ignore_attribute() => HasMessage("LegacyMethodIgnoredTrigger").ShouldBeFalse();
     [Fact] void should_not_activate_compound_middleware_independently() => HasMessage("MiddlewareTrigger").ShouldBeFalse();
+    [Fact] void should_activate_an_explicitly_included_saga_when_conventions_are_disabled() => HasMessage("IncludedSagaTrigger").ShouldBeTrue();
+    [Fact] void should_not_activate_an_unincluded_saga_when_conventions_are_disabled() => HasMessage("SuppressedSagaTrigger").ShouldBeFalse();
     [Fact] void should_resolve_inclusion_of_the_current_source_assembly() => _result.Diagnostics.Select(_ => _.Code).ShouldNotContain(WolverineDiagnosticCodes.HandlerDiscoveryConfigurationUnresolved);
 
     bool HasMessage(string name) => _result.Graph.Artifacts.Any(_ =>

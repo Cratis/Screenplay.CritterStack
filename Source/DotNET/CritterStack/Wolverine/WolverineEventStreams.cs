@@ -150,7 +150,13 @@ static class WolverineEventStreams
                     continue;
                 }
 
-                appends.Add(new(binding, eventTypes, source));
+                var admittedEventTypes = eventTypes
+                    .Where(eventType => !WolverineSagaTypes.IsSagaState(eventType, project))
+                    .ToArray();
+                if (admittedEventTypes.Length > 0)
+                {
+                    appends.Add(new(binding, admittedEventTypes, source));
+                }
             }
         }
 
@@ -193,7 +199,7 @@ static class WolverineEventStreams
         if (method.ReducedFrom is not null ||
             !_eventStreamTypes.Contains(streamMetadataName) ||
             project.Compilation.GetTypeByMetadataName(streamMetadataName) is not { } streamDefinition ||
-            !IsAuthoredOrMetadataSymbol(streamDefinition, project))
+            !WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(streamDefinition, project))
         {
             return false;
         }
@@ -255,7 +261,8 @@ static class WolverineEventStreams
         INamedTypeSymbol streamType,
         DotNetProjectCompilation project)
     {
-        if (!CanonicalStreamIsAuthoredOrMetadata(streamType, project) || parameterType is not INamedTypeSymbol named)
+        if (!WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(streamType.OriginalDefinition, project) ||
+            parameterType is not INamedTypeSymbol named)
         {
             return false;
         }
@@ -287,14 +294,6 @@ static class WolverineEventStreams
         return false;
     }
 
-    static bool CanonicalStreamIsAuthoredOrMetadata(
-        INamedTypeSymbol streamType,
-        DotNetProjectCompilation project) => streamType.OriginalDefinition.Locations.All(location =>
-        !location.IsInSource ||
-        (location.SourceTree is not null &&
-         project.AuthoredSyntaxTrees.Contains(location.SourceTree) &&
-         !DotNetGeneratedSource.IsGenerated(location.SourceTree)));
-
     static AttributeData? WriteModelAttribute(IParameterSymbol parameter, DotNetProjectCompilation project) =>
         parameter.GetAttributes().FirstOrDefault(attribute =>
             attribute.AttributeClass is not null &&
@@ -315,7 +314,7 @@ static class WolverineEventStreams
         };
         if (!admittedBases.Any(metadataName =>
                 project.Compilation.GetTypeByMetadataName(metadataName) is { } admitted &&
-                IsAuthoredOrMetadataSymbol(admitted, project) &&
+                WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(admitted, project) &&
                 DotNetSymbols.IsOrInheritsFrom(attributeType, metadataName)))
         {
             return false;
@@ -393,8 +392,8 @@ static class WolverineEventStreams
         DotNetProjectCompilation project) => requestType is null
         ? [.. method.Parameters.Where(parameter =>
             !IsEventStream(parameter.Type) &&
-            IsAuthoredOrMetadataSymbol(parameter, project))]
-        : [.. requestType.GetMembers().OfType<IPropertySymbol>().Where(property => IsAuthoredOrMetadataSymbol(property, project))];
+            WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(parameter, project))]
+        : [.. requestType.GetMembers().OfType<IPropertySymbol>().Where(property => WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(property, project))];
 
     static ITypeSymbol? TypeOf(ISymbol symbol) => symbol switch
     {
@@ -402,14 +401,6 @@ static class WolverineEventStreams
         IParameterSymbol parameter => parameter.Type,
         _ => null
     };
-
-    static bool IsAuthoredOrMetadataSymbol(
-        ISymbol symbol,
-        DotNetProjectCompilation project) => symbol.Locations.All(location =>
-        !location.IsInSource ||
-        (location.SourceTree is not null &&
-         project.AuthoredSyntaxTrees.Contains(location.SourceTree) &&
-         !DotNetGeneratedSource.IsGenerated(location.SourceTree)));
 
     static SourceRange? EvidenceSource(
         ISymbol? symbol,

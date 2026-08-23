@@ -11,6 +11,7 @@
         <PackageReference Include="Cratis.Screenplay.Generation.Contracts" />
         <PackageReference Include="Cratis.Screenplay.Generation" />
         <PackageReference Include="Cratis.Screenplay.Generation.DotNet" />
+        <PackageReference Include="Cratis.Screenplay.Generation.DotNet.Vogen" />
         <PackageReference Include="Cratis.Specifications" />
         <PackageReference Include="Cratis.Specifications.XUnit" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />

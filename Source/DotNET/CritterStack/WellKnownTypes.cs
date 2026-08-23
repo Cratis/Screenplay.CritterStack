@@ -99,4 +99,7 @@ static class WellKnownTypes
     public const string WolverineResponseAware = "Wolverine.IResponseAware";
     public const string WolverineLegacyResponseAware = "Wolverine.Http.IResponseAware";
     public const string WolverineSaga = "Wolverine.Saga";
+    public const string WolverineSagaIdentityAttribute = "Wolverine.Persistence.Sagas.SagaIdentityAttribute";
+    public const string WolverineSagaIdentityFromAttribute = "Wolverine.Persistence.Sagas.SagaIdentityFromAttribute";
+    public const string WolverineTimeoutMessage = "Wolverine.TimeoutMessage";
 }
