@@ -5,6 +5,8 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 # Critter Stack source generation: implementation plan and handover
 
+> **Current continuation:** use [`SOURCE_TO_SCREENPLAY_GOOD_ENOUGH_HANDOVER.md`](SOURCE_TO_SCREENPLAY_GOOD_ENOUGH_HANDOVER.md). This document preserves the detailed historical implementation plan; its old stage sequence is not the active resume order.
+
 ## Mission
 
 Add source-derived Screenplay generation for:
