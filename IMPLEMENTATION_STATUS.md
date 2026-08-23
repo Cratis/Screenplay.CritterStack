@@ -37,7 +37,7 @@ Repository boundaries:
 
 - GitHub repository: <https://github.com/Cratis/Screenplay.CritterStack>
 - Local repository: `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack`
-- `main` / `origin/main` is released as [`v0.16.0`](https://github.com/Cratis/Screenplay.CritterStack/releases/tag/v0.16.0) at `b2e0fbc397df1e4cd967794fa6ff2596c0d21393`.
+- `main` / `origin/main` is released as [`v0.17.0`](https://github.com/Cratis/Screenplay.CritterStack/releases/tag/v0.17.0) at `078f5f81d349dd7a2f047b2cbeb92fa981560946`.
 - Initial adapter PR: <https://github.com/Cratis/Screenplay.CritterStack/pull/2> (merged).
 - Trusted NuGet publication is operational; correct releases restore normally from nuget.org and are mirrored to `~/.nuget/cratis-local` after exact-tag verification.
 - Package validation uses the public `0.1.0` API baseline. The separate Vogen adapter uses its first correctly sourced `0.5.0` baseline in Screenplay.Generation.
@@ -91,19 +91,19 @@ Repository boundaries:
   - correct distinction between aggregate event returns and HTTP results.
 - Canonical Wolverine IncidentService built cleanly.
 - The independent repository now builds Debug/Release with zero warnings/errors.
-- 482 combined Critter Stack specs pass in Debug on .NET 10; the post-rebase Release build is warning-free on .NET 8, .NET 9, and .NET 10.
+- 521 combined Critter Stack specs pass in Debug on .NET 10; the post-rebase Release build is warning-free on .NET 8, .NET 9, and .NET 10.
 - Real canonical IncidentService generation succeeds and captures commands, outgoing/delayed messages, external `Archived`, query/read model/reducer, document deletion, and compound validation with explicit WOLVERINE0001-0005 loss diagnostics.
 - `UpdatedAggregate` is correctly excluded from events.
 - Real Marten 6/Wolverine 1 CritterStackHelpDesk generation now produces a compiling document after project/module-name sanitization.
 - Pinned MartenWithProjectAspire generation verifies projection grouping, EventProjection operations, exact projection metadata, and daemon mode while unresolved semantics remain explicit diagnostics.
 - A seven-fixture canonical run includes the pinned Cratis-owned Vogen 8.0.7 fixture; the six pre-existing non-Vogen outputs remain byte-identical.
 - Package validation uses the public 0.1.0 baseline with sentinel version 9999.0.0; the isolated consumer uses Generation 0.7.0 plus the separate Vogen adapter without a Vogen source-generator/runtime dependency in the production facade.
-- Exact-tag operational verification of current release assets, signatures, dependencies, local-feed installation, and clean consumers is repeated after each release; v0.16.0 verification is the current distribution baseline.
+- Exact-tag operational verification of current release assets, signatures, dependencies, local-feed installation, and clean consumers is repeated after each release; v0.17.0 verification is the current distribution baseline.
 
 ## Current cross-repository status
 
 - Screenplay.Generation is released as `v0.7.0`: neutral concept representation/attributes/validation, exact subject references, authored Vogen discovery/validation, deterministic generation, package validation, and trusted publication are available as separate packages.
-- Critter Stack is released as `v0.16.0`: Generation `0.7.0+`, package validation, Marten/Wolverine source interpretation, event alias/upcast diagnostics, projection/daemon/subscription metadata, multi-stream grouping/fan-out, and default Vogen composition are shipped.
+- Critter Stack is released as `v0.17.0`: Generation `0.7.0+`, package validation, Marten/Wolverine source interpretation, target-aware current/legacy event streams, event alias/upcast diagnostics, projection/daemon/subscription metadata, multi-stream grouping/fan-out, and default Vogen composition are shipped.
 - CLI is released as `v2.13.0` with published Generation `0.6.1` and Critter Stack `0.13.1`; it reports current canonical provenance and no longer uses package bootstrap or temporary assembly resolution. Updating it to Generation `0.7.0` + Critter Stack `0.15.0` is next.
 - CLI v2.13 distribution verification passed NuGet signature/install, all four native assets, Homebrew upgrade/test, deterministic generation, and validation for Arc plus six Critter/Marten fixtures. Package metadata correction is tracked in CLI #91.
 - Remaining coordinated issues are Generation #5, Critter Stack #3/#4/#29/#37, CLI #87/#91, and Screenplay #128.
