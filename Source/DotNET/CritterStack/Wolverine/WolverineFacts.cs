@@ -82,12 +82,33 @@ static class WolverineFacts
 
     internal static bool IsSagaMessagePayloadType(ITypeSymbol type) => IsEventPayloadType(type);
 
+    internal static IReadOnlyList<PropertyDefinition> AuthoredMessageProperties(
+        INamedTypeSymbol messageType,
+        DotNetProjectCompilation project) =>
+    [
+        .. messageType.GetMembers()
+            .OfType<IPropertySymbol>()
+            .Where(property =>
+                !property.IsStatic &&
+                !property.IsIndexer &&
+                property.DeclaredAccessibility == Accessibility.Public &&
+                property.GetMethod?.DeclaredAccessibility == Accessibility.Public &&
+                property.Locations.Any(location => IsAuthoredSourceLocation(location, project)))
+            .OrderBy(property => property.Locations.FirstOrDefault()?.SourceSpan.Start ?? int.MaxValue)
+            .ThenBy(property => property.Name, StringComparer.Ordinal)
+            .Select(property => new PropertyDefinition
+            {
+                Name = LowerFirst(property.Name),
+                Type = DotNetTypeShapes.TypeReferenceFor(property.Type)
+            })
+    ];
+
     internal static void AddSagaReturnConsequences(
         DotNetProjectCompilation project,
         SubjectId sourceSubject,
         IReadOnlyList<WolverineReturnConsequence> consequences,
         Evidence evidence,
-        List<GenerationFact> facts) => AddReturnConsequences(project, sourceSubject, consequences, evidence, facts);
+        List<GenerationFact> facts) => AddReturnConsequences(project, sourceSubject, consequences, evidence, facts, sagaAnalysis: true);
 
     internal static List<WolverineOutgoingMessageConsequence> DiscoverSagaOutgoingMessages(
         IMethodSymbol method,
@@ -101,7 +122,7 @@ static class WolverineFacts
         Evidence evidence,
         List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics) =>
-        AddOutgoingMessages(project, sourceSubject, method, consequences, evidence, facts, diagnostics);
+        AddOutgoingMessages(project, sourceSubject, method, consequences, evidence, facts, diagnostics, sagaAnalysis: true);
 
     internal static void AddSagaDirectBusConsequences(
         DotNetProjectCompilation project,
@@ -110,7 +131,7 @@ static class WolverineFacts
         Evidence evidence,
         List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics) =>
-        AddDirectBusConsequences(project, sourceSubject, method, evidence, facts, diagnostics);
+        AddDirectBusConsequences(project, sourceSubject, method, evidence, facts, diagnostics, sagaAnalysis: true);
 
     static void AnalyzeEndpoint(
         DotNetProjectCompilation project,
@@ -241,9 +262,9 @@ static class WolverineFacts
             dcb is null && streamBindings.Count > 0);
         var outgoingMessages = DiscoverOutgoingMessages(method, project);
         AddDocumentDeletes(project, commandSubject, method, evidence, facts);
-        AddReturnConsequences(project, commandSubject, returnConsequences, evidence, facts);
-        AddDirectBusConsequences(project, commandSubject, method, evidence, facts, diagnostics);
-        AddOutgoingMessages(project, commandSubject, method, outgoingMessages, evidence, facts, diagnostics);
+        AddReturnConsequences(project, commandSubject, returnConsequences, evidence, facts, sagaAnalysis: false);
+        AddDirectBusConsequences(project, commandSubject, method, evidence, facts, diagnostics, sagaAnalysis: false);
+        AddOutgoingMessages(project, commandSubject, method, outgoingMessages, evidence, facts, diagnostics, sagaAnalysis: false);
     }
 
     static void AnalyzeHandler(
@@ -256,7 +277,7 @@ static class WolverineFacts
         List<GenerationDiagnostic> diagnostics)
     {
         var request = RequestParameter(method, project);
-        if (request?.Type is not INamedTypeSymbol requestType)
+        if (request?.Type is not INamedTypeSymbol requestType || WolverineSagaTypes.IsSagaState(requestType, project))
         {
             return;
         }
@@ -361,9 +382,9 @@ static class WolverineFacts
         AddEventStreamAppendFacts(project, adapter, commandSubject, placement, appendDiscovery, facts, diagnostics);
 
         AddDocumentDeletes(project, commandSubject, method, evidence, facts);
-        AddReturnConsequences(project, commandSubject, returnConsequences, evidence, facts);
-        AddDirectBusConsequences(project, commandSubject, method, evidence, facts, diagnostics, busConsequences);
-        AddOutgoingMessages(project, commandSubject, method, outgoingMessages, evidence, facts, diagnostics);
+        AddReturnConsequences(project, commandSubject, returnConsequences, evidence, facts, sagaAnalysis: false);
+        AddDirectBusConsequences(project, commandSubject, method, evidence, facts, diagnostics, busConsequences, sagaAnalysis: false);
+        AddOutgoingMessages(project, commandSubject, method, outgoingMessages, evidence, facts, diagnostics, sagaAnalysis: false);
     }
 
     static void AnalyzeAutomation(
@@ -414,9 +435,9 @@ static class WolverineFacts
             RelationshipKind.Handles,
             requestSubject,
             evidence));
-        AddReturnConsequences(project, reactionSubject, returnConsequences, evidence, facts);
-        AddOutgoingMessages(project, reactionSubject, method, outgoingMessages, evidence, facts, diagnostics);
-        AddDirectBusConsequences(project, reactionSubject, method, evidence, facts, diagnostics, busConsequences);
+        AddReturnConsequences(project, reactionSubject, returnConsequences, evidence, facts, sagaAnalysis: false);
+        AddOutgoingMessages(project, reactionSubject, method, outgoingMessages, evidence, facts, diagnostics, sagaAnalysis: false);
+        AddDirectBusConsequences(project, reactionSubject, method, evidence, facts, diagnostics, busConsequences, sagaAnalysis: false);
     }
 
     static void AnalyzeQuery(
@@ -440,7 +461,7 @@ static class WolverineFacts
         diagnostics.AddRange(validationAuthorization.AuthorizationDiagnostics(endpoint.Method, querySubject));
 
         var (model, isCollection, isOptional) = WolverineReturnTypes.QueryModel(endpoint.Method.ReturnType);
-        if (model is null || !IsSourceType(model))
+        if (model is null || !IsSourceType(model) || WolverineSagaTypes.IsSagaState(model, project))
         {
             return;
         }
@@ -570,7 +591,8 @@ static class WolverineFacts
             sourceMember: dcb.SourceMember,
             discriminator: dcb.Discriminator));
 
-        foreach (var condition in dcb.Conditions)
+        foreach (var condition in dcb.Conditions.Where(condition =>
+                     condition.EventType is null || !WolverineSagaTypes.IsSagaState(condition.EventType, project)))
         {
             var tagSubject = project.SubjectForType(condition.TagType);
             var eventSubject = condition.EventType is null ? null : project.SubjectForType(condition.EventType);
@@ -592,7 +614,7 @@ static class WolverineFacts
                 discriminator: discriminator));
         }
 
-        foreach (var eventType in dcb.QueryEventTypes)
+        foreach (var eventType in dcb.QueryEventTypes.Where(eventType => !WolverineSagaTypes.IsSagaState(eventType, project)))
         {
             var eventSubject = project.SubjectForType(eventType);
             var eventEvidence = evidence with
@@ -805,6 +827,11 @@ static class WolverineFacts
         bool declarative,
         List<GenerationFact> facts)
     {
+        if (WolverineSagaTypes.IsSagaState(eventType, project))
+        {
+            return;
+        }
+
         var eventSubject = project.SubjectForType(eventType);
         var eventKey = new ArtifactKey { Subject = eventSubject, Kind = ArtifactKind.Event };
         facts.Add(Artifact(
@@ -831,11 +858,14 @@ static class WolverineFacts
         Evidence evidence,
         List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics,
-        IReadOnlyList<WolverineBusConsequence>? discovered = null)
+        IReadOnlyList<WolverineBusConsequence>? discovered = null,
+        bool sagaAnalysis = false)
     {
         foreach (var consequence in discovered ?? WolverineBusConsequences.Discover(method, project))
         {
-            if (consequence.MessageType is not INamedTypeSymbol messageType || !IsEventPayloadType(messageType))
+            if (consequence.MessageType is not INamedTypeSymbol messageType ||
+                !IsEventPayloadType(messageType) ||
+                WolverineSagaTypes.IsSagaState(messageType, project))
             {
                 continue;
             }
@@ -849,7 +879,8 @@ static class WolverineFacts
                 RelationshipKind.Publishes,
                 $"wolverine:publishes:{consequence.Discriminator}:{sourceSubject.Value}:{messageSubject.Value}",
                 consequence.Discriminator,
-                facts);
+                facts,
+                sagaAnalysis);
             diagnostics.Add(new GenerationDiagnostic
             {
                 Code = consequence.IsScheduled
@@ -890,7 +921,7 @@ static class WolverineFacts
                     var messageType = elementType.Name == "DeliveryMessage" && elementType.TypeArguments.FirstOrDefault() is INamedTypeSymbol delivered
                         ? delivered
                         : elementType;
-                    if (!IsEventPayloadType(messageType))
+                    if (!IsEventPayloadType(messageType) || WolverineSagaTypes.IsSagaState(messageType, project))
                     {
                         continue;
                     }
@@ -913,7 +944,8 @@ static class WolverineFacts
         IReadOnlyList<WolverineOutgoingMessageConsequence> consequences,
         Evidence evidence,
         List<GenerationFact> facts,
-        List<GenerationDiagnostic> diagnostics)
+        List<GenerationDiagnostic> diagnostics,
+        bool sagaAnalysis)
     {
         foreach (var consequence in consequences)
         {
@@ -926,7 +958,8 @@ static class WolverineFacts
                 RelationshipKind.Cascades,
                 $"wolverine:cascades:{sourceSubject.Value}:{messageSubject.Value}",
                 consequence.Delayed ? "delayed" : "immediate",
-                facts);
+                facts,
+                sagaAnalysis);
 
             if (consequence.Delayed)
             {
@@ -947,7 +980,8 @@ static class WolverineFacts
         SubjectId sourceSubject,
         IReadOnlyList<WolverineReturnConsequence> consequences,
         Evidence evidence,
-        List<GenerationFact> facts)
+        List<GenerationFact> facts,
+        bool sagaAnalysis)
     {
         foreach (var consequence in consequences.Where(IsCascadeConsequence))
         {
@@ -961,7 +995,8 @@ static class WolverineFacts
                 RelationshipKind.Cascades,
                 $"wolverine:cascades:return:{sourceSubject.Value}:{consequence.Slot}:{messageSubject.Value}",
                 $"return-slot:{consequence.Slot}",
-                facts);
+                facts,
+                sagaAnalysis);
         }
     }
 
@@ -978,15 +1013,21 @@ static class WolverineFacts
         RelationshipKind relationshipKind,
         string relationshipId,
         string discriminator,
-        List<GenerationFact> facts)
+        List<GenerationFact> facts,
+        bool sagaAnalysis)
     {
+        if (WolverineSagaTypes.IsSagaState(messageType, project))
+        {
+            return;
+        }
+
         var messageSubject = project.SubjectForType(messageType);
         facts.Add(Artifact(
             $"wolverine:message:{messageSubject.Value}",
             new ArtifactKey { Subject = messageSubject, Kind = ArtifactKind.Message },
             messageType.Name,
             SourceFileOf(messageType, project),
-            DotNetTypeShapes.PropertiesOf(messageType),
+            sagaAnalysis ? AuthoredMessageProperties(messageType, project) : DotNetTypeShapes.PropertiesOf(messageType),
             evidence));
         facts.Add(Relationship(
             relationshipId,
@@ -1158,6 +1199,7 @@ static class WolverineFacts
                 {
                     if (semanticModel.GetTypeInfo(argument.Expression).Type is INamedTypeSymbol eventType &&
                         IsEventPayloadType(eventType) &&
+                        !WolverineSagaTypes.IsSagaState(eventType, project) &&
                         !SymbolEqualityComparer.Default.Equals(eventType, method.ContainingType))
                     {
                         yield return eventType;
@@ -1171,7 +1213,8 @@ static class WolverineFacts
                     semanticModel.GetTypeInfo(assignment.Left).Type is not INamedTypeSymbol collection ||
                     !IsEventCollection(collection) ||
                     semanticModel.GetTypeInfo(assignment.Right).Type is not INamedTypeSymbol eventType ||
-                    !IsEventPayloadType(eventType))
+                    !IsEventPayloadType(eventType) ||
+                    WolverineSagaTypes.IsSagaState(eventType, project))
                 {
                     continue;
                 }
@@ -1190,7 +1233,8 @@ static class WolverineFacts
                 foreach (var element in collectionExpression.Elements.OfType<ExpressionElementSyntax>())
                 {
                     if (semanticModel.GetTypeInfo(element.Expression).Type is INamedTypeSymbol eventType &&
-                        IsEventPayloadType(eventType))
+                        IsEventPayloadType(eventType) &&
+                        !WolverineSagaTypes.IsSagaState(eventType, project))
                     {
                         yield return eventType;
                     }
