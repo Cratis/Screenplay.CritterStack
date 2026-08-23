@@ -82,4 +82,14 @@ public static class WolverineDiagnosticCodes
     /// An admitted Dynamic Consistency Boundary query was outside the bounded source shapes.
     /// </summary>
     public const string DcbQueryUnresolved = "WOLVERINE0015";
+
+    /// <summary>
+    /// Authored saga lifecycle and workflow persistence could not be represented by the current Screenplay language.
+    /// </summary>
+    public const string SagaWorkflowOmitted = "WOLVERINE0016";
+
+    /// <summary>
+    /// Wolverine must resolve saga correlation from the runtime envelope because no authored message member was found.
+    /// </summary>
+    public const string SagaCorrelationRuntime = "WOLVERINE0017";
 }

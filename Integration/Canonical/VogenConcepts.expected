@@ -22,6 +22,17 @@ source: command ReviewOrderBoundary
 source: order OrderKey
 source: event OrderBoundaryReviewed
 source: file Integration/Canonical/VogenConcepts/Dcb.cs
+artifact: Command:RegisterOrder
+artifact: Message:BeginOrderSaga
+artifact: Message:ConfirmOrderSaga
+artifact: Message:CompleteOrderSaga
+artifact: Message:OrderSagaTimeout
+artifact: Message:OrderSagaCompleted
+artifact: Saga:OrderSaga
+artifact: Handler:OrderSaga.Start(BeginOrderSaga)
+artifact: Handler:OrderSaga.Handle(ConfirmOrderSaga)
+artifact: Handler:OrderSaga.Handle(CompleteOrderSaga)
+artifact: Handler:OrderSaga.Handle(OrderSagaTimeout)
 not-source: LegacyStorageEvent
 not-source: CurrentStorageEvent
 not-source: MultiTenantedEvidenceOnly
@@ -39,6 +50,15 @@ artifact: Event:OrderBoundaryReviewed
 artifact-count: Concept|4
 artifact-count: Document|1
 artifact-count: Event|4
+artifact-count: Message|5
+artifact-count: Handler|4
+artifact-count: Saga|1
+relationship-count: Handles|Handler:OrderSaga.Start(BeginOrderSaga)|Message:BeginOrderSaga|1
+relationship-count: Handles|Handler:OrderSaga.Handle(ConfirmOrderSaga)|Message:ConfirmOrderSaga|1
+relationship-count: Handles|Handler:OrderSaga.Handle(CompleteOrderSaga)|Message:CompleteOrderSaga|1
+relationship-count: Handles|Handler:OrderSaga.Handle(OrderSagaTimeout)|Message:OrderSagaTimeout|1
+relationship-count: Cascades|Handler:OrderSaga.Start(BeginOrderSaga)|Message:OrderSagaTimeout|1
+relationship-count: Cascades|Handler:OrderSaga.Handle(CompleteOrderSaga)|Message:OrderSagaCompleted|1
 relationship-count: Appends|Command:TransferBetweenOrders|Aggregate:Order|2
 relationship-count: Reads|Command:ReviewOrderBoundary|Aggregate:OrderBoundary|2
 relationship-count: Produces|Command:ReviewOrderBoundary|Event:OrderBoundaryReviewed|1
@@ -47,6 +67,9 @@ not-identifier: Command:TransferBetweenOrders:destinationOrder
 evidence: Concept:CustomerCode|vogen|Integration/Canonical/VogenConcepts/Concepts.cs
 evidence: Command:RegisterOrder|cratis.critter-stack|Integration/Canonical/VogenConcepts/Ordering.cs
 evidence: Command:ReviewOrderBoundary|cratis.critter-stack|Integration/Canonical/VogenConcepts/Dcb.cs
+evidence: Saga:OrderSaga|cratis.critter-stack|Integration/Canonical/VogenConcepts/Sagas.cs
+evidence: Handler:OrderSaga.Start(BeginOrderSaga)|cratis.critter-stack|Integration/Canonical/VogenConcepts/Sagas.cs
+evidence: Message:OrderSagaTimeout|cratis.critter-stack|Integration/Canonical/VogenConcepts/Sagas.cs
 evidence-count: Concept:CustomerCode|1
 identifier: Document:Order:key
 not-identifier: Document:Order:correlationId
@@ -66,8 +89,13 @@ diagnostic-message: MARTEN0013|[MultiTenanted] document tenancy declaration for 
 diagnostic-message: MARTEN0013|[SingleTenanted] document tenancy declaration for 'SingleTenantedEvidenceOnly'
 diagnostic-message: MARTEN0013|project-wide document tenancy policy declaration 'AllDocumentsAreMultiTenanted'
 diagnostic-message: MARTEN0013|project-wide document tenancy policy declaration 'AllDocumentsAreMultiTenantedWithPartitioning'
+diagnostic: WOLVERINE0001
+diagnostic-message: WOLVERINE0001|OrderSagaTimeout
 diagnostic: WOLVERINE0012
 diagnostic-message: WOLVERINE0012|parameter 'source'
 diagnostic-message: WOLVERINE0012|parameter 'destination'
 diagnostic: WOLVERINE0014
 diagnostic-message: WOLVERINE0014|parameter 'boundary'
+diagnostic: WOLVERINE0016
+diagnostic-message: WOLVERINE0016|OrderSaga
+diagnostic-message: WOLVERINE0016|MarkCompleted

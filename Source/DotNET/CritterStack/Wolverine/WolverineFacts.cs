@@ -57,8 +57,11 @@ static class WolverineFacts
         var validationAuthorization = WolverineValidationAuthorizationDiscovery.Discover(project);
         var diagnostics = new List<GenerationDiagnostic>(discovery.Diagnostics);
         diagnostics.AddRange(validationAuthorization.Diagnostics);
+        var sagaDiscovery = WolverineSagaFacts.Discover(project, adapter, discovery.Policy);
+        facts.AddRange(sagaDiscovery.Facts);
+        diagnostics.AddRange(sagaDiscovery.Diagnostics);
         var catalog = new DotNetArtifactCatalog(project.Compilation);
-        foreach (var type in catalog.Types.Where(_ => IsPublicSourceType(_, project) && !IsIgnored(_)))
+        foreach (var type in catalog.Types.Where(_ => IsPublicSourceType(_, project) && !IsIgnored(_) && !WolverineSagaFacts.IsSagaType(_, project)))
         {
             foreach (var method in type.GetMembers().OfType<IMethodSymbol>().Where(_ => IsPublicSourceMethod(_, project) && !IsIgnored(_)))
             {
@@ -76,6 +79,38 @@ static class WolverineFacts
 
         return new(facts, diagnostics);
     }
+
+    internal static bool IsSagaMessagePayloadType(ITypeSymbol type) => IsEventPayloadType(type);
+
+    internal static void AddSagaReturnConsequences(
+        DotNetProjectCompilation project,
+        SubjectId sourceSubject,
+        IReadOnlyList<WolverineReturnConsequence> consequences,
+        Evidence evidence,
+        List<GenerationFact> facts) => AddReturnConsequences(project, sourceSubject, consequences, evidence, facts);
+
+    internal static List<WolverineOutgoingMessageConsequence> DiscoverSagaOutgoingMessages(
+        IMethodSymbol method,
+        DotNetProjectCompilation project) => DiscoverOutgoingMessages(method, project);
+
+    internal static void AddSagaOutgoingMessages(
+        DotNetProjectCompilation project,
+        SubjectId sourceSubject,
+        IMethodSymbol method,
+        IReadOnlyList<WolverineOutgoingMessageConsequence> consequences,
+        Evidence evidence,
+        List<GenerationFact> facts,
+        List<GenerationDiagnostic> diagnostics) =>
+        AddOutgoingMessages(project, sourceSubject, method, consequences, evidence, facts, diagnostics);
+
+    internal static void AddSagaDirectBusConsequences(
+        DotNetProjectCompilation project,
+        SubjectId sourceSubject,
+        IMethodSymbol method,
+        Evidence evidence,
+        List<GenerationFact> facts,
+        List<GenerationDiagnostic> diagnostics) =>
+        AddDirectBusConsequences(project, sourceSubject, method, evidence, facts, diagnostics);
 
     static void AnalyzeEndpoint(
         DotNetProjectCompilation project,
@@ -1269,7 +1304,7 @@ static class WolverineFacts
     static bool IsEventPayloadType(ITypeSymbol type) =>
         type is INamedTypeSymbol named &&
         type.SpecialType == SpecialType.None &&
-        !WolverineReturnTypes.IsSpecialReturn(named) &&
+        (WolverineReturnConsequences.IsTimeoutMessage(named) || !WolverineReturnTypes.IsSpecialReturn(named)) &&
         !DotNetSubjectIds.MetadataName(named.OriginalDefinition).StartsWith("System.", StringComparison.Ordinal);
 
     static bool IsInfrastructureParameter(ITypeSymbol type)
@@ -1332,6 +1367,7 @@ static class WolverineFacts
         SubjectId target,
         Evidence evidence,
         string? sourceMember = null,
+        string? targetMember = null,
         string? discriminator = null,
         bool isCollection = false,
         bool isOptional = false) => new()
@@ -1348,6 +1384,7 @@ static class WolverineFacts
                     Discriminator = discriminator
                 },
                 SourceMember = sourceMember,
+                TargetMember = targetMember,
                 IsCollection = isCollection,
                 IsOptional = isOptional
             },

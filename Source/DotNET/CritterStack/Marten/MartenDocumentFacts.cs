@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.CritterStack.Screenplay.Wolverine;
 using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
@@ -78,12 +79,17 @@ static class MartenDocumentFacts
                 documents.TryAdd(documentSubject, new(documentType, evidence));
                 if (kind is not null && semanticModel.GetEnclosingSymbol(invocation.SpanStart) is IMethodSymbol containingMethod)
                 {
-                    var methodSubject = MethodSubject(project, containingMethod);
+                    var isSagaMethod = WolverineSagaFacts.IsSagaType(containingMethod.ContainingType, project);
+                    var methodSubject = isSagaMethod
+                        ? WolverineSagaFacts.HandlerSubject(project, containingMethod)
+                        : MethodSubject(project, containingMethod);
                     facts.Add(Artifact(
                         $"marten:handler:{methodSubject.Value}",
                         methodSubject,
                         ArtifactKind.Handler,
-                        $"{containingMethod.ContainingType.Name}.{containingMethod.Name}",
+                        isSagaMethod
+                            ? WolverineSagaFacts.HandlerName(containingMethod)
+                            : $"{containingMethod.ContainingType.Name}.{containingMethod.Name}",
                         SourceFileOf(containingMethod, project),
                         [],
                         evidence));
