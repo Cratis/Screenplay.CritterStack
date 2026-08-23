@@ -84,12 +84,17 @@ public static class WolverineDiagnosticCodes
     public const string DcbQueryUnresolved = "WOLVERINE0015";
 
     /// <summary>
-    /// Authored saga lifecycle and workflow persistence could not be represented by the current Screenplay language.
+    /// Wolverine-managed saga lifecycle is reported as realization and provenance because authored source does not safely establish a portable domain workflow.
     /// </summary>
-    public const string SagaWorkflowOmitted = "WOLVERINE0016";
+    public const string SagaLifecycleRealization = "WOLVERINE0016";
 
     /// <summary>
     /// Wolverine must resolve saga correlation from the runtime envelope because no authored message member was found.
     /// </summary>
     public const string SagaCorrelationRuntime = "WOLVERINE0017";
+
+    /// <summary>
+    /// An authored saga lifecycle method could not be admitted as an exact legal Wolverine role.
+    /// </summary>
+    public const string SagaRoleUnresolved = "WOLVERINE0018";
 }

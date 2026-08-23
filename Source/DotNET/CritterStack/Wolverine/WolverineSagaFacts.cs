@@ -15,11 +15,22 @@ sealed record WolverineSagaDiscoveryResult(
 sealed record WolverineSagaRoleMethod(
     IMethodSymbol Method,
     INamedTypeSymbol MessageType,
-    string Role);
+    string Role,
+    bool IsCreationCapable);
+
+sealed record WolverineSagaRoleAdmission(
+    IMethodSymbol Method,
+    WolverineSagaRoleMethod? Role,
+    GenerationDiagnostic? Diagnostic);
 
 sealed record WolverineSagaCorrelation(
     string? TargetMember,
-    Evidence? Evidence);
+    Evidence? Evidence,
+    string? UnresolvedReason = null);
+
+sealed record WolverineSagaMemberMatch(
+    ISymbol? Member,
+    bool IsAmbiguous);
 
 static class WolverineSagaFacts
 {
@@ -50,46 +61,77 @@ static class WolverineSagaFacts
                      .Where(type => IsAdmissibleType(type, project, discovery))
                      .OrderBy(DotNetSubjectIds.MetadataName, StringComparer.Ordinal))
         {
-            var roles = sagaType.GetMembers()
-                .OfType<IMethodSymbol>()
-                .Select(method => RoleMethod(method, project))
-                .OfType<WolverineSagaRoleMethod>()
-                .OrderBy(role => SourcePath(role.Method), StringComparer.Ordinal)
-                .ThenBy(role => SourceStart(role.Method))
-                .ThenBy(role => MethodSignature(role.Method), StringComparer.Ordinal)
-                .ToArray();
-            if (roles.Length == 0)
+            WolverineSagaRoleAdmission[] admissions =
+            [
+                .. sagaType.GetMembers()
+                    .OfType<IMethodSymbol>()
+                    .Select(method => RoleMethod(method, project, adapter))
+                    .OrderBy(admission => SourcePath(admission.Method), StringComparer.Ordinal)
+                    .ThenBy(admission => SourceStart(admission.Method))
+                    .ThenBy(admission => MethodSignature(admission.Method), StringComparer.Ordinal)
+            ];
+            diagnostics.AddRange(admissions.Select(_ => _.Diagnostic).OfType<GenerationDiagnostic>());
+
+            WolverineSagaRoleMethod[] candidateRoles = [.. admissions.Select(_ => _.Role).OfType<WolverineSagaRoleMethod>()];
+            var roles = new List<WolverineSagaRoleMethod>();
+            foreach (var messageGroup in candidateRoles
+                         .GroupBy<WolverineSagaRoleMethod, INamedTypeSymbol>(_ => _.MessageType, SymbolEqualityComparer.Default)
+                         .OrderBy(_ => DotNetSubjectIds.MetadataName(_.Key), StringComparer.Ordinal))
             {
-                continue;
+                var groupedRoles = messageGroup.ToArray();
+                if (!groupedRoles.Any(EstablishesSagaChain))
+                {
+                    diagnostics.AddRange(groupedRoles.Select(role => RejectedRole(
+                        role.Method,
+                        project,
+                        adapter,
+                        "no other exact lifecycle method for the same message establishes a Wolverine SagaChain").Diagnostic!));
+                    continue;
+                }
+
+                if (RequiresPublicParameterlessConstructor(groupedRoles) &&
+                    !HasPublicParameterlessConstructor(sagaType))
+                {
+                    var isNotFoundOnlyChain = IsNotFoundOnlyChain(groupedRoles);
+                    var rejectedRoles = groupedRoles.Where(role => role.IsCreationCapable || isNotFoundOnlyChain).ToArray();
+                    diagnostics.AddRange(rejectedRoles.Select(role => RejectedRole(
+                        role.Method,
+                        project,
+                        adapter,
+                        "Wolverine must create saga state, but the saga has no accessible public parameterless constructor and no exact returned saga supplies creation").Diagnostic!));
+                    groupedRoles = [.. groupedRoles.Except(rejectedRoles)];
+                }
+
+                if (!groupedRoles.Any(EstablishesSagaChain))
+                {
+                    diagnostics.AddRange(groupedRoles.Select(role => RejectedRole(
+                        role.Method,
+                        project,
+                        adapter,
+                        "the remaining methods for the same message do not establish a Wolverine SagaChain").Diagnostic!));
+                    continue;
+                }
+
+                roles.AddRange(groupedRoles);
             }
 
-            AddSagaFacts(project, adapter, sagaType, roles, facts, diagnostics);
+            if (roles.Count > 0)
+            {
+                AddSagaFacts(project, adapter, sagaType, roles, facts, diagnostics);
+            }
         }
 
         return new(facts, diagnostics);
     }
 
-    public static bool IsSagaType(INamedTypeSymbol type, DotNetProjectCompilation project)
-    {
-        if (project.Compilation.GetTypeByMetadataName(WellKnownTypes.WolverineSaga) is not { } sagaType)
-        {
-            return false;
-        }
+    public static bool IsSagaType(INamedTypeSymbol type, DotNetProjectCompilation project) =>
+        WolverineSagaTypes.IsSagaState(type, project);
 
-        return IsAuthoredOrMetadataAssignableTo(
-            type,
-            sagaType,
-            project,
-            new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default));
-    }
-
-    internal static SubjectId HandlerSubject(DotNetProjectCompilation project, IMethodSymbol method) => new()
-    {
-        Value = $"{project.SubjectForType(method.ContainingType).Value}#saga-handler:{Uri.EscapeDataString(MethodSignature(method))}"
-    };
+    internal static SubjectId HandlerSubject(DotNetProjectCompilation project, IMethodSymbol method) =>
+        DotNetMethodIdentity.SubjectFor(project, method);
 
     internal static string HandlerName(IMethodSymbol method) =>
-        $"{method.ContainingType.Name}.{method.Name}({method.Parameters.FirstOrDefault()?.Type.Name ?? "unknown"})";
+        DotNetMethodIdentity.DisplayName(method);
 
     static void AddSagaFacts(
         DotNetProjectCompilation project,
@@ -123,11 +165,11 @@ static class WolverineSagaFacts
         var completion = CompletionInvocation(roles, project);
         diagnostics.Add(new GenerationDiagnostic
         {
-            Code = WolverineDiagnosticCodes.SagaWorkflowOmitted,
-            Severity = GenerationDiagnosticSeverity.Warning,
+            Code = WolverineDiagnosticCodes.SagaLifecycleRealization,
+            Severity = GenerationDiagnosticSeverity.Information,
             Message = completion is null
-                ? $"Saga '{sagaType.Name}' has authored workflow roles, but lifecycle persistence cannot be represented by the current Screenplay language"
-                : $"Saga '{sagaType.Name}' invokes Wolverine.Saga.MarkCompleted(), but conditional completion and lifecycle persistence cannot be represented by the current Screenplay language",
+                ? $"Saga '{sagaType.Name}' uses Wolverine-managed lifecycle. Authored source does not safely establish a portable domain workflow; neutral Saga/Handler/Handles facts are retained as realization/provenance, and Screenplay uses ordinary Event Modeling building blocks"
+                : $"Saga '{sagaType.Name}' invokes Wolverine.Saga.MarkCompleted() within Wolverine-managed lifecycle. Authored source does not safely establish portable conditional completion or a portable domain workflow; neutral Saga/Handler/Handles facts are retained as realization/provenance, and Screenplay uses ordinary Event Modeling building blocks",
             Source = completion ?? sagaEvidence.Source,
             Subject = sagaSubject
         });
@@ -169,7 +211,7 @@ static class WolverineSagaFacts
             ArtifactKind.Message,
             role.MessageType.Name,
             SourceFileOf(role.MessageType, project),
-            DotNetTypeShapes.PropertiesOf(role.MessageType),
+            WolverineFacts.AuthoredMessageProperties(role.MessageType, project),
             relationshipEvidence));
         facts.Add(Relationship(
             $"wolverine:saga-handles:{handlerSubject.Value}:{messageSubject.Value}:{discriminator}",
@@ -186,7 +228,7 @@ static class WolverineSagaFacts
             {
                 Code = WolverineDiagnosticCodes.SagaCorrelationRuntime,
                 Severity = GenerationDiagnosticSeverity.Information,
-                Message = $"Saga handler '{sagaType.Name}.{method.Name}' has no authored message correlation member for '{role.MessageType.Name}'; Wolverine must use runtime envelope correlation",
+                Message = correlation.UnresolvedReason ?? $"Saga handler '{sagaType.Name}.{method.Name}' has no authored message correlation member for '{role.MessageType.Name}'; correlation remains runtime-resolved",
                 Source = roleEvidence.Source,
                 Subject = handlerSubject
             });
@@ -227,31 +269,141 @@ static class WolverineSagaFacts
         }
     }
 
-    static WolverineSagaRoleMethod? RoleMethod(IMethodSymbol method, DotNetProjectCompilation project)
+    static WolverineSagaRoleAdmission RoleMethod(
+        IMethodSymbol method,
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter)
     {
-        if (method.DeclaredAccessibility != Accessibility.Public ||
-            method.MethodKind != MethodKind.Ordinary ||
-            method.IsGenericMethod ||
-            method.Parameters.Length == 0 ||
-            IsIgnored(method) ||
-            !WolverineMethodSyntax.Declarations(method, project).Any())
-        {
-            return null;
-        }
-
         var roleName = method.Name.EndsWith("Async", StringComparison.Ordinal)
             ? method.Name[..^"Async".Length]
             : method.Name;
         if (!_roles.TryGetValue(roleName, out var role) ||
-            (method.IsStatic && role is not "start" and not "not-found") ||
-            method.Parameters[0].Type is not INamedTypeSymbol messageType ||
+            IsIgnored(method, project) ||
+            !WolverineMethodSyntax.Declarations(method, project).Any())
+        {
+            return new(method, null, null);
+        }
+
+        if (method.DeclaredAccessibility != Accessibility.Public ||
+            method.MethodKind != MethodKind.Ordinary ||
+            method.IsGenericMethod ||
+            method.Parameters.Length == 0)
+        {
+            return RejectedRole(method, project, adapter, "the method must be a public, ordinary, non-generic method with a message parameter");
+        }
+
+        if (IsPrimitiveReturn(method.ReturnType))
+        {
+            return RejectedRole(method, project, adapter, "Wolverine handler discovery rejects methods that directly return a primitive type");
+        }
+
+        if (method.Parameters[0].Type is not INamedTypeSymbol messageType ||
             !WolverineFacts.IsSagaMessagePayloadType(messageType) ||
             IsSagaType(messageType, project))
         {
-            return null;
+            return RejectedRole(method, project, adapter, "the first parameter must be an authored non-saga message payload");
         }
 
-        return new(method, messageType, role);
+        var isStart = string.Equals(role, "start", StringComparison.Ordinal);
+        var isStartOrHandle = string.Equals(role, "start-or-handle", StringComparison.Ordinal);
+        var isNotFound = string.Equals(role, "not-found", StringComparison.Ordinal);
+        var isLegalShape = isStart || (isNotFound ? method.IsStatic : !method.IsStatic);
+        if (!isLegalShape)
+        {
+            var reason = "an existing-state role must be an instance method";
+            if (isStartOrHandle)
+            {
+                reason = "a start-or-handle role must be an instance method";
+            }
+            else if (isNotFound)
+            {
+                reason = "a not-found role must be a static method";
+            }
+            return RejectedRole(method, project, adapter, reason);
+        }
+
+        return new(method, new(method, messageType, role, isStart || isStartOrHandle), null);
+    }
+
+    static bool EstablishesSagaChain(WolverineSagaRoleMethod role) =>
+        !role.Method.IsStatic ||
+        string.Equals(role.Method.Name, "Start", StringComparison.Ordinal) ||
+        string.Equals(role.Method.Name, "StartAsync", StringComparison.Ordinal) ||
+        string.Equals(role.Method.Name, "NotFound", StringComparison.Ordinal);
+
+    static bool RequiresPublicParameterlessConstructor(IReadOnlyList<WolverineSagaRoleMethod> roles)
+    {
+        if (IsNotFoundOnlyChain(roles))
+        {
+            return true;
+        }
+
+        var creationRoles = roles.Where(_ => _.IsCreationCapable).ToArray();
+        if (creationRoles.Length == 0)
+        {
+            return false;
+        }
+
+        if (creationRoles.Any(_ => !_.Method.IsStatic) ||
+            roles.Any(_ =>
+                string.Equals(_.Role, "start-or-handle", StringComparison.Ordinal) ||
+                string.Equals(_.Role, "orchestrate", StringComparison.Ordinal)))
+        {
+            return true;
+        }
+
+        return !creationRoles.Any(ReturnsExactSaga);
+    }
+
+    static bool IsNotFoundOnlyChain(IReadOnlyList<WolverineSagaRoleMethod> roles) =>
+        roles.Count > 0 && roles.All(_ => string.Equals(_.Role, "not-found", StringComparison.Ordinal));
+
+    static bool ReturnsExactSaga(WolverineSagaRoleMethod role) =>
+        WolverineReturnTypes.CreatedValues(role.Method)
+            .OfType<INamedTypeSymbol>()
+            .Any(type => SymbolEqualityComparer.Default.Equals(type.OriginalDefinition, role.Method.ContainingType.OriginalDefinition));
+
+    static bool HasPublicParameterlessConstructor(INamedTypeSymbol sagaType) =>
+        sagaType.InstanceConstructors.Any(constructor =>
+            constructor.Parameters.Length == 0 &&
+            constructor.DeclaredAccessibility == Accessibility.Public);
+
+    static bool IsPrimitiveReturn(ITypeSymbol returnType) => returnType.SpecialType is
+        SpecialType.System_Boolean or
+        SpecialType.System_Byte or
+        SpecialType.System_SByte or
+        SpecialType.System_Int16 or
+        SpecialType.System_UInt16 or
+        SpecialType.System_Int32 or
+        SpecialType.System_UInt32 or
+        SpecialType.System_Int64 or
+        SpecialType.System_UInt64 or
+        SpecialType.System_Char or
+        SpecialType.System_Double or
+        SpecialType.System_Single or
+        SpecialType.System_IntPtr or
+        SpecialType.System_UIntPtr;
+
+    static WolverineSagaRoleAdmission RejectedRole(
+        IMethodSymbol method,
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter,
+        string reason)
+    {
+        var evidence = CritterStackSource.EvidenceFor(
+            method,
+            adapter,
+            project,
+            EvidenceStrength.Exact,
+            "Authored Wolverine saga lifecycle method outside the admitted role shape");
+        return new(method, null, new GenerationDiagnostic
+        {
+            Code = WolverineDiagnosticCodes.SagaRoleUnresolved,
+            Severity = GenerationDiagnosticSeverity.Warning,
+            Message = $"Wolverine saga role '{DotNetMethodIdentity.DisplayName(method)}' was not admitted because {reason}",
+            Source = evidence.Source,
+            Subject = DotNetMethodIdentity.SubjectFor(project, method)
+        });
     }
 
     static WolverineSagaCorrelation CorrelationFor(
@@ -262,51 +414,90 @@ static class WolverineSagaFacts
         IReadOnlyList<WolverineSagaRoleMethod> allRoles)
     {
         var members = MessageMembers(messageType, project).ToArray();
-        if (members.FirstOrDefault(member => DotNetSymbols.HasAttribute(member, WellKnownTypes.WolverineSagaIdentityAttribute)) is { } attributed)
+        var attributed = MatchMember(members, member => DotNetSymbols.HasAttribute(member, WellKnownTypes.WolverineSagaIdentityAttribute));
+        if (attributed.IsAmbiguous)
         {
-            return CorrelationFromMember(project, adapter, attributed, EvidenceStrength.Exact, "Exact Wolverine [SagaIdentity] message member");
+            return UnresolvedCorrelation(sagaType, messageType, "multiple public [SagaIdentity] members are visible");
+        }
+        if (attributed.Member is not null)
+        {
+            return CorrelationFromMember(project, adapter, attributed.Member, EvidenceStrength.Exact, "Exact Wolverine [SagaIdentity] message member");
         }
 
         var specified = allRoles
             .Where(role => SymbolEqualityComparer.Default.Equals(role.MessageType, messageType))
-            .Select(role => SagaIdentityFrom(role.Method.Parameters[0]))
-            .FirstOrDefault(candidate => candidate is not null);
-        if (specified is not null && members.FirstOrDefault(member => string.Equals(member.Name, specified.Value.MemberName, StringComparison.Ordinal)) is { } specifiedMember)
+            .SelectMany(role => role.Method.Parameters.Select(SagaIdentityFrom))
+            .OfType<(string MemberName, IParameterSymbol Parameter)>()
+            .ToArray();
+        var specifiedNames = specified.Select(_ => _.MemberName).Distinct(StringComparer.Ordinal).ToArray();
+        if (specifiedNames.Length > 1)
         {
-            var evidence = CritterStackSource.EvidenceFor(
-                specified.Value.Parameter,
-                adapter,
-                project,
-                EvidenceStrength.Exact,
-                "Exact Wolverine [SagaIdentityFrom] handler parameter");
-            return new(LowerFirst(specifiedMember.Name), evidence);
+            var evidence = SagaIdentityFromEvidence(project, adapter, specified[0].Parameter);
+            return UnresolvedCorrelation(
+                sagaType,
+                messageType,
+                "conflicting [SagaIdentityFrom] member names are declared across parameters in the same message chain",
+                evidence);
         }
 
-        var expectedNames = new[]
+        if (specifiedNames.Length == 1)
         {
-            $"{sagaType.Name}Id",
-            $"{sagaType.Name.Replace("Saga", string.Empty, StringComparison.InvariantCultureIgnoreCase)}Id",
-            "SagaId"
-        };
-        foreach (var expectedName in expectedNames.Distinct(StringComparer.Ordinal))
+            var specifiedMember = MatchMember(members, member => string.Equals(member.Name, specifiedNames[0], StringComparison.Ordinal));
+            if (specifiedMember.IsAmbiguous)
+            {
+                return UnresolvedCorrelation(sagaType, messageType, $"multiple public members match explicit [SagaIdentityFrom] name '{specifiedNames[0]}'");
+            }
+            if (specifiedMember.Member is not null)
+            {
+                return new(
+                    LowerFirst(specifiedMember.Member.Name),
+                    SagaIdentityFromEvidence(project, adapter, specified[0].Parameter));
+            }
+        }
+        else
         {
-            if (members.FirstOrDefault(member => string.Equals(member.Name, expectedName, StringComparison.Ordinal)) is { } conventional)
+            var fullSagaName = $"{sagaType.Name}Id";
+            var fullNameMember = MatchMember(members, member => string.Equals(member.Name, fullSagaName, StringComparison.Ordinal));
+            if (fullNameMember.IsAmbiguous)
+            {
+                return UnresolvedCorrelation(sagaType, messageType, $"multiple public members match Wolverine convention '{fullSagaName}'");
+            }
+            if (fullNameMember.Member is not null)
+            {
+                return CorrelationFromMember(project, adapter, fullNameMember.Member, EvidenceStrength.Conventional, $"Wolverine saga correlation member convention '{fullSagaName}'");
+            }
+        }
+
+        var suffixStrippedName = $"{sagaType.Name.Replace("Saga", string.Empty, StringComparison.InvariantCultureIgnoreCase)}Id";
+        foreach (var expectedName in new[] { suffixStrippedName, "SagaId" }.Distinct(StringComparer.Ordinal))
+        {
+            var conventional = MatchMember(members, member => string.Equals(member.Name, expectedName, StringComparison.Ordinal));
+            if (conventional.IsAmbiguous)
+            {
+                return UnresolvedCorrelation(sagaType, messageType, $"multiple public members match Wolverine convention '{expectedName}'");
+            }
+            if (conventional.Member is not null)
             {
                 return CorrelationFromMember(
                     project,
                     adapter,
-                    conventional,
+                    conventional.Member,
                     EvidenceStrength.Conventional,
                     $"Wolverine saga correlation member convention '{expectedName}'");
             }
         }
 
-        if (members.FirstOrDefault(member => string.Equals(member.Name, "Id", StringComparison.OrdinalIgnoreCase)) is { } id)
+        var id = MatchMember(members, member => string.Equals(member.Name, "Id", StringComparison.OrdinalIgnoreCase));
+        if (id.IsAmbiguous)
+        {
+            return UnresolvedCorrelation(sagaType, messageType, "multiple public members match Wolverine's case-insensitive Id convention");
+        }
+        if (id.Member is not null)
         {
             return CorrelationFromMember(
                 project,
                 adapter,
-                id,
+                id.Member,
                 EvidenceStrength.Conventional,
                 "Wolverine case-insensitive Id saga correlation convention");
         }
@@ -324,6 +515,16 @@ static class WolverineSagaFacts
             : null;
     }
 
+    static Evidence SagaIdentityFromEvidence(
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter,
+        IParameterSymbol parameter) => CritterStackSource.EvidenceFor(
+            parameter,
+            adapter,
+            project,
+            EvidenceStrength.Exact,
+            "Exact Wolverine [SagaIdentityFrom] handler parameter");
+
     static WolverineSagaCorrelation CorrelationFromMember(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
@@ -333,14 +534,40 @@ static class WolverineSagaFacts
             LowerFirst(member.Name),
             CritterStackSource.EvidenceFor(member, adapter, project, strength, explanation));
 
-    static IEnumerable<ISymbol> MessageMembers(INamedTypeSymbol messageType, DotNetProjectCompilation project) =>
-        messageType.GetMembers()
-            .OfType<IFieldSymbol>()
+    static WolverineSagaCorrelation UnresolvedCorrelation(
+        INamedTypeSymbol sagaType,
+        INamedTypeSymbol messageType,
+        string reason,
+        Evidence? evidence = null) => new(
+            null,
+            evidence,
+            $"Saga handler for '{sagaType.Name}' cannot safely select an authored correlation member for '{messageType.Name}' because {reason}; correlation remains runtime-resolved");
+
+    static WolverineSagaMemberMatch MatchMember(IEnumerable<ISymbol> members, Func<ISymbol, bool> predicate)
+    {
+        var matches = members.Where(predicate).Take(2).ToArray();
+        return new(matches.Length == 1 ? matches[0] : null, matches.Length > 1);
+    }
+
+    static IEnumerable<ISymbol> MessageMembers(INamedTypeSymbol messageType, DotNetProjectCompilation project)
+    {
+        var hierarchy = TypeHierarchy(messageType).ToArray();
+        return hierarchy
+            .SelectMany(type => type.GetMembers().OfType<IFieldSymbol>())
             .Where(member => IsPublicAuthoredMember(member, project))
             .Cast<ISymbol>()
-            .Concat(messageType.GetMembers()
-                .OfType<IPropertySymbol>()
+            .Concat(hierarchy
+                .SelectMany(type => type.GetMembers().OfType<IPropertySymbol>())
                 .Where(member => !member.IsIndexer && IsPublicAuthoredMember(member, project)));
+    }
+
+    static IEnumerable<INamedTypeSymbol> TypeHierarchy(INamedTypeSymbol type)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            yield return current;
+        }
+    }
 
     static IReadOnlyList<PropertyDefinition> SagaProperties(INamedTypeSymbol sagaType, DotNetProjectCompilation project) =>
     [
@@ -398,7 +625,7 @@ static class WolverineSagaFacts
         !type.IsStatic &&
         !type.IsGenericType &&
         type.Locations.Any(location => IsAuthoredSourceLocation(location, project)) &&
-        !IsIgnored(type) &&
+        !IsIgnored(type, project) &&
         IsSagaType(type, project) &&
         discovery.Includes(type);
 
@@ -415,53 +642,22 @@ static class WolverineSagaFacts
         return true;
     }
 
-    static bool IsAuthoredOrMetadataAssignableTo(
-        INamedTypeSymbol type,
-        INamedTypeSymbol target,
-        DotNetProjectCompilation project,
-        HashSet<INamedTypeSymbol> visited)
-    {
-        if (!visited.Add(type))
-        {
-            return false;
-        }
+    static bool IsIgnored(ISymbol symbol, DotNetProjectCompilation project) => symbol.GetAttributes().Any(attribute =>
+        attribute.AttributeClass is not null &&
+        (DotNetSubjectIds.MetadataName(attribute.AttributeClass.OriginalDefinition) == WellKnownTypes.WolverineIgnoreAttribute ||
+         DotNetSubjectIds.MetadataName(attribute.AttributeClass.OriginalDefinition) == WellKnownTypes.WolverineLegacyIgnoreAttribute) &&
+        IsAuthoredOrMetadataAttribute(attribute, project));
 
-        if (SymbolEqualityComparer.Default.Equals(type.OriginalDefinition, target.OriginalDefinition))
+    static bool IsAuthoredOrMetadataAttribute(AttributeData attribute, DotNetProjectCompilation project)
+    {
+        if (attribute.ApplicationSyntaxReference is not { } syntaxReference)
         {
             return true;
         }
 
-        if (type.DeclaringSyntaxReferences.Length == 0)
-        {
-            return type.BaseType is not null && IsAuthoredOrMetadataAssignableTo(type.BaseType, target, project, visited);
-        }
-
-        foreach (var syntaxReference in type.DeclaringSyntaxReferences)
-        {
-            if (syntaxReference.GetSyntax() is not TypeDeclarationSyntax { BaseList: not null } declaration ||
-                !project.AuthoredSyntaxTrees.Contains(declaration.SyntaxTree) ||
-                DotNetGeneratedSource.IsGenerated(declaration.SyntaxTree))
-            {
-                continue;
-            }
-
-            var semanticModel = project.Compilation.GetSemanticModel(declaration.SyntaxTree);
-            foreach (var baseType in declaration.BaseList.Types)
-            {
-                if (semanticModel.GetTypeInfo(baseType.Type).Type is INamedTypeSymbol candidate &&
-                    IsAuthoredOrMetadataAssignableTo(candidate, target, project, visited))
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return project.AuthoredSyntaxTrees.Contains(syntaxReference.SyntaxTree) &&
+               !DotNetGeneratedSource.IsGenerated(syntaxReference.SyntaxTree);
     }
-
-    static bool IsIgnored(ISymbol symbol) =>
-        DotNetSymbols.HasAttribute(symbol, WellKnownTypes.WolverineIgnoreAttribute) ||
-        DotNetSymbols.HasAttribute(symbol, WellKnownTypes.WolverineLegacyIgnoreAttribute);
 
     static bool IsPublicAuthoredMember(ISymbol member, DotNetProjectCompilation project) =>
         !member.IsStatic &&

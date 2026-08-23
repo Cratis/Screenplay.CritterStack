@@ -29,6 +29,15 @@ public class a_wolverine_saga_application : Specification
             public class EventsToAppend : System.Collections.Generic.List<object>, Wolverine.Configuration.IWolverineReturnType;
         }
 
+        namespace Wolverine.Http
+        {
+            public abstract class WolverineHttpMethodAttribute(string route) : System.Attribute
+            {
+                public string Route { get; } = route;
+            }
+            public sealed class WolverineGetAttribute(string route) : WolverineHttpMethodAttribute(route);
+        }
+
         namespace Wolverine.Persistence.Sagas
         {
             [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Field)]
@@ -92,6 +101,7 @@ public class a_wolverine_saga_application : Specification
     const string ApplicationSource =
         """
         using Wolverine;
+        using Wolverine.Http;
         using Wolverine.Persistence.Sagas;
 
         namespace Orders;
@@ -150,22 +160,52 @@ public class a_wolverine_saga_application : Specification
 
         public record AttributeIdentityMessage([property: SagaIdentity] System.Guid ExplicitIdentity, System.Guid CorrelationSagaId);
         public record ParameterIdentityMessage(System.Guid Selected, System.Guid CorrelationSagaId);
+        public record SecondaryParameterIdentityMessage(System.Guid Selected, System.Guid CorrelationSagaId);
+        public record ConflictingParameterIdentityMessage(System.Guid Primary, System.Guid Secondary, System.Guid CorrelationSagaId);
         public record FullNameIdentityMessage(System.Guid CorrelationSagaId, System.Guid CorrelationId);
         public record ShortNameIdentityMessage(System.Guid CorrelationId);
         public record SagaIdentityMessage(System.Guid SagaId, System.Guid Id);
         public record CaseInsensitiveIdentityMessage(System.Guid iD);
+        public record MissingExplicitIdentityMessage(System.Guid CorrelationSagaId, System.Guid CorrelationId, System.Guid SagaId, System.Guid Id);
+        public class InheritedPropertyIdentityBase
+        {
+            public System.Guid CorrelationSagaId { get; init; }
+        }
+        public sealed class InheritedPropertyIdentityMessage : InheritedPropertyIdentityBase;
+        public class InheritedFieldIdentityBase
+        {
+            public System.Guid SagaId;
+        }
+        public sealed class InheritedFieldIdentityMessage : InheritedFieldIdentityBase;
+        public class AmbiguousIdentityBase
+        {
+            public System.Guid CorrelationId { get; init; }
+        }
+        public sealed class AmbiguousIdentityMessage : AmbiguousIdentityBase
+        {
+            public new System.Guid CorrelationId { get; init; }
+        }
         public record RuntimeIdentityMessage(string Reference);
+        public record BeginCorrelationSaga(System.Guid CorrelationSagaId);
 
         public sealed class CorrelationSaga : Wolverine.Saga
         {
             public System.Guid Id { get; set; }
 
+            public static CorrelationSaga Start(BeginCorrelationSaga message) => new() { Id = message.CorrelationSagaId };
             public void Handle(AttributeIdentityMessage message) { }
             public void Handle([SagaIdentityFrom(nameof(ParameterIdentityMessage.Selected))] ParameterIdentityMessage message) { }
+            public void Handle(SecondaryParameterIdentityMessage message, [SagaIdentityFrom(nameof(SecondaryParameterIdentityMessage.Selected))] string context) { }
+            public void Handle(ConflictingParameterIdentityMessage message, [SagaIdentityFrom(nameof(ConflictingParameterIdentityMessage.Primary))] string context) { }
+            public void Handles(ConflictingParameterIdentityMessage message, [SagaIdentityFrom(nameof(ConflictingParameterIdentityMessage.Secondary))] int context) { }
             public void Handle(FullNameIdentityMessage message) { }
             public void Handle(ShortNameIdentityMessage message) { }
             public void Handle(SagaIdentityMessage message) { }
             public void Handle(CaseInsensitiveIdentityMessage message) { }
+            public void Handle([SagaIdentityFrom("Missing")] MissingExplicitIdentityMessage message) { }
+            public void Handle(InheritedPropertyIdentityMessage message) { }
+            public void Handle(InheritedFieldIdentityMessage message) { }
+            public void Handle(AmbiguousIdentityMessage message) { }
             public void Handle(RuntimeIdentityMessage message) { }
         }
 
@@ -178,11 +218,12 @@ public class a_wolverine_saga_application : Specification
         public record DocumentTrigger(System.Guid BehaviorSagaId, bool Complete);
         public record ResponseTrigger(System.Guid BehaviorSagaId);
         public record PersistenceTrigger(System.Guid BehaviorSagaId);
-        public record OrdinaryCascade(System.Guid BehaviorSagaId);
-        public record DirectSend(System.Guid BehaviorSagaId);
+        public partial record OrdinaryCascade(System.Guid BehaviorSagaId);
+        public partial record DirectSend(System.Guid BehaviorSagaId);
         public record DirectPublish(System.Guid BehaviorSagaId);
         public record DirectSchedule(System.Guid BehaviorSagaId);
-        public record OutgoingImmediate(System.Guid BehaviorSagaId);
+        public record DirectRequest(System.Guid BehaviorSagaId);
+        public partial record OutgoingImmediate(System.Guid BehaviorSagaId);
         public record OutgoingDelayed(System.Guid BehaviorSagaId);
         public record TimeoutNotice(System.Guid BehaviorSagaId) : Wolverine.TimeoutMessage(System.TimeSpan.FromMinutes(5));
         public sealed class SagaResponse : Wolverine.IResponseAware;
@@ -199,12 +240,18 @@ public class a_wolverine_saga_application : Specification
             public void Consume(BusTrigger message, Wolverine.IMessageBus bus)
             {
                 _ = bus.SendAsync(new DirectSend(message.BehaviorSagaId));
+                _ = bus.SendAsync(new BehaviorSaga { Id = message.BehaviorSagaId });
                 _ = bus.PublishAsync(new DirectPublish(message.BehaviorSagaId));
+                _ = bus.PublishAsync(new BehaviorSaga { Id = message.BehaviorSagaId });
                 _ = bus.ScheduleAsync(new DirectSchedule(message.BehaviorSagaId), System.TimeSpan.FromMinutes(1));
+                _ = bus.ScheduleAsync(new BehaviorSaga { Id = message.BehaviorSagaId }, System.TimeSpan.FromMinutes(1));
+                _ = bus.InvokeAsync<string>(new DirectRequest(message.BehaviorSagaId));
+                _ = bus.InvokeAsync<string>(new BehaviorSaga { Id = message.BehaviorSagaId });
             }
             public Wolverine.OutgoingMessages Consumes(OutgoingTrigger message) =>
             [
                 new OutgoingImmediate(message.BehaviorSagaId),
+                new BehaviorSaga { Id = message.BehaviorSagaId },
                 new OutgoingDelayed(message.BehaviorSagaId)
             ];
             public void Orchestrate(DocumentTrigger message, Marten.IDocumentSession session)
@@ -221,7 +268,23 @@ public class a_wolverine_saga_application : Specification
             }
             public (SagaResponse, SagaEffect) Orchestrates(ResponseTrigger message) => (new(), new());
             public (BehaviorSaga, Wolverine.Persistence.EventSourcing.EventsToAppend, OrdinaryCascade) Handle(PersistenceTrigger message) =>
-                (this, [], new(message.BehaviorSagaId));
+                (this, [this], new(message.BehaviorSagaId));
+        }
+
+        public sealed record OrdinaryQueryModel(System.Guid Id);
+        public static class SagaQueryEndpoints
+        {
+            [WolverineGet("/sagas/direct")]
+            public static BehaviorSaga Direct() => null!;
+
+            [WolverineGet("/sagas/task")]
+            public static System.Threading.Tasks.Task<BehaviorSaga> TaskResult() => null!;
+
+            [WolverineGet("/sagas/collection")]
+            public static System.Collections.Generic.IReadOnlyList<BehaviorSaga> Collection() => [];
+
+            [WolverineGet("/ordinary")]
+            public static OrdinaryQueryModel Ordinary() => new(System.Guid.Empty);
         }
 
         public static class CompletionUtility
@@ -234,15 +297,90 @@ public class a_wolverine_saga_application : Specification
         public record StaticExistingMessage(System.Guid SagaId);
         public record GenericMethodMessage(System.Guid SagaId);
         public record GeneratedRoleMessage(System.Guid SagaId);
+        public record InvalidInstanceNotFoundMessage(System.Guid SagaId);
+        public record StaticFallbackStartMessage(System.Guid SagaId);
+        public record ExistingOnlyMessage(System.Guid SagaId);
+        public record PrimitiveReturnMessage(System.Guid SagaId);
+        public record IsolatedStartsMessage(System.Guid SagaId);
+        public record IsolatedStartsAsyncMessage(System.Guid SagaId);
+        public record IsolatedNotFoundAsyncMessage(System.Guid SagaId);
+        public record ContextualStaticMessage(System.Guid SagaId);
+        public record ReturnedCreationMessage(System.Guid SagaId);
+        public record MissingFallbackConstructorMessage(System.Guid SagaId);
+        public record MissingInstanceConstructorMessage(System.Guid SagaId);
+        public record ExistingPrivateConstructorMessage(System.Guid SagaId);
+        public record NotFoundOnlyPrivateConstructorMessage(System.Guid SagaId);
+        public record BeginFilteredSaga(System.Guid SagaId);
         public sealed class FilteredSaga : Wolverine.Saga
         {
+            public static FilteredSaga Start(BeginFilteredSaga message) => new();
+            public static OrdinaryCascade Start(StaticFallbackStartMessage message) => new(message.SagaId);
             public void Handle(FilteredMessage message) { }
+            public void NotFound(InvalidInstanceNotFoundMessage message) { }
+            public int Handle(PrimitiveReturnMessage message) => 42;
             [Wolverine.Attributes.WolverineIgnore]
             public void Handle(IgnoredMethodMessage message) { }
             public static void Orchestrate(StaticExistingMessage message) { }
             public void Handle<T>(GenericMethodMessage message) { }
             public void Handle(System.Guid id) { }
             public void Start() { }
+        }
+
+        public sealed class ExistingOnlySaga : Wolverine.Saga
+        {
+            public void Handle(ExistingOnlyMessage message) { }
+        }
+
+        public sealed class IsolatedStaticSaga : Wolverine.Saga
+        {
+            public static IsolatedStaticSaga Starts(IsolatedStartsMessage message) => new();
+            public static System.Threading.Tasks.Task<IsolatedStaticSaga> StartsAsync(IsolatedStartsAsyncMessage message) => System.Threading.Tasks.Task.FromResult(new IsolatedStaticSaga());
+            public static System.Threading.Tasks.Task NotFoundAsync(IsolatedNotFoundAsyncMessage message) => System.Threading.Tasks.Task.CompletedTask;
+        }
+
+        public sealed class ContextualStaticSaga : Wolverine.Saga
+        {
+            public static ContextualStaticSaga Start(ContextualStaticMessage message) => new();
+            public static ContextualStaticSaga Starts(ContextualStaticMessage message) => new();
+            public static System.Threading.Tasks.Task<ContextualStaticSaga> StartsAsync(ContextualStaticMessage message) => System.Threading.Tasks.Task.FromResult(new ContextualStaticSaga());
+            public static System.Threading.Tasks.Task NotFoundAsync(ContextualStaticMessage message) => System.Threading.Tasks.Task.CompletedTask;
+        }
+
+        public sealed class ReturnedCreationSaga : Wolverine.Saga
+        {
+            ReturnedCreationSaga() { }
+            public static ReturnedCreationSaga Start(ReturnedCreationMessage message) => new();
+        }
+
+        public sealed class MissingFallbackConstructorSaga : Wolverine.Saga
+        {
+            MissingFallbackConstructorSaga() { }
+            public static OrdinaryCascade Start(MissingFallbackConstructorMessage message) => new(message.SagaId);
+        }
+
+        public sealed class MissingInstanceConstructorSaga : Wolverine.Saga
+        {
+            MissingInstanceConstructorSaga() { }
+            public void Start(MissingInstanceConstructorMessage message) { }
+        }
+
+        public sealed class ExistingPrivateConstructorSaga : Wolverine.Saga
+        {
+            ExistingPrivateConstructorSaga() { }
+            public void Handle(ExistingPrivateConstructorMessage message) { }
+        }
+
+        public sealed class NotFoundOnlyPrivateConstructorSaga : Wolverine.Saga
+        {
+            NotFoundOnlyPrivateConstructorSaga() { }
+            public static void NotFound(NotFoundOnlyPrivateConstructorMessage message) { }
+        }
+
+        public record DocumentOperationMessage(System.Guid Id);
+        public static partial class NeutralDocumentOperations
+        {
+            public static void Apply(DocumentOperationMessage message, Marten.IDocumentSession session) => session.Store(new AuditDocument(message.Id));
+            public static void Apply(DocumentOperationMessage message, string reason, Marten.IDocumentSession session) => session.Update(new AuditDocument(message.Id));
         }
 
         public record IgnoredSagaMessage(System.Guid SagaId);
@@ -284,8 +422,10 @@ public class a_wolverine_saga_application : Specification
         }
 
         public partial record GeneratedCorrelationMessage;
-        public sealed class GeneratedCorrelationSaga : Wolverine.Saga
+        public record BeginGeneratedCorrelationSaga(System.Guid Id);
+        public sealed partial class GeneratedCorrelationSaga : Wolverine.Saga
         {
+            public static GeneratedCorrelationSaga Start(BeginGeneratedCorrelationSaga message) => new();
             public void Handle(GeneratedCorrelationMessage message) { }
         }
 
@@ -312,7 +452,30 @@ public class a_wolverine_saga_application : Specification
             public System.Guid GeneratedCorrelationSagaId { get; init; }
         }
 
+        public partial record OrdinaryCascade
+        {
+            public string GeneratedReturnedCascadeProperty { get; init; } = string.Empty;
+        }
+
+        public partial record DirectSend
+        {
+            public string GeneratedDirectBusProperty { get; init; } = string.Empty;
+        }
+
+        public partial record OutgoingImmediate
+        {
+            public string GeneratedOutgoingMessageProperty { get; init; } = string.Empty;
+        }
+
+        [Wolverine.Attributes.WolverineIgnore]
+        public sealed partial class GeneratedCorrelationSaga;
+
         public partial class GeneratedBaseSaga : Wolverine.Saga;
+
+        public static partial class NeutralDocumentOperations
+        {
+            public static void Apply(DocumentOperationMessage message, int generated, Marten.IDocumentSession session) => session.Delete<AuditDocument>(message.Id);
+        }
 
         public record GeneratedOnlyMessage(System.Guid SagaId);
         public sealed class GeneratedOnlySaga : Wolverine.Saga

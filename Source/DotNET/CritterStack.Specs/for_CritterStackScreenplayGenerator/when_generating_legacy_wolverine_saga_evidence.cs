@@ -5,6 +5,8 @@ namespace Cratis.CritterStack.Screenplay.for_CritterStackScreenplayGenerator;
 
 public class when_generating_legacy_wolverine_saga_evidence : given.a_legacy_wolverine_saga_application
 {
+    const string SagaLifecycleRealization = "WOLVERINE0016";
+
     GeneratedScreenplayDefinition _result = null!;
 
     void Because() => _result = new CritterStackScreenplayGenerator().Generate(
@@ -21,7 +23,7 @@ public class when_generating_legacy_wolverine_saga_evidence : given.a_legacy_wol
     [Fact] void should_use_exact_legacy_identity_evidence() => SagaHandles.All(_ => _.Definitions.Single().TargetMember == "workflowId" && _.Evidence.Single().Strength == EvidenceStrength.Exact).ShouldBeTrue();
     [Fact] void should_keep_each_legacy_method_as_one_handler() => SagaHandles.Select(_ => _.Key.Source).Distinct().Count().ShouldEqual(22);
     [Fact] void should_not_create_a_message_or_event_for_the_returned_legacy_state() => ArtifactNames(ArtifactKind.Message).Contains("LegacyWorkflow", StringComparer.Ordinal).ShouldBeFalse();
-    [Fact] void should_report_one_located_legacy_workflow_loss() => _result.Diagnostics.Count(_ => _.Code == WolverineDiagnosticCodes.SagaWorkflowOmitted && _.Source?.Path == "LegacyOrders/Sagas.cs").ShouldEqual(1);
+    [Fact] void should_report_one_located_legacy_lifecycle_realization() => _result.Diagnostics.Count(_ => _.Code == SagaLifecycleRealization && _.Source?.Path == "LegacyOrders/Sagas.cs" && _.Severity == GenerationDiagnosticSeverity.Information).ShouldEqual(1);
     [Fact] void should_not_report_runtime_correlation_for_exact_legacy_identity() => _result.Diagnostics.Any(_ => _.Code == WolverineDiagnosticCodes.SagaCorrelationRuntime).ShouldBeFalse();
 
     IReadOnlyList<ResolvedRelationship> SagaHandles =>

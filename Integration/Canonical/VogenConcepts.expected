@@ -98,4 +98,8 @@ diagnostic: WOLVERINE0014
 diagnostic-message: WOLVERINE0014|parameter 'boundary'
 diagnostic: WOLVERINE0016
 diagnostic-message: WOLVERINE0016|OrderSaga
+diagnostic-message: WOLVERINE0016|Wolverine-managed lifecycle
+diagnostic-message: WOLVERINE0016|does not safely establish portable conditional completion or a portable domain workflow
+diagnostic-message: WOLVERINE0016|realization/provenance
+diagnostic-message: WOLVERINE0016|ordinary Event Modeling building blocks
 diagnostic-message: WOLVERINE0016|MarkCompleted
