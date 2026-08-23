@@ -83,7 +83,9 @@ static class MartenTenancyConfigurationDiscovery
             return;
         }
 
-        var style = EnumMember(assignment.Right, semanticModel, enumMetadataName);
+        var style = assignment.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.SimpleAssignmentExpression)
+            ? EnumMember(assignment.Right, semanticModel, enumMetadataName)
+            : null;
         diagnostics.Add(style is null
             ? Diagnostic(
                 project,
@@ -103,9 +105,18 @@ static class MartenTenancyConfigurationDiscovery
         IMethodSymbol method,
         List<GenerationDiagnostic> diagnostics)
     {
-        if (!IsDocumentTenancyMethod(method) ||
-            method.ContainingType.TypeArguments is not [INamedTypeSymbol { TypeKind: not TypeKind.Error } documentType])
+        if (!IsDocumentTenancyMethod(method))
         {
+            return;
+        }
+
+        if (method.ContainingType.TypeArguments is not [INamedTypeSymbol { TypeKind: not TypeKind.Error } documentType])
+        {
+            diagnostics.Add(Diagnostic(
+                project,
+                ProjectSubject(project),
+                $"Marten has an authored document tenancy declaration '{method.Name}' with an otherwise unresolved generic document target; no document type or effective tenancy was guessed",
+                invocation.GetLocation()));
             return;
         }
 
@@ -211,26 +222,21 @@ static class MartenTenancyConfigurationDiscovery
 
     static string? EnumMember(ExpressionSyntax expression, SemanticModel semanticModel, string enumMetadataName)
     {
-        if (semanticModel.GetSymbolInfo(expression).Symbol is IFieldSymbol field &&
+        var symbol = semanticModel.GetSymbolInfo(expression).Symbol;
+        if (symbol is IFieldSymbol field &&
             MetadataName(field.ContainingType) == enumMetadataName &&
             _tenancyStyles.Contains(field.Name))
         {
             return field.Name;
         }
 
-        if (semanticModel.GetTypeInfo(expression).ConvertedType is not INamedTypeSymbol enumType ||
-            MetadataName(enumType) != enumMetadataName ||
-            semanticModel.GetConstantValue(expression) is not { HasValue: true, Value: not null } constant)
+        if (symbol is ILocalSymbol { IsConst: true } local &&
+            local.DeclaringSyntaxReferences.SingleOrDefault()?.GetSyntax() is VariableDeclaratorSyntax { Initializer.Value: { } initializer })
         {
-            return null;
+            return EnumMember(initializer, semanticModel, enumMetadataName);
         }
 
-        return enumType.GetMembers()
-            .OfType<IFieldSymbol>()
-            .FirstOrDefault(_ =>
-                _tenancyStyles.Contains(_.Name) &&
-                _.HasConstantValue &&
-                Equals(_.ConstantValue, constant.Value))?.Name;
+        return null;
     }
 
     static GenerationDiagnostic Diagnostic(

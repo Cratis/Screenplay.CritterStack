@@ -88,6 +88,8 @@ public class a_marten_tenancy_configuration_application : Specification
                 options.Events.TenancyStyle = conjoined;
                 options.Events.TenancyStyle = JasperFx.MultiTenancy.TenancyStyle.Conjoined;
                 options.Events.TenancyStyle = (JasperFx.MultiTenancy.TenancyStyle)99;
+                options.Events.TenancyStyle = default;
+                options.Events.TenancyStyle |= JasperFx.MultiTenancy.TenancyStyle.Conjoined;
                 var computed = BuildStyle();
                 options.Events.TenancyStyle = computed;
 
@@ -107,6 +109,9 @@ public class a_marten_tenancy_configuration_application : Specification
                     partitioning => partitioning.ByHash("one", "two"),
                     Marten.Schema.PrimaryKeyTenancyOrdering.TenantId_Then_Id);
             }
+
+            public static void ConfigureGeneric<T>(Marten.StoreOptions options) where T : class =>
+                options.Schema.For<T>().MultiTenanted();
 
             static JasperFx.MultiTenancy.TenancyStyle BuildStyle() => JasperFx.MultiTenancy.TenancyStyle.Conjoined;
         }
