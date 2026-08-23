@@ -1,5 +1,5 @@
 # Cratis-owned fixture: Vogen 8.0.7, Marten 9.29.0, Wolverine 6.29.2
-source-sha256: f90382df6046e122f36be4f1c083b1e4e8fafb8f32ee5f03f18d75b3dac52e1e
+source-sha256: 688ab242f2f40c2a5334f61194af644bdb24b6d189083fc1a0c6878cf10cc745
 source: concept OrderKey : Uuid
 source: concept CorrelationId : Uuid
 source: concept CustomerCode : String
@@ -18,6 +18,10 @@ source: destinationOrder OrderKey
 source: event OrderDebited
 source: event OrderCredited
 source: file Integration/Canonical/VogenConcepts/EventStreams.cs
+source: command ReviewOrderBoundary
+source: order OrderKey
+source: event OrderBoundaryReviewed
+source: file Integration/Canonical/VogenConcepts/Dcb.cs
 not-source: LegacyStorageEvent
 not-source: CurrentStorageEvent
 not-source: MultiTenantedEvidenceOnly
@@ -29,14 +33,20 @@ artifact: Concept:NormalizedCode
 artifact: Command:TransferBetweenOrders
 artifact: Event:OrderDebited
 artifact: Event:OrderCredited
+artifact: Command:ReviewOrderBoundary
+artifact: Aggregate:OrderBoundary
+artifact: Event:OrderBoundaryReviewed
 artifact-count: Concept|4
 artifact-count: Document|1
-artifact-count: Event|3
+artifact-count: Event|4
 relationship-count: Appends|Command:TransferBetweenOrders|Aggregate:Order|2
+relationship-count: Reads|Command:ReviewOrderBoundary|Aggregate:OrderBoundary|2
+relationship-count: Produces|Command:ReviewOrderBoundary|Event:OrderBoundaryReviewed|1
 not-identifier: Command:TransferBetweenOrders:sourceOrder
 not-identifier: Command:TransferBetweenOrders:destinationOrder
 evidence: Concept:CustomerCode|vogen|Integration/Canonical/VogenConcepts/Concepts.cs
 evidence: Command:RegisterOrder|cratis.critter-stack|Integration/Canonical/VogenConcepts/Ordering.cs
+evidence: Command:ReviewOrderBoundary|cratis.critter-stack|Integration/Canonical/VogenConcepts/Dcb.cs
 evidence-count: Concept:CustomerCode|1
 identifier: Document:Order:key
 not-identifier: Document:Order:correlationId
@@ -59,3 +69,5 @@ diagnostic-message: MARTEN0013|project-wide document tenancy policy declaration 
 diagnostic: WOLVERINE0012
 diagnostic-message: WOLVERINE0012|parameter 'source'
 diagnostic-message: WOLVERINE0012|parameter 'destination'
+diagnostic: WOLVERINE0014
+diagnostic-message: WOLVERINE0014|parameter 'boundary'
