@@ -42,6 +42,7 @@ static class MartenFacts
         var registrations = MartenProjectionDiscovery.Discover(project, adapter);
         diagnostics.AddRange(MartenConfigurationDiscovery.Discover(project, registrations));
         diagnostics.AddRange(MartenEventSchemaConfigurationDiscovery.Discover(project));
+        diagnostics.AddRange(MartenTenancyConfigurationDiscovery.Discover(project));
 
         foreach (var registration in registrations)
         {
