@@ -377,7 +377,7 @@ static class WolverineValidationAuthorizationDiscovery
     static IEnumerable<ConfigurationCall> ConfigurationCalls(DotNetProjectCompilation project)
     {
         foreach (var tree in project.Compilation.SyntaxTrees
-                     .Where(_ => !DotNetGeneratedSource.IsGenerated(_))
+                     .Where(_ => project.AuthoredSyntaxTrees.Contains(_) && !DotNetGeneratedSource.IsGenerated(_))
                      .OrderBy(_ => _.FilePath, StringComparer.Ordinal))
         {
             var semanticModel = project.Compilation.GetSemanticModel(tree);
