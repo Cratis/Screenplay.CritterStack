@@ -29,6 +29,8 @@ The canonical workflow pins source commits and verifies these exact package comb
 
 Passing one row proves only the behaviors asserted by that fixture. It does not promote the entire Marten or Wolverine major line to verified status.
 
+Synthetic and canonical coverage verifies target-aware current and legacy `IEventStream<T>` bindings, exact receiver-bound `AppendOne`/`AppendMany` payloads, loaded streams without direct appends, commandless HTTP stream metadata, unresolved-target diagnostics, and saga-state return exclusion. The repository-owned Vogen fixture pins the current package APIs and proves two same-model stream targets while the focused synthetic context preserves negative and legacy cases.
+
 The 2026-08-21 local canonical run passed the original six fixtures. The repository-owned Vogen fixture is an additional exact-output gate; its source hash makes Vogen composition drift visible while the six non-Vogen hashes remain unchanged. It intentionally did not suppress upstream warnings: Reports pins vulnerable `Microsoft.OpenApi` 2.0.0 (`NU1903`), MartenWithProjectAspire pins vulnerable `OpenTelemetry.Exporter.OpenTelemetryProtocol` 1.8.1 (`NU1902`), and legacy HelpDesk targets out-of-support net7.0 and has pre-existing nullability warnings. These applications are built and statically analyzed but never started. Their immutable pins make drift visible; they are compatibility evidence, not dependency recommendations.
 
 ## Research baselines
