@@ -1,5 +1,5 @@
 # JasperFx/CritterStackSamples @ 2c94389bcb5face1070d0409ef284973e8aaceea
-source-sha256: 136ed011cc8de806d81cb98f017d2ee288b045fea72bd98f358347c8c583112e
+source-sha256: 4d028470fecb3877ac12526c41af9fe17ed0669a37385abde9e3e869a20355df
 source: command DepositFunds
 source: command WithdrawFunds
 source: command OpenAccount
@@ -14,5 +14,6 @@ artifact: Command:DepositFunds
 artifact: Reducer:AccountTransactionsProjection
 relationship: Produces
 relationship: Reads
+relationship: Reads Command:OpenAccount -> ReadModel:Client
 diagnostic: WOLVERINE0005
 diagnostic: WOLVERINE0008

@@ -15,6 +15,7 @@ on:
     paths:
       - "Source/DotNET/**"
       - "Integration/PackageConsumer/**"
+      - "scripts/**"
       - "*.props"
       - "*.targets"
       - "*.slnx"
@@ -57,11 +58,4 @@ jobs:
       - name: Run clean package consumer
         env:
           NUGET_PACKAGES: ${{ runner.temp }}/critter-stack-consumer-packages
-        run: |
-          dotnet restore Integration/PackageConsumer/PackageConsumer.csproj \
-            --source ./Artifacts/NuGet \
-            --source https://api.nuget.org/v3/index.json \
-            -p:CritterStackPackageVersion=9999.0.0
-          dotnet run --project Integration/PackageConsumer/PackageConsumer.csproj \
-            --no-restore \
-            -p:CritterStackPackageVersion=9999.0.0
+        run: ./scripts/verify-package-consumer.sh 9999.0.0 ./Artifacts/NuGet
