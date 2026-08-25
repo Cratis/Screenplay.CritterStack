@@ -19,15 +19,17 @@ The canonical workflow pins source commits and verifies these exact package comb
 
 | Fixture | Source pin | Marten | Wolverine | Coverage |
 | --- | --- | ---: | ---: | --- |
-| BankAccountES | `JasperFx/CritterStackSamples@2c94389bcb5face1070d0409ef284973e8aaceea` | 9.20.0 | 6.23.1 | Aggregate handlers, snapshots, single-stream projection, commands, queries, and validation loss |
-| CqrsMinimalApi | `JasperFx/CritterStackSamples@2c94389bcb5face1070d0409ef284973e8aaceea` | 9.20.0 | 6.23.1 | Ordinary document CRUD, conventional identity, and HTTP entry points |
-| Reports | `JasperFx/CritterStackSamples@2c94389bcb5face1070d0409ef284973e8aaceea` | 9.20.1 | 6.23.1 | `IMartenOp`, document persistence, and custom typed conventional identity |
+| BankAccountES | `JasperFx/CritterStackSamples@2c94389bcb5face1070d0409ef284973e8aaceea` | 9.20.0 | 6.23.1 | Aggregate handlers, snapshots, single-stream projection, commands, queries, validation loss, and exact `[Entity]` reads |
+| CqrsMinimalApi | `JasperFx/CritterStackSamples@2c94389bcb5face1070d0409ef284973e8aaceea` | 9.20.0 | 6.23.1 | Ordinary document CRUD, conventional identity, HTTP entry points, and exact `[Entity]` reads |
+| Reports | `JasperFx/CritterStackSamples@2c94389bcb5face1070d0409ef284973e8aaceea` | 9.20.1 | 6.23.1 | `IMartenOp`, document persistence, custom typed identity, `RegisterValueType` concept nomination, and explicit missing-representation diagnostics |
 | MartenWithProjectAspire | `JasperFx/CritterStackSamples@2c94389bcb5face1070d0409ef284973e8aaceea` | 9.20.1 | — | Generic and instance projection registration, async lifecycle, authored `Name` metadata, `DaemonMode.Solo`, exact multi-stream identity/member grouping, direct and `IEvent<T>` fan-out child evidence, and exact `EventProjection.Create` document storage with explicit value-flow loss |
 | IncidentService | license-attributed fixture from `JasperFx/wolverine@af4807b5fb225ce7535c67785b74007fdad2dd9f` | 9.23.0 | 6.29.1 | Current HTTP aggregate workflow, response wrappers, direct append/delete, messages, delay, and query |
 | VogenConcepts | Cratis-owned repository fixture | 9.29.0 | 6.29.2 | Vogen 8.0.7 source generation, concepts and nullable usages, authored validation, generated-source exclusion, exact Marten alias/upcast and logical tenancy diagnostics, target-aware streams, current store-agnostic `[DcbModel]` / `EventTagQuery`, and canonical `Saga`, `SagaIdentity`, `SagaIdentityFrom`, `TimeoutMessage`, and `MarkCompleted()` APIs |
-| CritterStackHelpDesk | `JasperFx/CritterStackHelpDesk@b67659dd7ca6d8ff07e7b9dad20affc4a37b6062` | 6.3.0 | 1.11.1 | Legacy attributes/returns, API-worker contracts, event forwarding, and generated-source exclusion |
+| CritterStackHelpDesk | `JasperFx/CritterStackHelpDesk@b67659dd7ca6d8ff07e7b9dad20affc4a37b6062` | 6.3.0 | 1.11.1 | Legacy attributes/returns, API-worker contracts, event forwarding, generated-source exclusion, and compound `LoadAsync` presence |
 
 Passing one row proves only the behaviors asserted by that fixture. It does not promote the entire Marten or Wolverine major line to verified status.
+
+The current T1–T7 increment also uses focused authored-source specs for exact shapes not present in the pinned public applications: batched arrays, storage-action returns, `[FirstOrDefault]` / `[Queryable]` reads, convention-alteration hooks, continuation-bearing compound stages, projection message side effects, session listeners, and wire configuration. No new synthetic canonical fixture was added. Further package-level compatibility evidence must use pinned public Critter Stack samples or the public HelpDesk application.
 
 Synthetic and canonical coverage verifies target-aware current and legacy `IEventStream<T>` bindings, exact receiver-bound `AppendOne`/`AppendMany` payloads, loaded streams without direct appends, commandless HTTP stream metadata, and unresolved-target diagnostics. It also verifies bounded DCB admission for exact/assignable `Wolverine.Persistence.EventSourcing.DcbModelAttribute` and exact legacy `Wolverine.Marten.BoundaryModelAttribute`, the actual `JasperFx.Events.Tags.IEventBoundary<T>` contract, sync/Task/ValueTask `EventTagQuery` companions, ordered OR conditions, safe direct returns/appends, and fail-closed query diagnostics.
 
@@ -37,7 +39,7 @@ Coverage includes admitted role spellings and `Async` twins, signature-stable ov
 
 The pre-release neutral handler-subject format now uses full .NET documentation method identities for both Marten and Wolverine facts. This intentionally migrates internal graph subjects to separate overloads and converge cross-adapter identity; it does not alter generated Screenplay `.play` bytes. The repository-owned Vogen fixture pins the current package APIs; focused current and Wolverine 1 source-compatible synthetic contexts preserve positive and negative cases.
 
-The 2026-08-21 local canonical run passed the original six fixtures. The repository-owned Vogen fixture is an additional exact-output gate; its source hash makes Vogen composition drift visible while the six non-Vogen hashes remain unchanged. It intentionally did not suppress upstream warnings: Reports pins vulnerable `Microsoft.OpenApi` 2.0.0 (`NU1903`), MartenWithProjectAspire pins vulnerable `OpenTelemetry.Exporter.OpenTelemetryProtocol` 1.8.1 (`NU1902`), and legacy HelpDesk targets out-of-support net7.0 and has pre-existing nullability warnings. These applications are built and statically analyzed but never started. Their immutable pins make drift visible; they are compatibility evidence, not dependency recommendations.
+The current local canonical run passes the public sample matrix plus the repository-owned baselines. The repository-owned Vogen fixture remains an additional exact-output gate; its source hash makes Vogen composition drift visible. BankAccountES and CqrsMinimalApi hashes were deliberately updated after reviewed `[Entity]` read additions. It intentionally did not suppress upstream warnings: Reports pins vulnerable `Microsoft.OpenApi` 2.0.0 (`NU1903`), MartenWithProjectAspire pins vulnerable `OpenTelemetry.Exporter.OpenTelemetryProtocol` 1.8.1 (`NU1902`), and legacy HelpDesk targets out-of-support net7.0 and has pre-existing nullability warnings. These applications are built and statically analyzed but never started. Their immutable pins make drift visible; they are compatibility evidence, not dependency recommendations.
 
 ## Research baselines
 
@@ -68,6 +70,10 @@ Use these terms consistently:
 5. **Unsupported** — the adapter deliberately excludes the construct and explains why.
 
 The adapter should fail closed for a newer major version until canonical evidence exists. A newer patch or minor within a source-reviewed major may be attempted, but the result must identify the detected version and remain human-reviewed.
+
+## Package API compatibility
+
+Package validation compares the candidate `Cratis.CritterStack.Screenplay` public surface with the latest released baseline, `0.21.0`. Compatible additions are allowed; public removals and incompatible signature changes fail the build. The clean candidate-package consumer separately exercises the current generator constructors, source context, dependency closure, and published diagnostic-code constants before publication.
 
 ## Version provenance
 

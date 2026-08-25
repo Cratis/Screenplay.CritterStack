@@ -1,10 +1,10 @@
 # Screenplay.CritterStack
 
-Generate verified [Cratis Screenplay](https://github.com/Cratis/Screenplay) definitions from Marten, Wolverine, and independently composed .NET source semantics.
+Generate compiler-checked, reviewable [Cratis Screenplay](https://github.com/Cratis/Screenplay) candidates from authorized Marten, Wolverine, and independently composed .NET source semantics.
 
 `Cratis.CritterStack.Screenplay` follows the same package architecture as `Cratis.Arc.Screenplay`: a host supplies Roslyn compilations, and the package analyzes framework conventions, builds one semantic application model, lowers it through the shared Screenplay generation SDK, prints canonical `.play` source, and verifies it with the Screenplay compiler.
 
-This is an independent Cratis compatibility project. It is not affiliated with or endorsed by JasperFx. Marten, Wolverine, JasperFx, and Critter Stack names belong to their respective owners. Generated models may require human review wherever diagnostics report semantic loss.
+This is an independent, optional pre-release Cratis compatibility project. It is not affiliated with or endorsed by JasperFx. Marten, Wolverine, JasperFx, and Critter Stack names belong to their respective owners. Generated models require human review wherever diagnostics report loss or ambiguity. The package is not an automatic migration authority, production runtime, compatibility promise, or support commitment.
 
 ## Goals
 
@@ -15,7 +15,12 @@ This is an independent Cratis compatibility project. It is not affiliated with o
 - Authored Marten event/document tenancy declarations, attributes, and global policies retained as located `MARTEN0013` diagnostic evidence without inferring effective state, runtime tenant resolution, or database topology.
 - Authored Marten event aliases, schema-version helpers, naming style, and current upcast registrations retained as `MARTEN0011`/`MARTEN0012` diagnostic evidence without renaming or originating events or inferring upcast behavior.
 - Marten compiled-query execution linked to proven Wolverine HTTP query entry points, including public plan parameters; unresolved nested executable flow reports `MARTEN0006` instead of guessing.
-- Marten + Wolverine HTTP and message handlers.
+- Marten + Wolverine HTTP and message handlers, including signature-stable overloaded handler identities and batched `T[]` message delivery.
+- Returned `IStorageAction<T>` / `UnitOfWork<T>` persistence, exact per-slot storage-factory refinement, and `[Entity]` / `[FirstOrDefault]` / `[Queryable]` bound reads.
+- Presence diagnostics for Wolverine/Marten convention-alteration hooks, per-chain `Configure(HandlerChain)`, and Marten session listeners without interpreting policy or listener bodies.
+- Compound `Load*`, `Before*`, `After*`, `PostProcess*`, `Finally*`, and after-commit stages, with exact outgoing-message consequences retained on the owning entry point and explicit `WOLVERINE0020` loss.
+- Literal projection `PublishMessage(new TMessage(...))` side effects retained as Message/`Publishes` evidence, with `MARTEN0015` for unresolved payload flow.
+- Event wire configuration (`UseBinarySerializer<T>`, append mode, stream identity) and `RegisterValueType` concept nomination retained without fabricating event or concept representations.
 - Vogen concepts, primitive representations, authored validation hooks, nullable usages, and explicit loss diagnostics through the separately composed `Cratis.Screenplay.Generation.DotNet.Vogen` adapter.
 - Current store-agnostic Wolverine event-sourcing APIs and legacy Marten-specific APIs.
 - Target-aware exact current and legacy `IEventStream<T>` appends across multiple handler parameters, including commandless HTTP and metadata-only loaded streams, with per-binding identities and explicit diagnostics instead of first-stream guesses.
@@ -39,6 +44,8 @@ Roslyn compilations
 `CritterStackScreenplayAdapter` remains a low-level Marten/Wolverine adapter and matches those framework APIs by metadata name without runtime package references. The generator facade depends on the separate Vogen adapter package; neither production package depends on the Vogen source-generator/runtime package used by analyzed applications.
 
 ## Generator composition
+
+For the generic code-to-Screenplay adapter contract, evidence rules, fact vocabulary, source placement, and specification checklist, see the canonical [`Screenplay.Generation/WRITING_SOURCE_ADAPTERS.md`](https://github.com/Cratis/Screenplay.Generation/blob/main/WRITING_SOURCE_ADAPTERS.md) guide. The documentation [Marten and Wolverine case study](Documentation/guides/extend-source-adapter.md) explains how this repository applies those rules to focused specs, diagnostics, and public compatibility evidence.
 
 The parameterless facade composes Vogen and Critter Stack by default. Each adapter first identifies whether it can analyze the supplied projects, then contributes independently identified facts to one `ScreenplayDefinitionGenerator`:
 
@@ -70,25 +77,30 @@ The canonical runner uses source-path policy v1 with workspace-relative display 
 
 A compatibility-only heuristic can supply a legacy display range for a source-backed referenced-project symbol **after** Critter Stack's existing semantic discovery has admitted that symbol. It considers only declarations accepted by the shared authored-source heuristic, orders safe workspace-relative ranges deterministically, excludes generated names and headers, and never participates in artifact or fact admission. The range carries no `SourceFileIdentity`. This fallback requires a fully qualified `SourceRoot` and a declaration beneath it; otherwise `Source` is omitted rather than exposing an absolute path or basename. The strict location path never admits generated or out-of-context trees. The `Generate(Compilation, ...)` convenience overload has neither host-owned source context nor a safe source root, so its evidence omits source provenance. Hosts that need stable identity must call the project-aware overload with an explicit source context.
 
-## Canonical fixtures
+## Compatibility fixtures
 
 The compatibility plan uses:
 
 - Wolverine's current `src/Samples/IncidentService`;
 - `JasperFx/CritterStackHelpDesk` for Marten 6/Wolverine 1 behavior;
-- BankAccountES and other focused applications from the local Critter Stack sample corpus;
+- BankAccountES and other focused applications from the pinned public `JasperFx/CritterStackSamples` repository;
 - MartenWithProjectAspire for instance-registered async, multi-stream, and event projections;
 - the repository-owned `VogenConcepts` fixture pinned to Vogen 8.0.7, Marten 9.29.0, and Wolverine 6.29.2, including the canonical store-agnostic DCB and authored saga APIs.
 
+These pinned samples and focused source-shape specs provide compatibility evidence for the versions and behaviors they exercise. They do not establish a broad support promise or close the requirement for a wholly Cratis-owned deterministic release fixture before broader Preview positioning.
+
 See:
 
-- [`STRATEGY.md`](STRATEGY.md) — why the adapter is public and how it supports visualization, interoperability, and migration
-- [`COMPATIBILITY.md`](COMPATIBILITY.md) — exact canonical package sets, research baselines, and support tiers
+- [`Documentation/index.md`](Documentation/index.md) — documentation entry point and current boundaries
+- [`STRATEGY.md`](STRATEGY.md) — current product position, shipped behavior, and claim boundary
+- [`COMPATIBILITY.md`](COMPATIBILITY.md) — exact exercised package sets and compatibility evidence tiers
 - [`CRITTER_STACK_PATTERN_DISCOVERY_RESEARCH.md`](CRITTER_STACK_PATTERN_DISCOVERY_RESEARCH.md) — how source behavior maps to State Change, State View, Automation, and Translation
-- [`MVP_ACCEPTANCE.md`](MVP_ACCEPTANCE.md) — the explicit stopping criteria for a credible preview and a later 1.0
+- [`MVP_ACCEPTANCE.md`](MVP_ACCEPTANCE.md) — historical acceptance evidence for the original 0.1 preview
 - [`CRITTER_STACK_SCREENPLAY_RESEARCH_AND_ARCHITECTURE.md`](CRITTER_STACK_SCREENPLAY_RESEARCH_AND_ARCHITECTURE.md)
-- [`CRITTER_STACK_SCREENPLAY_IMPLEMENTATION_HANDOVER.md`](CRITTER_STACK_SCREENPLAY_IMPLEMENTATION_HANDOVER.md)
-- [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md)
+- [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) — current release, working-tree coverage, residuals, and continuation
+- [`CRITTER_STACK_SCREENPLAY_IMPLEMENTATION_HANDOVER.md`](CRITTER_STACK_SCREENPLAY_IMPLEMENTATION_HANDOVER.md) — historical implementation plan
+- [Stage: Build a renderer target](https://github.com/Cratis/Stage/blob/main/Documentation/guides/build-renderer-target.md) — canonical renderer-target guidance
+- [`WRITING_CRITTER_STACK_RENDERER.md`](WRITING_CRITTER_STACK_RENDERER.md) — unapproved design proposal; not canonical onboarding or an implementation commitment
 
 ## Build and test
 

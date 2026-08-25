@@ -45,7 +45,7 @@ A handler can have several consequences. Do not force a mixed handler into one r
 
 The existing neutral contracts already separate `Command`, `Query`, `Projection`, `Reducer`, `Reaction`, `Message`, `Handler`, `Endpoint`, `Response`, and `Saga`, and distinguish `Produces`, `Consumes`, `Builds`, `Cascades`, `Publishes`, `SideEffect`, stream operations, and document operations. Keep those distinctions through resolution.
 
-Measured gaps remain: `Publishes` currently combines send and publish; delayed/scheduled delivery has no relationship; stream operations do not carry target aggregate/identity semantics; projection/subscription lifecycle, version, filter, and tenancy are diagnostic-only; and mixed behavior has no explicit classification result. Extend facts additively only after canonical fixtures prove the required shape. Do not work around these gaps by overloading `Produces` or inventing Screenplay syntax.
+Measured gaps remain: delayed/scheduled delivery has no dedicated relationship; projection/subscription lifecycle, version, filter, and tenancy remain diagnostic-only; arbitrary non-literal side-effect flow is unresolved; and mixed behavior has no explicit classification result. Target-aware stream identities and literal projection message publication are now retained. Extend facts additively only after canonical fixtures prove the required shape. Do not work around these gaps by overloading `Produces` or inventing Screenplay syntax.
 
 ## State Change patterns
 
@@ -184,20 +184,15 @@ Version tracking is necessary because semantic APIs moved:
 
 Use exact canonical package sets and support tiers from [`COMPATIBILITY.md`](COMPATIBILITY.md). Package provenance should ultimately come from CLI workspace assets; assembly versions alone are insufficient.
 
-## Implementation priorities
+## Current residual priorities
 
-1. Add compatibility/version provenance without claiming untested major ranges. Fingerprint one- versus two-argument projection bases, lifecycle namespace, `DeleteEvent<T>` presence, legacy versus store-agnostic Wolverine attributes, DCB boundaries, event-side-effect wrappers, and forwarding APIs.
-2. Correct stale current metadata assumptions before adding breadth: current handler attributes live under `Wolverine.Attributes`, return policies under `Wolverine.Configuration`, response-aware contracts under `Wolverine`, and current saga state derives from `Wolverine.Saga`.
-3. Introduce one slot-level consequence classifier for HTTP response, persisted event, document operation, cascade/publish/send, delayed/scheduled message, side effect, saga state, and projection side effect.
-4. Finish compiled-query entry-point linking and document identity evidence.
-5. Add explicit projection lifecycle/name/version/daemon/subscription facts and diagnostics.
-6. Extract simple multi-stream identity/fan-out and EventProjection document operations; retain arbitrary code as loss.
-7. Complete Wolverine discovery customization, compound middleware, authorization/validation enablement, direct bus calls, and delivery options.
-8. Add subscriptions, event forwarding, projection side effects, sagas, and DCB facts without forcing them into an incorrect existing slice type.
-9. Resolve Translation only after source and target boundaries are proven.
-10. Measure remaining losses before adding Screenplay grammar.
+1. Keep compatibility/version provenance separate from semantic conformance and fail closed outside reviewed framework generations.
+2. Keep arbitrary policy, listener, subscription, and non-literal projection bodies as explicit loss rather than traversing unbounded code.
+3. Defer persistence-indirection diagnostics until a solution-wide authored implementation manifest can join interface members across project boundaries without guessing.
+4. Resolve Translation only after source and target boundaries are proven.
+5. Measure remaining target-language loss before adding Screenplay grammar.
 
-Canonical coverage should add a wholly Cratis-owned bounded fixture, MartenWithProjectAspire, one Fleet service, OutboxDemo, and the API/worker HelpDesk flow. Every fixture needs positive and negative assertions, deterministic bytes, compiler/print stability, and proof that no host/database starts.
+Additional package-level compatibility evidence must use pinned public Critter Stack samples or the public HelpDesk application. Focused source-shape specs remain appropriate for bounded positive/negative cases; do not add a new synthetic canonical fixture for this increment. Every canonical check must retain deterministic bytes, compiler/print stability, and proof that no host or database starts.
 
 ## Authoritative documentation reviewed
 
