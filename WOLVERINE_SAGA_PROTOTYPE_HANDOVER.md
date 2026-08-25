@@ -7,7 +7,7 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 ## Status
 
-This working tree is a **bounded saga candidate** under focused issue #50. All requested local gates are complete. It remains unmerged and unreleased pending final GitHub CI and the merge decision; it is still not part of the released source-to-Screenplay baseline.
+This document is historical release evidence for the bounded saga work that subsequently merged and shipped in `v0.21.0`. The candidate/branch language below describes the pre-merge checkpoint and is not a current continuation instruction.
 
 It preserves the former local stash:
 
@@ -104,9 +104,9 @@ Fresh local evidence for this working tree:
 - [x] Compatibility/status documentation.
 - [x] Sentinel package validation and clean package consumer.
 - [x] Independent review and certification finding addressed locally.
-- [ ] Final GitHub CI on a future commit; not run from this uncommitted local task.
-- [ ] Final merge; no commit, push, PR, merge, release, or issue operation was performed here.
+- [x] Final GitHub CI completed for the shipped change.
+- [x] The bounded saga work merged and shipped in `v0.21.0`.
 
-## Resume rule
+## Historical continuation note
 
-The explicit product decision has been made. Full #44 is not required first because this working tree introduces only the framework-neutral method-identity seam; atomic adapter classes and CLI roster work remain in #44/#95. Do not treat the candidate as shipped until final GitHub CI passes and the merge decision is made.
+The bounded saga candidate is shipped in `v0.21.0`; do not resume the old stash/branch workflow. Remaining atomic adapter or CLI roster work is tracked independently in its owning repositories.
