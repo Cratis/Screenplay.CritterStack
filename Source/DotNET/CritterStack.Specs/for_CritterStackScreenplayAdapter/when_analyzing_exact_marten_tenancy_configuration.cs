@@ -8,6 +8,7 @@ public class when_analyzing_exact_marten_tenancy_configuration : given.a_marten_
     static readonly HashSet<string> _attributedOnlyTypes = ["AttributedMultiDocument", "AttributedSingleDocument"];
 
     [Fact] void should_preserve_every_exact_and_fail_closed_tenancy_occurrence() => TenancyDiagnostics.Count.ShouldEqual(23);
+    [Fact] void should_classify_each_exact_tenancy_declaration_as_unsupported() => TenancyDiagnostics.Where(_ => !_.Message.Contains("unresolved", StringComparison.Ordinal)).All(_ => _.Outcome == GenerationDiagnosticOutcome.Unsupported).ShouldBeTrue();
     [Fact] void should_retain_current_single_event_tenancy() => CurrentEventTenancy.Any(_ => _.Message.Contains("declaration 'Single'", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_retain_current_conjoined_event_tenancy_constants() => CurrentEventTenancy.Count(_ => _.Message.Contains("declaration 'Conjoined'", StringComparison.Ordinal)).ShouldEqual(2);
     [Fact] void should_retain_legacy_single_event_tenancy_metadata() => LegacyEventTenancy.Any(_ => _.Message.Contains("declaration 'Single'", StringComparison.Ordinal)).ShouldBeTrue();

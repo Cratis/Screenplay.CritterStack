@@ -12,6 +12,7 @@ public class when_generating_a_wolverine_marten_application : given.a_wolverine_
         new CritterStackScreenplayOptions { Domain = "Helpdesk" });
 
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
+    [Fact] void should_classify_every_diagnostic_semantically() => _result.Diagnostics.All(_ => _.Outcome is not null).ShouldBeTrue();
     [Fact] void should_generate_log_incident() => _result.Source.ShouldContain("command LogIncident");
     [Fact] void should_generate_categorise_incident() => _result.Source.ShouldContain("command CategoriseIncident");
     [Fact] void should_generate_close_incident() => _result.Source.ShouldContain("command CloseIncident");
