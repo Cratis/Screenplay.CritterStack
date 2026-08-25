@@ -27,6 +27,7 @@ env:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout adapter
         uses: actions/checkout@v4
