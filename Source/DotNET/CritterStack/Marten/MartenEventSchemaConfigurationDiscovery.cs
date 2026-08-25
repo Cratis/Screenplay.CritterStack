@@ -11,6 +11,8 @@ namespace Cratis.CritterStack.Screenplay.Marten;
 static class MartenEventSchemaConfigurationDiscovery
 {
     static readonly HashSet<string> _eventNamingStyles = ["ClassicTypeName", "SmarterTypeName", "FullTypeName"];
+    static readonly HashSet<string> _eventAppendModes = ["Quick", "QuickWithServerTimestamps", "Rich"];
+    static readonly HashSet<string> _streamIdentities = ["AsGuid", "AsString"];
     static readonly HashSet<string> _clrUpcasterBases =
     [
         WellKnownTypes.MartenClrEventUpcaster,
@@ -47,12 +49,14 @@ static class MartenEventSchemaConfigurationDiscovery
                     continue;
                 }
 
+                DiscoverBinarySerializerConfiguration(project, invocation, method, semanticModel, diagnostics);
                 DiscoverEventTypeConfiguration(project, invocation, method, semanticModel, diagnostics);
                 DiscoverUpcastConfiguration(project, invocation, method, semanticModel, diagnostics);
             }
 
             foreach (var assignment in root.DescendantNodes().OfType<AssignmentExpressionSyntax>())
             {
+                DiscoverWireConfiguration(project, assignment, semanticModel, diagnostics);
                 DiscoverEventNamingStyle(project, assignment, semanticModel, diagnostics);
             }
 
@@ -71,6 +75,76 @@ static class MartenEventSchemaConfigurationDiscovery
                 .ThenBy(_ => _.Code, StringComparer.Ordinal)
                 .ThenBy(_ => _.Message, StringComparer.Ordinal)
         ];
+    }
+
+    static void DiscoverBinarySerializerConfiguration(
+        DotNetProjectCompilation project,
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol method,
+        SemanticModel semanticModel,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        var candidate = (method.ReducedFrom ?? method).OriginalDefinition;
+        if (!string.Equals(candidate.Name, "UseBinarySerializer", StringComparison.Ordinal) ||
+            candidate.TypeParameters.Length != 1 ||
+            !IsEventStoreOptions(candidate.ContainingType))
+        {
+            return;
+        }
+
+        var eventType = NamedType(method.TypeArguments.SingleOrDefault());
+        var serializerExpression = invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression;
+        var serializerType = NamedType(serializerExpression is null ? null : semanticModel.GetTypeInfo(serializerExpression).Type);
+        if (eventType is null || serializerType is null)
+        {
+            diagnostics.Add(EventConfiguration(
+                project,
+                eventType,
+                "Marten has an authored per-event binary serializer declaration whose event or serializer type could not be resolved safely",
+                invocation.GetLocation(),
+                GenerationDiagnosticOutcome.Unknown));
+            return;
+        }
+
+        diagnostics.Add(EventConfiguration(
+            project,
+            eventType,
+            $"Marten event type '{eventType.Name}' has an authored binary serializer declaration using '{serializerType.Name}'",
+            invocation.GetLocation()));
+    }
+
+    static void DiscoverWireConfiguration(
+        DotNetProjectCompilation project,
+        AssignmentExpressionSyntax assignment,
+        SemanticModel semanticModel,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        if (semanticModel.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol property ||
+            !IsEventStoreOptions(property.ContainingType))
+        {
+            return;
+        }
+
+        var (enumType, admittedValues, label) = property.Name switch
+        {
+            "AppendMode" => (WellKnownTypes.JasperFxEventAppendMode, _eventAppendModes, "event append-mode"),
+            "StreamIdentity" => (WellKnownTypes.JasperFxStreamIdentity, _streamIdentities, "stream-identity"),
+            _ => (null, null, null)
+        };
+        if (enumType is null || admittedValues is null || label is null)
+        {
+            return;
+        }
+
+        var value = EnumMember(assignment.Right, semanticModel, enumType, admittedValues);
+        diagnostics.Add(EventConfiguration(
+            project,
+            null,
+            value is null
+                ? $"Marten has an authored {label} declaration with a computed or otherwise unresolved value; no effective setting was guessed"
+                : $"Marten has an authored {label} declaration '{value}'",
+            assignment.GetLocation(),
+            value is null ? GenerationDiagnosticOutcome.Unknown : GenerationDiagnosticOutcome.Unsupported));
     }
 
     static void DiscoverEventTypeConfiguration(
@@ -632,10 +706,12 @@ static class MartenEventSchemaConfigurationDiscovery
         DotNetProjectCompilation project,
         INamedTypeSymbol? eventType,
         string message,
-        Location location) => new()
+        Location location,
+        GenerationDiagnosticOutcome outcome = GenerationDiagnosticOutcome.Unsupported) => new()
         {
             Code = MartenDiagnosticCodes.EventTypeConfigurationOmitted,
             Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = outcome,
             Message = $"{message}. This authored declaration is retained as diagnostic evidence only; it does not rename, version, originate, or duplicate a Screenplay Event artifact, and runtime execution or precedence is not asserted",
             Source = CritterStackSource.RangeForProject(location, project),
             Subject = eventType is null ? ProjectSubject(project) : project.SubjectForType(eventType)
@@ -648,16 +724,19 @@ static class MartenEventSchemaConfigurationDiscovery
         project,
         eventType,
         "Marten has an authored event alias, schema-version, or naming-style declaration with a computed or otherwise non-constant value that could not be resolved safely; no storage alias, suffix, version, naming style, or effective value was guessed",
-        location);
+        location,
+        GenerationDiagnosticOutcome.Unknown);
 
     static GenerationDiagnostic UpcastConfiguration(
         DotNetProjectCompilation project,
         INamedTypeSymbol? target,
         string message,
-        Location location) => new()
+        Location location,
+        GenerationDiagnosticOutcome outcome = GenerationDiagnosticOutcome.Unsupported) => new()
         {
             Code = MartenDiagnosticCodes.EventUpcastConfigurationOmitted,
             Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = outcome,
             Message = $"{message}. This authored declaration is retained as diagnostic evidence only; it does not originate Event or Upcast artifacts or infer behavioral relationships, and runtime execution, reachability, ordering, or precedence is not asserted",
             Source = CritterStackSource.RangeForProject(location, project),
             Subject = target is null ? ProjectSubject(project) : project.SubjectForType(target)
@@ -670,7 +749,8 @@ static class MartenEventSchemaConfigurationDiscovery
         project,
         target,
         "Marten has an authored upcast declaration with a computed, indirect, mixed inline collection, or otherwise unresolved type, alias, or schema version; no source type, target type, alias, version, shape, ordering, or effective value was guessed",
-        location);
+        location,
+        GenerationDiagnosticOutcome.Unknown);
 
     static bool HasEventStoreReceiver(IMethodSymbol method) =>
         method.IsExtensionMethod &&
@@ -678,7 +758,9 @@ static class MartenEventSchemaConfigurationDiscovery
         IsEventStoreOptions(method.Parameters[0].Type);
 
     static bool IsEventStoreOptions(ITypeSymbol type) =>
-        MetadataName(type) == WellKnownTypes.MartenEventStoreOptions;
+        type is INamedTypeSymbol named &&
+        (MetadataName(named) == WellKnownTypes.MartenEventStoreOptions ||
+         DotNetSymbols.Implements(named, WellKnownTypes.MartenEventStoreOptions));
 
     static bool IsString(ITypeSymbol type) => type.SpecialType == SpecialType.System_String;
 
