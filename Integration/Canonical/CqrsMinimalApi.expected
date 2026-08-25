@@ -1,5 +1,5 @@
 # JasperFx/CritterStackSamples @ 2c94389bcb5face1070d0409ef284973e8aaceea
-source-sha256: 73b32b42a4f9e960ac3d60a6d2155ec5f27de0bacb210a531b56bec5da0ca13f
+source-sha256: 8237e8710ebbbdc8a6193cf062c2a7856d5762d0c38614dbf2233daf978e9e9c
 source: command CreateStudentRequest
 source: command UpdateStudentRequest
 source: command DeleteStudent
@@ -14,5 +14,8 @@ identifier: Document:Student:id
 relationship: Stores
 relationship: Deletes
 relationship: Reads
+relationship: Reads Query:GetById -> ReadModel:Student
+relationship: Reads Command:UpdateStudentRequest -> ReadModel:Student
+relationship: Reads Command:DeleteStudent -> ReadModel:Student
 diagnostic: MARTEN0003
 diagnostic: WOLVERINE0002

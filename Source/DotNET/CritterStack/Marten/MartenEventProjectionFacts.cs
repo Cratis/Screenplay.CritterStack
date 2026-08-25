@@ -391,6 +391,7 @@ static class MartenEventProjectionFacts
         {
             Code = MartenDiagnosticCodes.EventProjectionOmitted,
             Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = GenerationDiagnosticOutcome.Unsupported,
             Message = hasExactOperations
             ? $"Event projection '{registration.Projection!.Name}' has exact event and document operation relationships, but arbitrary document body, value, and predicate flow remains code-defined and was omitted"
             : $"Event projection '{registration.Projection!.Name}' has no authored Create return or event-bound IDocumentOperations Store, Insert, Update, Delete, or DeleteWhere operation that can be represented exactly",

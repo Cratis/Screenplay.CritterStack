@@ -6,6 +6,7 @@ namespace Cratis.CritterStack.Screenplay.for_CritterStackScreenplayAdapter;
 public class when_analyzing_unresolved_marten_event_schema_configuration : given.a_marten_event_schema_configuration_application
 {
     [Fact] void should_report_each_unresolved_event_configuration_once() => UnresolvedEventConfiguration.Count.ShouldEqual(4);
+    [Fact] void should_classify_each_unresolved_configuration_as_unknown() => UnresolvedDiagnostics.All(_ => _.Outcome == GenerationDiagnosticOutcome.Unknown).ShouldBeTrue();
     [Fact] void should_report_each_unresolved_upcast_configuration_once() => UnresolvedUpcastConfiguration.Count.ShouldEqual(5);
     [Fact] void should_not_guess_computed_aliases() => UnresolvedDiagnostics.Any(_ => _.Message.Contains("must-not-be-guessed", StringComparison.Ordinal)).ShouldBeFalse();
     [Fact] void should_not_guess_computed_versions() => UnresolvedDiagnostics.Any(_ => _.Message.Contains("'99'", StringComparison.Ordinal)).ShouldBeFalse();

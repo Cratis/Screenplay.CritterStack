@@ -112,6 +112,7 @@ static class MartenDocumentFacts
                 {
                     Code = MartenDiagnosticCodes.DocumentIdentityUnresolved,
                     Severity = GenerationDiagnosticSeverity.Warning,
+                    Outcome = GenerationDiagnosticOutcome.Unsupported,
                     Message = $"Marten identity member '{identityMember.ContainingType?.Name}.{identityMember.Name}' cannot be represented uniquely in the emitted '{observed.Type.Name}' document property shape",
                     Source = observed.IdentityEvidence?.Source ?? observed.RegistrationEvidence.Source,
                     Subject = subject
@@ -134,6 +135,7 @@ static class MartenDocumentFacts
             {
                 Code = MartenDiagnosticCodes.DocumentModelOmitted,
                 Severity = GenerationDiagnosticSeverity.Information,
+                Outcome = GenerationDiagnosticOutcome.Unsupported,
                 Message = $"Marten document '{_.Value.Type.Name}' is persisted, queried, or explicitly configured, but the current Screenplay language has no ordinary document-state declaration",
                 Source = _.Value.RegistrationEvidence.Source,
                 Subject = _.Key
@@ -182,6 +184,7 @@ static class MartenDocumentFacts
             {
                 Code = MartenDiagnosticCodes.DocumentIdentityUnresolved,
                 Severity = GenerationDiagnosticSeverity.Warning,
+                Outcome = GenerationDiagnosticOutcome.Unknown,
                 Message = $"Marten identity configuration for '{documentType.Name}' is not a direct member expression and cannot be resolved safely",
                 Source = evidence.Source,
                 Subject = subject

@@ -5,7 +5,7 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 # Critter Stack source generation: implementation plan and handover
 
-> **Current continuation:** use [`SOURCE_TO_SCREENPLAY_GOOD_ENOUGH_HANDOVER.md`](SOURCE_TO_SCREENPLAY_GOOD_ENOUGH_HANDOVER.md). This document preserves the detailed historical implementation plan; its old stage sequence is not the active resume order.
+> **Historical plan:** this document preserves the original implementation sequence. Use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for current status and continuation; do not resume the stage order below.
 
 ## Mission
 

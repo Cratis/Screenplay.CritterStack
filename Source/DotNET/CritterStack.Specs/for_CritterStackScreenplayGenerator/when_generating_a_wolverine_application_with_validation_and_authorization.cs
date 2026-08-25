@@ -13,6 +13,7 @@ public class when_generating_a_wolverine_application_with_validation_and_authori
 
     [Fact] void should_compile_the_fixture() => PositiveProject.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
+    [Fact] void should_classify_each_recognized_policy_gap_as_unsupported() => _result.Diagnostics.All(_ => _.Outcome == GenerationDiagnosticOutcome.Unsupported).ShouldBeTrue();
     [Fact] void should_record_each_exact_validation_policy_activation() => _result.Diagnostics.Count(_ => _.Code == WolverineDiagnosticCodes.ValidationPolicyOmitted).ShouldEqual(4);
     [Fact] void should_record_fluent_validation_application() => _result.Diagnostics.Any(_ => _.Code == WolverineDiagnosticCodes.ValidationOmitted && _.Message.Contains("FluentValidation HTTP endpoint validation for 'CreateOrder'", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_record_data_annotations_application() => _result.Diagnostics.Any(_ => _.Code == WolverineDiagnosticCodes.ValidationOmitted && _.Message.Contains("DataAnnotations HTTP endpoint validation for 'RegisterUser'", StringComparison.Ordinal)).ShouldBeTrue();

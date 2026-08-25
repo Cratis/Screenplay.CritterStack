@@ -41,7 +41,7 @@ sealed class WolverineValidationAuthorizationDiscoveryResult(
 {
     public IReadOnlyList<GenerationDiagnostic> Diagnostics { get; } = diagnostics;
 
-    public bool HasCompoundValidation(IMethodSymbol handler) => CompoundValidationMethods(handler).Any();
+    public bool HasCompoundValidation(IMethodSymbol handler) => WolverineCompoundStages.ValidationMethodsFor(handler, project).Count > 0;
 
     public IEnumerable<GenerationDiagnostic> ValidationDiagnostics(
         IMethodSymbol handler,
@@ -49,7 +49,7 @@ sealed class WolverineValidationAuthorizationDiscoveryResult(
         SubjectId subject,
         bool isHttpEndpoint)
     {
-        foreach (var validation in CompoundValidationMethods(handler))
+        foreach (var validation in WolverineCompoundStages.ValidationMethodsFor(handler, project))
         {
             yield return OmittedValidation(
                 subject,
@@ -108,25 +108,6 @@ sealed class WolverineValidationAuthorizationDiscoveryResult(
                 subject,
                 SourceOf(attribute, endpoint),
                 $"Wolverine HTTP endpoint '{endpoint.Name}' requires ASP.NET authorization{details}");
-        }
-    }
-
-    IEnumerable<IMethodSymbol> CompoundValidationMethods(IMethodSymbol handler)
-    {
-        var handlerParameterTypes = handler.Parameters.Select(_ => _.Type).ToArray();
-        foreach (var method in handler.ContainingType.GetMembers().OfType<IMethodSymbol>())
-        {
-            var isValidationMethod = string.Equals(method.Name, "Validate", StringComparison.Ordinal) ||
-                                     string.Equals(method.Name, "ValidateAsync", StringComparison.Ordinal);
-            if (!SymbolEqualityComparer.Default.Equals(method, handler) &&
-                method.DeclaredAccessibility == Accessibility.Public &&
-                isValidationMethod &&
-                method.Locations.Any(IsAuthoredSourceLocation) &&
-                (method.Parameters.Length == 0 || method.Parameters.Any(parameter =>
-                    handlerParameterTypes.Any(handlerType => SymbolEqualityComparer.Default.Equals(handlerType, parameter.Type)))))
-            {
-                yield return method;
-            }
         }
     }
 
@@ -209,6 +190,7 @@ sealed class WolverineValidationAuthorizationDiscoveryResult(
     {
         Code = WolverineDiagnosticCodes.ValidationOmitted,
         Severity = GenerationDiagnosticSeverity.Warning,
+        Outcome = GenerationDiagnosticOutcome.Unsupported,
         Message = $"{behavior}, but current generation contracts cannot represent validation without overloading an unrelated relationship",
         Source = source,
         Subject = subject
@@ -218,6 +200,7 @@ sealed class WolverineValidationAuthorizationDiscoveryResult(
     {
         Code = WolverineDiagnosticCodes.AuthorizationOmitted,
         Severity = GenerationDiagnosticSeverity.Warning,
+        Outcome = GenerationDiagnosticOutcome.Unsupported,
         Message = $"{behavior}, but current generation contracts cannot represent authorization without overloading an unrelated relationship",
         Source = source,
         Subject = subject

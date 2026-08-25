@@ -16,3 +16,5 @@ diagnostic: WOLVERINE0002
 diagnostic: WOLVERINE0003
 diagnostic: WOLVERINE0005
 diagnostic: WOLVERINE0008
+diagnostic: WOLVERINE0020
+diagnostic-message: WOLVERINE0020|LoadAsync

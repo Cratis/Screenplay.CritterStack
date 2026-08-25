@@ -5,10 +5,9 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-        <CritterStackPackageVersion Condition="'$(CritterStackPackageVersion)' == ''">9999.0.0</CritterStackPackageVersion>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Cratis.CritterStack.Screenplay" Version="$(CritterStackPackageVersion)" />
+        <ProjectReference Include="../../Source/DotNET/CritterStack/CritterStack.csproj" />
     </ItemGroup>
 </Project>

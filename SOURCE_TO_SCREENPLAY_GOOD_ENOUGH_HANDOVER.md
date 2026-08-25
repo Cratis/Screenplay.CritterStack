@@ -5,6 +5,8 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 # Source-to-Screenplay good-enough handover
 
+> Historical checkpoint: this handover records the `v0.19.0` / Generation `0.8.0` finalization. The repository has since shipped `v0.21.0` and now references Generation `0.9.0`; use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for current continuation.
+
 ## Conclusion
 
 The source-to-Screenplay **Preview foundation is good enough and finalization is complete**. Do not continue filling every Marten/Wolverine edge case as an open-ended program.
@@ -22,7 +24,7 @@ trusted host source/workspace
 
 Future work should prioritize **atomic adapter composition**, reusable evidence mechanics, and target-language capabilities. Framework-specific breadth continues only when a product need or canonical loss justifies it.
 
-## Current released baseline
+## Historical released baseline
 
 | Component | Release | Commit | State |
 | --- | --- | --- | --- |
@@ -139,19 +141,9 @@ CLI `v2.15.2` shipped through PR `Cratis/cli#99` and was verified from public di
 
 Generation `#5` and CLI `#87` are closed. Atomic adapter composition remains separately tracked in Generation `#17`, Critter Stack `#44`, and CLI `#95`.
 
-### Saga prototype — deliberately paused
+### Saga follow-up — shipped after this checkpoint
 
-A substantial saga prototype exists but is **not part of the good-enough baseline**.
-
-```text
-worktree: /tmp/Critter-wolverine-sagas
-branch: feat/wolverine-saga-evidence
-stash: stash@{0}
-commit: f8c4b96ba7bd9ae6e5888cd6bd6f703a6a57183b
-message: prototype Wolverine saga evidence: 647 specs pass; requires independent review before ship
-```
-
-Do not apply and ship it automatically. An independent review confirmed it must remain paused: saga state needs exclusion from HTTP-query and nested payload inference, lifecycle role admission needs stricter static/instance and creation-return checks, handler display names need signature stability, and Marten-to-Wolverine identity internals need a neutral boundary aligned with `#44`. The findings are recorded on Critter Stack `#4`.
+The bounded saga work described by the former prototype subsequently addressed its admission, exclusion, identity, and method-signature findings, merged, and shipped in `v0.21.0`. Do not resume or apply the old stash/worktree instructions; [`WOLVERINE_SAGA_PROTOTYPE_HANDOVER.md`](WOLVERINE_SAGA_PROTOTYPE_HANDOVER.md) now preserves that work as historical release evidence.
 
 ## Definition of good enough
 

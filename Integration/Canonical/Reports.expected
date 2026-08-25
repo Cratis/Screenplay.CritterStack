@@ -3,7 +3,12 @@ source-sha256: dd429ea98b665d8c485141ca06f77198e38186daa45917e5492375760a7e2620
 source: command StartReport
 not-source: readmodel Report
 artifact: Document:Report
+artifact: Concept:ReportId
 identifier: Document:Report:id
 relationship: Stores
 diagnostic: MARTEN0003
 diagnostic: WOLVERINE0002
+diagnostic: GEN0012
+diagnostic-message: GEN0012|ReportId
+diagnostic: GEN0016
+diagnostic-message: GEN0016|ReportId

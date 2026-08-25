@@ -22,8 +22,10 @@ on:
       - main
     paths:
       - Source/DotNET/**
-      - '*.props'
-      - '*.targets'
+      - Integration/PackageConsumer/**
+      - scripts/**
+      - "*.props"
+      - "*.targets"
 
 env:
   NUGET_OUTPUT: ./Artifacts/NuGet
@@ -68,6 +70,8 @@ jobs:
         run: dotnet build --no-restore --configuration Release -p:Version=${{ needs.release.outputs.version }}
       - name: Pack
         run: dotnet pack --no-build --configuration Release -o ${{ env.NUGET_OUTPUT }} -p:PackageVersion=${{ needs.release.outputs.version }}
+      - name: Verify package consumer
+        run: ./scripts/verify-package-consumer.sh ${{ needs.release.outputs.version }} ${{ env.NUGET_OUTPUT }}
       - name: NuGet login
         uses: NuGet/login@v1
         id: login

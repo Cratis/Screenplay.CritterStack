@@ -167,6 +167,7 @@ static class WolverineSagaFacts
         {
             Code = WolverineDiagnosticCodes.SagaLifecycleRealization,
             Severity = GenerationDiagnosticSeverity.Information,
+            Outcome = GenerationDiagnosticOutcome.Unsupported,
             Message = completion is null
                 ? $"Saga '{sagaType.Name}' uses Wolverine-managed lifecycle. Authored source does not safely establish a portable domain workflow; neutral Saga/Handler/Handles facts are retained as realization/provenance, and Screenplay uses ordinary Event Modeling building blocks"
                 : $"Saga '{sagaType.Name}' invokes Wolverine.Saga.MarkCompleted() within Wolverine-managed lifecycle. Authored source does not safely establish portable conditional completion or a portable domain workflow; neutral Saga/Handler/Handles facts are retained as realization/provenance, and Screenplay uses ordinary Event Modeling building blocks",
@@ -228,6 +229,7 @@ static class WolverineSagaFacts
             {
                 Code = WolverineDiagnosticCodes.SagaCorrelationRuntime,
                 Severity = GenerationDiagnosticSeverity.Information,
+                Outcome = GenerationDiagnosticOutcome.Unknown,
                 Message = correlation.UnresolvedReason ?? $"Saga handler '{sagaType.Name}.{method.Name}' has no authored message correlation member for '{role.MessageType.Name}'; correlation remains runtime-resolved",
                 Source = roleEvidence.Source,
                 Subject = handlerSubject
@@ -262,6 +264,7 @@ static class WolverineSagaFacts
             {
                 Code = WolverineDiagnosticCodes.DelayedMessageOmitted,
                 Severity = GenerationDiagnosticSeverity.Warning,
+                Outcome = GenerationDiagnosticOutcome.Unsupported,
                 Message = $"Saga handler '{sagaType.Name}.{method.Name}' returns timeout message '{timeout!.Name}', whose delayed delivery cannot be represented by the current Screenplay language",
                 Source = roleEvidence.Source,
                 Subject = handlerSubject
@@ -400,6 +403,7 @@ static class WolverineSagaFacts
         {
             Code = WolverineDiagnosticCodes.SagaRoleUnresolved,
             Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = GenerationDiagnosticOutcome.Unknown,
             Message = $"Wolverine saga role '{DotNetMethodIdentity.DisplayName(method)}' was not admitted because {reason}",
             Source = evidence.Source,
             Subject = DotNetMethodIdentity.SubjectFor(project, method)
