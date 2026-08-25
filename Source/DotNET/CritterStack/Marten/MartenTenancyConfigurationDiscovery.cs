@@ -91,7 +91,8 @@ static class MartenTenancyConfigurationDiscovery
                 project,
                 ProjectSubject(project),
                 "Marten has an authored event tenancy-style declaration with a computed, invalid, stale, or otherwise unresolved value; no tenancy style or effective state was guessed",
-                assignment.GetLocation())
+                assignment.GetLocation(),
+                GenerationDiagnosticOutcome.Unknown)
             : Diagnostic(
                 project,
                 ProjectSubject(project),
@@ -116,7 +117,8 @@ static class MartenTenancyConfigurationDiscovery
                 project,
                 ProjectSubject(project),
                 $"Marten has an authored document tenancy declaration '{method.Name}' with an otherwise unresolved generic document target; no document type or effective tenancy was guessed",
-                invocation.GetLocation()));
+                invocation.GetLocation(),
+                GenerationDiagnosticOutcome.Unknown));
             return;
         }
 
@@ -243,10 +245,12 @@ static class MartenTenancyConfigurationDiscovery
         DotNetProjectCompilation project,
         SubjectId subject,
         string message,
-        Location location) => new()
+        Location location,
+        GenerationDiagnosticOutcome outcome = GenerationDiagnosticOutcome.Unsupported) => new()
         {
             Code = MartenDiagnosticCodes.TenancyConfigurationOmitted,
             Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = outcome,
             Message = $"{message}. This authored declaration is retained as diagnostic evidence only; it does not originate, duplicate, or modify Screenplay artifacts or relationships, and runtime execution or precedence is not asserted",
             Source = CritterStackSource.RangeForProject(location, project),
             Subject = subject

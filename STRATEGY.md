@@ -3,123 +3,65 @@ Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information.
 -->
 
-# Strategic rationale: Critter Stack to Screenplay
+# Strategy and claim boundary
 
-## Decision
+## Current position
 
-`Cratis/Screenplay.CritterStack` remains a **public, source-available interoperability adapter**.
+`Cratis/Screenplay.CritterStack` is an optional, pre-release compatibility adapter. Given an authorized source context, it interprets bounded Marten and Wolverine source semantics and contributes neutral facts, evidence, and diagnostics through Screenplay.Generation. The generated `.play` document is a reviewable candidate, not an automatic migration result or a claim of behavioral equivalence.
 
-It converts source evidence from Marten and Wolverine applications into a verified Screenplay definition. That definition can then be visualized and reviewed in Studio, executed by Stage where supported, or used as an intermediate model for generating Cratis application code.
+The adapter is not a canonical Cratis prerequisite, production runtime, source of operational truth, automatic materialization authority, compatibility promise, or support commitment.
 
-The adapter is positioned as an interoperability and migration tool, not as an unofficial Critter Stack implementation.
+## Shipped technical behavior
 
-## Why this is strategically valuable
+The current package:
 
-### Reduce the cost of evaluating and adopting Cratis
+- consumes Roslyn compilations and the authored-source context supplied by its host;
+- matches exercised Marten and Wolverine APIs and conventions by semantic metadata identity;
+- emits neutral artifacts, relationships, evidence, and stable diagnostics for the behavior it can establish;
+- omits or diagnoses bounded ambiguity and unsupported semantic shapes rather than deliberately selecting a convenient interpretation;
+- composes with Screenplay.Generation, which resolves contributions, prints canonical `.play` source, and verifies that source with the Screenplay compiler; and
+- produces deterministic output for the repository's exercised specification and compatibility matrix.
 
-A mature application rarely starts from an empty repository. Importing an existing event model, commands, read models, projections, queries, and workflows into Screenplay gives a team a credible path to:
+The adapter library does not start the analyzed application or connect to PostgreSQL. This does not make source loading non-executing: a host that evaluates an MSBuild workspace can execute project-controlled build logic. The host owns source authorization, workspace trust, project and target-framework selection, import bounds, and output handling.
 
-1. understand its current system in Studio;
-2. inspect where semantics are exact, inferred, or missing;
-3. evolve the model in Screenplay;
-4. generate or run a Cratis implementation incrementally.
+## Why the source is public
 
-This removes a large migration barrier and creates a practical adoption funnel from adjacent stacks.
+Public source makes the implemented compatibility boundary inspectable. Maintainers can review:
 
-### Establish Screenplay as an interoperability model
+- the exact framework identities and conventions that are recognized;
+- how events, messages, responses, documents, streams, and side effects remain distinct;
+- where evidence is exact, configured, conventional, or heuristic;
+- which conditions produce `Unknown`, `Conflict`, or `Unsupported` diagnostics; and
+- which pinned package and sample versions have repository-recorded evidence.
 
-Screenplay becomes more valuable when it can describe systems that were not originally built with Cratis. A framework-neutral semantic model is a stronger ecosystem position than a format that only Cratis applications can produce.
+Publication does not turn those exercised versions into a general support matrix. Compatibility can change when an external framework changes, and no accepted owner, response boundary, deprecation policy, or support ceiling is established here.
 
-The same architecture supports future adapters for other frameworks, ecosystems, and source languages without coupling them to Arc or Critter Stack.
-
-### Make conversion honest and reviewable
-
-Source conversion is not perfectly lossless. Public code and stable diagnostics let users verify:
-
-- which framework conventions are recognized;
-- how Wolverine responses, messages, side effects, and Marten events are distinguished;
-- which mappings are exact or inferred;
-- what Screenplay cannot represent yet;
-- that the adapter does not start the application, connect to PostgreSQL, or exfiltrate source.
-
-Transparency is particularly important for migration tooling because users must trust the resulting model before generating a new implementation.
-
-## Why the repository should be public
-
-### Shipping a private .NET package provides little secrecy
-
-A package embedded in Cratis CLI or distributed through NuGet can be inspected and decompiled. A private repository would add friction for legitimate users and contributors without creating a meaningful technical moat.
-
-The durable Cratis differentiation is not hiding metadata names or Roslyn matching rules. It is the combined Screenplay language, Studio experience, Stage runtime, Cratis framework capabilities, code generation, migration workflow, and quality of semantic diagnostics.
-
-### Public ownership improves adoption
-
-A public adapter:
-
-- demonstrates that migration is supported rather than theoretical;
-- lowers fear of vendor lock-in;
-- lets users audit source handling and security;
-- allows compatibility fixes from Marten/Wolverine users;
-- makes package behavior and limitations discoverable;
-- can become a neutral bridge even for teams not yet ready to migrate.
-
-Broader Screenplay adoption benefits Cratis even when the first use is visualization rather than immediate code conversion.
-
-### Public is consistent with upstream licensing
-
-Marten, Wolverine, CritterStackSamples, and CritterStackHelpDesk use permissive MIT licensing. The adapter analyzes public framework contracts and conventions by metadata name and does not copy or embed private implementation code.
-
-Pinned fixtures must retain license attribution and should use the minimum source necessary for deterministic compatibility verification.
-
-## What may remain private
-
-Public adapter source does not require every commercial capability to be public. Potential private or hosted differentiation may include:
-
-- customer-specific migration rules and reports;
-- confidential application mappings;
-- proprietary recommendation/risk scoring;
-- managed migration execution;
-- premium Studio workflows;
-- large-scale portfolio analysis;
-- human-assisted migration services;
-- private connectors requiring customer credentials.
-
-Those capabilities should consume the public semantic adapter rather than forking its framework interpretation.
-
-## Positioning and communication
-
-Use compatibility-focused language:
-
-- “Generate Screenplay from Marten and Wolverine source.”
-- “Visualize and review a Critter Stack application in Studio.”
-- “Create a migration-ready intermediate model with explicit diagnostics.”
-
-Avoid adversarial framing such as “extracting” or “taking” competitor applications. The adapter should be useful even when a team only wants documentation or system understanding.
-
-The README and package metadata should state:
-
-- this is an independent Cratis compatibility project;
-- it is not affiliated with or endorsed by JasperFx;
-- Marten, Wolverine, JasperFx, and Critter Stack names belong to their respective owners;
-- source conversion may require human review where diagnostics report semantic loss.
-
-## Safety and legal boundaries
+## Information and legal boundaries
 
 - Analyze only source the user is authorized to process.
-- Never upload or transmit source without explicit user action.
-- Never start the target application or connect to its infrastructure by default.
-- Never include customer source, secrets, connection strings, or private endpoints in fixtures or diagnostics.
-- Use public framework APIs and documented conventions; do not depend on confidential or unlawfully obtained information.
-- Preserve attribution for copied MIT-licensed fixture material.
-- Do not claim perfect behavioral equivalence when source analysis cannot establish it.
+- Do not put private source, secrets, connection strings, local paths, or private endpoints into fixtures, diagnostics, or public documentation.
+- Keep physical workspace paths out of stable identities and public evidence.
+- Use public framework contracts and independently authored compatibility logic.
+- Preserve required attribution for any permitted third-party fixture material.
+- Do not claim perfect recovery when static source evidence cannot establish runtime behavior.
 
-## Success criteria
+## Explicit limitations
 
-The strategy succeeds when a team can point the Cratis CLI at an existing Marten/Wolverine project and receive:
+Current repository and package evidence does not establish:
 
-1. a deterministic, compiling Screenplay document;
-2. a visible model in Studio;
-3. source-linked provenance;
-4. explicit diagnostics for every important semantic gap;
-5. a credible path toward generated or running Cratis code;
-6. no requirement to run the original application or database.
+- an automatic migration or automatic materialization workflow;
+- execution of the recovered model by Stage;
+- a Studio import, review, or adoption workflow;
+- generation of Marten or Wolverine source from Screenplay;
+- equivalence between recovered facts and runtime behavior;
+- broad compatibility outside pinned, exercised versions;
+- production readiness or production support; or
+- adoption value for an external team.
+
+A proposed Screenplay-to-Marten/Wolverine renderer is documented separately as an **unapproved design proposal**. The canonical renderer contract belongs to the [Stage renderer guide](https://github.com/Cratis/Stage/blob/main/Documentation/guides/build-renderer-target.md); this repository does not currently ship that target.
+
+## Evidence required before broader positioning
+
+Broader preview or adoption wording requires independently accepted evidence, including named ownership, a released host workflow, a wholly Cratis-owned deterministic release fixture, fail-closed ambiguity coverage, an extraction-fidelity report, human acceptance before materialization, explicit security and privacy boundaries, exact compatibility and withdrawal wording, and an authorized external exercise.
+
+Until those gates are accepted, describe the existing package only as an optional, pre-release compatibility adapter that produces a reviewable Screenplay candidate from authorized Marten and Wolverine source evidence. Any adoption or support journey built around that package remains proposed until the corresponding evidence and commitments are accepted.

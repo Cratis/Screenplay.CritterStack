@@ -3,11 +3,11 @@ Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information.
 -->
 
-# Preview acceptance criteria
+# Preview acceptance criteria (completed historical gate)
 
 ## Purpose
 
-The first release is a **credible 0.1 preview**, not a promise of complete Marten/Wolverine behavioral parity.
+This document records the acceptance gate used for the original **0.1 preview**. It is historical evidence, not the current continuation plan, and never promised complete Marten/Wolverine behavioral parity.
 
 The preview is acceptable when it safely produces a useful, compiling Screenplay from representative real applications, identifies every important unsupported semantic through diagnostics, and is available through the ordinary Cratis CLI distribution.
 
@@ -21,7 +21,7 @@ The preview is acceptable when it safely produces a useful, compiling Screenplay
 - [x] `Cratis.CritterStack.Screenplay` 0.1.0 is available from nuget.org.
 - [x] Temporary GitHub-release package restore bootstrap steps are removed from this repository.
 - [x] CLI PR #84 passes CI, merges, and creates the `v2.11.0` release.
-- [ ] CLI release workflows restore the adapter only from ordinary package sources; temporary release-asset bootstrap remains until nuget.org publication.
+- [x] CLI release workflows restore the adapter from ordinary package sources; the temporary release-asset bootstrap was removed after nuget.org publication.
 - [x] The Homebrew-installed `cratis` 2.11.0 tool generates and validates Arc, Marten, and Critter Stack Screenplays from `/tmp`, outside source repositories.
 
 ### Compatibility safety
@@ -81,6 +81,6 @@ A stable 1.0 should additionally require:
 - customer or external-user validation on real authorized applications;
 - no unresolved security, source-exfiltration, or package-supply-chain concerns.
 
-## Current recommendation
+## Completion note
 
-The implementation, canonical behavior, CLI discovery, and safety gates are preview-ready. Critter Stack now restores Generation and validates package compatibility through nuget.org; remove the remaining CLI bootstrap and verify the installed tool from outside the source repositories before announcing broad availability. Then gather real usage before expanding low-confidence edge cases or changing the Screenplay language further.
+The preview gate was completed and superseded by later releases. Current status and continuation are owned by [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md); this checklist remains dated evidence only.

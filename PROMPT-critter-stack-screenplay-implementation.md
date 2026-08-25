@@ -5,7 +5,7 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 # Fresh-session prompt: implement source-to-Screenplay adapters
 
-> **Superseded for current continuation:** use [`PROMPT-source-to-screenplay-next-phase.md`](PROMPT-source-to-screenplay-next-phase.md). The prompt below is retained as historical delivery context and must not restart completed foundation work.
+> **Historical prompt:** use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for current status and continuation. The prompt below is retained as delivery context and must not restart completed foundation work.
 
 Copy everything below this line into a fresh Pi session started in `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack`.
 

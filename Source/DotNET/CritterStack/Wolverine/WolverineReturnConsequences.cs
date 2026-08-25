@@ -15,10 +15,15 @@ enum WolverineReturnConsequenceKind
     Cascade,
     OutgoingMessages,
     SideEffect,
+    StorageAction,
     SagaState
 }
 
-sealed record WolverineReturnConsequence(int Slot, ITypeSymbol Type, WolverineReturnConsequenceKind Kind);
+sealed record WolverineReturnConsequence(
+    int Slot,
+    ITypeSymbol Type,
+    WolverineReturnConsequenceKind Kind,
+    ITypeSymbol? EntityType = null);
 
 static class WolverineReturnConsequences
 {
@@ -48,17 +53,14 @@ static class WolverineReturnConsequences
         return
         [
             .. WolverineReturnTypes.CreatedValues(method)
-                .Select((type, slot) => new WolverineReturnConsequence(
-                    slot,
-                    type,
-                    Classify(type, slot, project, isHttpEndpoint, aggregateWorkflow, hasEventStream, emptyResponse)))
+                .Select((type, slot) => Classify(type, slot, project, isHttpEndpoint, aggregateWorkflow, hasEventStream, emptyResponse))
         ];
     }
 
     public static bool IsTimeoutMessage(INamedTypeSymbol type) =>
         IsAssignableTo(type, WellKnownTypes.WolverineTimeoutMessage);
 
-    static WolverineReturnConsequenceKind Classify(
+    static WolverineReturnConsequence Classify(
         ITypeSymbol type,
         int slot,
         DotNetProjectCompilation project,
@@ -67,55 +69,78 @@ static class WolverineReturnConsequences
         bool hasEventStream,
         bool emptyResponse)
     {
+        WolverineReturnConsequence Consequence(
+            WolverineReturnConsequenceKind kind,
+            ITypeSymbol? entityType = null) => new(slot, type, kind, entityType);
+
         if (type is not INamedTypeSymbol named)
         {
-            return WolverineReturnConsequenceKind.Unknown;
+            return Consequence(WolverineReturnConsequenceKind.Unknown);
         }
 
         var metadataName = DotNetSubjectIds.MetadataName(named.OriginalDefinition);
         if (IsSagaState(named, project))
         {
-            return WolverineReturnConsequenceKind.SagaState;
+            return Consequence(WolverineReturnConsequenceKind.SagaState);
         }
 
         if (IsTimeoutMessage(named))
         {
-            return WolverineReturnConsequenceKind.Cascade;
+            return Consequence(WolverineReturnConsequenceKind.Cascade);
         }
 
         if (metadataName == WellKnownTypes.WolverineOutgoingMessages)
         {
-            return WolverineReturnConsequenceKind.OutgoingMessages;
+            return Consequence(WolverineReturnConsequenceKind.OutgoingMessages);
         }
 
         if (IsAssignableTo(named, WellKnownTypes.WolverineSideEffect))
         {
-            return WolverineReturnConsequenceKind.SideEffect;
+            return Consequence(WolverineReturnConsequenceKind.SideEffect);
+        }
+
+        if (StorageActionEntityType(named) is { } entityType)
+        {
+            return Consequence(WolverineReturnConsequenceKind.StorageAction, entityType);
         }
 
         if (_persistenceOperations.Contains(metadataName))
         {
-            return WolverineReturnConsequenceKind.PersistenceOperation;
+            return Consequence(WolverineReturnConsequenceKind.PersistenceOperation);
         }
 
         if (IsResponse(named))
         {
-            return WolverineReturnConsequenceKind.HttpResponse;
+            return Consequence(WolverineReturnConsequenceKind.HttpResponse);
         }
 
         if (aggregateWorkflow && !hasEventStream && IsPayload(named))
         {
-            return WolverineReturnConsequenceKind.PersistedEvent;
+            return Consequence(WolverineReturnConsequenceKind.PersistedEvent);
         }
 
         if (isHttpEndpoint && slot == 0 && !emptyResponse)
         {
-            return WolverineReturnConsequenceKind.HttpResponse;
+            return Consequence(WolverineReturnConsequenceKind.HttpResponse);
         }
 
         return IsPayload(named)
-            ? WolverineReturnConsequenceKind.Cascade
-            : WolverineReturnConsequenceKind.Unknown;
+            ? Consequence(WolverineReturnConsequenceKind.Cascade)
+            : Consequence(WolverineReturnConsequenceKind.Unknown);
+    }
+
+    static ITypeSymbol? StorageActionEntityType(INamedTypeSymbol type)
+    {
+        var metadataName = DotNetSubjectIds.MetadataName(type.OriginalDefinition);
+        if (string.Equals(metadataName, WellKnownTypes.WolverineUnitOfWork, StringComparison.Ordinal) ||
+            string.Equals(metadataName, WellKnownTypes.WolverineStorageAction, StringComparison.Ordinal))
+        {
+            return type.TypeArguments[0];
+        }
+
+        return type.AllInterfaces
+            .FirstOrDefault(@interface => DotNetSubjectIds.MetadataName(@interface.OriginalDefinition) == WellKnownTypes.WolverineStorageAction)?
+            .TypeArguments[0];
     }
 
     static bool IsResponse(INamedTypeSymbol type)

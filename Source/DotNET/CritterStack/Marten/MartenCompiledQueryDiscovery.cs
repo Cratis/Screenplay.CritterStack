@@ -64,6 +64,7 @@ static class MartenCompiledQueryDiscovery
                     {
                         Code = MartenDiagnosticCodes.CompiledQueryFlowUnresolved,
                         Severity = GenerationDiagnosticSeverity.Warning,
+                        Outcome = GenerationDiagnosticOutcome.Unknown,
                         Message = $"Marten compiled query '{plan.PlanType.Name}' is inside a nested executable scope whose invocation from endpoint '{entryPoint.ContainingType.Name}.{entryPoint.Name}' could not be proven",
                         Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
                         Subject = entryPointSubject

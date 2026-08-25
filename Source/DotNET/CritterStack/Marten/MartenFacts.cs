@@ -40,12 +40,27 @@ static class MartenFacts
         var diagnostics = new List<GenerationDiagnostic>();
         var documents = new List<MartenDocumentUsage>();
         var registrations = MartenProjectionDiscovery.Discover(project, adapter);
-        diagnostics.AddRange(MartenConfigurationDiscovery.Discover(project, registrations));
+        var configuration = MartenConfigurationDiscovery.Discover(project, adapter, registrations);
+        facts.AddRange(configuration.Facts);
+        diagnostics.AddRange(configuration.Diagnostics);
         diagnostics.AddRange(MartenEventSchemaConfigurationDiscovery.Discover(project));
         diagnostics.AddRange(MartenTenancyConfigurationDiscovery.Discover(project));
+        var sideEffectProjections = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
 
         foreach (var registration in registrations)
         {
+            var sideEffectProjection = registration.Projection ?? registration.Model;
+            if (registration.Kind != ProjectionKind.Custom && sideEffectProjections.Add(sideEffectProjection))
+            {
+                var sideEffects = MartenProjectionSideEffects.Discover(
+                    project,
+                    adapter,
+                    registration,
+                    configuration.SideEffectsEnabled);
+                facts.AddRange(sideEffects.Facts);
+                diagnostics.AddRange(sideEffects.Diagnostics);
+            }
+
             if (string.Equals(registration.Lifecycle, "Async", StringComparison.Ordinal) ||
                 string.Equals(registration.Lifecycle, "Live", StringComparison.Ordinal))
             {
@@ -427,6 +442,7 @@ static class MartenFacts
         {
             Code = MartenDiagnosticCodes.MultiStreamGroupingOmitted,
             Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = GenerationDiagnosticOutcome.Unsupported,
             Message = $"Multi-stream projection '{registration.Projection!.Name}' is represented as an event reducer; exact authored grouping and fan-out declarations are retained as neutral evidence, but those semantics are not expressible in the current Screenplay language",
             Source = registration.Evidence.Source,
             Subject = project.SubjectForType(registration.Projection)
@@ -438,6 +454,7 @@ static class MartenFacts
         {
             Code = MartenDiagnosticCodes.ProjectionLifecycleOmitted,
             Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = GenerationDiagnosticOutcome.Unsupported,
             Message = $"Projection '{(registration.Projection ?? registration.Model).Name}' uses the {registration.Lifecycle} lifecycle, which is not expressible in the current Screenplay language",
             Source = registration.Evidence.Source,
             Subject = project.SubjectForType(registration.Projection ?? registration.Model)
@@ -449,6 +466,7 @@ static class MartenFacts
         {
             Code = MartenDiagnosticCodes.CustomProcessingOmitted,
             Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = GenerationDiagnosticOutcome.Unsupported,
             Message = $"Custom Marten projection '{registration.Projection!.Name}' is preserved as a neutral projection artifact, but its arbitrary processing consequences were not inferred",
             Source = registration.Evidence.Source,
             Subject = project.SubjectForType(registration.Projection)

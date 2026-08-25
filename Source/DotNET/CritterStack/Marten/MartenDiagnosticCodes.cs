@@ -72,4 +72,19 @@ public static class MartenDiagnosticCodes
     /// Authored logical tenancy configuration cannot be represented without inventing effective runtime behavior.
     /// </summary>
     public const string TenancyConfigurationOmitted = "MARTEN0013";
+
+    /// <summary>
+    /// An authored Marten convention-alteration hook may change store shape at runtime.
+    /// </summary>
+    public const string ConventionAlterationOmitted = "MARTEN0014";
+
+    /// <summary>
+    /// A projection side-effect message payload could not be resolved exactly from authored source.
+    /// </summary>
+    public const string ProjectionSideEffectUnresolved = "MARTEN0015";
+
+    /// <summary>
+    /// An authored document-session listener observes commits but its consequences are not represented.
+    /// </summary>
+    public const string SessionListenerOmitted = "MARTEN0016";
 }

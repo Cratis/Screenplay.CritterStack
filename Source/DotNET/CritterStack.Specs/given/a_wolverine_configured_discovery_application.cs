@@ -237,6 +237,28 @@ public class a_wolverine_configured_discovery_application : Specification
         }
         """;
 
+    const string ConflictingApplicationSource =
+        """
+        namespace ConflictingDiscovery;
+
+        public record ConventionalTrigger(System.Guid Id);
+        public record ConventionalCascade(System.Guid Id);
+
+        public static class Configuration
+        {
+            public static void Configure(Wolverine.WolverineOptions options)
+            {
+                options.Discovery.DisableConventionalDiscovery();
+                options.Discovery.DisableConventionalDiscovery(false);
+            }
+        }
+
+        public static class ConventionalHandler
+        {
+            public static ConventionalCascade Handle(ConventionalTrigger message) => new(message.Id);
+        }
+        """;
+
     static readonly IReadOnlyList<MetadataReference> _references =
     [
         .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
@@ -246,6 +268,7 @@ public class a_wolverine_configured_discovery_application : Specification
 
     protected DotNetProjectCompilation Project = null!;
     protected DotNetProjectCompilation UnresolvedProject = null!;
+    protected DotNetProjectCompilation ConflictingProject = null!;
 
     void Establish()
     {
@@ -281,6 +304,23 @@ public class a_wolverine_configured_discovery_application : Specification
             SourceRoot = "/workspace",
             Compilation = unresolvedCompilation,
             AuthoredSyntaxTrees = unresolvedCompilation.SyntaxTrees.ToHashSet()
+        };
+
+        var conflictingCompilation = CSharpCompilation.Create(
+            "ConflictingDiscovery",
+            [
+                CSharpSyntaxTree.ParseText(FrameworkSource, path: "/workspace/Framework.cs"),
+                CSharpSyntaxTree.ParseText(ConflictingApplicationSource, path: "/workspace/ConflictingDiscovery/Handlers.cs")
+            ],
+            _references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+        ConflictingProject = new DotNetProjectCompilation
+        {
+            Name = "ConflictingDiscovery",
+            ProjectPath = "/workspace/ConflictingDiscovery/ConflictingDiscovery.csproj",
+            SourceRoot = "/workspace",
+            Compilation = conflictingCompilation,
+            AuthoredSyntaxTrees = conflictingCompilation.SyntaxTrees.ToHashSet()
         };
     }
 }

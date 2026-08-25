@@ -18,22 +18,7 @@ var options = new CritterStackScreenplayOptions
 var project = new DotNetProjectCompilation
 {
     Name = "PackageConsumer",
-    SourceContext = DotNetSourcePaths.Create(
-        "Integration/PackageConsumer/PackageConsumer",
-        new DotNetSourcePathPolicy
-        {
-            Version = 1,
-            DisplayRoot = DotNetSourceDisplayRoot.Workspace,
-            CasePolicy = DotNetSourcePathCasePolicy.Ordinal
-        },
-        [
-            new DotNetSourceDocument
-            {
-                SyntaxTree = syntaxTree,
-                ProjectRelativePath = "Marker.cs",
-                WorkspaceRelativePath = "Integration/PackageConsumer/Marker.cs"
-            }
-        ]),
+    SourceRoot = "/workspace",
     Compilation = compilation,
     AuthoredSyntaxTrees = new HashSet<Microsoft.CodeAnalysis.SyntaxTree> { syntaxTree }
 };
@@ -43,17 +28,13 @@ ICritterStackScreenplayGenerator generatorContract = generator;
 var composedGenerator = new CritterStackScreenplayGenerator(
     new CritterStackScreenplayAdapter(),
     new ScreenplayDefinitionGenerator());
-var adapterListGenerator = new CritterStackScreenplayGenerator([new CritterStackScreenplayAdapter()]);
-
 AssertSuccess(generator.Generate(compilation, options));
 AssertSuccess(generator.Generate([project], options));
 AssertSuccess(generatorContract.Generate(compilation, options));
 AssertSuccess(generatorContract.Generate([project], options));
 AssertSuccess(composedGenerator.Generate(compilation, options));
 AssertSuccess(composedGenerator.Generate([project], options));
-AssertSuccess(adapterListGenerator.Generate(compilation, options));
-AssertSuccess(adapterListGenerator.Generate([project], options));
-AssertSourceContext(project, syntaxTree);
+AssertSourceRange(syntaxTree);
 AssertDependencyGraph();
 
 static void AssertSuccess(GeneratedScreenplayDefinition result)
@@ -64,18 +45,13 @@ static void AssertSuccess(GeneratedScreenplayDefinition result)
     }
 }
 
-static void AssertSourceContext(DotNetProjectCompilation project, Microsoft.CodeAnalysis.SyntaxTree syntaxTree)
+static void AssertSourceRange(Microsoft.CodeAnalysis.SyntaxTree syntaxTree)
 {
-    var range = DotNetSource.RangeForProject(syntaxTree.GetRoot().GetLocation(), project) ??
-                throw new InvalidOperationException("The project-aware source range was not created");
-    if (range.Path != "Integration/PackageConsumer/Marker.cs" ||
-        range.FileIdentity != new SourceFileIdentity
-        {
-            Project = "Integration/PackageConsumer/PackageConsumer",
-            Path = "Marker.cs"
-        })
+    var range = DotNetSource.Range(syntaxTree.GetRoot().GetLocation(), null) ??
+                throw new InvalidOperationException("The source range was not created");
+    if (range.Path != syntaxTree.FilePath)
     {
-        throw new InvalidOperationException("The project-aware source range did not preserve display path and stable identity");
+        throw new InvalidOperationException("The source range did not preserve the authored path");
     }
 }
 

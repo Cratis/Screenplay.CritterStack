@@ -6,6 +6,8 @@ namespace Cratis.CritterStack.Screenplay;
 static class WellKnownTypes
 {
     public const string MartenDocumentStore = "Marten.IDocumentStore";
+    public const string MartenDocumentSessionListener = "Marten.IDocumentSessionListener";
+    public const string MartenChangeListener = "Marten.IChangeListener";
     public const string MartenStoreOptions = "Marten.StoreOptions";
     public const string MartenEventStoreOptions = "Marten.Events.IEventStoreOptions";
     public const string MartenEventStoreOptionsExtensions = "EventStoreOptionsExtensions";
@@ -13,6 +15,8 @@ static class WellKnownTypes
     public const string MartenMultiTenantedAttribute = "Marten.Schema.MultiTenantedAttribute";
     public const string MartenSingleTenantedAttribute = "Marten.Schema.SingleTenantedAttribute";
     public const string JasperFxEventNamingStyle = "JasperFx.Events.EventNamingStyle";
+    public const string JasperFxEventAppendMode = "JasperFx.Events.EventAppendMode";
+    public const string JasperFxStreamIdentity = "JasperFx.Events.StreamIdentity";
     public const string JasperFxTenancyStyle = "JasperFx.MultiTenancy.TenancyStyle";
     public const string MartenLegacyTenancyStyle = "Marten.Storage.TenancyStyle";
     public const string MartenPoliciesExpression = "Marten.StoreOptions+PoliciesExpression";
@@ -43,6 +47,7 @@ static class WellKnownTypes
     public const string MartenEventProjection = "Marten.Events.Projections.EventProjection";
     public const string MartenLegacyEventStream = "Marten.Events.Aggregation.IEventStream`1";
     public const string JasperFxEventStream = "JasperFx.Events.IEventStream`1";
+    public const string JasperFxEventSlice = "JasperFx.Events.IEventSlice`1";
     public const string JasperFxEventBoundary = "JasperFx.Events.Tags.IEventBoundary`1";
     public const string JasperFxEventTagQuery = "JasperFx.Events.Tags.EventTagQuery";
     public const string JasperFxProjectionLifecycle = "JasperFx.Events.Projections.ProjectionLifecycle";
@@ -54,9 +59,19 @@ static class WellKnownTypes
     public const string MartenSubscription = "Marten.Subscriptions.ISubscription";
     public const string MartenSubscriptionBase = "Marten.Subscriptions.SubscriptionBase";
     public const string MartenSubscriptionOptions = "Marten.Subscriptions.ISubscriptionOptions";
+    public const string MartenConfigure = "Marten.IConfigureMarten";
+    public const string MartenAsyncConfigure = "Marten.IAsyncConfigureMarten";
+    public const string MartenDocumentPolicy = "Marten.IDocumentPolicy";
+    public const string MartenProjectionDocumentPolicy = "Marten.Events.Projections.ProjectionDocumentPolicy";
     public const string JasperFxSubscriptionOptions = "JasperFx.Events.Subscriptions.ISubscriptionOptions";
     public const string WolverineOptions = "Wolverine.WolverineOptions";
     public const string WolverineHandlerDiscovery = "Wolverine.Configuration.HandlerDiscovery";
+    public const string WolverineHandlerChain = "Wolverine.Runtime.Handlers.HandlerChain";
+    public const string WolverineHandlerPolicy = "Wolverine.Configuration.IHandlerPolicy";
+    public const string WolverinePolicy = "Wolverine.Configuration.IWolverinePolicy";
+    public const string WolverineModifyHandlerChainAttribute = "Wolverine.Attributes.ModifyHandlerChainAttribute";
+    public const string WolverineAfterCommitAttribute = "Wolverine.Attributes.WolverineAfterCommitAttribute";
+    public const string WolverineExtension = "Wolverine.IWolverineExtension";
     public const string WolverineHttpOptions = "Wolverine.Http.WolverineHttpOptions";
     public const string WolverineFluentValidationExtensions = "Wolverine.FluentValidation.WolverineFluentValidationExtensions";
     public const string WolverineFluentValidationRegistrationBehavior = "Wolverine.FluentValidation.RegistrationBehavior";
@@ -89,6 +104,11 @@ static class WellKnownTypes
     public const string WolverineLegacyWriteAggregateAttribute = "Wolverine.Marten.WriteAggregateAttribute";
     public const string WolverineHttpAggregateAttribute = "Wolverine.Http.Marten.AggregateAttribute";
     public const string WolverineEntityAttribute = "Wolverine.Persistence.EntityAttribute";
+    public const string WolverineFirstOrDefaultAttribute = "Wolverine.Persistence.FirstOrDefaultAttribute";
+    public const string WolverineQueryableAttribute = "Wolverine.Persistence.QueryableAttribute";
+    public const string WolverineStorageAction = "Wolverine.Persistence.IStorageAction`1";
+    public const string WolverineUnitOfWork = "Wolverine.Persistence.UnitOfWork`1";
+    public const string WolverineStorageFactory = "Wolverine.Persistence.Storage";
     public const string WolverineEvents = "Wolverine.Marten.Events";
     public const string WolverineEventsToAppend = "Wolverine.Persistence.EventSourcing.EventsToAppend";
     public const string WolverineOutgoingMessages = "Wolverine.OutgoingMessages";
@@ -102,4 +122,6 @@ static class WellKnownTypes
     public const string WolverineSagaIdentityAttribute = "Wolverine.Persistence.Sagas.SagaIdentityAttribute";
     public const string WolverineSagaIdentityFromAttribute = "Wolverine.Persistence.Sagas.SagaIdentityFromAttribute";
     public const string WolverineTimeoutMessage = "Wolverine.TimeoutMessage";
+    public const string WolverineHandlerContinuation = "Wolverine.HandlerContinuation";
+    public const string WolverineRequirementResult = "Wolverine.RequirementResult";
 }

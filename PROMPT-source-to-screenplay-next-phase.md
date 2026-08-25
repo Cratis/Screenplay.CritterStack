@@ -3,9 +3,11 @@ Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information.
 -->
 
-# Fresh-session prompt: atomic source-adapter phase
+# Historical prompt: atomic source-adapter phase
 
-Copy everything below this line into a fresh Pi session started in `/Volumes/sourcecode/repos/cratis/Screenplay.CritterStack` **only after an explicit product decision starts the atomic-adapter phase**.
+> Superseded: this prompt captures the `0.19.0` / Generation `0.8.0` checkpoint and must not be used as current continuation. The saga candidate it references shipped in `v0.21.0`; consult [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) and the owning issue trackers before starting new work.
+
+The original fresh-session prompt follows unchanged as historical design context.
 
 ---
 
@@ -84,16 +86,9 @@ Do not combine this first increment with new source semantics.
 - Profiles and package provenance cannot load arbitrary workspace plugins.
 - Source identity and display paths remain separate per Generation #21.
 
-## Paused saga prototype
+## Historical saga prototype
 
-Do not apply automatically:
-
-```text
-stash commit: f8c4b96ba7bd9ae6e5888cd6bd6f703a6a57183b
-message: prototype Wolverine saga evidence: 647 specs pass; requires independent review before ship
-```
-
-Independent review findings are recorded on Critter Stack #4. Resolve the saga-state exclusion, legal lifecycle role admission, signature-stable naming, nested payload exclusion, and neutral Marten/Wolverine identity boundary before considering it for a product-driven saga phase. It is not part of the atomic-adapter increment.
+The former paused saga candidate addressed its review findings and shipped in `v0.21.0`. Do not apply the old stash or treat this historical prompt as a source of current saga work.
 
 ## Verification and stop condition
 

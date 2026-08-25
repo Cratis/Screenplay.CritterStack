@@ -64,7 +64,8 @@ static class MartenMultiStreamConfigurationDiscovery
                         project,
                         EvidenceStrength.Exact,
                         "The projection derives indirectly from MultiStreamProjection<T,TId>"),
-                    $"Multi-stream projection '{projection.Name}' does not directly derive from the exact Marten MultiStreamProjection<T,TId> base, so inherited grouping configuration was not interpreted")
+                    $"Multi-stream projection '{projection.Name}' does not directly derive from the exact Marten MultiStreamProjection<T,TId> base, so inherited grouping configuration was not interpreted",
+                    GenerationDiagnosticOutcome.Unknown)
             ]);
         }
 
@@ -92,7 +93,8 @@ static class MartenMultiStreamConfigurationDiscovery
                         project,
                         projection,
                         evidence,
-                        $"Marten {method.Name} configuration in '{projection.Name}' is conditional or nested and cannot be resolved safely"));
+                        $"Marten {method.Name} configuration in '{projection.Name}' is conditional or nested and cannot be resolved safely",
+                        GenerationDiagnosticOutcome.Unknown));
                     continue;
                 }
 
@@ -170,7 +172,8 @@ static class MartenMultiStreamConfigurationDiscovery
                 project,
                 projection,
                 evidence,
-                $"Marten {method.Name} configuration in '{projection.Name}' is not a simple member-selector lambda and no identity mapping was inferred"));
+                $"Marten {method.Name} configuration in '{projection.Name}' is not a simple member-selector lambda and no identity mapping was inferred",
+                GenerationDiagnosticOutcome.Unknown));
             return;
         }
 
@@ -192,7 +195,8 @@ static class MartenMultiStreamConfigurationDiscovery
                 project,
                 projection,
                 evidence,
-                $"Marten {method.Name} configuration in '{projection.Name}' does not select a member of the authored event and no identity mapping was inferred"));
+                $"Marten {method.Name} configuration in '{projection.Name}' does not select a member of the authored event and no identity mapping was inferred",
+                GenerationDiagnosticOutcome.Unknown));
             return;
         }
 
@@ -222,7 +226,8 @@ static class MartenMultiStreamConfigurationDiscovery
                 project,
                 projection,
                 evidence,
-                $"Marten FanOut configuration in '{projection.Name}' is not an exact declaration with a simple member-selector lambda and no fan-out mapping was inferred"));
+                $"Marten FanOut configuration in '{projection.Name}' is not an exact declaration with a simple member-selector lambda and no fan-out mapping was inferred",
+                GenerationDiagnosticOutcome.Unknown));
             return;
         }
 
@@ -233,7 +238,8 @@ static class MartenMultiStreamConfigurationDiscovery
                 project,
                 projection,
                 evidence,
-                $"Marten FanOut configuration in '{projection.Name}' does not select an authored parent-event member and no fan-out mapping was inferred"));
+                $"Marten FanOut configuration in '{projection.Name}' does not select an authored parent-event member and no fan-out mapping was inferred",
+                GenerationDiagnosticOutcome.Unknown));
             return;
         }
 
@@ -390,10 +396,12 @@ static class MartenMultiStreamConfigurationDiscovery
         DotNetProjectCompilation project,
         INamedTypeSymbol projection,
         Evidence evidence,
-        string message) => new()
+        string message,
+        GenerationDiagnosticOutcome outcome = GenerationDiagnosticOutcome.Unsupported) => new()
         {
             Code = MartenDiagnosticCodes.MultiStreamGroupingOmitted,
             Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = outcome,
             Message = message,
             Source = evidence.Source,
             Subject = project.SubjectForType(projection)

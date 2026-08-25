@@ -14,7 +14,7 @@ static class WolverineHandlerDiscovery
     {
         var calls = ConfigurationCalls(project).ToArray();
         var explicitTypes = new List<INamedTypeSymbol>();
-        var diagnostics = new List<GenerationDiagnostic>();
+        var diagnostics = new List<GenerationDiagnostic>(WolverineConventionAlterationDiscovery.Discover(project));
         var disableValues = new List<bool>();
         var conventionalDiscoveryResolvable = true;
 
@@ -68,7 +68,11 @@ static class WolverineHandlerDiscovery
         {
             conventionalDiscoveryResolvable = false;
             var call = calls.First(_ => _.Method.Name == "DisableConventionalDiscovery");
-            diagnostics.Add(UnresolvedDiagnostic(project, call, "conflicting enabled states depend on runtime execution order"));
+            diagnostics.Add(UnresolvedDiagnostic(
+                project,
+                call,
+                "conflicting enabled states depend on runtime execution order",
+                GenerationDiagnosticOutcome.Conflict));
         }
 
         var conventionalDiscoveryEnabled = distinctDisableValues.Length == 0 || !distinctDisableValues[0];
@@ -170,7 +174,8 @@ static class WolverineHandlerDiscovery
     static GenerationDiagnostic UnresolvedDiagnostic(
         DotNetProjectCompilation project,
         ConfigurationCall call,
-        string reason)
+        string reason,
+        GenerationDiagnosticOutcome outcome = GenerationDiagnosticOutcome.Unknown)
     {
         var containingType = call.SemanticModel.GetEnclosingSymbol(call.Invocation.SpanStart)?.ContainingType;
         var subject = containingType is null
@@ -180,6 +185,7 @@ static class WolverineHandlerDiscovery
         {
             Code = WolverineDiagnosticCodes.HandlerDiscoveryConfigurationUnresolved,
             Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = outcome,
             Message = $"Wolverine handler discovery call '{call.Method.Name}' was not applied because {reason}",
             Source = CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project),
             Subject = subject
