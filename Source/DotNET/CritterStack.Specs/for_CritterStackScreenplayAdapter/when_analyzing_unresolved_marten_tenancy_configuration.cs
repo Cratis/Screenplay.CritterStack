@@ -6,6 +6,7 @@ namespace Cratis.CritterStack.Screenplay.for_CritterStackScreenplayAdapter;
 public class when_analyzing_unresolved_marten_tenancy_configuration : given.a_marten_tenancy_configuration_application
 {
     [Fact] void should_report_each_unresolved_value_once() => UnresolvedDiagnostics.Count.ShouldEqual(6);
+    [Fact] void should_classify_each_unresolved_value_as_unknown() => UnresolvedDiagnostics.All(_ => _.Outcome == GenerationDiagnosticOutcome.Unknown).ShouldBeTrue();
     [Fact] void should_not_admit_the_stale_separate_style() => TenancyDiagnostics.Any(_ => _.Message.Contains("Separate", StringComparison.Ordinal)).ShouldBeFalse();
     [Fact] void should_not_guess_computed_default_or_compound_values() => UnresolvedDiagnostics.Count(_ => _.Source?.Path == "Orders/Tenancy.cs").ShouldEqual(5);
     [Fact] void should_report_an_unresolved_generic_document_target() => UnresolvedDiagnostics.Any(_ => _.Message.Contains("otherwise unresolved generic document target", StringComparison.Ordinal)).ShouldBeTrue();

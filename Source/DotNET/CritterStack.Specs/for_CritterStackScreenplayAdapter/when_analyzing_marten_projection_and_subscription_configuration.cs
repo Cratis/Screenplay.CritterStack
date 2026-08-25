@@ -14,6 +14,7 @@ public class when_analyzing_marten_projection_and_subscription_configuration : g
     ];
 
     [Fact] void should_preserve_a_raw_custom_projection_as_a_neutral_projection() => ProjectionNames.ShouldContain("RawProjection");
+    [Fact] void should_classify_exact_configuration_losses_as_unsupported() => Contribution.Diagnostics.Where(_ => _evidenceDiagnosticCodes.Contains(_.Code) && (_.Message.Contains("not expressible", StringComparison.Ordinal) || _.Message.Contains("is registered", StringComparison.Ordinal) || _.Message.Contains("arbitrary", StringComparison.Ordinal))).All(_ => _.Outcome == GenerationDiagnosticOutcome.Unsupported).ShouldBeTrue();
     [Fact] void should_preserve_a_service_resolved_projection_as_a_neutral_projection() => ProjectionNames.ShouldContain("ServiceProjection");
     [Fact] void should_not_turn_raw_custom_projections_into_reducers() => ArtifactNames(ArtifactKind.Reducer).ShouldNotContain("RawProjection");
     [Fact] void should_not_place_raw_custom_projections_in_a_slice() => Graph.Placements.Any(_ => _.Artifact.Subject == ProjectionSubject("RawProjection")).ShouldBeFalse();

@@ -29,6 +29,7 @@ public class when_analyzing_marten_async_projections : given.a_marten_async_proj
     [Fact] void should_preserve_delete_and_delete_where_operations() => TargetsFromDistanceProjection(RelationshipKind.Deletes, ArtifactKind.Document).ShouldContainOnly("TripArchive", "TripCleanup");
     [Fact] void should_not_fabricate_a_distance_read_model() => ReadModels.Select(NameOf).ShouldNotContain("Distance");
     [Fact] void should_report_each_omitted_non_inline_lifecycle() => Contribution.Diagnostics.Count(_ => _.Code == MartenDiagnosticCodes.ProjectionLifecycleOmitted).ShouldEqual(5);
+    [Fact] void should_classify_each_recognized_semantic_gap_as_unsupported() => Contribution.Diagnostics.All(_ => _.Outcome == GenerationDiagnosticOutcome.Unsupported).ShouldBeTrue();
     [Fact] void should_report_the_multi_stream_grouping_gap() => Contribution.Diagnostics.Count(_ => _.Code == MartenDiagnosticCodes.MultiStreamGroupingOmitted).ShouldEqual(1);
     [Fact] void should_report_arbitrary_event_projection_value_flow_as_loss() => Contribution.Diagnostics.Single(_ => _.Code == MartenDiagnosticCodes.EventProjectionOmitted).Message.ShouldContain("arbitrary document body, value, and predicate flow");
     [Fact] void should_report_each_ordinary_document_state_gap() => Contribution.Diagnostics.Count(_ => _.Code == MartenDiagnosticCodes.DocumentModelOmitted).ShouldEqual(6);

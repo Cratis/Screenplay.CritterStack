@@ -48,6 +48,7 @@ public class when_analyzing_exact_marten_event_schema_configuration : given.a_ma
     ];
 
     [Fact] void should_preserve_all_event_configuration_occurrences() => EventConfiguration.Count.ShouldEqual(18);
+    [Fact] void should_classify_exact_configuration_as_unsupported() => ExactConfiguration.All(_ => _.Outcome == GenerationDiagnosticOutcome.Unsupported).ShouldBeTrue();
     [Fact] void should_preserve_all_upcast_configuration_occurrences() => UpcastConfiguration.Count.ShouldEqual(27);
     [Fact] void should_retain_the_generic_event_alias() => EventConfiguration.Any(_ => _.Message.Contains("OrderRegistered", StringComparison.Ordinal) && _.Message.Contains("storage alias 'order-registered'", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_retain_the_direct_type_event_alias() => EventConfiguration.Any(_ => _.Message.Contains("DirectAliasOnly", StringComparison.Ordinal) && _.Message.Contains("direct-alias-only", StringComparison.Ordinal)).ShouldBeTrue();
