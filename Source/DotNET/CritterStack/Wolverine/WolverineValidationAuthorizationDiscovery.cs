@@ -44,6 +44,7 @@ static class WolverineValidationAuthorizationDiscovery
         {
             Code = WolverineDiagnosticCodes.ValidationPolicyOmitted,
             Severity = GenerationDiagnosticSeverity.Information,
+            Outcome = GenerationDiagnosticOutcome.Unsupported,
             Message = $"Wolverine {ValidationName(policy.Kind)} {ScopeName(policy.Scope)} policy is enabled by '{policy.MethodName}', but current generation contracts cannot represent policy activation",
             Source = policy.Source,
             Subject = policy.Subject
@@ -52,6 +53,7 @@ static class WolverineValidationAuthorizationDiscovery
         {
             Code = WolverineDiagnosticCodes.AuthorizationOmitted,
             Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = GenerationDiagnosticOutcome.Unsupported,
             Message = $"Global Wolverine HTTP authorization is enabled by {policy.Description}, but current generation contracts cannot represent authorization without overloading an unrelated relationship",
             Source = policy.Source,
             Subject = policy.Subject
@@ -423,6 +425,7 @@ static class WolverineValidationAuthorizationDiscovery
         {
             Code = WolverineDiagnosticCodes.ValidationConfigurationUnresolved,
             Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = GenerationDiagnosticOutcome.Unknown,
             Message = $"Wolverine validation call '{call.Method.Name}' was not applied because {reason}",
             Source = CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project),
             Subject = ConfigurationSubject(project, call)
@@ -435,6 +438,7 @@ static class WolverineValidationAuthorizationDiscovery
         {
             Code = WolverineDiagnosticCodes.AuthorizationConfigurationUnresolved,
             Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = GenerationDiagnosticOutcome.Unknown,
             Message = $"Wolverine authorization configuration call '{call.Method.Name}' was not applied because {reason}",
             Source = CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project),
             Subject = ConfigurationSubject(project, call)

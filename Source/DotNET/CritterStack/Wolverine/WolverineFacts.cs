@@ -179,6 +179,7 @@ static class WolverineFacts
         {
             Code = WolverineDiagnosticCodes.HttpMetadataOmitted,
             Severity = GenerationDiagnosticSeverity.Information,
+            Outcome = GenerationDiagnosticOutcome.Unsupported,
             Message = $"HTTP {endpoint.Verb} route '{endpoint.Route}' for '{commandName}' is not represented by the current Screenplay language",
             Source = evidence.Source,
             Subject = commandSubject
@@ -193,6 +194,7 @@ static class WolverineFacts
                 {
                     Code = WolverineDiagnosticCodes.RouteIdentityOmitted,
                     Severity = GenerationDiagnosticSeverity.Warning,
+                    Outcome = GenerationDiagnosticOutcome.Unsupported,
                     Message = $"The '{aggregateType.Name}' identity for '{commandName}' comes from the HTTP route rather than a command property and cannot be marked as a Screenplay identifier",
                     Source = evidence.Source,
                     Subject = commandSubject
@@ -204,6 +206,7 @@ static class WolverineFacts
                 {
                     Code = WolverineDiagnosticCodes.StreamVersionOmitted,
                     Severity = GenerationDiagnosticSeverity.Information,
+                    Outcome = GenerationDiagnosticOutcome.Unsupported,
                     Message = $"The expected stream version on '{commandName}' cannot be represented exactly by Screenplay concurrency",
                     Source = evidence.Source,
                     Subject = commandSubject
@@ -211,6 +214,7 @@ static class WolverineFacts
             }
         }
 
+        AddPersistenceBoundReads(project, adapter, commandSubject, method, aggregate, facts);
         AddEventStreamBindingFacts(
             project,
             adapter,
@@ -263,6 +267,7 @@ static class WolverineFacts
         var outgoingMessages = DiscoverOutgoingMessages(method, project);
         AddDocumentDeletes(project, commandSubject, method, evidence, facts);
         AddReturnConsequences(project, commandSubject, returnConsequences, evidence, facts, sagaAnalysis: false);
+        AddStorageActionConsequences(project, adapter, commandSubject, method, returnConsequences, evidence, facts);
         AddDirectBusConsequences(project, commandSubject, method, evidence, facts, diagnostics, sagaAnalysis: false);
         AddOutgoingMessages(project, commandSubject, method, outgoingMessages, evidence, facts, diagnostics, sagaAnalysis: false);
     }
@@ -277,11 +282,13 @@ static class WolverineFacts
         List<GenerationDiagnostic> diagnostics)
     {
         var request = RequestParameter(method, project);
-        if (request?.Type is not INamedTypeSymbol requestType || WolverineSagaTypes.IsSagaState(requestType, project))
+        var requestType = request is not null ? MessageElementType(request.Type) : null;
+        if (requestType is null || WolverineSagaTypes.IsSagaState(requestType, project))
         {
             return;
         }
 
+        var batched = request!.Type is IArrayTypeSymbol;
         var aggregateWorkflow = IsAggregateWorkflow(method);
         var dcb = WolverineDcb.Discover(method, request, project, isHttpEndpoint: false);
         var streamBindings = WolverineEventStreams.Bindings(method, requestType, project);
@@ -307,16 +314,23 @@ static class WolverineFacts
             aggregateWorkflow || dcb is { IsBoundaryParameter: false },
             dcb is null && streamBindings.Count > 0);
         var outgoingMessages = DiscoverOutgoingMessages(method, project);
+        var compoundStages = dcb is null
+            ? WolverineCompoundStages.StagesFor(method, requestType, project)
+            : [];
         if (bodyEvents.Length == 0 &&
             returnEvents.Count == 0 &&
             deletedDocuments.Length == 0 &&
             !appendDiscovery.HasDirectWrite &&
             !streamBindings.Any(_ => _.LoadsModel) &&
+            !returnConsequences.Any(_ => _.Kind == WolverineReturnConsequenceKind.StorageAction) &&
+            !method.Parameters.Any(IsPersistenceBoundParameter) &&
             dcb is null)
         {
             var automationReturns = hasDocumentPersistence ? [] : returnConsequences;
             var automationOutgoingMessages = hasDocumentPersistence ? [] : outgoingMessages;
-            if (busConsequences.Count > 0 ||
+            if (batched ||
+                compoundStages.Count > 0 ||
+                busConsequences.Count > 0 ||
                 automationReturns.Any(IsCascadeConsequence) ||
                 automationOutgoingMessages.Count > 0)
             {
@@ -326,11 +340,22 @@ static class WolverineFacts
                     adapter,
                     method,
                     requestType,
+                    batched,
+                    compoundStages,
                     automationReturns,
                     automationOutgoingMessages,
                     busConsequences,
                     validationAuthorization,
                     facts,
+                    diagnostics);
+            }
+            else
+            {
+                AddHandlerChainConfigurationDiagnostics(
+                    project,
+                    adapter,
+                    MethodSubject(project, method, "handler"),
+                    method,
                     diagnostics);
             }
 
@@ -343,7 +368,8 @@ static class WolverineFacts
             requestType,
             commandSubject,
             isHttpEndpoint: false));
-        var evidence = MethodEvidence(method, project, adapter, EvidenceStrength.Exact, "Wolverine message handler with persistence effects");
+        var evidenceExplanation = $"Wolverine message handler with persistence effects{(batched ? " (batched: Wolverine delivers arrays of this message)" : string.Empty)}";
+        var evidence = MethodEvidence(method, project, adapter, EvidenceStrength.Exact, evidenceExplanation);
         var feature = StateFeature(requestType.Name, aggregate?.Type as INamedTypeSymbol, streamBindings, dcb?.ModelType);
         var placement = BehaviorPlacement(project, options, feature, requestType.Name, GenerationSliceKind.StateChange);
         var key = new ArtifactKey { Subject = commandSubject, Kind = ArtifactKind.Command };
@@ -360,6 +386,7 @@ static class WolverineFacts
         {
             AddReadModelAndRelationship(project, adapter, commandSubject, requestType, aggregateType, facts, evidence);
         }
+        AddPersistenceBoundReads(project, adapter, commandSubject, method, aggregate, facts);
         AddEventStreamBindingFacts(
             project,
             adapter,
@@ -383,8 +410,11 @@ static class WolverineFacts
 
         AddDocumentDeletes(project, commandSubject, method, evidence, facts);
         AddReturnConsequences(project, commandSubject, returnConsequences, evidence, facts, sagaAnalysis: false);
+        AddStorageActionConsequences(project, adapter, commandSubject, method, returnConsequences, evidence, facts);
         AddDirectBusConsequences(project, commandSubject, method, evidence, facts, diagnostics, busConsequences, sagaAnalysis: false);
         AddOutgoingMessages(project, commandSubject, method, outgoingMessages, evidence, facts, diagnostics, sagaAnalysis: false);
+        AddCompoundStageConsequences(project, adapter, commandSubject, method, compoundStages, facts, diagnostics);
+        AddHandlerChainConfigurationDiagnostics(project, adapter, commandSubject, method, diagnostics);
     }
 
     static void AnalyzeAutomation(
@@ -393,6 +423,8 @@ static class WolverineFacts
         AdapterIdentity adapter,
         IMethodSymbol method,
         INamedTypeSymbol requestType,
+        bool batched,
+        IReadOnlyList<WolverineCompoundStage> compoundStages,
         IReadOnlyList<WolverineReturnConsequence> returnConsequences,
         IReadOnlyList<WolverineOutgoingMessageConsequence> outgoingMessages,
         IReadOnlyList<WolverineBusConsequence> busConsequences,
@@ -407,7 +439,8 @@ static class WolverineFacts
             requestType,
             reactionSubject,
             isHttpEndpoint: false));
-        var evidence = MethodEvidence(method, project, adapter, EvidenceStrength.Exact, "Wolverine message handler with direct bus or return automation consequences");
+        var evidenceExplanation = $"Wolverine message handler with direct bus or return automation consequences{(batched ? " (batched: Wolverine delivers arrays of this message)" : string.Empty)}";
+        var evidence = MethodEvidence(method, project, adapter, EvidenceStrength.Exact, evidenceExplanation);
         var reactionName = method.ContainingType.Name.EndsWith("Handler", StringComparison.Ordinal)
             ? method.ContainingType.Name[..^"Handler".Length]
             : method.ContainingType.Name;
@@ -434,10 +467,13 @@ static class WolverineFacts
             reactionSubject,
             RelationshipKind.Handles,
             requestSubject,
-            evidence));
+            evidence,
+            isCollection: batched));
         AddReturnConsequences(project, reactionSubject, returnConsequences, evidence, facts, sagaAnalysis: false);
         AddOutgoingMessages(project, reactionSubject, method, outgoingMessages, evidence, facts, diagnostics, sagaAnalysis: false);
         AddDirectBusConsequences(project, reactionSubject, method, evidence, facts, diagnostics, busConsequences, sagaAnalysis: false);
+        AddCompoundStageConsequences(project, adapter, reactionSubject, method, compoundStages, facts, diagnostics);
+        AddHandlerChainConfigurationDiagnostics(project, adapter, reactionSubject, method, diagnostics);
     }
 
     static void AnalyzeQuery(
@@ -490,6 +526,7 @@ static class WolverineFacts
         {
             Code = WolverineDiagnosticCodes.HttpMetadataOmitted,
             Severity = GenerationDiagnosticSeverity.Information,
+            Outcome = GenerationDiagnosticOutcome.Unsupported,
             Message = $"HTTP {endpoint.Verb} route '{endpoint.Route}' for query '{queryName}' is not represented by the current Screenplay language",
             Source = evidence.Source,
             Subject = querySubject
@@ -518,6 +555,13 @@ static class WolverineFacts
             evidence,
             isCollection: isCollection,
             isOptional: isOptional));
+        AddPersistenceBoundReads(
+            project,
+            adapter,
+            querySubject,
+            endpoint.Method,
+            aggregateParameter: null,
+            facts);
 
         foreach (var compiledQuery in compiledQueries
                      .GroupBy(_ => project.SubjectForType(_.DocumentType))
@@ -558,6 +602,97 @@ static class WolverineFacts
             evidence,
             sourceMember: commandType is null ? null : IdentityPropertyName(commandType, aggregateType)));
     }
+
+    static void AddPersistenceBoundReads(
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter,
+        SubjectId sourceSubject,
+        IMethodSymbol method,
+        IParameterSymbol? aggregateParameter,
+        List<GenerationFact> facts)
+    {
+        var artifactIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var parameter in method.Parameters.Where(IsPersistenceBoundParameter))
+        {
+            if (SymbolEqualityComparer.Default.Equals(parameter, aggregateParameter) ||
+                PersistenceBoundRead(parameter) is not { } binding)
+            {
+                continue;
+            }
+
+            var documentSubject = project.SubjectForType(binding.DocumentType);
+            var artifactId = $"wolverine:read-model:{documentSubject.Value}";
+            var evidence = CritterStackSource.EvidenceFor(
+                parameter,
+                adapter,
+                project,
+                EvidenceStrength.Exact,
+                binding.Explanation);
+            if (artifactIds.Add(artifactId))
+            {
+                facts.Add(Artifact(
+                    artifactId,
+                    new ArtifactKey { Subject = documentSubject, Kind = ArtifactKind.ReadModel },
+                    binding.DocumentType.Name,
+                    SourceFileOf(binding.DocumentType, project),
+                    DotNetTypeShapes.PropertiesOf(binding.DocumentType),
+                    evidence));
+            }
+
+            facts.Add(Relationship(
+                $"wolverine:reads:{sourceSubject.Value}:{documentSubject.Value}:{parameter.Name}",
+                sourceSubject,
+                RelationshipKind.Reads,
+                documentSubject,
+                evidence,
+                discriminator: binding.Discriminator,
+                isCollection: binding.IsCollection,
+                isOptional: binding.IsOptional));
+        }
+    }
+
+    static (INamedTypeSymbol DocumentType, string Discriminator, string Explanation, bool IsCollection, bool IsOptional)? PersistenceBoundRead(
+        IParameterSymbol parameter)
+    {
+        var isNullable = parameter.Type.NullableAnnotation == NullableAnnotation.Annotated ||
+                         parameter.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T };
+        if (IsEntityParameter(parameter))
+        {
+            var documentType = UnwrapNullable(parameter.Type);
+            return documentType is null
+                ? null
+                : (documentType, "entity", "Wolverine loads this entity by identity for the handler", false, isNullable || IsOptionalEntity(parameter));
+        }
+
+        if (DotNetSymbols.HasAttributeAssignableTo(parameter, WellKnownTypes.WolverineFirstOrDefaultAttribute))
+        {
+            var documentType = UnwrapNullable(parameter.Type);
+            return documentType is null
+                ? null
+                : (documentType, "first-or-default", "Wolverine loads the first matching document for the handler", false, isNullable);
+        }
+
+        if (DotNetSymbols.HasAttributeAssignableTo(parameter, WellKnownTypes.WolverineQueryableAttribute) &&
+            parameter.Type is INamedTypeSymbol queryable &&
+            DotNetSubjectIds.MetadataName(queryable.OriginalDefinition) == "System.Linq.IQueryable`1" &&
+            queryable.TypeArguments[0] is INamedTypeSymbol elementType)
+        {
+            return (elementType, "queryable", "Wolverine exposes this document set as a queryable to the handler", true, isNullable);
+        }
+
+        return null;
+    }
+
+    static INamedTypeSymbol? UnwrapNullable(ITypeSymbol type) =>
+        type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable
+            ? nullable.TypeArguments[0] as INamedTypeSymbol
+            : type as INamedTypeSymbol;
+
+    static bool IsOptionalEntity(IParameterSymbol parameter) =>
+        parameter.GetAttributes()
+            .Where(_ => _.AttributeClass is not null && DotNetSymbols.IsOrInheritsFrom(_.AttributeClass, WellKnownTypes.WolverineEntityAttribute))
+            .SelectMany(_ => _.NamedArguments)
+            .Any(_ => string.Equals(_.Key, "Required", StringComparison.Ordinal) && _.Value.Value is false);
 
     static void AddDcbFacts(
         DotNetProjectCompilation project,
@@ -635,6 +770,7 @@ static class WolverineFacts
         {
             Code = WolverineDiagnosticCodes.DcbBoundaryOmitted,
             Severity = GenerationDiagnosticSeverity.Information,
+            Outcome = GenerationDiagnosticOutcome.Unsupported,
             Message = $"The DCB consistency boundary for '{commandName}' parameter '{dcb.Parameter.Name}' is retained as neutral Aggregate/Reads evidence, but tag routing and boundary concurrency cannot be represented by the current Screenplay language",
             Source = dcb.Source,
             Subject = commandSubject
@@ -646,6 +782,7 @@ static class WolverineFacts
             {
                 Code = WolverineDiagnosticCodes.DcbQueryUnresolved,
                 Severity = GenerationDiagnosticSeverity.Warning,
+                Outcome = GenerationDiagnosticOutcome.Unknown,
                 Message = $"The EventTagQuery companion '{dcb.Companion.Name}' for '{commandName}' is outside the bounded direct fluent-chain shapes and was not interpreted",
                 Source = dcb.QuerySource,
                 Subject = commandSubject
@@ -691,6 +828,7 @@ static class WolverineFacts
                 {
                     Code = WolverineDiagnosticCodes.RouteIdentityOmitted,
                     Severity = GenerationDiagnosticSeverity.Warning,
+                    Outcome = GenerationDiagnosticOutcome.Unsupported,
                     Message = $"The '{binding.ModelType.Name}' identity for '{commandName}' stream parameter '{binding.Parameter.Name}' comes from HTTP route or binding metadata rather than a command property and cannot be marked as a Screenplay identifier",
                     Source = binding.Identity.Source ?? binding.Source,
                     Subject = commandSubject
@@ -706,6 +844,9 @@ static class WolverineFacts
                 {
                     Code = WolverineDiagnosticCodes.StreamVersionOmitted,
                     Severity = GenerationDiagnosticSeverity.Information,
+                    Outcome = binding.HasAmbiguousConventionalVersion
+                        ? GenerationDiagnosticOutcome.Unknown
+                        : GenerationDiagnosticOutcome.Unsupported,
                     Message = binding.HasAmbiguousConventionalVersion
                         ? $"The conventional Version member for '{commandName}' cannot be attributed safely to stream parameter '{binding.Parameter.Name}' because the handler loads multiple streams"
                         : $"The version, load style, or consistency metadata for '{commandName}' stream parameter '{binding.Parameter.Name}' cannot be represented exactly by Screenplay concurrency",
@@ -720,6 +861,7 @@ static class WolverineFacts
                 {
                     Code = WolverineDiagnosticCodes.MultipleStreamMetadataOmitted,
                     Severity = GenerationDiagnosticSeverity.Warning,
+                    Outcome = GenerationDiagnosticOutcome.Unsupported,
                     Message = $"Handler '{commandName}' binds multiple event streams; target and identity for parameter '{binding.Parameter.Name}' are retained as neutral relationship metadata, but parameter-specific loading metadata cannot be lowered faithfully to the current Screenplay language",
                     Source = binding.Source,
                     Subject = commandSubject
@@ -743,6 +885,7 @@ static class WolverineFacts
             {
                 Code = WolverineDiagnosticCodes.EventWriteTargetUnresolved,
                 Severity = GenerationDiagnosticSeverity.Warning,
+                Outcome = GenerationDiagnosticOutcome.Unknown,
                 Message = $"An exact IEventStream<T> append was not represented because {unresolved.Reason}",
                 Source = unresolved.Source,
                 Subject = commandSubject
@@ -887,6 +1030,7 @@ static class WolverineFacts
                     ? WolverineDiagnosticCodes.DelayedMessageOmitted
                     : WolverineDiagnosticCodes.DirectMessageDeliveryOmitted,
                 Severity = GenerationDiagnosticSeverity.Warning,
+                Outcome = GenerationDiagnosticOutcome.Unsupported,
                 Message = consequence.IsScheduled
                     ? $"Handler '{method.ContainingType.Name}.{method.Name}' schedules '{messageType.Name}', which the current Screenplay language cannot represent"
                     : $"Handler '{method.ContainingType.Name}.{method.Name}' performs Wolverine {consequence.Discriminator} delivery of '{messageType.Name}', which the current Screenplay language cannot represent",
@@ -967,6 +1111,7 @@ static class WolverineFacts
                 {
                     Code = WolverineDiagnosticCodes.DelayedMessageOmitted,
                     Severity = GenerationDiagnosticSeverity.Warning,
+                    Outcome = GenerationDiagnosticOutcome.Unsupported,
                     Message = $"Handler '{method.ContainingType.Name}.{method.Name}' dispatches '{consequence.MessageType.Name}' after a delay, which the current Screenplay language cannot represent",
                     Source = evidence.Source,
                     Subject = sourceSubject
@@ -998,6 +1143,327 @@ static class WolverineFacts
                 facts,
                 sagaAnalysis);
         }
+    }
+
+    static void AddCompoundStageConsequences(
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter,
+        SubjectId sourceSubject,
+        IMethodSymbol entryPoint,
+        IReadOnlyList<WolverineCompoundStage> stages,
+        List<GenerationFact> facts,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        var entryPointName = DotNetMethodIdentity.DisplayName(entryPoint);
+        foreach (var stage in stages)
+        {
+            var evidence = MethodEvidence(
+                stage.Method,
+                project,
+                adapter,
+                EvidenceStrength.Exact,
+                $"Wolverine compound handler {stage.StageKind} stage for '{entryPointName}'");
+            var consequences = WolverineReturnConsequences.Classify(
+                stage.Method,
+                project,
+                isHttpEndpoint: false,
+                aggregateWorkflow: false,
+                hasEventStream: false);
+            if (!string.Equals(stage.StageKind, "load", StringComparison.Ordinal))
+            {
+                foreach (var consequence in consequences.Where(_ => IsCascadeConsequence(_) && !IsCompoundStageControl(_.Type)))
+                {
+                    var messageType = (INamedTypeSymbol)consequence.Type;
+                    var messageSubject = project.SubjectForType(messageType);
+                    AddMessageRelationship(
+                        project,
+                        sourceSubject,
+                        messageType,
+                        evidence,
+                        RelationshipKind.Cascades,
+                        $"wolverine:cascades:stage:return:{sourceSubject.Value}:{stage.Method.MetadataName}:{consequence.Slot}:{messageSubject.Value}",
+                        $"stage:{stage.Method.Name}",
+                        facts,
+                        sagaAnalysis: false);
+                }
+            }
+
+            foreach (var outgoing in DiscoverOutgoingMessages(stage.Method, project))
+            {
+                var messageSubject = project.SubjectForType(outgoing.MessageType);
+                AddMessageRelationship(
+                    project,
+                    sourceSubject,
+                    outgoing.MessageType,
+                    evidence,
+                    RelationshipKind.Cascades,
+                    $"wolverine:cascades:stage:{sourceSubject.Value}:{stage.Method.MetadataName}:{messageSubject.Value}",
+                    $"stage:{stage.Method.Name}",
+                    facts,
+                    sagaAnalysis: false);
+            }
+
+            var canShortCircuit = consequences.Any(_ => IsCompoundStageControl(_.Type));
+            diagnostics.Add(new()
+            {
+                Code = WolverineDiagnosticCodes.CompoundStageOmitted,
+                Severity = GenerationDiagnosticSeverity.Information,
+                Outcome = GenerationDiagnosticOutcome.Unsupported,
+                Message = $"Compound handler stage '{stage.Method.Name}' ({stage.StageKind}) participates in entry point '{entryPointName}' and {(canShortCircuit ? "can short-circuit" : "does not expose recognized short-circuit control")}; its data-loading and continuation semantics are not fully represented",
+                Source = evidence.Source,
+                Subject = sourceSubject
+            });
+        }
+    }
+
+    static void AddHandlerChainConfigurationDiagnostics(
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter,
+        SubjectId entryPointSubject,
+        IMethodSymbol entryPoint,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        var entryPointName = DotNetMethodIdentity.DisplayName(entryPoint);
+        foreach (var configure in entryPoint.ContainingType.GetMembers()
+                     .OfType<IMethodSymbol>()
+                     .Where(_ =>
+                         string.Equals(_.Name, "Configure", StringComparison.Ordinal) &&
+                         _.DeclaredAccessibility == Accessibility.Public &&
+                         _.IsStatic &&
+                         _.ReturnsVoid &&
+                         _.Parameters is [{ Type: INamedTypeSymbol parameterType }] &&
+                         DotNetSubjectIds.MetadataName(parameterType.OriginalDefinition) == WellKnownTypes.WolverineHandlerChain &&
+                         _.Locations.Any(location => IsAuthoredSourceLocation(location, project))))
+        {
+            var evidence = MethodEvidence(
+                configure,
+                project,
+                adapter,
+                EvidenceStrength.Exact,
+                $"Wolverine per-chain configuration for '{entryPointName}'");
+            diagnostics.Add(new()
+            {
+                Code = WolverineDiagnosticCodes.HandlerChainConfigurationOmitted,
+                Severity = GenerationDiagnosticSeverity.Information,
+                Outcome = GenerationDiagnosticOutcome.Unsupported,
+                Message = $"Handler chain configuration member '{configure.Name}' for entry point '{entryPointName}' may alter retry or discard delivery semantics, which are not represented",
+                Source = evidence.Source,
+                Subject = entryPointSubject
+            });
+        }
+    }
+
+    static bool IsCompoundStageControl(ITypeSymbol type)
+    {
+        if (type is not INamedTypeSymbol named)
+        {
+            return false;
+        }
+
+        var metadataName = DotNetSubjectIds.MetadataName(named.OriginalDefinition);
+        return string.Equals(metadataName, WellKnownTypes.WolverineHandlerContinuation, StringComparison.Ordinal) ||
+               string.Equals(metadataName, WellKnownTypes.WolverineRequirementResult, StringComparison.Ordinal);
+    }
+
+    static void AddStorageActionConsequences(
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter,
+        SubjectId sourceSubject,
+        IMethodSymbol method,
+        IReadOnlyList<WolverineReturnConsequence> consequences,
+        Evidence evidence,
+        List<GenerationFact> facts)
+    {
+        var artifactIds = new HashSet<string>(StringComparer.Ordinal);
+        var factoryMethodsBySlot = StorageFactoryMethodsBySlot(method, project);
+        foreach (var consequence in consequences)
+        {
+            if (consequence.Kind != WolverineReturnConsequenceKind.StorageAction ||
+                consequence.EntityType is not INamedTypeSymbol entityType)
+            {
+                continue;
+            }
+
+            var relationshipKind = StorageActionRelationshipKind(consequence.Slot, entityType, factoryMethodsBySlot);
+            if (relationshipKind is null)
+            {
+                continue;
+            }
+
+            var entitySubject = project.SubjectForType(entityType);
+            var artifactId = $"wolverine:read-model:{entitySubject.Value}";
+            if (artifactIds.Add(artifactId))
+            {
+                facts.Add(Artifact(
+                    artifactId,
+                    new ArtifactKey { Subject = entitySubject, Kind = ArtifactKind.ReadModel },
+                    entityType.Name,
+                    SourceFileOf(entityType, project),
+                    DotNetTypeShapes.PropertiesOf(entityType),
+                    CritterStackSource.EvidenceFor(entityType, adapter, project, EvidenceStrength.Exact, "Wolverine persists this model through a returned storage action")));
+            }
+
+            facts.Add(Relationship(
+                $"wolverine:stores:{sourceSubject.Value}:{entitySubject.Value}:{consequence.Slot}",
+                sourceSubject,
+                relationshipKind.Value,
+                entitySubject,
+                evidence with
+                {
+                    Strength = EvidenceStrength.Exact,
+                    Explanation = "Wolverine applies this returned storage action to the persistence layer"
+                },
+                discriminator: $"storage-action:{consequence.Slot}"));
+        }
+    }
+
+    static RelationshipKind? StorageActionRelationshipKind(
+        int slot,
+        ITypeSymbol entityType,
+        Dictionary<int, List<IMethodSymbol?>> factoryMethodsBySlot)
+    {
+        if (!factoryMethodsBySlot.TryGetValue(slot, out var slotMethods))
+        {
+            return RelationshipKind.Stores;
+        }
+
+        var factoryMethods = slotMethods
+            .OfType<IMethodSymbol>()
+            .Where(_ => _.TypeArguments.Any(typeArgument => SymbolEqualityComparer.Default.Equals(typeArgument, entityType)))
+            .ToArray();
+        if (slotMethods.Exists(_ => _ is null) || factoryMethods.Length != slotMethods.Count)
+        {
+            return RelationshipKind.Stores;
+        }
+
+        var kinds = factoryMethods
+            .Select(_ => _.Name switch
+            {
+                "Delete" => RelationshipKind.Deletes,
+                "Update" => RelationshipKind.Updates,
+                "Nothing" or "StartStream" => (RelationshipKind?)null,
+                _ => RelationshipKind.Stores
+            })
+            .Where(_ => _ is not null)
+            .Distinct()
+            .ToArray();
+        return kinds.Length switch
+        {
+            0 => null,
+            1 => kinds[0],
+            _ => RelationshipKind.Stores
+        };
+    }
+
+    static Dictionary<int, List<IMethodSymbol?>> StorageFactoryMethodsBySlot(
+        IMethodSymbol method,
+        DotNetProjectCompilation project)
+    {
+        var methodsBySlot = new Dictionary<int, List<IMethodSymbol?>>();
+        foreach (var (declaration, semanticModel) in WolverineMethodSyntax.Declarations(method, project))
+        {
+            foreach (var returned in ReturnedExpressions(declaration))
+            {
+                var expression = UnwrapReturnedExpression(returned, semanticModel);
+                var slotExpressions = expression is TupleExpressionSyntax tuple
+                    ? tuple.Arguments.Select(_ => _.Expression).ToArray()
+                    : [expression];
+                for (var slot = 0; slot < slotExpressions.Length; slot++)
+                {
+                    if (!methodsBySlot.TryGetValue(slot, out var methods))
+                    {
+                        methods = [];
+                        methodsBySlot.Add(slot, methods);
+                    }
+
+                    methods.Add(StorageFactoryMethod(slotExpressions[slot], semanticModel, []));
+                }
+            }
+        }
+
+        return methodsBySlot;
+    }
+
+    static IEnumerable<ExpressionSyntax> ReturnedExpressions(MethodDeclarationSyntax declaration)
+    {
+        if (declaration.ExpressionBody?.Expression is { } expressionBody)
+        {
+            yield return expressionBody;
+        }
+
+        if (declaration.Body is null)
+        {
+            yield break;
+        }
+
+        foreach (var returnStatement in declaration.Body.DescendantNodes().OfType<ReturnStatementSyntax>())
+        {
+            var nestedExecutable = returnStatement.Ancestors()
+                .TakeWhile(_ => !ReferenceEquals(_, declaration))
+                .Any(_ => _ is LocalFunctionStatementSyntax or AnonymousFunctionExpressionSyntax);
+            if (!nestedExecutable && returnStatement.Expression is { } expression)
+            {
+                yield return expression;
+            }
+        }
+    }
+
+    static ExpressionSyntax UnwrapReturnedExpression(ExpressionSyntax expression, SemanticModel semanticModel)
+    {
+        while (true)
+        {
+            expression = expression switch
+            {
+                ParenthesizedExpressionSyntax parenthesized => parenthesized.Expression,
+                AwaitExpressionSyntax awaited => awaited.Expression,
+                CastExpressionSyntax cast => cast.Expression,
+                _ => expression
+            };
+
+            if (expression is InvocationExpressionSyntax invocation &&
+                semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol taskFactory &&
+                string.Equals(taskFactory.Name, "FromResult", StringComparison.Ordinal) &&
+                taskFactory.ContainingType is { } containingType &&
+                DotNetSubjectIds.MetadataName(containingType.OriginalDefinition) is { } taskType &&
+                (string.Equals(taskType, "System.Threading.Tasks.Task", StringComparison.Ordinal) ||
+                 string.Equals(taskType, "System.Threading.Tasks.ValueTask", StringComparison.Ordinal)) &&
+                invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is { } result)
+            {
+                expression = result;
+                continue;
+            }
+
+            return expression;
+        }
+    }
+
+    static IMethodSymbol? StorageFactoryMethod(
+        ExpressionSyntax expression,
+        SemanticModel semanticModel,
+        HashSet<ILocalSymbol> visitedLocals)
+    {
+        expression = UnwrapReturnedExpression(expression, semanticModel);
+        if (expression is InvocationExpressionSyntax invocation &&
+            semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol invoked &&
+            invoked.IsStatic &&
+            DotNetSubjectIds.MetadataName(invoked.ContainingType.OriginalDefinition) == WellKnownTypes.WolverineStorageFactory)
+        {
+            return invoked;
+        }
+
+        if (semanticModel.GetSymbolInfo(expression).Symbol is not ILocalSymbol local ||
+            !visitedLocals.Add(local) ||
+            local.DeclaringSyntaxReferences
+                .Select(_ => _.GetSyntax())
+                .OfType<VariableDeclaratorSyntax>()
+                .Select(_ => _.Initializer?.Value)
+                .OfType<ExpressionSyntax>()
+                .FirstOrDefault() is not { } initializer)
+        {
+            return null;
+        }
+
+        return StorageFactoryMethod(initializer, semanticModel, visitedLocals);
     }
 
     static bool IsCascadeConsequence(WolverineReturnConsequence consequence) =>
@@ -1128,9 +1594,9 @@ static class WolverineFacts
     static IReadOnlyList<PropertyDefinition> RouteProperties(IMethodSymbol method) => QueryProperties(method);
 
     static IParameterSymbol? RequestParameter(IMethodSymbol method, DotNetProjectCompilation project) => method.Parameters.FirstOrDefault(_ =>
-        IsSourceType(_.Type) &&
+        MessageElementType(_.Type) is not null &&
         !IsAggregateParameter(_) &&
-        !IsEntityParameter(_) &&
+        !IsPersistenceBoundParameter(_) &&
         !WolverineEventStreams.IsEventStream(_.Type) &&
         !WolverineDcb.HasAttributedParameter(_, project));
 
@@ -1151,6 +1617,11 @@ static class WolverineFacts
 
     static bool IsEntityParameter(IParameterSymbol parameter) =>
         DotNetSymbols.HasAttributeAssignableTo(parameter, WellKnownTypes.WolverineEntityAttribute);
+
+    static bool IsPersistenceBoundParameter(IParameterSymbol parameter) =>
+        IsEntityParameter(parameter) ||
+        DotNetSymbols.HasAttributeAssignableTo(parameter, WellKnownTypes.WolverineFirstOrDefaultAttribute) ||
+        DotNetSymbols.HasAttributeAssignableTo(parameter, WellKnownTypes.WolverineQueryableAttribute);
 
     static bool IsAggregateParameter(IParameterSymbol parameter) =>
         DotNetSymbols.HasAttributeAssignableTo(parameter, WellKnownTypes.WolverineWriteModelAttribute) ||
@@ -1345,6 +1816,13 @@ static class WolverineFacts
     static bool IsSourceType(ITypeSymbol type) =>
         type is INamedTypeSymbol named && named.Locations.Any(_ => _.IsInSource);
 
+    static INamedTypeSymbol? MessageElementType(ITypeSymbol type) => type switch
+    {
+        IArrayTypeSymbol { ElementType: INamedTypeSymbol element } when IsSourceType(element) => element,
+        INamedTypeSymbol named when IsSourceType(named) => named,
+        _ => null
+    };
+
     static bool IsEventPayloadType(ITypeSymbol type) =>
         type is INamedTypeSymbol named &&
         type.SpecialType == SpecialType.None &&
@@ -1482,7 +1960,7 @@ static class WolverineFacts
 
     static SubjectId MethodSubject(DotNetProjectCompilation project, IMethodSymbol method, string role) => new()
     {
-        Value = $"{project.SubjectForType(method.ContainingType).Value}#{role}:{method.MetadataName}"
+        Value = $"{DotNetMethodIdentity.SubjectFor(project, method).Value}:{role}"
     };
 
     static string? SourceFileOf(ISymbol symbol, DotNetProjectCompilation project) =>

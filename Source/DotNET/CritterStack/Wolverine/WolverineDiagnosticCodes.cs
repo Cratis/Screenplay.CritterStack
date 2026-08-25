@@ -97,4 +97,19 @@ public static class WolverineDiagnosticCodes
     /// An authored saga lifecycle method could not be admitted as an exact legal Wolverine role.
     /// </summary>
     public const string SagaRoleUnresolved = "WOLVERINE0018";
+
+    /// <summary>
+    /// An authored Wolverine convention-alteration hook may change handler discovery or chain behavior at runtime.
+    /// </summary>
+    public const string ConventionAlterationOmitted = "WOLVERINE0019";
+
+    /// <summary>
+    /// A compound-handler stage participates in an entry point but its data loading or continuation control is not fully represented.
+    /// </summary>
+    public const string CompoundStageOmitted = "WOLVERINE0020";
+
+    /// <summary>
+    /// Per-handler chain configuration may alter retry or discard delivery semantics that are not represented.
+    /// </summary>
+    public const string HandlerChainConfigurationOmitted = "WOLVERINE0021";
 }
