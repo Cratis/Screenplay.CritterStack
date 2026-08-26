@@ -96,15 +96,7 @@ These pinned samples and focused source-shape specs provide compatibility eviden
 See:
 
 - [`Documentation/index.md`](Documentation/index.md) — documentation entry point and current boundaries
-- [`STRATEGY.md`](STRATEGY.md) — current product position, shipped behavior, and claim boundary
-- [`COMPATIBILITY.md`](COMPATIBILITY.md) — exact exercised package sets and compatibility evidence tiers
-- [`CRITTER_STACK_PATTERN_DISCOVERY_RESEARCH.md`](CRITTER_STACK_PATTERN_DISCOVERY_RESEARCH.md) — how source behavior maps to State Change, State View, Automation, and Translation
-- [`MVP_ACCEPTANCE.md`](MVP_ACCEPTANCE.md) — historical acceptance evidence for the original 0.1 preview
-- [`CRITTER_STACK_SCREENPLAY_RESEARCH_AND_ARCHITECTURE.md`](CRITTER_STACK_SCREENPLAY_RESEARCH_AND_ARCHITECTURE.md)
-- [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) — current release, working-tree coverage, residuals, and continuation
-- [`CRITTER_STACK_SCREENPLAY_IMPLEMENTATION_HANDOVER.md`](CRITTER_STACK_SCREENPLAY_IMPLEMENTATION_HANDOVER.md) — historical implementation plan
 - [Stage: Build a renderer target](https://github.com/Cratis/Stage/blob/main/Documentation/guides/build-renderer-target.md) — canonical renderer-target guidance
-- [`WRITING_CRITTER_STACK_RENDERER.md`](WRITING_CRITTER_STACK_RENDERER.md) — unapproved design proposal; not canonical onboarding or an implementation commitment
 
 ## Build and test
 
