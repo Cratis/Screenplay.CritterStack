@@ -85,23 +85,41 @@ public sealed class CritterStackScreenplayGenerator(
                     AuthoredSyntaxTrees = compilation.SyntaxTrees.ToHashSet()
                 }
             ],
-            options);
+            options,
+            useCompatibilityPlacement: true);
     }
 
     /// <inheritdoc/>
     public GeneratedScreenplayDefinition Generate(
         IReadOnlyList<DotNetProjectCompilation> projects,
-        CritterStackScreenplayOptions options)
+        CritterStackScreenplayOptions options) =>
+        Generate(
+            projects,
+            options,
+            useCompatibilityPlacement: projects.All(_ => _.SourceContext is null));
+
+    internal GeneratedScreenplayDefinition GenerateCompatibility(
+        IReadOnlyList<DotNetProjectCompilation> projects,
+        CritterStackScreenplayOptions options) =>
+        Generate(projects, options, useCompatibilityPlacement: true);
+
+    GeneratedScreenplayDefinition Generate(
+        IReadOnlyList<DotNetProjectCompilation> projects,
+        CritterStackScreenplayOptions options,
+        bool useCompatibilityPlacement)
     {
         var context = new DotNetAnalysisContext(projects);
         var adapterOptions = new DotNetAdapterOptions
         {
+            FeatureRoot = options.FeatureRoot,
             Module = options.Module,
             NamespaceSegmentsToSkip = options.NamespaceSegmentsToSkip
         };
         var contributions = adapters
             .Where(_ => _.CanAnalyze(context))
-            .Select(_ => _.Analyze(context, adapterOptions))
+            .Select(adapter => useCompatibilityPlacement && adapter is CritterStackScreenplayAdapter critterStackAdapter
+                ? critterStackAdapter.AnalyzeCompatibility(context, adapterOptions)
+                : adapter.Analyze(context, adapterOptions))
             .ToArray();
         var boundContributions = ConceptTypeReferenceBinder.Bind(context, contributions);
         var domain = options.Domain ?? (projects.Count == 1 ? projects[0].Name : "Application");

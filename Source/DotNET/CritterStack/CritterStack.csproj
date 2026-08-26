@@ -5,7 +5,7 @@
         <IsPackable>true</IsPackable>
         <IsTestProject>false</IsTestProject>
         <EnablePackageValidation>true</EnablePackageValidation>
-        <PackageValidationBaselineVersion>0.21.0</PackageValidationBaselineVersion>
+        <PackageValidationBaselineVersion>0.22.0</PackageValidationBaselineVersion>
         <Description>Generates verified Cratis Screenplay definitions from Marten and Wolverine source</Description>
     </PropertyGroup>
 

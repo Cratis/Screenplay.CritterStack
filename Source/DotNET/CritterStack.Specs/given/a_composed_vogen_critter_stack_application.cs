@@ -35,7 +35,7 @@ public class a_composed_vogen_critter_stack_application : Specification
 
     const string ApplicationSource =
         """
-        namespace Ordering;
+        namespace Ordering.PlaceOrder.PlaceOrder;
 
         [Vogen.ValueObject<System.Guid>]
         public partial struct OrderId;
@@ -63,7 +63,7 @@ public class a_composed_vogen_critter_stack_application : Specification
 
     const string GeneratedSource =
         """
-        namespace Ordering;
+        namespace Ordering.PlaceOrder.PlaceOrder;
 
         [Vogen.ValueObject<System.Guid>]
         public partial struct GeneratedOnly;

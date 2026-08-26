@@ -15,13 +15,13 @@ public class when_external_adapter_contributions_conflict : given.a_composed_vog
         ]).Generate([Project], new CritterStackScreenplayOptions { Domain = "Ordering" });
 
     [Fact] void should_report_the_concept_representation_conflict() => _result.Diagnostics.Select(_ => _.Code).ShouldContain(GenerationDiagnosticCodes.ConflictingConceptRepresentation);
-    [Fact] void should_keep_both_representation_variants() => _result.Graph.ConceptRepresentations.Single(_ => _.Concept.Value.EndsWith("/Ordering.CustomerCode", StringComparison.Ordinal)).Variants.Count.ShouldEqual(2);
+    [Fact] void should_keep_both_representation_variants() => _result.Graph.ConceptRepresentations.Single(_ => _.Concept.Value.EndsWith("/Ordering.PlaceOrder.PlaceOrder.CustomerCode", StringComparison.Ordinal)).Variants.Count.ShouldEqual(2);
     [Fact] void should_keep_vogen_provenance() => RepresentationAdapterIds().ShouldContain("vogen");
     [Fact] void should_keep_external_adapter_provenance() => RepresentationAdapterIds().ShouldContain("external.concepts");
     [Fact] void should_not_let_adapter_order_choose_a_representation() => _result.Source.ShouldNotContain("concept CustomerCode");
 
     IEnumerable<string> RepresentationAdapterIds() => _result.Graph.ConceptRepresentations
-        .Single(_ => _.Concept.Value.EndsWith("/Ordering.CustomerCode", StringComparison.Ordinal))
+        .Single(_ => _.Concept.Value.EndsWith("/Ordering.PlaceOrder.PlaceOrder.CustomerCode", StringComparison.Ordinal))
         .Variants
         .SelectMany(_ => _.Evidence)
         .Select(_ => _.Adapter.Id);
@@ -35,7 +35,7 @@ public class when_external_adapter_contributions_conflict : given.a_composed_vog
         public AdapterContribution Analyze(DotNetAnalysisContext context, DotNetAdapterOptions options)
         {
             _ = options;
-            var type = context.Projects.Single().Compilation.GetTypeByMetadataName("Ordering.CustomerCode")!;
+            var type = context.Projects.Single().Compilation.GetTypeByMetadataName("Ordering.PlaceOrder.PlaceOrder.CustomerCode")!;
             var subject = context.Projects.Single().SubjectForType(type);
             return new()
             {

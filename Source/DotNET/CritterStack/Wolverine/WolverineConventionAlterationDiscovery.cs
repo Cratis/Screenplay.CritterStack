@@ -10,7 +10,9 @@ namespace Cratis.CritterStack.Screenplay.Wolverine;
 
 static class WolverineConventionAlterationDiscovery
 {
-    public static IReadOnlyList<GenerationDiagnostic> Discover(DotNetProjectCompilation project)
+    public static IReadOnlyList<GenerationDiagnostic> Discover(
+        DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects)
     {
         var diagnostics = new List<GenerationDiagnostic>();
         var catalog = new DotNetArtifactCatalog(project.Compilation);
@@ -24,7 +26,7 @@ static class WolverineConventionAlterationDiscovery
                 Outcome = GenerationDiagnosticOutcome.Unsupported,
                 Message = $"Authored Wolverine convention-alteration type '{type.Name}' may change handler discovery or chain behavior at runtime; the model reflects default conventions only",
                 Source = CritterStackSource.RangeForProject(location, project),
-                Subject = project.SubjectForType(type)
+                Subject = subjects.SubjectForType(project, type)
             });
         }
 
@@ -52,7 +54,7 @@ static class WolverineConventionAlterationDiscovery
                     Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
                     Subject = containingType is null
                         ? new SubjectId { Value = $"dotnet://{project.Name}/#wolverine-message-discovery" }
-                        : project.SubjectForType(containingType)
+                        : subjects.SubjectForType(project, containingType)
                 });
             }
         }

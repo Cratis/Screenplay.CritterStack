@@ -33,7 +33,9 @@ static class MartenEventSchemaConfigurationDiscovery
         WellKnownTypes.MartenJsonNetAsyncOnlyEventUpcaster
     ];
 
-    public static IReadOnlyList<GenerationDiagnostic> Discover(DotNetProjectCompilation project)
+    public static IReadOnlyList<GenerationDiagnostic> Discover(
+        DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects)
     {
         var diagnostics = new List<GenerationDiagnostic>();
         foreach (var tree in project.Compilation.SyntaxTrees.Where(_ =>
@@ -49,20 +51,20 @@ static class MartenEventSchemaConfigurationDiscovery
                     continue;
                 }
 
-                DiscoverBinarySerializerConfiguration(project, invocation, method, semanticModel, diagnostics);
-                DiscoverEventTypeConfiguration(project, invocation, method, semanticModel, diagnostics);
-                DiscoverUpcastConfiguration(project, invocation, method, semanticModel, diagnostics);
+                DiscoverBinarySerializerConfiguration(project, subjects, invocation, method, semanticModel, diagnostics);
+                DiscoverEventTypeConfiguration(project, subjects, invocation, method, semanticModel, diagnostics);
+                DiscoverUpcastConfiguration(project, subjects, invocation, method, semanticModel, diagnostics);
             }
 
             foreach (var assignment in root.DescendantNodes().OfType<AssignmentExpressionSyntax>())
             {
-                DiscoverWireConfiguration(project, assignment, semanticModel, diagnostics);
-                DiscoverEventNamingStyle(project, assignment, semanticModel, diagnostics);
+                DiscoverWireConfiguration(project, subjects, assignment, semanticModel, diagnostics);
+                DiscoverEventNamingStyle(project, subjects, assignment, semanticModel, diagnostics);
             }
 
             foreach (var attribute in root.DescendantNodes().OfType<AttributeSyntax>())
             {
-                DiscoverEventAliasAttribute(project, attribute, semanticModel, diagnostics);
+                DiscoverEventAliasAttribute(project, subjects, attribute, semanticModel, diagnostics);
             }
         }
 
@@ -79,6 +81,7 @@ static class MartenEventSchemaConfigurationDiscovery
 
     static void DiscoverBinarySerializerConfiguration(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
         SemanticModel semanticModel,
@@ -99,6 +102,7 @@ static class MartenEventSchemaConfigurationDiscovery
         {
             diagnostics.Add(EventConfiguration(
                 project,
+                subjects,
                 eventType,
                 "Marten has an authored per-event binary serializer declaration whose event or serializer type could not be resolved safely",
                 invocation.GetLocation(),
@@ -108,6 +112,7 @@ static class MartenEventSchemaConfigurationDiscovery
 
         diagnostics.Add(EventConfiguration(
             project,
+            subjects,
             eventType,
             $"Marten event type '{eventType.Name}' has an authored binary serializer declaration using '{serializerType.Name}'",
             invocation.GetLocation()));
@@ -115,6 +120,7 @@ static class MartenEventSchemaConfigurationDiscovery
 
     static void DiscoverWireConfiguration(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         AssignmentExpressionSyntax assignment,
         SemanticModel semanticModel,
         List<GenerationDiagnostic> diagnostics)
@@ -139,6 +145,7 @@ static class MartenEventSchemaConfigurationDiscovery
         var value = EnumMember(assignment.Right, semanticModel, enumType, admittedValues);
         diagnostics.Add(EventConfiguration(
             project,
+            subjects,
             null,
             value is null
                 ? $"Marten has an authored {label} declaration with a computed or otherwise unresolved value; no effective setting was guessed"
@@ -149,6 +156,7 @@ static class MartenEventSchemaConfigurationDiscovery
 
     static void DiscoverEventTypeConfiguration(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
         SemanticModel semanticModel,
@@ -156,7 +164,7 @@ static class MartenEventSchemaConfigurationDiscovery
     {
         if (IsDirectMapEventType(method))
         {
-            DiscoverDirectEventTypeAlias(project, invocation, method, semanticModel, diagnostics);
+            DiscoverDirectEventTypeAlias(project, subjects, invocation, method, semanticModel, diagnostics);
             return;
         }
 
@@ -168,7 +176,7 @@ static class MartenEventSchemaConfigurationDiscovery
         var eventType = NamedType(method.TypeArguments.SingleOrDefault());
         if (eventType is null)
         {
-            diagnostics.Add(UnresolvedEventConfiguration(project, invocation.GetLocation()));
+            diagnostics.Add(UnresolvedEventConfiguration(project, subjects, invocation.GetLocation()));
             return;
         }
 
@@ -179,12 +187,13 @@ static class MartenEventSchemaConfigurationDiscovery
             var baseAlias = baseAliasArgument is null ? null : ConstantString(baseAliasArgument.Expression, semanticModel);
             if (suffix is null || (baseAliasArgument is not null && baseAlias is null))
             {
-                diagnostics.Add(UnresolvedEventConfiguration(project, invocation.GetLocation(), eventType));
+                diagnostics.Add(UnresolvedEventConfiguration(project, subjects, invocation.GetLocation(), eventType));
                 return;
             }
 
             diagnostics.Add(EventConfiguration(
                 project,
+                subjects,
                 eventType,
                 baseAliasArgument is null
                     ? $"Marten event type '{eventType.Name}' has an authored name-suffix declaration with suffix '{DiagnosticValue(suffix)}'; its convention-derived effective storage alias was not inferred"
@@ -200,12 +209,13 @@ static class MartenEventSchemaConfigurationDiscovery
             : ConstantString(explicitBaseAliasArgument.Expression, semanticModel);
         if (version is null || (explicitBaseAliasArgument is not null && explicitBaseAlias is null))
         {
-            diagnostics.Add(UnresolvedEventConfiguration(project, invocation.GetLocation(), eventType));
+            diagnostics.Add(UnresolvedEventConfiguration(project, subjects, invocation.GetLocation(), eventType));
             return;
         }
 
         diagnostics.Add(EventConfiguration(
             project,
+            subjects,
             eventType,
             explicitBaseAliasArgument is null
                 ? $"Marten event type '{eventType.Name}' has an authored schema-version declaration for version '{version}'; its convention-derived effective storage alias was not inferred"
@@ -215,6 +225,7 @@ static class MartenEventSchemaConfigurationDiscovery
 
     static void DiscoverDirectEventTypeAlias(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
         SemanticModel semanticModel,
@@ -226,12 +237,13 @@ static class MartenEventSchemaConfigurationDiscovery
         var alias = ConstantString(ArgumentForParameter(invocation, method, "eventTypeName")?.Expression, semanticModel);
         if (eventType is null || alias is null)
         {
-            diagnostics.Add(UnresolvedEventConfiguration(project, invocation.GetLocation(), eventType));
+            diagnostics.Add(UnresolvedEventConfiguration(project, subjects, invocation.GetLocation(), eventType));
             return;
         }
 
         diagnostics.Add(EventConfiguration(
             project,
+            subjects,
             eventType,
             $"Marten event type '{eventType.Name}' has authored storage alias '{DiagnosticValue(alias)}'",
             invocation.GetLocation()));
@@ -239,6 +251,7 @@ static class MartenEventSchemaConfigurationDiscovery
 
     static void DiscoverEventNamingStyle(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         AssignmentExpressionSyntax assignment,
         SemanticModel semanticModel,
         List<GenerationDiagnostic> diagnostics)
@@ -251,9 +264,10 @@ static class MartenEventSchemaConfigurationDiscovery
 
         var style = EnumMember(assignment.Right, semanticModel, WellKnownTypes.JasperFxEventNamingStyle, _eventNamingStyles);
         diagnostics.Add(style is null
-            ? UnresolvedEventConfiguration(project, assignment.GetLocation())
+            ? UnresolvedEventConfiguration(project, subjects, assignment.GetLocation())
             : EventConfiguration(
                 project,
+                subjects,
                 null,
                 $"Marten has an authored global event naming-style declaration '{style}'; runtime precedence and effective aliases were not inferred",
                 assignment.GetLocation()));
@@ -261,6 +275,7 @@ static class MartenEventSchemaConfigurationDiscovery
 
     static void DiscoverEventAliasAttribute(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         AttributeSyntax attribute,
         SemanticModel semanticModel,
         List<GenerationDiagnostic> diagnostics)
@@ -277,6 +292,7 @@ static class MartenEventSchemaConfigurationDiscovery
 
         diagnostics.Add(EventConfiguration(
             project,
+            subjects,
             eventType,
             $"Marten event type '{eventType.Name}' has authored MartenEvent alias '{DiagnosticValue(alias)}'; the alias only applies when Marten AutoRegister discovers the type",
             attribute.GetLocation()));
@@ -284,6 +300,7 @@ static class MartenEventSchemaConfigurationDiscovery
 
     static void DiscoverUpcastConfiguration(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
         SemanticModel semanticModel,
@@ -291,18 +308,19 @@ static class MartenEventSchemaConfigurationDiscovery
     {
         if (IsDirectUpcast(method))
         {
-            DiscoverDirectUpcast(project, invocation, method, semanticModel, diagnostics);
+            DiscoverDirectUpcast(project, subjects, invocation, method, semanticModel, diagnostics);
             return;
         }
 
         if (IsExtensionUpcast(method))
         {
-            DiscoverExtensionUpcast(project, invocation, method, semanticModel, diagnostics);
+            DiscoverExtensionUpcast(project, subjects, invocation, method, semanticModel, diagnostics);
         }
     }
 
     static void DiscoverDirectUpcast(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
         SemanticModel semanticModel,
@@ -313,26 +331,26 @@ static class MartenEventSchemaConfigurationDiscovery
             var upcasterType = NamedType(method.TypeArguments[0]);
             if (upcasterType is null)
             {
-                diagnostics.Add(UnresolvedUpcastConfiguration(project, invocation.GetLocation()));
+                diagnostics.Add(UnresolvedUpcastConfiguration(project, subjects, invocation.GetLocation()));
                 return;
             }
 
             if (HasOnlyGeneratedSource(upcasterType, project))
             {
-                diagnostics.Add(UnresolvedUpcastConfiguration(project, invocation.GetLocation()));
+                diagnostics.Add(UnresolvedUpcastConfiguration(project, subjects, invocation.GetLocation()));
                 return;
             }
 
             if (UpcasterShapeOf(upcasterType, project) is { } shape)
             {
-                diagnostics.Add(UpcastConfiguration(project, shape.Subject, ClassUpcastMessage(upcasterType, shape), invocation.GetLocation()));
+                diagnostics.Add(UpcastConfiguration(project, subjects, shape.Subject, ClassUpcastMessage(upcasterType, shape), invocation.GetLocation()));
             }
             return;
         }
 
         if (IsInlineUpcasterRegistration(method))
         {
-            DiscoverInlineUpcasterRegistration(project, invocation, semanticModel, diagnostics);
+            DiscoverInlineUpcasterRegistration(project, subjects, invocation, semanticModel, diagnostics);
             return;
         }
 
@@ -344,12 +362,13 @@ static class MartenEventSchemaConfigurationDiscovery
             var rawAlias = ConstantString(ArgumentForParameter(invocation, method, "eventTypeName")?.Expression, semanticModel);
             if (target is null || rawAlias is null)
             {
-                diagnostics.Add(UnresolvedUpcastConfiguration(project, invocation.GetLocation(), target));
+                diagnostics.Add(UnresolvedUpcastConfiguration(project, subjects, invocation.GetLocation(), target));
                 return;
             }
 
             diagnostics.Add(UpcastConfiguration(
                 project,
+                subjects,
                 target,
                 $"Marten has an authored raw JSON upcast declaration from unknown source schema alias '{DiagnosticValue(rawAlias)}' to '{target.Name}'",
                 invocation.GetLocation()));
@@ -367,12 +386,13 @@ static class MartenEventSchemaConfigurationDiscovery
         var alias = aliasArgument is null ? null : ConstantString(aliasArgument.Expression, semanticModel);
         if (oldEvent is null || newEvent is null || (aliasArgument is not null && alias is null))
         {
-            diagnostics.Add(UnresolvedUpcastConfiguration(project, invocation.GetLocation(), newEvent));
+            diagnostics.Add(UnresolvedUpcastConfiguration(project, subjects, invocation.GetLocation(), newEvent));
             return;
         }
 
         diagnostics.Add(UpcastConfiguration(
             project,
+            subjects,
             newEvent,
             aliasArgument is null
                 ? $"Marten has an authored {ShapeLabel(isAsync)} typed upcast declaration '{oldEvent.Name} -> {newEvent.Name}' using a convention-derived storage alias that was not inferred"
@@ -382,6 +402,7 @@ static class MartenEventSchemaConfigurationDiscovery
 
     static void DiscoverExtensionUpcast(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
         SemanticModel semanticModel,
@@ -394,12 +415,13 @@ static class MartenEventSchemaConfigurationDiscovery
                 : TypeFromTypeOf(ArgumentForParameter(invocation, method, "eventType")?.Expression, semanticModel);
             if (conventionTarget is null)
             {
-                diagnostics.Add(UnresolvedUpcastConfiguration(project, invocation.GetLocation()));
+                diagnostics.Add(UnresolvedUpcastConfiguration(project, subjects, invocation.GetLocation()));
                 return;
             }
 
             diagnostics.Add(UpcastConfiguration(
                 project,
+                subjects,
                 conventionTarget,
                 $"Marten has an authored raw JSON upcast declaration from an unknown source schema to '{conventionTarget.Name}' using a convention-derived storage alias that was not inferred",
                 invocation.GetLocation()));
@@ -414,12 +436,13 @@ static class MartenEventSchemaConfigurationDiscovery
                 : TypeFromTypeOf(ArgumentForParameter(invocation, method, "eventType")?.Expression, semanticModel);
             if (target is null || version is null)
             {
-                diagnostics.Add(UnresolvedUpcastConfiguration(project, invocation.GetLocation(), target));
+                diagnostics.Add(UnresolvedUpcastConfiguration(project, subjects, invocation.GetLocation(), target));
                 return;
             }
 
             diagnostics.Add(UpcastConfiguration(
                 project,
+                subjects,
                 target,
                 $"Marten has an authored raw JSON upcast declaration from unknown source schema version '{version}' to '{target.Name}'; its convention-derived effective storage alias was not inferred",
                 invocation.GetLocation()));
@@ -435,12 +458,13 @@ static class MartenEventSchemaConfigurationDiscovery
         var newEvent = NamedType(method.TypeArguments[1]);
         if (oldEvent is null || newEvent is null || version is null)
         {
-            diagnostics.Add(UnresolvedUpcastConfiguration(project, invocation.GetLocation(), newEvent));
+            diagnostics.Add(UnresolvedUpcastConfiguration(project, subjects, invocation.GetLocation(), newEvent));
             return;
         }
 
         diagnostics.Add(UpcastConfiguration(
             project,
+            subjects,
             newEvent,
             $"Marten has an authored {ShapeLabel(isAsync)} typed upcast declaration '{oldEvent.Name} -> {newEvent.Name}' for source schema version '{version}'; its convention-derived effective storage alias was not inferred",
             invocation.GetLocation()));
@@ -448,6 +472,7 @@ static class MartenEventSchemaConfigurationDiscovery
 
     static void DiscoverInlineUpcasterRegistration(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         InvocationExpressionSyntax invocation,
         SemanticModel semanticModel,
         List<GenerationDiagnostic> diagnostics)
@@ -460,7 +485,7 @@ static class MartenEventSchemaConfigurationDiscovery
                 HasOnlyGeneratedSource(upcasterType, project) ||
                 UpcasterShapeOf(upcasterType, project) is not { } shape)
             {
-                diagnostics.Add(UnresolvedUpcastConfiguration(project, invocation.GetLocation()));
+                diagnostics.Add(UnresolvedUpcastConfiguration(project, subjects, invocation.GetLocation()));
                 return;
             }
 
@@ -474,6 +499,7 @@ static class MartenEventSchemaConfigurationDiscovery
 
         diagnostics.AddRange(registrations.Select(_ => UpcastConfiguration(
             project,
+            subjects,
             _.Shape.Subject,
             ClassUpcastMessage(_.Type, _.Shape),
             _.Creation.GetLocation())));
@@ -704,6 +730,7 @@ static class MartenEventSchemaConfigurationDiscovery
 
     static GenerationDiagnostic EventConfiguration(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         INamedTypeSymbol? eventType,
         string message,
         Location location,
@@ -714,14 +741,16 @@ static class MartenEventSchemaConfigurationDiscovery
             Outcome = outcome,
             Message = $"{message}. This authored declaration is retained as diagnostic evidence only; it does not rename, version, originate, or duplicate a Screenplay Event artifact, and runtime execution or precedence is not asserted",
             Source = CritterStackSource.RangeForProject(location, project),
-            Subject = eventType is null ? ProjectSubject(project) : project.SubjectForType(eventType)
+            Subject = eventType is null ? ProjectSubject(project) : subjects.SubjectForType(project, eventType)
         };
 
     static GenerationDiagnostic UnresolvedEventConfiguration(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         Location location,
         INamedTypeSymbol? eventType = null) => EventConfiguration(
         project,
+        subjects,
         eventType,
         "Marten has an authored event alias, schema-version, or naming-style declaration with a computed or otherwise non-constant value that could not be resolved safely; no storage alias, suffix, version, naming style, or effective value was guessed",
         location,
@@ -729,6 +758,7 @@ static class MartenEventSchemaConfigurationDiscovery
 
     static GenerationDiagnostic UpcastConfiguration(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         INamedTypeSymbol? target,
         string message,
         Location location,
@@ -739,14 +769,16 @@ static class MartenEventSchemaConfigurationDiscovery
             Outcome = outcome,
             Message = $"{message}. This authored declaration is retained as diagnostic evidence only; it does not originate Event or Upcast artifacts or infer behavioral relationships, and runtime execution, reachability, ordering, or precedence is not asserted",
             Source = CritterStackSource.RangeForProject(location, project),
-            Subject = target is null ? ProjectSubject(project) : project.SubjectForType(target)
+            Subject = target is null ? ProjectSubject(project) : subjects.SubjectForType(project, target)
         };
 
     static GenerationDiagnostic UnresolvedUpcastConfiguration(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         Location location,
         INamedTypeSymbol? target = null) => UpcastConfiguration(
         project,
+        subjects,
         target,
         "Marten has an authored upcast declaration with a computed, indirect, mixed inline collection, or otherwise unresolved type, alias, or schema version; no source type, target type, alias, version, shape, ordering, or effective value was guessed",
         location,

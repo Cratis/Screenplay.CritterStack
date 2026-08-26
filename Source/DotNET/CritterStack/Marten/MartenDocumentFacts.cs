@@ -19,12 +19,13 @@ static class MartenDocumentFacts
     public static MartenDiscoveryResult Discover(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         IReadOnlyList<MartenDocumentUsage> projectedDocuments)
     {
         var facts = new List<GenerationFact>();
         var diagnostics = new List<GenerationDiagnostic>();
         var documents = projectedDocuments
-            .GroupBy(_ => project.SubjectForType(_.Type))
+            .GroupBy(_ => subjects.SubjectForType(project, _.Type))
             .ToDictionary(
                 _ => _.Key,
                 _ => new DocumentObservation(_.First().Type, _.First().Evidence));
@@ -40,7 +41,7 @@ static class MartenDocumentFacts
 
                 if (IsIdentityConfiguration(method))
                 {
-                    ObserveIdentityConfiguration(project, adapter, invocation, method, semanticModel, documents, diagnostics);
+                    ObserveIdentityConfiguration(project, adapter, subjects, invocation, method, semanticModel, documents, diagnostics);
                     continue;
                 }
 
@@ -49,7 +50,7 @@ static class MartenDocumentFacts
                     if (MartenCompiledQueryDiscovery.TryResolve(invocation, semanticModel, out var plan))
                     {
                         var compiledEvidence = UsageEvidence(project, adapter, invocation, method.Name);
-                        documents.TryAdd(project.SubjectForType(plan.DocumentType), new(plan.DocumentType, compiledEvidence));
+                        documents.TryAdd(subjects.SubjectForType(project, plan.DocumentType), new(plan.DocumentType, compiledEvidence));
                     }
                     continue;
                 }
@@ -74,7 +75,7 @@ static class MartenDocumentFacts
                 }
 
                 var evidence = UsageEvidence(project, adapter, invocation, method.Name);
-                var documentSubject = project.SubjectForType(documentType);
+                var documentSubject = subjects.SubjectForType(project, documentType);
                 documents.TryAdd(documentSubject, new(documentType, evidence));
                 if (kind is not null && semanticModel.GetEnclosingSymbol(invocation.SpanStart) is IMethodSymbol containingMethod)
                 {
@@ -147,6 +148,7 @@ static class MartenDocumentFacts
     static void ObserveIdentityConfiguration(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
         SemanticModel semanticModel,
@@ -167,7 +169,7 @@ static class MartenDocumentFacts
             Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
             Explanation = $"Marten document identity configured through Schema.For<{documentType.Name}>().Identity(...)"
         };
-        var subject = project.SubjectForType(documentType);
+        var subject = subjects.SubjectForType(project, documentType);
         documents.TryAdd(subject, new(documentType, evidence));
         var identityMember = ResolveIdentityMember(invocation, semanticModel, documentType);
         if (identityMember is null)
