@@ -12,7 +12,7 @@
     <!-- Canonical fixtures -->
     <PackageVersion Include="Marten" Version="9.29.0" />
     <PackageVersion Include="Vogen" Version="8.0.7" />
-    <PackageVersion Include="WolverineFx" Version="6.29.2" />
+    <PackageVersion Include="WolverineFx" Version="6.30.0" />
     <!-- Microsoft -->
     <PackageVersion Include="Microsoft.Build.Framework" Version="18.9.6" />
     <PackageVersion Include="Microsoft.Build.Locator" Version="1.11.2" />
