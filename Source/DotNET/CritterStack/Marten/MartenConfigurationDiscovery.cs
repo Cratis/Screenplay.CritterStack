@@ -53,11 +53,12 @@ static class MartenConfigurationDiscovery
     public static MartenConfigurationDiscoveryResult Discover(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         IReadOnlyList<ProjectionRegistration> registrations)
     {
         var facts = new List<GenerationFact>();
-        var diagnostics = MartenConventionAlterationDiscovery.Discover(project)
-            .Concat(MartenSessionListenerDiscovery.Discover(project))
+        var diagnostics = MartenConventionAlterationDiscovery.Discover(project, subjects)
+            .Concat(MartenSessionListenerDiscovery.Discover(project, subjects))
             .ToList();
         var sideEffectsEnabled = false;
         var projections = registrations
@@ -68,10 +69,10 @@ static class MartenConfigurationDiscovery
 
         foreach (var projection in projections)
         {
-            DiscoverProjectionMetadata(project, projection, diagnostics);
+            DiscoverProjectionMetadata(project, subjects, projection, diagnostics);
             if (IsRawProjection(projection))
             {
-                AddCustomProcessingDiagnostics(project, projection, diagnostics, "custom projection");
+                AddCustomProcessingDiagnostics(project, subjects, projection, diagnostics, "custom projection");
             }
         }
 
@@ -86,11 +87,11 @@ static class MartenConfigurationDiscovery
                     continue;
                 }
 
-                DiscoverRegisteredValueType(project, adapter, invocation, method, semanticModel, facts);
+                DiscoverRegisteredValueType(project, adapter, subjects, invocation, method, semanticModel, facts);
                 DiscoverDaemonConfiguration(project, invocation, method, semanticModel, diagnostics);
-                DiscoverProjectionRegistrationMetadata(project, invocation, method, semanticModel, diagnostics);
-                DiscoverUnresolvedLifecycle(project, invocation, method, semanticModel, diagnostics);
-                DiscoverSubscriptionRegistration(project, invocation, method, semanticModel, diagnostics);
+                DiscoverProjectionRegistrationMetadata(project, subjects, invocation, method, semanticModel, diagnostics);
+                DiscoverUnresolvedLifecycle(project, subjects, invocation, method, semanticModel, diagnostics);
+                DiscoverSubscriptionRegistration(project, subjects, invocation, method, semanticModel, diagnostics);
             }
 
             foreach (var assignment in root.DescendantNodes().OfType<AssignmentExpressionSyntax>())
@@ -121,6 +122,7 @@ static class MartenConfigurationDiscovery
     static void DiscoverRegisteredValueType(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
         SemanticModel semanticModel,
@@ -141,7 +143,7 @@ static class MartenConfigurationDiscovery
             return;
         }
 
-        var subject = project.SubjectForType(type);
+        var subject = subjects.SubjectForType(project, type);
         var factId = $"marten:registered-value-type:{subject.Value}";
         if (facts.OfType<ArtifactFact>().Any(_ => _.Id.Value == factId))
         {
@@ -179,6 +181,7 @@ static class MartenConfigurationDiscovery
 
     static void DiscoverProjectionMetadata(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         INamedTypeSymbol projection,
         List<GenerationDiagnostic> diagnostics)
     {
@@ -210,6 +213,7 @@ static class MartenConfigurationDiscovery
                     : $"Projection '{projection.Name}' configures projection {MetadataLabel(property.Name)} with a conditional, computed, or otherwise non-constant value that could not be resolved safely";
                 diagnostics.Add(Loss(
                     project,
+                    subjects,
                     projection,
                     MartenDiagnosticCodes.ProjectionMetadataOmitted,
                     message,
@@ -282,6 +286,7 @@ static class MartenConfigurationDiscovery
 
     static void DiscoverProjectionRegistrationMetadata(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
         SemanticModel semanticModel,
@@ -298,6 +303,7 @@ static class MartenConfigurationDiscovery
             var value = ConstantString(nameArgument.Expression, semanticModel);
             diagnostics.Add(Loss(
                 project,
+                subjects,
                 projection,
                 MartenDiagnosticCodes.ProjectionMetadataOmitted,
                 value is null
@@ -327,6 +333,7 @@ static class MartenConfigurationDiscovery
                 };
                 diagnostics.Add(Loss(
                     project,
+                    subjects,
                     projection,
                     MartenDiagnosticCodes.ProjectionMetadataOmitted,
                     IsDirectScopeStatement(assignment, lambda) && value is not null
@@ -342,6 +349,7 @@ static class MartenConfigurationDiscovery
 
     static void DiscoverUnresolvedLifecycle(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
         SemanticModel semanticModel,
@@ -370,12 +378,13 @@ static class MartenConfigurationDiscovery
                 ? "Marten projection lifecycle is computed or otherwise non-constant and could not be resolved safely"
                 : $"Projection '{projection.Name}' uses a computed or otherwise non-constant lifecycle that could not be resolved safely",
             Source = CritterStackSource.RangeForProject(lifecycleArgument.GetLocation(), project),
-            Subject = projection is null ? ProjectSubject(project) : project.SubjectForType(projection)
+            Subject = projection is null ? ProjectSubject(project) : subjects.SubjectForType(project, projection)
         });
     }
 
     static void DiscoverSubscriptionRegistration(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
         SemanticModel semanticModel,
@@ -389,22 +398,24 @@ static class MartenConfigurationDiscovery
 
         diagnostics.Add(Loss(
             project,
+            subjects,
             subscription,
             MartenDiagnosticCodes.SubscriptionConfigurationOmitted,
             $"Marten subscription '{subscription.Name}' is registered, but the current Screenplay contracts have no neutral subscription artifact",
             invocation.GetLocation()));
 
-        DiscoverSubscriptionConstructorConfiguration(project, subscription, diagnostics);
+        DiscoverSubscriptionConstructorConfiguration(project, subjects, subscription, diagnostics);
         foreach (var lambda in invocation.ArgumentList.Arguments.Select(_ => _.Expression).OfType<LambdaExpressionSyntax>())
         {
-            DiscoverSubscriptionScopeConfiguration(project, subscription, lambda, semanticModel, diagnostics);
+            DiscoverSubscriptionScopeConfiguration(project, subjects, subscription, lambda, semanticModel, diagnostics);
         }
 
-        AddCustomProcessingDiagnostics(project, subscription, diagnostics, "subscription");
+        AddCustomProcessingDiagnostics(project, subjects, subscription, diagnostics, "subscription");
     }
 
     static void DiscoverSubscriptionConstructorConfiguration(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         INamedTypeSymbol subscription,
         List<GenerationDiagnostic> diagnostics)
     {
@@ -418,6 +429,7 @@ static class MartenConfigurationDiscovery
             var semanticModel = project.Compilation.GetSemanticModel(constructor.SyntaxTree);
             DiscoverSubscriptionScopeConfiguration(
                 project,
+                subjects,
                 subscription,
                 constructor,
                 semanticModel,
@@ -428,6 +440,7 @@ static class MartenConfigurationDiscovery
 
     static void DiscoverSubscriptionScopeConfiguration(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         INamedTypeSymbol subscription,
         SyntaxNode scope,
         SemanticModel semanticModel,
@@ -452,6 +465,7 @@ static class MartenConfigurationDiscovery
             };
             diagnostics.Add(Loss(
                 project,
+                subjects,
                 subscription,
                 MartenDiagnosticCodes.SubscriptionConfigurationOmitted,
                 direct && value is not null
@@ -475,6 +489,7 @@ static class MartenConfigurationDiscovery
             var value = direct ? SubscriptionMethodValue(invocation, method, semanticModel) : null;
             diagnostics.Add(Loss(
                 project,
+                subjects,
                 subscription,
                 MartenDiagnosticCodes.SubscriptionConfigurationOmitted,
                 value is not null
@@ -548,6 +563,7 @@ static class MartenConfigurationDiscovery
 
     static void AddCustomProcessingDiagnostics(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         INamedTypeSymbol type,
         List<GenerationDiagnostic> diagnostics,
         string kind)
@@ -567,7 +583,7 @@ static class MartenConfigurationDiscovery
                 Outcome = GenerationDiagnosticOutcome.Unsupported,
                 Message = $"Marten {kind} '{type.Name}' has arbitrary {method.Name} consequences; no State View, Automation, Translation, document operation, message, or event consequence was inferred",
                 Source = CritterStackSource.RangeForProject(location, project),
-                Subject = project.SubjectForType(type)
+                Subject = subjects.SubjectForType(project, type)
             });
         }
     }
@@ -785,6 +801,7 @@ static class MartenConfigurationDiscovery
 
     static GenerationDiagnostic Loss(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         INamedTypeSymbol subject,
         string code,
         string message,
@@ -796,7 +813,7 @@ static class MartenConfigurationDiscovery
             Outcome = outcome,
             Message = message,
             Source = CritterStackSource.RangeForProject(location, project),
-            Subject = project.SubjectForType(subject)
+            Subject = subjects.SubjectForType(project, subject)
         };
 
     static SubjectId ProjectSubject(DotNetProjectCompilation project) => new()

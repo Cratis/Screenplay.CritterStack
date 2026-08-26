@@ -39,6 +39,7 @@ static class MartenEventProjectionFacts
     public static MartenEventProjectionResult Discover(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         ProjectionRegistration registration)
     {
         var projection = registration.Projection!;
@@ -118,8 +119,8 @@ static class MartenEventProjectionFacts
 
         var exactOperations = operations
             .GroupBy(_ => new OperationKey(
-                project.SubjectForType(_.EventType),
-                project.SubjectForType(_.DocumentType),
+                subjects.SubjectForType(project, _.EventType),
+                subjects.SubjectForType(project, _.DocumentType),
                 _.Kind))
             .Select(_ => _.OrderBy(operation => operation.Evidence.Source?.Path, StringComparer.Ordinal)
                 .ThenBy(operation => operation.Evidence.Source?.StartLine)
@@ -131,14 +132,14 @@ static class MartenEventProjectionFacts
 
         var diagnostics = new List<GenerationDiagnostic>
         {
-            EventProjectionDiagnostic(project, registration, exactOperations.Length > 0)
+            EventProjectionDiagnostic(project, subjects, registration, exactOperations.Length > 0)
         };
         if (exactOperations.Length == 0)
         {
             return new([], diagnostics, []);
         }
 
-        var projectionSubject = project.SubjectForType(projection);
+        var projectionSubject = subjects.SubjectForType(project, projection);
         var facts = new List<GenerationFact>
         {
             Artifact(
@@ -151,7 +152,7 @@ static class MartenEventProjectionFacts
                 registration.Evidence)
         };
 
-        foreach (var eventGroup in exactOperations.GroupBy(_ => project.SubjectForType(_.EventType)))
+        foreach (var eventGroup in exactOperations.GroupBy(_ => subjects.SubjectForType(project, _.EventType)))
         {
             var operation = eventGroup.First();
             var eventType = operation.EventType;
@@ -173,7 +174,7 @@ static class MartenEventProjectionFacts
         }
 
         var documents = new List<MartenDocumentUsage>();
-        foreach (var documentGroup in exactOperations.GroupBy(_ => project.SubjectForType(_.DocumentType)))
+        foreach (var documentGroup in exactOperations.GroupBy(_ => subjects.SubjectForType(project, _.DocumentType)))
         {
             var operation = documentGroup.First();
             var documentSubject = documentGroup.Key;
@@ -194,8 +195,8 @@ static class MartenEventProjectionFacts
 
         foreach (var operation in exactOperations)
         {
-            var documentSubject = project.SubjectForType(operation.DocumentType);
-            var eventSubject = project.SubjectForType(operation.EventType);
+            var documentSubject = subjects.SubjectForType(project, operation.DocumentType);
+            var eventSubject = subjects.SubjectForType(project, operation.EventType);
             facts.Add(Relationship(
                 $"marten:event-projection:{operation.Kind}:{projectionSubject.Value}:{eventSubject.Value}:{documentSubject.Value}",
                 projectionSubject,
@@ -386,6 +387,7 @@ static class MartenEventProjectionFacts
 
     static GenerationDiagnostic EventProjectionDiagnostic(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         ProjectionRegistration registration,
         bool hasExactOperations) => new()
         {
@@ -396,7 +398,7 @@ static class MartenEventProjectionFacts
             ? $"Event projection '{registration.Projection!.Name}' has exact event and document operation relationships, but arbitrary document body, value, and predicate flow remains code-defined and was omitted"
             : $"Event projection '{registration.Projection!.Name}' has no authored Create return or event-bound IDocumentOperations Store, Insert, Update, Delete, or DeleteWhere operation that can be represented exactly",
             Source = registration.Evidence.Source,
-            Subject = project.SubjectForType(registration.Projection)
+            Subject = subjects.SubjectForType(project, registration.Projection)
         };
 
     sealed record EventDocumentOperation(

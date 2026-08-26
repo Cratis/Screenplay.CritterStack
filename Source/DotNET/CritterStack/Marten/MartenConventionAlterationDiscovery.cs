@@ -9,7 +9,9 @@ namespace Cratis.CritterStack.Screenplay.Marten;
 
 static class MartenConventionAlterationDiscovery
 {
-    public static IReadOnlyList<GenerationDiagnostic> Discover(DotNetProjectCompilation project)
+    public static IReadOnlyList<GenerationDiagnostic> Discover(
+        DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects)
     {
         var catalog = new DotNetArtifactCatalog(project.Compilation);
         return
@@ -26,7 +28,7 @@ static class MartenConventionAlterationDiscovery
                         Outcome = GenerationDiagnosticOutcome.Unsupported,
                         Message = $"Authored Marten convention-alteration type '{type.Name}' may change store shape at runtime; direct source declarations remain modeled, but policy consequences are not interpreted",
                         Source = CritterStackSource.RangeForProject(location, project),
-                        Subject = project.SubjectForType(type)
+                        Subject = subjects.SubjectForType(project, type)
                     };
                 })
                 .OrderBy(_ => _.Source?.Path, StringComparer.Ordinal)
