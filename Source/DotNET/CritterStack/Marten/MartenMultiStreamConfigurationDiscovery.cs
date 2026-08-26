@@ -46,6 +46,7 @@ static class MartenMultiStreamConfigurationDiscovery
     public static MartenMultiStreamConfiguration Discover(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         INamedTypeSymbol projection)
     {
         if (projection.BaseType is null ||
@@ -57,6 +58,7 @@ static class MartenMultiStreamConfigurationDiscovery
                 [
                 Loss(
                     project,
+                    subjects,
                     projection,
                     CritterStackSource.EvidenceFor(
                         projection,
@@ -91,6 +93,7 @@ static class MartenMultiStreamConfigurationDiscovery
                 {
                     diagnostics.Add(Loss(
                         project,
+                        subjects,
                         projection,
                         evidence,
                         $"Marten {method.Name} configuration in '{projection.Name}' is conditional or nested and cannot be resolved safely",
@@ -102,14 +105,15 @@ static class MartenMultiStreamConfigurationDiscovery
                 {
                     case "Identity":
                     case "Identities":
-                        DiscoverIdentity(project, projection, invocation, method, semanticModel, evidence, identities, diagnostics);
+                        DiscoverIdentity(project, subjects, projection, invocation, method, semanticModel, evidence, identities, diagnostics);
                         break;
                     case "FanOut":
-                        DiscoverFanOut(project, projection, invocation, method, semanticModel, evidence, fanOuts, diagnostics);
+                        DiscoverFanOut(project, subjects, projection, invocation, method, semanticModel, evidence, fanOuts, diagnostics);
                         break;
                     case "CustomGrouping":
                         diagnostics.Add(Loss(
                             project,
+                            subjects,
                             projection,
                             evidence,
                             $"Multi-stream projection '{projection.Name}' uses arbitrary custom grouping through CustomGrouping and no identity mapping was inferred"));
@@ -117,6 +121,7 @@ static class MartenMultiStreamConfigurationDiscovery
                     case "RollUpByTenant":
                         diagnostics.Add(Loss(
                             project,
+                            subjects,
                             projection,
                             evidence,
                             $"Multi-stream projection '{projection.Name}' groups by tenant through RollUpByTenant and no identity mapping was inferred"));
@@ -142,6 +147,7 @@ static class MartenMultiStreamConfigurationDiscovery
                 };
                 diagnostics.Add(Loss(
                     project,
+                    subjects,
                     projection,
                     evidence,
                     $"Multi-stream projection '{projection.Name}' configures tenancy-dependent grouping and no identity mapping was inferred from that assignment"));
@@ -156,6 +162,7 @@ static class MartenMultiStreamConfigurationDiscovery
 
     static void DiscoverIdentity(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         INamedTypeSymbol projection,
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
@@ -170,6 +177,7 @@ static class MartenMultiStreamConfigurationDiscovery
         {
             diagnostics.Add(Loss(
                 project,
+                subjects,
                 projection,
                 evidence,
                 $"Marten {method.Name} configuration in '{projection.Name}' is not a simple member-selector lambda and no identity mapping was inferred",
@@ -181,6 +189,7 @@ static class MartenMultiStreamConfigurationDiscovery
         {
             diagnostics.Add(Loss(
                 project,
+                subjects,
                 projection,
                 evidence,
                 $"Marten {method.Name} configuration in '{projection.Name}' depends on tenant identity and no identity mapping was inferred"));
@@ -193,6 +202,7 @@ static class MartenMultiStreamConfigurationDiscovery
         {
             diagnostics.Add(Loss(
                 project,
+                subjects,
                 projection,
                 evidence,
                 $"Marten {method.Name} configuration in '{projection.Name}' does not select a member of the authored event and no identity mapping was inferred",
@@ -209,6 +219,7 @@ static class MartenMultiStreamConfigurationDiscovery
 
     static void DiscoverFanOut(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         INamedTypeSymbol projection,
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
@@ -224,6 +235,7 @@ static class MartenMultiStreamConfigurationDiscovery
         {
             diagnostics.Add(Loss(
                 project,
+                subjects,
                 projection,
                 evidence,
                 $"Marten FanOut configuration in '{projection.Name}' is not an exact declaration with a simple member-selector lambda and no fan-out mapping was inferred",
@@ -236,6 +248,7 @@ static class MartenMultiStreamConfigurationDiscovery
         {
             diagnostics.Add(Loss(
                 project,
+                subjects,
                 projection,
                 evidence,
                 $"Marten FanOut configuration in '{projection.Name}' does not select an authored parent-event member and no fan-out mapping was inferred",
@@ -394,6 +407,7 @@ static class MartenMultiStreamConfigurationDiscovery
 
     static GenerationDiagnostic Loss(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         INamedTypeSymbol projection,
         Evidence evidence,
         string message,
@@ -404,7 +418,7 @@ static class MartenMultiStreamConfigurationDiscovery
             Outcome = outcome,
             Message = message,
             Source = evidence.Source,
-            Subject = project.SubjectForType(projection)
+            Subject = subjects.SubjectForType(project, projection)
         };
 
     static string LowerFirst(string value) => value.Length == 0

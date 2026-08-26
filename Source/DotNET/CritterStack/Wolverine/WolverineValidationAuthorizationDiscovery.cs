@@ -10,7 +10,9 @@ namespace Cratis.CritterStack.Screenplay.Wolverine;
 
 static class WolverineValidationAuthorizationDiscovery
 {
-    public static WolverineValidationAuthorizationDiscoveryResult Discover(DotNetProjectCompilation project)
+    public static WolverineValidationAuthorizationDiscoveryResult Discover(
+        DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects)
     {
         var validationPolicies = new List<WolverineValidationPolicyActivation>();
         var authorizationPolicies = new List<WolverineAuthorizationPolicyActivation>();
@@ -22,7 +24,7 @@ static class WolverineValidationAuthorizationDiscovery
             var containingType = DotNetSubjectIds.MetadataName(call.Method.ContainingType.OriginalDefinition);
             if (IsValidationActivation(containingType, call.Method.Name, out var kind, out var scope))
             {
-                DiscoverValidationActivation(project, call, kind, scope, validationPolicies, diagnostics);
+                DiscoverValidationActivation(project, subjects, call, kind, scope, validationPolicies, diagnostics);
                 continue;
             }
 
@@ -31,10 +33,10 @@ static class WolverineValidationAuthorizationDiscovery
                 switch (call.Method.Name)
                 {
                     case "RequireAuthorizeOnAll":
-                        DiscoverGlobalAuthorization(project, call, "RequireAuthorizeOnAll", authorizationPolicies, diagnostics);
+                        DiscoverGlobalAuthorization(project, subjects, call, "RequireAuthorizeOnAll", authorizationPolicies, diagnostics);
                         break;
                     case "ConfigureEndpoints":
-                        DiscoverConfiguredEndpointAuthorization(project, call, authorizationPolicies, diagnostics);
+                        DiscoverConfiguredEndpointAuthorization(project, subjects, call, authorizationPolicies, diagnostics);
                         break;
                 }
             }
@@ -64,6 +66,7 @@ static class WolverineValidationAuthorizationDiscovery
 
     static void DiscoverValidationActivation(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         ConfigurationCall call,
         WolverineValidationPolicyKind kind,
         WolverineValidationPolicyScope scope,
@@ -74,6 +77,7 @@ static class WolverineValidationAuthorizationDiscovery
         {
             diagnostics.Add(UnresolvedValidation(
                 project,
+                subjects,
                 call,
                 "the policy call is conditionally executed at runtime"));
             return;
@@ -85,14 +89,14 @@ static class WolverineValidationAuthorizationDiscovery
         if (kind == WolverineValidationPolicyKind.FluentValidation &&
             !TryResolveFluentValidationOptions(call, out canDiscoverValidators, out includeInternalValidators, out var reason))
         {
-            diagnostics.Add(UnresolvedValidation(project, call, reason));
+            diagnostics.Add(UnresolvedValidation(project, subjects, call, reason));
             canDiscoverValidators = false;
             includeInternalValidators = false;
             optionsResolved = false;
         }
 
         var source = CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project);
-        var subject = ConfigurationSubject(project, call);
+        var subject = ConfigurationSubject(project, subjects, call);
         policies.Add(new(
             kind,
             scope,
@@ -106,6 +110,7 @@ static class WolverineValidationAuthorizationDiscovery
         {
             diagnostics.Add(UnresolvedValidation(
                 project,
+                subjects,
                 call,
                 "validator applicability depends on explicit runtime container registrations"));
         }
@@ -113,6 +118,7 @@ static class WolverineValidationAuthorizationDiscovery
 
     static void DiscoverGlobalAuthorization(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         ConfigurationCall call,
         string description,
         List<WolverineAuthorizationPolicyActivation> policies,
@@ -122,6 +128,7 @@ static class WolverineValidationAuthorizationDiscovery
         {
             diagnostics.Add(UnresolvedAuthorization(
                 project,
+                subjects,
                 call,
                 "the global authorization call is conditionally executed at runtime"));
             return;
@@ -129,12 +136,13 @@ static class WolverineValidationAuthorizationDiscovery
 
         policies.Add(new(
             CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project),
-            ConfigurationSubject(project, call),
+            ConfigurationSubject(project, subjects, call),
             $"'{description}'"));
     }
 
     static void DiscoverConfiguredEndpointAuthorization(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         ConfigurationCall call,
         List<WolverineAuthorizationPolicyActivation> policies,
         List<GenerationDiagnostic> diagnostics)
@@ -168,6 +176,7 @@ static class WolverineValidationAuthorizationDiscovery
         {
             diagnostics.Add(UnresolvedAuthorization(
                 project,
+                subjects,
                 call,
                 "the endpoint authorization policy is conditional or has runtime arguments"));
             return;
@@ -175,7 +184,7 @@ static class WolverineValidationAuthorizationDiscovery
 
         policies.Add(new(
             CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project),
-            ConfigurationSubject(project, call),
+            ConfigurationSubject(project, subjects, call),
             "'ConfigureEndpoints(... RequireAuthorization(...))'"));
     }
 
@@ -420,6 +429,7 @@ static class WolverineValidationAuthorizationDiscovery
 
     static GenerationDiagnostic UnresolvedValidation(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         ConfigurationCall call,
         string reason) => new()
         {
@@ -428,11 +438,12 @@ static class WolverineValidationAuthorizationDiscovery
             Outcome = GenerationDiagnosticOutcome.Unknown,
             Message = $"Wolverine validation call '{call.Method.Name}' was not applied because {reason}",
             Source = CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project),
-            Subject = ConfigurationSubject(project, call)
+            Subject = ConfigurationSubject(project, subjects, call)
         };
 
     static GenerationDiagnostic UnresolvedAuthorization(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         ConfigurationCall call,
         string reason) => new()
         {
@@ -441,15 +452,18 @@ static class WolverineValidationAuthorizationDiscovery
             Outcome = GenerationDiagnosticOutcome.Unknown,
             Message = $"Wolverine authorization configuration call '{call.Method.Name}' was not applied because {reason}",
             Source = CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project),
-            Subject = ConfigurationSubject(project, call)
+            Subject = ConfigurationSubject(project, subjects, call)
         };
 
-    static SubjectId ConfigurationSubject(DotNetProjectCompilation project, ConfigurationCall call)
+    static SubjectId ConfigurationSubject(
+        DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
+        ConfigurationCall call)
     {
         var containingType = call.SemanticModel.GetEnclosingSymbol(call.Invocation.SpanStart)?.ContainingType;
         return containingType is null
             ? new SubjectId { Value = $"dotnet://{project.Name}/#wolverine-configuration" }
-            : project.SubjectForType(containingType);
+            : subjects.SubjectForType(project, containingType);
     }
 
     static string ValidationName(WolverineValidationPolicyKind kind) => kind == WolverineValidationPolicyKind.FluentValidation

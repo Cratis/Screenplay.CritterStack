@@ -52,6 +52,7 @@ static class WolverineSagaFacts
     public static WolverineSagaDiscoveryResult Discover(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         WolverineHandlerDiscoveryPolicy discovery)
     {
         var facts = new List<GenerationFact>();
@@ -117,7 +118,7 @@ static class WolverineSagaFacts
 
             if (roles.Count > 0)
             {
-                AddSagaFacts(project, adapter, sagaType, roles, facts, diagnostics);
+                AddSagaFacts(project, adapter, subjects, sagaType, roles, facts, diagnostics);
             }
         }
 
@@ -136,12 +137,13 @@ static class WolverineSagaFacts
     static void AddSagaFacts(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         INamedTypeSymbol sagaType,
         IReadOnlyList<WolverineSagaRoleMethod> roles,
         List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics)
     {
-        var sagaSubject = project.SubjectForType(sagaType);
+        var sagaSubject = subjects.SubjectForType(project, sagaType);
         var sagaEvidence = CritterStackSource.EvidenceFor(
             sagaType,
             adapter,
@@ -159,7 +161,7 @@ static class WolverineSagaFacts
 
         foreach (var role in roles)
         {
-            AddRoleFacts(project, adapter, sagaType, role, roles, facts, diagnostics);
+            AddRoleFacts(project, adapter, subjects, sagaType, role, roles, facts, diagnostics);
         }
 
         var completion = CompletionInvocation(roles, project);
@@ -179,6 +181,7 @@ static class WolverineSagaFacts
     static void AddRoleFacts(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         INamedTypeSymbol sagaType,
         WolverineSagaRoleMethod role,
         IReadOnlyList<WolverineSagaRoleMethod> allRoles,
@@ -187,7 +190,7 @@ static class WolverineSagaFacts
     {
         var method = role.Method;
         var handlerSubject = HandlerSubject(project, method);
-        var messageSubject = project.SubjectForType(role.MessageType);
+        var messageSubject = subjects.SubjectForType(project, role.MessageType);
         var roleEvidence = CritterStackSource.EvidenceFor(
             method,
             adapter,
@@ -242,16 +245,17 @@ static class WolverineSagaFacts
             isHttpEndpoint: false,
             aggregateWorkflow: false,
             hasEventStream: false);
-        WolverineFacts.AddSagaReturnConsequences(project, handlerSubject, returnConsequences, roleEvidence, facts);
+        WolverineFacts.AddSagaReturnConsequences(project, subjects, handlerSubject, returnConsequences, roleEvidence, facts);
         WolverineFacts.AddSagaOutgoingMessages(
             project,
+            subjects,
             handlerSubject,
             method,
             WolverineFacts.DiscoverSagaOutgoingMessages(method, project),
             roleEvidence,
             facts,
             diagnostics);
-        WolverineFacts.AddSagaDirectBusConsequences(project, handlerSubject, method, roleEvidence, facts, diagnostics);
+        WolverineFacts.AddSagaDirectBusConsequences(project, subjects, handlerSubject, method, roleEvidence, facts, diagnostics);
 
         foreach (var timeout in returnConsequences
                      .Where(consequence => consequence.Kind == WolverineReturnConsequenceKind.Cascade)

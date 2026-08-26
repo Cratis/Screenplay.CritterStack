@@ -10,11 +10,13 @@ namespace Cratis.CritterStack.Screenplay.Wolverine;
 
 static class WolverineHandlerDiscovery
 {
-    public static WolverineHandlerDiscoveryResult Discover(DotNetProjectCompilation project)
+    public static WolverineHandlerDiscoveryResult Discover(
+        DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects)
     {
         var calls = ConfigurationCalls(project).ToArray();
         var explicitTypes = new List<INamedTypeSymbol>();
-        var diagnostics = new List<GenerationDiagnostic>(WolverineConventionAlterationDiscovery.Discover(project));
+        var diagnostics = new List<GenerationDiagnostic>(WolverineConventionAlterationDiscovery.Discover(project, subjects));
         var disableValues = new List<bool>();
         var conventionalDiscoveryResolvable = true;
 
@@ -30,7 +32,7 @@ static class WolverineHandlerDiscovery
                     else
                     {
                         conventionalDiscoveryResolvable = false;
-                        diagnostics.Add(UnresolvedDiagnostic(project, call, "the enabled state is not a compile-time constant"));
+                        diagnostics.Add(UnresolvedDiagnostic(project, subjects, call, "the enabled state is not a compile-time constant"));
                     }
                     break;
                 case "IncludeType":
@@ -43,22 +45,22 @@ static class WolverineHandlerDiscovery
                     }
                     else
                     {
-                        diagnostics.Add(UnresolvedDiagnostic(project, call, "the included handler type is not authored source in this compilation"));
+                        diagnostics.Add(UnresolvedDiagnostic(project, subjects, call, "the included handler type is not authored source in this compilation"));
                     }
                     break;
                 case "IncludeAssembly":
                     if (!ReferencesCurrentAssembly(project, call))
                     {
-                        diagnostics.Add(UnresolvedDiagnostic(project, call, "assembly scanning outside the current source compilation is not supported"));
+                        diagnostics.Add(UnresolvedDiagnostic(project, subjects, call, "assembly scanning outside the current source compilation is not supported"));
                     }
                     break;
                 case "CustomizeHandlerDiscovery":
                     conventionalDiscoveryResolvable = false;
-                    diagnostics.Add(UnresolvedDiagnostic(project, call, "custom handler predicates and lambdas are not statically interpreted"));
+                    diagnostics.Add(UnresolvedDiagnostic(project, subjects, call, "custom handler predicates and lambdas are not statically interpreted"));
                     break;
                 case "IgnoreAssembly":
                     conventionalDiscoveryResolvable = false;
-                    diagnostics.Add(UnresolvedDiagnostic(project, call, "assembly removal cannot be resolved from the current source compilation"));
+                    diagnostics.Add(UnresolvedDiagnostic(project, subjects, call, "assembly removal cannot be resolved from the current source compilation"));
                     break;
             }
         }
@@ -70,6 +72,7 @@ static class WolverineHandlerDiscovery
             var call = calls.First(_ => _.Method.Name == "DisableConventionalDiscovery");
             diagnostics.Add(UnresolvedDiagnostic(
                 project,
+                subjects,
                 call,
                 "conflicting enabled states depend on runtime execution order",
                 GenerationDiagnosticOutcome.Conflict));
@@ -173,6 +176,7 @@ static class WolverineHandlerDiscovery
 
     static GenerationDiagnostic UnresolvedDiagnostic(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         ConfigurationCall call,
         string reason,
         GenerationDiagnosticOutcome outcome = GenerationDiagnosticOutcome.Unknown)
@@ -180,7 +184,7 @@ static class WolverineHandlerDiscovery
         var containingType = call.SemanticModel.GetEnclosingSymbol(call.Invocation.SpanStart)?.ContainingType;
         var subject = containingType is null
             ? new SubjectId { Value = $"dotnet://{project.Name}/#wolverine-handler-discovery" }
-            : project.SubjectForType(containingType);
+            : subjects.SubjectForType(project, containingType);
         return new()
         {
             Code = WolverineDiagnosticCodes.HandlerDiscoveryConfigurationUnresolved,

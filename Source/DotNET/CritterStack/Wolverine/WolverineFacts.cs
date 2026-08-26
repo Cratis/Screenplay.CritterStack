@@ -11,7 +11,8 @@ namespace Cratis.CritterStack.Screenplay.Wolverine;
 
 sealed record WolverineDiscoveryResult(
     IReadOnlyList<GenerationFact> Facts,
-    IReadOnlyList<GenerationDiagnostic> Diagnostics);
+    IReadOnlyList<GenerationDiagnostic> Diagnostics,
+    IReadOnlyList<CritterStackPlacementIntent>? Placements = null);
 
 sealed record HttpEndpoint(IMethodSymbol Method, string Verb, string? Route);
 
@@ -45,7 +46,8 @@ static class WolverineFacts
     public static WolverineDiscoveryResult Discover(
         DotNetProjectCompilation project,
         DotNetAdapterOptions options,
-        AdapterIdentity adapter)
+        AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects)
     {
         if (project.Compilation.GetTypeByMetadataName(WellKnownTypes.WolverineOptions) is null)
         {
@@ -53,11 +55,12 @@ static class WolverineFacts
         }
 
         var facts = new List<GenerationFact>();
-        var discovery = WolverineHandlerDiscovery.Discover(project);
-        var validationAuthorization = WolverineValidationAuthorizationDiscovery.Discover(project);
+        var placements = new List<CritterStackPlacementIntent>();
+        var discovery = WolverineHandlerDiscovery.Discover(project, subjects);
+        var validationAuthorization = WolverineValidationAuthorizationDiscovery.Discover(project, subjects);
         var diagnostics = new List<GenerationDiagnostic>(discovery.Diagnostics);
         diagnostics.AddRange(validationAuthorization.Diagnostics);
-        var sagaDiscovery = WolverineSagaFacts.Discover(project, adapter, discovery.Policy);
+        var sagaDiscovery = WolverineSagaFacts.Discover(project, adapter, subjects, discovery.Policy);
         facts.AddRange(sagaDiscovery.Facts);
         diagnostics.AddRange(sagaDiscovery.Diagnostics);
         var catalog = new DotNetArtifactCatalog(project.Compilation);
@@ -68,16 +71,16 @@ static class WolverineFacts
                 var endpoint = EndpointFor(method);
                 if (endpoint is not null)
                 {
-                    AnalyzeEndpoint(project, options, adapter, endpoint, validationAuthorization, facts, diagnostics);
+                    AnalyzeEndpoint(project, options, adapter, subjects, endpoint, validationAuthorization, facts, placements, diagnostics);
                 }
                 else if (IsHandler(type, method, discovery.Policy))
                 {
-                    AnalyzeHandler(project, options, adapter, method, validationAuthorization, facts, diagnostics);
+                    AnalyzeHandler(project, options, adapter, subjects, method, validationAuthorization, facts, placements, diagnostics);
                 }
             }
         }
 
-        return new(facts, diagnostics);
+        return new(facts, diagnostics, placements);
     }
 
     internal static bool IsSagaMessagePayloadType(ITypeSymbol type) => IsEventPayloadType(type);
@@ -105,10 +108,11 @@ static class WolverineFacts
 
     internal static void AddSagaReturnConsequences(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         SubjectId sourceSubject,
         IReadOnlyList<WolverineReturnConsequence> consequences,
         Evidence evidence,
-        List<GenerationFact> facts) => AddReturnConsequences(project, sourceSubject, consequences, evidence, facts, sagaAnalysis: true);
+        List<GenerationFact> facts) => AddReturnConsequences(project, subjects, sourceSubject, consequences, evidence, facts, sagaAnalysis: true);
 
     internal static List<WolverineOutgoingMessageConsequence> DiscoverSagaOutgoingMessages(
         IMethodSymbol method,
@@ -116,36 +120,40 @@ static class WolverineFacts
 
     internal static void AddSagaOutgoingMessages(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         SubjectId sourceSubject,
         IMethodSymbol method,
         IReadOnlyList<WolverineOutgoingMessageConsequence> consequences,
         Evidence evidence,
         List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics) =>
-        AddOutgoingMessages(project, sourceSubject, method, consequences, evidence, facts, diagnostics, sagaAnalysis: true);
+        AddOutgoingMessages(project, subjects, sourceSubject, method, consequences, evidence, facts, diagnostics, sagaAnalysis: true);
 
     internal static void AddSagaDirectBusConsequences(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         SubjectId sourceSubject,
         IMethodSymbol method,
         Evidence evidence,
         List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics) =>
-        AddDirectBusConsequences(project, sourceSubject, method, evidence, facts, diagnostics, sagaAnalysis: true);
+        AddDirectBusConsequences(project, subjects, sourceSubject, method, evidence, facts, diagnostics, sagaAnalysis: true);
 
     static void AnalyzeEndpoint(
         DotNetProjectCompilation project,
         DotNetAdapterOptions options,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         HttpEndpoint endpoint,
         WolverineValidationAuthorizationDiscoveryResult validationAuthorization,
         List<GenerationFact> facts,
+        List<CritterStackPlacementIntent> placements,
         List<GenerationDiagnostic> diagnostics)
     {
         if (string.Equals(endpoint.Verb, "GET", StringComparison.Ordinal) ||
             string.Equals(endpoint.Verb, "QUERY", StringComparison.Ordinal))
         {
-            AnalyzeQuery(project, options, adapter, endpoint, validationAuthorization, facts, diagnostics);
+            AnalyzeQuery(project, options, adapter, subjects, endpoint, validationAuthorization, facts, placements, diagnostics);
             return;
         }
 
@@ -158,7 +166,7 @@ static class WolverineFacts
         var appendDiscovery = WolverineEventStreams.Appends(method, project, streamBindings);
         var aggregate = dcb is null ? AggregateParameter(method, request, aggregateWorkflow) : null;
         var commandSubject = commandType is not null
-            ? project.SubjectForType(commandType)
+            ? subjects.SubjectForType(project, commandType)
             : MethodSubject(project, method, "command");
         var entity = method.Parameters.FirstOrDefault(IsEntityParameter);
         var commandName = request?.Type.Name ?? (method.ContainingType.Name.EndsWith("Endpoints", StringComparison.Ordinal)
@@ -170,11 +178,24 @@ static class WolverineFacts
             ? CommandProperties(commandType, aggregate?.Type as INamedTypeSymbol, streamBindings)
             : RouteProperties(method);
         var feature = StateFeature(commandName, aggregate?.Type as INamedTypeSymbol, streamBindings, dcb?.ModelType);
-        var placement = BehaviorPlacement(project, options, feature, commandName, GenerationSliceKind.StateChange);
+        var compatibilityPlacement = CritterStackSourcePlacement.CompatibilityPlacement(
+            project,
+            options,
+            feature,
+            commandName,
+            GenerationSliceKind.StateChange);
         var commandKey = new ArtifactKey { Subject = commandSubject, Kind = ArtifactKind.Command };
+        var commandSourceOwner = commandType is null
+            ? subjects.SubjectForType(project, method.ContainingType)
+            : null;
 
         facts.Add(Artifact($"wolverine:command:{commandSubject.Value}", commandKey, commandName, file, properties, evidence));
-        facts.Add(Placement($"wolverine:placement:command:{commandSubject.Value}", commandKey, placement, evidence));
+        placements.Add(new(
+            $"wolverine:placement:command:{commandSubject.Value}",
+            commandKey,
+            commandSourceOwner,
+            compatibilityPlacement,
+            evidence));
         diagnostics.Add(new GenerationDiagnostic
         {
             Code = WolverineDiagnosticCodes.HttpMetadataOmitted,
@@ -187,7 +208,7 @@ static class WolverineFacts
 
         if (aggregate?.Type is INamedTypeSymbol aggregateType)
         {
-            AddReadModelAndRelationship(project, adapter, commandSubject, commandType, aggregateType, facts, evidence);
+            AddReadModelAndRelationship(project, adapter, subjects, commandSubject, commandType, aggregateType, facts, evidence);
             if (commandType is not null && IdentityProperty(commandType, aggregateType) is null)
             {
                 diagnostics.Add(new GenerationDiagnostic
@@ -214,17 +235,18 @@ static class WolverineFacts
             }
         }
 
-        AddPersistenceBoundReads(project, adapter, commandSubject, method, aggregate, facts);
+        AddPersistenceBoundReads(project, adapter, subjects, commandSubject, method, aggregate, facts);
         AddEventStreamBindingFacts(
             project,
             adapter,
+            subjects,
             commandSubject,
             commandName,
             streamBindings,
             isHttpEndpoint: true,
             facts,
             diagnostics);
-        AddDcbFacts(project, adapter, commandSubject, commandName, dcb, facts, diagnostics);
+        AddDcbFacts(project, adapter, subjects, commandSubject, commandName, dcb, facts, diagnostics);
 
         if (commandType is not null)
         {
@@ -254,9 +276,9 @@ static class WolverineFacts
                               !bodyEvents.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) &&
                               !isImperativeDcbEvent &&
                               !hasCompoundValidation;
-            AddEventAndProduction(project, commandSubject, eventType, placement, evidence, declarative, facts);
+            AddEventAndProduction(project, subjects, commandSubject, eventType, compatibilityPlacement, evidence, declarative, facts, placements);
         }
-        AddEventStreamAppendFacts(project, adapter, commandSubject, placement, appendDiscovery, facts, diagnostics);
+        AddEventStreamAppendFacts(project, adapter, subjects, commandSubject, compatibilityPlacement, appendDiscovery, facts, placements, diagnostics);
 
         var returnConsequences = WolverineReturnConsequences.Classify(
             method,
@@ -265,20 +287,22 @@ static class WolverineFacts
             aggregateWorkflow || dcb is { IsBoundaryParameter: false },
             dcb is null && streamBindings.Count > 0);
         var outgoingMessages = DiscoverOutgoingMessages(method, project);
-        AddDocumentDeletes(project, commandSubject, method, evidence, facts);
-        AddReturnConsequences(project, commandSubject, returnConsequences, evidence, facts, sagaAnalysis: false);
-        AddStorageActionConsequences(project, adapter, commandSubject, method, returnConsequences, evidence, facts);
-        AddDirectBusConsequences(project, commandSubject, method, evidence, facts, diagnostics, sagaAnalysis: false);
-        AddOutgoingMessages(project, commandSubject, method, outgoingMessages, evidence, facts, diagnostics, sagaAnalysis: false);
+        AddDocumentDeletes(project, subjects, commandSubject, method, evidence, facts);
+        AddReturnConsequences(project, subjects, commandSubject, returnConsequences, evidence, facts, sagaAnalysis: false);
+        AddStorageActionConsequences(project, adapter, subjects, commandSubject, method, returnConsequences, evidence, facts);
+        AddDirectBusConsequences(project, subjects, commandSubject, method, evidence, facts, diagnostics, sagaAnalysis: false);
+        AddOutgoingMessages(project, subjects, commandSubject, method, outgoingMessages, evidence, facts, diagnostics, sagaAnalysis: false);
     }
 
     static void AnalyzeHandler(
         DotNetProjectCompilation project,
         DotNetAdapterOptions options,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         IMethodSymbol method,
         WolverineValidationAuthorizationDiscoveryResult validationAuthorization,
         List<GenerationFact> facts,
+        List<CritterStackPlacementIntent> placements,
         List<GenerationDiagnostic> diagnostics)
     {
         var request = RequestParameter(method, project);
@@ -338,6 +362,7 @@ static class WolverineFacts
                     project,
                     options,
                     adapter,
+                    subjects,
                     method,
                     requestType,
                     batched,
@@ -347,6 +372,7 @@ static class WolverineFacts
                     busConsequences,
                     validationAuthorization,
                     facts,
+                    placements,
                     diagnostics);
             }
             else
@@ -362,7 +388,7 @@ static class WolverineFacts
             return;
         }
 
-        var commandSubject = project.SubjectForType(requestType);
+        var commandSubject = subjects.SubjectForType(project, requestType);
         diagnostics.AddRange(validationAuthorization.ValidationDiagnostics(
             method,
             requestType,
@@ -371,7 +397,12 @@ static class WolverineFacts
         var evidenceExplanation = $"Wolverine message handler with persistence effects{(batched ? " (batched: Wolverine delivers arrays of this message)" : string.Empty)}";
         var evidence = MethodEvidence(method, project, adapter, EvidenceStrength.Exact, evidenceExplanation);
         var feature = StateFeature(requestType.Name, aggregate?.Type as INamedTypeSymbol, streamBindings, dcb?.ModelType);
-        var placement = BehaviorPlacement(project, options, feature, requestType.Name, GenerationSliceKind.StateChange);
+        var compatibilityPlacement = CritterStackSourcePlacement.CompatibilityPlacement(
+            project,
+            options,
+            feature,
+            requestType.Name,
+            GenerationSliceKind.StateChange);
         var key = new ArtifactKey { Subject = commandSubject, Kind = ArtifactKind.Command };
         facts.Add(Artifact(
             $"wolverine:command:{commandSubject.Value}",
@@ -380,23 +411,29 @@ static class WolverineFacts
             evidence.Source?.Path,
             CommandProperties(requestType, aggregate?.Type as INamedTypeSymbol, streamBindings),
             evidence));
-        facts.Add(Placement($"wolverine:placement:command:{commandSubject.Value}", key, placement, evidence));
+        placements.Add(new(
+            $"wolverine:placement:command:{commandSubject.Value}",
+            key,
+            null,
+            compatibilityPlacement,
+            evidence));
 
         if (aggregate?.Type is INamedTypeSymbol aggregateType)
         {
-            AddReadModelAndRelationship(project, adapter, commandSubject, requestType, aggregateType, facts, evidence);
+            AddReadModelAndRelationship(project, adapter, subjects, commandSubject, requestType, aggregateType, facts, evidence);
         }
-        AddPersistenceBoundReads(project, adapter, commandSubject, method, aggregate, facts);
+        AddPersistenceBoundReads(project, adapter, subjects, commandSubject, method, aggregate, facts);
         AddEventStreamBindingFacts(
             project,
             adapter,
+            subjects,
             commandSubject,
             requestType.Name,
             streamBindings,
             isHttpEndpoint: false,
             facts,
             diagnostics);
-        AddDcbFacts(project, adapter, commandSubject, requestType.Name, dcb, facts, diagnostics);
+        AddDcbFacts(project, adapter, subjects, commandSubject, requestType.Name, dcb, facts, diagnostics);
 
         foreach (var eventType in returnEvents.Concat(bodyEvents).Distinct(SymbolEqualityComparer.Default).OfType<INamedTypeSymbol>())
         {
@@ -404,16 +441,16 @@ static class WolverineFacts
             var declarative = returnEvents.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) &&
                               !bodyEvents.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) &&
                               !isImperativeDcbEvent;
-            AddEventAndProduction(project, commandSubject, eventType, placement, evidence, declarative, facts);
+            AddEventAndProduction(project, subjects, commandSubject, eventType, compatibilityPlacement, evidence, declarative, facts, placements);
         }
-        AddEventStreamAppendFacts(project, adapter, commandSubject, placement, appendDiscovery, facts, diagnostics);
+        AddEventStreamAppendFacts(project, adapter, subjects, commandSubject, compatibilityPlacement, appendDiscovery, facts, placements, diagnostics);
 
-        AddDocumentDeletes(project, commandSubject, method, evidence, facts);
-        AddReturnConsequences(project, commandSubject, returnConsequences, evidence, facts, sagaAnalysis: false);
-        AddStorageActionConsequences(project, adapter, commandSubject, method, returnConsequences, evidence, facts);
-        AddDirectBusConsequences(project, commandSubject, method, evidence, facts, diagnostics, busConsequences, sagaAnalysis: false);
-        AddOutgoingMessages(project, commandSubject, method, outgoingMessages, evidence, facts, diagnostics, sagaAnalysis: false);
-        AddCompoundStageConsequences(project, adapter, commandSubject, method, compoundStages, facts, diagnostics);
+        AddDocumentDeletes(project, subjects, commandSubject, method, evidence, facts);
+        AddReturnConsequences(project, subjects, commandSubject, returnConsequences, evidence, facts, sagaAnalysis: false);
+        AddStorageActionConsequences(project, adapter, subjects, commandSubject, method, returnConsequences, evidence, facts);
+        AddDirectBusConsequences(project, subjects, commandSubject, method, evidence, facts, diagnostics, busConsequences, sagaAnalysis: false);
+        AddOutgoingMessages(project, subjects, commandSubject, method, outgoingMessages, evidence, facts, diagnostics, sagaAnalysis: false);
+        AddCompoundStageConsequences(project, adapter, subjects, commandSubject, method, compoundStages, facts, diagnostics);
         AddHandlerChainConfigurationDiagnostics(project, adapter, commandSubject, method, diagnostics);
     }
 
@@ -421,6 +458,7 @@ static class WolverineFacts
         DotNetProjectCompilation project,
         DotNetAdapterOptions options,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         IMethodSymbol method,
         INamedTypeSymbol requestType,
         bool batched,
@@ -430,9 +468,10 @@ static class WolverineFacts
         IReadOnlyList<WolverineBusConsequence> busConsequences,
         WolverineValidationAuthorizationDiscoveryResult validationAuthorization,
         List<GenerationFact> facts,
+        List<CritterStackPlacementIntent> placements,
         List<GenerationDiagnostic> diagnostics)
     {
-        var requestSubject = project.SubjectForType(requestType);
+        var requestSubject = subjects.SubjectForType(project, requestType);
         var reactionSubject = MethodSubject(project, method, "reaction");
         diagnostics.AddRange(validationAuthorization.ValidationDiagnostics(
             method,
@@ -444,7 +483,12 @@ static class WolverineFacts
         var reactionName = method.ContainingType.Name.EndsWith("Handler", StringComparison.Ordinal)
             ? method.ContainingType.Name[..^"Handler".Length]
             : method.ContainingType.Name;
-        var placement = BehaviorPlacement(project, options, requestType.Name, reactionName, GenerationSliceKind.Automation);
+        var compatibilityPlacement = CritterStackSourcePlacement.CompatibilityPlacement(
+            project,
+            options,
+            requestType.Name,
+            reactionName,
+            GenerationSliceKind.Automation);
         var requestKey = new ArtifactKey { Subject = requestSubject, Kind = ArtifactKind.Message };
         var reactionKey = new ArtifactKey { Subject = reactionSubject, Kind = ArtifactKind.Reaction };
         facts.Add(Artifact(
@@ -461,7 +505,12 @@ static class WolverineFacts
             evidence.Source?.Path,
             [],
             evidence));
-        facts.Add(Placement($"wolverine:placement:reaction:{reactionSubject.Value}", reactionKey, placement, evidence));
+        placements.Add(new(
+            $"wolverine:placement:reaction:{reactionSubject.Value}",
+            reactionKey,
+            subjects.SubjectForType(project, method.ContainingType),
+            compatibilityPlacement,
+            evidence));
         facts.Add(Relationship(
             $"wolverine:handles:{reactionSubject.Value}:{requestSubject.Value}",
             reactionSubject,
@@ -469,10 +518,10 @@ static class WolverineFacts
             requestSubject,
             evidence,
             isCollection: batched));
-        AddReturnConsequences(project, reactionSubject, returnConsequences, evidence, facts, sagaAnalysis: false);
-        AddOutgoingMessages(project, reactionSubject, method, outgoingMessages, evidence, facts, diagnostics, sagaAnalysis: false);
-        AddDirectBusConsequences(project, reactionSubject, method, evidence, facts, diagnostics, busConsequences, sagaAnalysis: false);
-        AddCompoundStageConsequences(project, adapter, reactionSubject, method, compoundStages, facts, diagnostics);
+        AddReturnConsequences(project, subjects, reactionSubject, returnConsequences, evidence, facts, sagaAnalysis: false);
+        AddOutgoingMessages(project, subjects, reactionSubject, method, outgoingMessages, evidence, facts, diagnostics, sagaAnalysis: false);
+        AddDirectBusConsequences(project, subjects, reactionSubject, method, evidence, facts, diagnostics, busConsequences, sagaAnalysis: false);
+        AddCompoundStageConsequences(project, adapter, subjects, reactionSubject, method, compoundStages, facts, diagnostics);
         AddHandlerChainConfigurationDiagnostics(project, adapter, reactionSubject, method, diagnostics);
     }
 
@@ -480,9 +529,11 @@ static class WolverineFacts
         DotNetProjectCompilation project,
         DotNetAdapterOptions options,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         HttpEndpoint endpoint,
         WolverineValidationAuthorizationDiscoveryResult validationAuthorization,
         List<GenerationFact> facts,
+        List<CritterStackPlacementIntent> placements,
         List<GenerationDiagnostic> diagnostics)
     {
         var querySubject = MethodSubject(project, endpoint.Method, "query");
@@ -509,9 +560,14 @@ static class WolverineFacts
         var queryName = endpoint.Method.ContainingType.Name.EndsWith("Endpoints", StringComparison.Ordinal)
             ? endpoint.Method.Name
             : endpoint.Method.ContainingType.Name.Replace("Endpoint", string.Empty, StringComparison.Ordinal);
-        var placement = BehaviorPlacement(project, options, model.Name, queryName, GenerationSliceKind.StateView);
+        var compatibilityPlacement = CritterStackSourcePlacement.CompatibilityPlacement(
+            project,
+            options,
+            model.Name,
+            queryName,
+            GenerationSliceKind.StateView);
         var queryKey = new ArtifactKey { Subject = querySubject, Kind = ArtifactKind.Query };
-        var modelSubject = project.SubjectForType(model);
+        var modelSubject = subjects.SubjectForType(project, model);
         var modelKey = new ArtifactKey { Subject = modelSubject, Kind = ArtifactKind.ReadModel };
 
         facts.Add(Artifact(
@@ -521,7 +577,12 @@ static class WolverineFacts
             evidence.Source?.Path,
             QueryProperties(endpoint.Method, compiledQueries.SelectMany(_ => _.Parameters)),
             evidence));
-        facts.Add(Placement($"wolverine:placement:query:{querySubject.Value}", queryKey, placement, evidence));
+        placements.Add(new(
+            $"wolverine:placement:query:{querySubject.Value}",
+            queryKey,
+            subjects.SubjectForType(project, endpoint.Method.ContainingType),
+            compatibilityPlacement,
+            evidence));
         diagnostics.Add(new GenerationDiagnostic
         {
             Code = WolverineDiagnosticCodes.HttpMetadataOmitted,
@@ -538,10 +599,16 @@ static class WolverineFacts
             SourceFileOf(model, project),
             DotNetTypeShapes.PropertiesOf(model),
             evidence));
-        facts.Add(Placement(
+        placements.Add(new(
             $"wolverine:placement:read-model:{modelSubject.Value}",
             modelKey,
-            BehaviorPlacement(project, options, model.Name, model.Name, GenerationSliceKind.StateView),
+            null,
+            CritterStackSourcePlacement.CompatibilityPlacement(
+                project,
+                options,
+                model.Name,
+                model.Name,
+                GenerationSliceKind.StateView),
             evidence with
             {
                 Strength = EvidenceStrength.Heuristic,
@@ -558,16 +625,17 @@ static class WolverineFacts
         AddPersistenceBoundReads(
             project,
             adapter,
+            subjects,
             querySubject,
             endpoint.Method,
             aggregateParameter: null,
             facts);
 
         foreach (var compiledQuery in compiledQueries
-                     .GroupBy(_ => project.SubjectForType(_.DocumentType))
+                     .GroupBy(_ => subjects.SubjectForType(project, _.DocumentType))
                      .Select(_ => _.First()))
         {
-            var documentSubject = project.SubjectForType(compiledQuery.DocumentType);
+            var documentSubject = subjects.SubjectForType(project, compiledQuery.DocumentType);
             facts.Add(Relationship(
                 $"wolverine:reads:compiled:{querySubject.Value}:{documentSubject.Value}",
                 querySubject,
@@ -580,13 +648,14 @@ static class WolverineFacts
     static void AddReadModelAndRelationship(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         SubjectId commandSubject,
         INamedTypeSymbol? commandType,
         INamedTypeSymbol aggregateType,
         List<GenerationFact> facts,
         Evidence evidence)
     {
-        var aggregateSubject = project.SubjectForType(aggregateType);
+        var aggregateSubject = subjects.SubjectForType(project, aggregateType);
         facts.Add(Artifact(
             $"wolverine:read-model:{aggregateSubject.Value}",
             new ArtifactKey { Subject = aggregateSubject, Kind = ArtifactKind.ReadModel },
@@ -606,6 +675,7 @@ static class WolverineFacts
     static void AddPersistenceBoundReads(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         SubjectId sourceSubject,
         IMethodSymbol method,
         IParameterSymbol? aggregateParameter,
@@ -620,7 +690,7 @@ static class WolverineFacts
                 continue;
             }
 
-            var documentSubject = project.SubjectForType(binding.DocumentType);
+            var documentSubject = subjects.SubjectForType(project, binding.DocumentType);
             var artifactId = $"wolverine:read-model:{documentSubject.Value}";
             var evidence = CritterStackSource.EvidenceFor(
                 parameter,
@@ -697,6 +767,7 @@ static class WolverineFacts
     static void AddDcbFacts(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         SubjectId commandSubject,
         string commandName,
         WolverineDcbDiscovery? dcb,
@@ -708,7 +779,7 @@ static class WolverineFacts
             return;
         }
 
-        var aggregateSubject = project.SubjectForType(dcb.ModelType);
+        var aggregateSubject = subjects.SubjectForType(project, dcb.ModelType);
         var evidence = new Evidence
         {
             Adapter = adapter,
@@ -729,8 +800,8 @@ static class WolverineFacts
         foreach (var condition in dcb.Conditions.Where(condition =>
                      condition.EventType is null || !WolverineSagaTypes.IsSagaState(condition.EventType, project)))
         {
-            var tagSubject = project.SubjectForType(condition.TagType);
-            var eventSubject = condition.EventType is null ? null : project.SubjectForType(condition.EventType);
+            var tagSubject = subjects.SubjectForType(project, condition.TagType);
+            var eventSubject = condition.EventType is null ? null : subjects.SubjectForType(project, condition.EventType);
             var discriminator = $"{dcb.Discriminator}:condition:{condition.Ordinal}:tag:{tagSubject.Value}:event:{eventSubject?.Value ?? "any"}";
             var conditionEvidence = evidence with
             {
@@ -751,7 +822,7 @@ static class WolverineFacts
 
         foreach (var eventType in dcb.QueryEventTypes.Where(eventType => !WolverineSagaTypes.IsSagaState(eventType, project)))
         {
-            var eventSubject = project.SubjectForType(eventType);
+            var eventSubject = subjects.SubjectForType(project, eventType);
             var eventEvidence = evidence with
             {
                 Source = dcb.QuerySource,
@@ -793,6 +864,7 @@ static class WolverineFacts
     static void AddEventStreamBindingFacts(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         SubjectId commandSubject,
         string commandName,
         IReadOnlyList<WolverineStateBinding> bindings,
@@ -807,7 +879,7 @@ static class WolverineFacts
                 adapter,
                 binding,
                 $"Wolverine loads '{binding.ModelType.Name}' through exact IEventStream<T> parameter '{binding.Parameter.Name}'");
-            var aggregateSubject = project.SubjectForType(binding.ModelType);
+            var aggregateSubject = subjects.SubjectForType(project, binding.ModelType);
             if (aggregateSubjects.Add(aggregateSubject))
             {
                 AddAggregateArtifact(project, aggregateSubject, binding.ModelType, evidence, facts);
@@ -873,10 +945,12 @@ static class WolverineFacts
     static void AddEventStreamAppendFacts(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         SubjectId commandSubject,
-        ArtifactPlacement placement,
+        ArtifactPlacement compatibilityPlacement,
         WolverineEventStreamAppendDiscovery discovery,
         List<GenerationFact> facts,
+        List<CritterStackPlacementIntent> placements,
         List<GenerationDiagnostic> diagnostics)
     {
         foreach (var unresolved in discovery.Unresolved)
@@ -898,7 +972,7 @@ static class WolverineFacts
         foreach (var append in discovery.Appends)
         {
             var binding = append.Binding;
-            var aggregateSubject = project.SubjectForType(binding.ModelType);
+            var aggregateSubject = subjects.SubjectForType(project, binding.ModelType);
             var evidence = new Evidence
             {
                 Adapter = adapter,
@@ -913,10 +987,19 @@ static class WolverineFacts
 
             foreach (var eventType in append.EventTypes)
             {
-                var eventSubject = project.SubjectForType(eventType);
+                var eventSubject = subjects.SubjectForType(project, eventType);
                 if (producedEvents.Add(eventSubject))
                 {
-                    AddEventAndProduction(project, commandSubject, eventType, placement, evidence, declarative: false, facts);
+                    AddEventAndProduction(
+                        project,
+                        subjects,
+                        commandSubject,
+                        eventType,
+                        compatibilityPlacement,
+                        evidence,
+                        declarative: false,
+                        facts,
+                        placements);
                 }
 
                 var relationshipDiscriminator = $"{binding.Discriminator}:event:{eventSubject.Value}";
@@ -963,19 +1046,21 @@ static class WolverineFacts
 
     static void AddEventAndProduction(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         SubjectId commandSubject,
         INamedTypeSymbol eventType,
-        ArtifactPlacement placement,
+        ArtifactPlacement compatibilityPlacement,
         Evidence evidence,
         bool declarative,
-        List<GenerationFact> facts)
+        List<GenerationFact> facts,
+        List<CritterStackPlacementIntent> placements)
     {
         if (WolverineSagaTypes.IsSagaState(eventType, project))
         {
             return;
         }
 
-        var eventSubject = project.SubjectForType(eventType);
+        var eventSubject = subjects.SubjectForType(project, eventType);
         var eventKey = new ArtifactKey { Subject = eventSubject, Kind = ArtifactKind.Event };
         facts.Add(Artifact(
             $"wolverine:event:{eventSubject.Value}",
@@ -984,7 +1069,12 @@ static class WolverineFacts
             SourceFileOf(eventType, project),
             DotNetTypeShapes.PropertiesOf(eventType),
             evidence));
-        facts.Add(Placement($"wolverine:placement:event:{eventSubject.Value}:{commandSubject.Value}", eventKey, placement, evidence));
+        placements.Add(new(
+            $"wolverine:placement:event:{eventSubject.Value}:{commandSubject.Value}",
+            eventKey,
+            null,
+            compatibilityPlacement,
+            evidence));
         facts.Add(Relationship(
             $"wolverine:produces:{commandSubject.Value}:{eventSubject.Value}",
             commandSubject,
@@ -996,6 +1086,7 @@ static class WolverineFacts
 
     static void AddDirectBusConsequences(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         SubjectId sourceSubject,
         IMethodSymbol method,
         Evidence evidence,
@@ -1013,9 +1104,10 @@ static class WolverineFacts
                 continue;
             }
 
-            var messageSubject = project.SubjectForType(messageType);
+            var messageSubject = subjects.SubjectForType(project, messageType);
             AddMessageRelationship(
                 project,
+                subjects,
                 sourceSubject,
                 messageType,
                 evidence,
@@ -1083,6 +1175,7 @@ static class WolverineFacts
 
     static void AddOutgoingMessages(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         SubjectId sourceSubject,
         IMethodSymbol method,
         IReadOnlyList<WolverineOutgoingMessageConsequence> consequences,
@@ -1093,9 +1186,10 @@ static class WolverineFacts
     {
         foreach (var consequence in consequences)
         {
-            var messageSubject = project.SubjectForType(consequence.MessageType);
+            var messageSubject = subjects.SubjectForType(project, consequence.MessageType);
             AddMessageRelationship(
                 project,
+                subjects,
                 sourceSubject,
                 consequence.MessageType,
                 evidence,
@@ -1122,6 +1216,7 @@ static class WolverineFacts
 
     static void AddReturnConsequences(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         SubjectId sourceSubject,
         IReadOnlyList<WolverineReturnConsequence> consequences,
         Evidence evidence,
@@ -1131,9 +1226,10 @@ static class WolverineFacts
         foreach (var consequence in consequences.Where(IsCascadeConsequence))
         {
             var messageType = (INamedTypeSymbol)consequence.Type;
-            var messageSubject = project.SubjectForType(messageType);
+            var messageSubject = subjects.SubjectForType(project, messageType);
             AddMessageRelationship(
                 project,
+                subjects,
                 sourceSubject,
                 messageType,
                 evidence,
@@ -1148,6 +1244,7 @@ static class WolverineFacts
     static void AddCompoundStageConsequences(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         SubjectId sourceSubject,
         IMethodSymbol entryPoint,
         IReadOnlyList<WolverineCompoundStage> stages,
@@ -1174,9 +1271,10 @@ static class WolverineFacts
                 foreach (var consequence in consequences.Where(_ => IsCascadeConsequence(_) && !IsCompoundStageControl(_.Type)))
                 {
                     var messageType = (INamedTypeSymbol)consequence.Type;
-                    var messageSubject = project.SubjectForType(messageType);
+                    var messageSubject = subjects.SubjectForType(project, messageType);
                     AddMessageRelationship(
                         project,
+                        subjects,
                         sourceSubject,
                         messageType,
                         evidence,
@@ -1190,9 +1288,10 @@ static class WolverineFacts
 
             foreach (var outgoing in DiscoverOutgoingMessages(stage.Method, project))
             {
-                var messageSubject = project.SubjectForType(outgoing.MessageType);
+                var messageSubject = subjects.SubjectForType(project, outgoing.MessageType);
                 AddMessageRelationship(
                     project,
+                    subjects,
                     sourceSubject,
                     outgoing.MessageType,
                     evidence,
@@ -1268,6 +1367,7 @@ static class WolverineFacts
     static void AddStorageActionConsequences(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         SubjectId sourceSubject,
         IMethodSymbol method,
         IReadOnlyList<WolverineReturnConsequence> consequences,
@@ -1290,7 +1390,7 @@ static class WolverineFacts
                 continue;
             }
 
-            var entitySubject = project.SubjectForType(entityType);
+            var entitySubject = subjects.SubjectForType(project, entityType);
             var artifactId = $"wolverine:read-model:{entitySubject.Value}";
             if (artifactIds.Add(artifactId))
             {
@@ -1473,6 +1573,7 @@ static class WolverineFacts
 
     static void AddMessageRelationship(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         SubjectId sourceSubject,
         INamedTypeSymbol messageType,
         Evidence evidence,
@@ -1487,7 +1588,7 @@ static class WolverineFacts
             return;
         }
 
-        var messageSubject = project.SubjectForType(messageType);
+        var messageSubject = subjects.SubjectForType(project, messageType);
         facts.Add(Artifact(
             $"wolverine:message:{messageSubject.Value}",
             new ArtifactKey { Subject = messageSubject, Kind = ArtifactKind.Message },
@@ -1506,6 +1607,7 @@ static class WolverineFacts
 
     static void AddDocumentDeletes(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         SubjectId commandSubject,
         IMethodSymbol method,
         Evidence evidence,
@@ -1513,7 +1615,7 @@ static class WolverineFacts
     {
         foreach (var documentType in DocumentDeletes(method, project))
         {
-            var documentSubject = project.SubjectForType(documentType);
+            var documentSubject = subjects.SubjectForType(project, documentType);
             facts.Add(Relationship(
                 $"wolverine:deletes:{commandSubject.Value}:{documentSubject.Value}",
                 commandSubject,
@@ -1869,19 +1971,6 @@ static class WolverineFacts
             Evidence = evidence
         };
 
-    static ArtifactPlacementFact Placement(
-        string id,
-        ArtifactKey artifact,
-        ArtifactPlacement placement,
-        Evidence evidence) => new()
-        {
-            Id = new FactId { Value = id },
-            Subject = artifact.Subject,
-            Artifact = artifact,
-            Placement = placement,
-            Evidence = evidence
-        };
-
     static RelationshipFact Relationship(
         string id,
         SubjectId source,
@@ -1936,19 +2025,6 @@ static class WolverineFacts
             .ToArray();
         return models.Length == 1 ? models[0].Name : requestName;
     }
-
-    static ArtifactPlacement BehaviorPlacement(
-        DotNetProjectCompilation project,
-        DotNetAdapterOptions options,
-        string feature,
-        string slice,
-        GenerationSliceKind kind) => new()
-        {
-            Module = ScreenplayNames.Declaration(options.Module ?? project.Name),
-            Features = [feature],
-            Slice = slice,
-            SliceKind = kind
-        };
 
     static Evidence MethodEvidence(
         IMethodSymbol method,

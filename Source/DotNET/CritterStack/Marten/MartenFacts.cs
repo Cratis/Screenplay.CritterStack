@@ -10,7 +10,8 @@ namespace Cratis.CritterStack.Screenplay.Marten;
 sealed record MartenDiscoveryResult(
     IReadOnlyList<GenerationFact> Facts,
     IReadOnlyList<GenerationDiagnostic> Diagnostics,
-    IReadOnlyList<MartenDocumentUsage> Documents);
+    IReadOnlyList<MartenDocumentUsage> Documents,
+    IReadOnlyList<CritterStackPlacementIntent>? Placements = null);
 
 static class MartenFacts
 {
@@ -28,7 +29,8 @@ static class MartenFacts
     public static MartenDiscoveryResult Discover(
         DotNetProjectCompilation project,
         DotNetAdapterOptions options,
-        AdapterIdentity adapter)
+        AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects)
     {
         if (project.Compilation.GetTypeByMetadataName(WellKnownTypes.MartenStoreOptions) is null &&
             project.Compilation.GetTypeByMetadataName(WellKnownTypes.MartenDocumentStore) is null)
@@ -39,12 +41,13 @@ static class MartenFacts
         var facts = new List<GenerationFact>();
         var diagnostics = new List<GenerationDiagnostic>();
         var documents = new List<MartenDocumentUsage>();
+        var placements = new List<CritterStackPlacementIntent>();
         var registrations = MartenProjectionDiscovery.Discover(project, adapter);
-        var configuration = MartenConfigurationDiscovery.Discover(project, adapter, registrations);
+        var configuration = MartenConfigurationDiscovery.Discover(project, adapter, subjects, registrations);
         facts.AddRange(configuration.Facts);
         diagnostics.AddRange(configuration.Diagnostics);
-        diagnostics.AddRange(MartenEventSchemaConfigurationDiscovery.Discover(project));
-        diagnostics.AddRange(MartenTenancyConfigurationDiscovery.Discover(project));
+        diagnostics.AddRange(MartenEventSchemaConfigurationDiscovery.Discover(project, subjects));
+        diagnostics.AddRange(MartenTenancyConfigurationDiscovery.Discover(project, subjects));
         var sideEffectProjections = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
 
         foreach (var registration in registrations)
@@ -55,6 +58,7 @@ static class MartenFacts
                 var sideEffects = MartenProjectionSideEffects.Discover(
                     project,
                     adapter,
+                    subjects,
                     registration,
                     configuration.SideEffectsEnabled);
                 facts.AddRange(sideEffects.Facts);
@@ -64,45 +68,47 @@ static class MartenFacts
             if (string.Equals(registration.Lifecycle, "Async", StringComparison.Ordinal) ||
                 string.Equals(registration.Lifecycle, "Live", StringComparison.Ordinal))
             {
-                diagnostics.Add(ProjectionLifecycleDiagnostic(project, registration));
+                diagnostics.Add(ProjectionLifecycleDiagnostic(project, subjects, registration));
             }
 
             var multiStreamConfiguration = MartenMultiStreamConfiguration.Empty;
             switch (registration.Kind)
             {
                 case ProjectionKind.Event:
-                    var eventProjection = MartenEventProjectionFacts.Discover(project, adapter, registration);
+                    var eventProjection = MartenEventProjectionFacts.Discover(project, adapter, subjects, registration);
                     facts.AddRange(eventProjection.Facts);
                     diagnostics.AddRange(eventProjection.Diagnostics);
                     documents.AddRange(eventProjection.Documents);
                     continue;
                 case ProjectionKind.MultiStream:
-                    diagnostics.Add(MultiStreamDiagnostic(project, registration));
+                    diagnostics.Add(MultiStreamDiagnostic(project, subjects, registration));
                     multiStreamConfiguration = MartenMultiStreamConfigurationDiscovery.Discover(
                         project,
                         adapter,
+                        subjects,
                         registration.Projection!);
                     diagnostics.AddRange(multiStreamConfiguration.Diagnostics);
                     break;
                 case ProjectionKind.Custom:
-                    AddCustomProjectionFacts(project, registration, facts);
-                    diagnostics.Add(CustomProjectionDiagnostic(project, registration));
+                    AddCustomProjectionFacts(project, subjects, registration, facts);
+                    diagnostics.Add(CustomProjectionDiagnostic(project, subjects, registration));
                     continue;
             }
 
-            AddAggregateProjectionFacts(project, options, adapter, registration, multiStreamConfiguration, facts);
+            AddAggregateProjectionFacts(project, options, adapter, subjects, registration, multiStreamConfiguration, facts, placements);
         }
 
-        return new(facts, diagnostics, documents);
+        return new(facts, diagnostics, documents, placements);
     }
 
     static void AddCustomProjectionFacts(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         ProjectionRegistration registration,
         List<GenerationFact> facts)
     {
         var projection = registration.Projection!;
-        var subject = project.SubjectForType(projection);
+        var subject = subjects.SubjectForType(project, projection);
         facts.Add(Artifact(
             $"marten:custom-projection:{subject.Value}",
             subject,
@@ -117,19 +123,29 @@ static class MartenFacts
         DotNetProjectCompilation project,
         DotNetAdapterOptions options,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         ProjectionRegistration registration,
         MartenMultiStreamConfiguration multiStreamConfiguration,
-        List<GenerationFact> facts)
+        List<GenerationFact> facts,
+        List<CritterStackPlacementIntent> placements)
     {
         var model = registration.Model;
-        var modelSubject = project.SubjectForType(model);
+        var modelSubject = subjects.SubjectForType(project, model);
         var projection = registration.Projection ?? model;
         var projectionSubject = new SubjectId
         {
-            Value = $"{project.SubjectForType(projection).Value}#reducer"
+            Value = $"{subjects.SubjectForType(project, projection).Value}#reducer"
         };
+        var reducerSourceOwner = registration.Projection is null
+            ? modelSubject
+            : subjects.SubjectForType(project, registration.Projection);
         var file = SourceFileOf(model, project) ?? SourceFileOf(projection, project);
-        var placement = PlacementFor(project, options, model.Name);
+        var compatibilityPlacement = CritterStackSourcePlacement.CompatibilityPlacement(
+            project,
+            options,
+            model.Name,
+            model.Name,
+            GenerationSliceKind.StateView);
         var placementEvidence = registration.Evidence with
         {
             Strength = EvidenceStrength.Heuristic,
@@ -152,10 +168,11 @@ static class MartenFacts
             file,
             DotNetTypeShapes.PropertiesOf(model),
             registration.Evidence));
-        facts.Add(Placement(
+        placements.Add(new(
             $"marten:placement:read-model:{modelSubject.Value}",
             new ArtifactKey { Subject = modelSubject, Kind = ArtifactKind.ReadModel },
-            placement,
+            null,
+            compatibilityPlacement,
             placementEvidence));
 
         var reducerFile = SourceFileOf(projection, project) ?? file;
@@ -167,10 +184,11 @@ static class MartenFacts
             reducerFile,
             [],
             registration.Evidence));
-        facts.Add(Placement(
+        placements.Add(new(
             $"marten:placement:reducer:{projectionSubject.Value}",
             new ArtifactKey { Subject = projectionSubject, Kind = ArtifactKind.Reducer },
-            placement,
+            reducerSourceOwner,
+            compatibilityPlacement,
             placementEvidence));
         facts.Add(Relationship(
             $"marten:builds:{projectionSubject.Value}:{modelSubject.Value}",
@@ -181,8 +199,8 @@ static class MartenFacts
 
         foreach (var (eventType, evidence) in EvolutionEvents(projection, model, project, adapter))
         {
-            AddEventFacts(project, options, modelSubject, eventType, evidence, placementEvidence, facts);
-            var eventSubject = project.SubjectForType(eventType);
+            AddEventFacts(project, options, subjects, modelSubject, eventType, evidence, placementEvidence, facts, placements);
+            var eventSubject = subjects.SubjectForType(project, eventType);
             facts.Add(Relationship(
                 $"marten:consumes:{projectionSubject.Value}:{eventSubject.Value}",
                 projectionSubject,
@@ -194,26 +212,31 @@ static class MartenFacts
         AddMultiStreamConfigurationFacts(
             project,
             options,
+            subjects,
             modelSubject,
             projectionSubject,
             multiStreamConfiguration,
-            facts);
+            facts,
+            placements);
     }
 
     static void AddMultiStreamConfigurationFacts(
         DotNetProjectCompilation project,
         DotNetAdapterOptions options,
+        CritterStackSubjectResolver subjects,
         SubjectId modelSubject,
         SubjectId projectionSubject,
         MartenMultiStreamConfiguration configuration,
-        List<GenerationFact> facts)
+        List<GenerationFact> facts,
+        List<CritterStackPlacementIntent> placements)
     {
         foreach (var identity in configuration.Identities)
         {
-            var eventSubject = project.SubjectForType(identity.EventType);
+            var eventSubject = subjects.SubjectForType(project, identity.EventType);
             AddEventFacts(
                 project,
                 options,
+                subjects,
                 modelSubject,
                 identity.EventType,
                 identity.Evidence,
@@ -223,6 +246,7 @@ static class MartenFacts
                     Explanation = "The configured multi-stream event and project provide the default Screenplay placement"
                 },
                 facts,
+                placements,
                 EvidenceId(identity.Evidence));
             var discriminator = identity.IsOneToMany
                 ? $"marten:identities:{identity.TargetMember}"
@@ -240,15 +264,15 @@ static class MartenFacts
 
         foreach (var fanOut in configuration.FanOuts)
         {
-            var parentSubject = project.SubjectForType(fanOut.ParentEventType);
-            var childSubject = project.SubjectForType(fanOut.ChildEventType);
+            var parentSubject = subjects.SubjectForType(project, fanOut.ParentEventType);
+            var childSubject = subjects.SubjectForType(project, fanOut.ChildEventType);
             var placementEvidence = fanOut.Evidence with
             {
                 Strength = EvidenceStrength.Heuristic,
                 Explanation = "The configured fan-out event and project provide the default Screenplay placement"
             };
-            AddEventFacts(project, options, modelSubject, fanOut.ParentEventType, fanOut.Evidence, placementEvidence, facts, EvidenceId(fanOut.Evidence));
-            AddEventFacts(project, options, modelSubject, fanOut.ChildEventType, fanOut.Evidence, placementEvidence, facts, EvidenceId(fanOut.Evidence));
+            AddEventFacts(project, options, subjects, modelSubject, fanOut.ParentEventType, fanOut.Evidence, placementEvidence, facts, placements, EvidenceId(fanOut.Evidence));
+            AddEventFacts(project, options, subjects, modelSubject, fanOut.ChildEventType, fanOut.Evidence, placementEvidence, facts, placements, EvidenceId(fanOut.Evidence));
             facts.Add(Relationship(
                 $"marten:fan-out-consumes:{projectionSubject.Value}:{parentSubject.Value}:{childSubject.Value}:{EvidenceId(fanOut.Evidence)}",
                 projectionSubject,
@@ -271,14 +295,16 @@ static class MartenFacts
     static void AddEventFacts(
         DotNetProjectCompilation project,
         DotNetAdapterOptions options,
+        CritterStackSubjectResolver subjects,
         SubjectId modelSubject,
         INamedTypeSymbol eventType,
         Evidence evidence,
         Evidence placementEvidence,
         List<GenerationFact> facts,
+        List<CritterStackPlacementIntent> placements,
         string? idSuffix = null)
     {
-        var eventSubject = project.SubjectForType(eventType);
+        var eventSubject = subjects.SubjectForType(project, eventType);
         var suffix = idSuffix is null ? string.Empty : $":{idSuffix}";
         facts.Add(Artifact(
             $"marten:event:{eventSubject.Value}{suffix}",
@@ -288,10 +314,16 @@ static class MartenFacts
             SourceFileOf(eventType, project),
             DotNetTypeShapes.PropertiesOf(eventType),
             evidence));
-        facts.Add(Placement(
+        placements.Add(new(
             $"marten:placement:event:{eventSubject.Value}:{modelSubject.Value}{suffix}",
             new ArtifactKey { Subject = eventSubject, Kind = ArtifactKind.Event },
-            EventPlacementFor(project, options, eventType.Name),
+            null,
+            CritterStackSourcePlacement.CompatibilityPlacement(
+                project,
+                options,
+                "Events",
+                eventType.Name,
+                GenerationSliceKind.StateView),
             placementEvidence));
     }
 
@@ -365,19 +397,6 @@ static class MartenFacts
             Evidence = evidence
         };
 
-    static ArtifactPlacementFact Placement(
-        string id,
-        ArtifactKey artifact,
-        ArtifactPlacement placement,
-        Evidence evidence) => new()
-        {
-            Id = new FactId { Value = id },
-            Subject = artifact.Subject,
-            Artifact = artifact,
-            Placement = placement,
-            Evidence = evidence
-        };
-
     static RelationshipFact Relationship(
         string id,
         SubjectId source,
@@ -411,33 +430,12 @@ static class MartenFacts
         ? "unknown"
         : $"{evidence.Source.StartLine}-{evidence.Source.StartColumn}";
 
-    static ArtifactPlacement PlacementFor(
-        DotNetProjectCompilation project,
-        DotNetAdapterOptions options,
-        string modelName) => new()
-        {
-            Module = ScreenplayNames.Declaration(options.Module ?? project.Name),
-            Features = [modelName],
-            Slice = modelName,
-            SliceKind = GenerationSliceKind.StateView
-        };
-
-    static ArtifactPlacement EventPlacementFor(
-        DotNetProjectCompilation project,
-        DotNetAdapterOptions options,
-        string eventName) => new()
-        {
-            Module = ScreenplayNames.Declaration(options.Module ?? project.Name),
-            Features = ["Events"],
-            Slice = eventName,
-            SliceKind = GenerationSliceKind.StateView
-        };
-
     static string? SourceFileOf(ISymbol symbol, DotNetProjectCompilation project) =>
         CritterStackSource.EvidenceFor(symbol, new AdapterIdentity { Id = "source", Version = "1" }, project, EvidenceStrength.Exact).Source?.Path;
 
     static GenerationDiagnostic MultiStreamDiagnostic(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         ProjectionRegistration registration) => new()
         {
             Code = MartenDiagnosticCodes.MultiStreamGroupingOmitted,
@@ -445,11 +443,12 @@ static class MartenFacts
             Outcome = GenerationDiagnosticOutcome.Unsupported,
             Message = $"Multi-stream projection '{registration.Projection!.Name}' is represented as an event reducer; exact authored grouping and fan-out declarations are retained as neutral evidence, but those semantics are not expressible in the current Screenplay language",
             Source = registration.Evidence.Source,
-            Subject = project.SubjectForType(registration.Projection)
+            Subject = subjects.SubjectForType(project, registration.Projection)
         };
 
     static GenerationDiagnostic ProjectionLifecycleDiagnostic(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         ProjectionRegistration registration) => new()
         {
             Code = MartenDiagnosticCodes.ProjectionLifecycleOmitted,
@@ -457,11 +456,12 @@ static class MartenFacts
             Outcome = GenerationDiagnosticOutcome.Unsupported,
             Message = $"Projection '{(registration.Projection ?? registration.Model).Name}' uses the {registration.Lifecycle} lifecycle, which is not expressible in the current Screenplay language",
             Source = registration.Evidence.Source,
-            Subject = project.SubjectForType(registration.Projection ?? registration.Model)
+            Subject = subjects.SubjectForType(project, registration.Projection ?? registration.Model)
         };
 
     static GenerationDiagnostic CustomProjectionDiagnostic(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         ProjectionRegistration registration) => new()
         {
             Code = MartenDiagnosticCodes.CustomProcessingOmitted,
@@ -469,6 +469,6 @@ static class MartenFacts
             Outcome = GenerationDiagnosticOutcome.Unsupported,
             Message = $"Custom Marten projection '{registration.Projection!.Name}' is preserved as a neutral projection artifact, but its arbitrary processing consequences were not inferred",
             Source = registration.Evidence.Source,
-            Subject = project.SubjectForType(registration.Projection)
+            Subject = subjects.SubjectForType(project, registration.Projection)
         };
 }

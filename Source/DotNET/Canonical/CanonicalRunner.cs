@@ -24,18 +24,12 @@ static class CanonicalRunner
             await Console.Error.WriteLineAsync(OperationalWorkspaceDiagnostic(failure, sourceRoot));
         }
 
-        // Canonical applications are selected by their host project. Framework source projects referenced by the
-        // upstream sample remain metadata in that host compilation and must not be interpreted as application code.
-        ProjectId[] projectIds = [rootProject.Id];
+        // Canonical analysis includes the selected host and its transitive C# application source dependencies.
+        // Distinguishing framework project references requires a future explicit host-role policy rather than filename guessing.
+        var selectedProjects = SelectApplicationProjectReferenceClosure(rootProject, sourceRoot);
         var projects = new List<DotNetProjectCompilation>();
-        foreach (var projectId in projectIds)
+        foreach (var project in selectedProjects)
         {
-            var project = rootProject.Solution.GetProject(projectId)!;
-            if (project.Language != LanguageNames.CSharp || IsSpecProject(project.Name))
-            {
-                continue;
-            }
-
             var projectFilePath = project.FilePath ?? throw new InvalidDotNetProjectIdentity(project.Name);
             var projectDirectory = Path.GetDirectoryName(projectFilePath)!;
             var authoredDocuments = await Task.WhenAll(project.Documents.Select(async document =>
@@ -83,6 +77,7 @@ static class CanonicalRunner
             projects.Add(new DotNetProjectCompilation
             {
                 Name = project.Name,
+                Role = DotNetProjectRole.Application,
                 ProjectPath = project.FilePath,
                 SourceRoot = sourceRoot,
                 SourceContext = sourceContext,
@@ -91,7 +86,7 @@ static class CanonicalRunner
             });
         }
 
-        var result = new CritterStackScreenplayGenerator().Generate(
+        var result = new CritterStackScreenplayGenerator().GenerateCompatibility(
             projects,
             new CritterStackScreenplayOptions { Domain = rootProject.Name });
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outputPath))!);
@@ -129,6 +124,23 @@ static class CanonicalRunner
         return unmet.Length == 0 ? 0 : 5;
     }
 
+    internal static IReadOnlyList<Project> SelectApplicationProjectReferenceClosure(Project rootProject, string sourceRoot)
+    {
+        var solution = rootProject.Solution;
+        var dependencyGraph = solution.GetProjectDependencyGraph();
+        return
+        [
+            .. dependencyGraph
+                .GetProjectsThatThisProjectTransitivelyDependsOn(rootProject.Id)
+                .Append(rootProject.Id)
+                .Select(solution.GetProject)
+                .OfType<Project>()
+                .Where(project => project.Language == LanguageNames.CSharp && !IsSpecProject(project.Name))
+                .OrderBy(project => LogicalProjectIdentity(project, sourceRoot), StringComparer.Ordinal)
+                .ThenBy(project => project.Name, StringComparer.Ordinal)
+        ];
+    }
+
     internal static string SourceContextPolicyLine(DotNetProjectSourceContext sourceContext) =>
         $"source-context: policy=v{sourceContext.Policy.Version} display-root={sourceContext.Policy.DisplayRoot} case={sourceContext.Policy.CasePolicy} project={sourceContext.ProjectIdentity} documents={sourceContext.Files.Count}";
 
@@ -158,6 +170,11 @@ static class CanonicalRunner
 
     static bool IsSpecProject(string name) => name.EndsWith("Tests", StringComparison.OrdinalIgnoreCase) ||
                                                name.EndsWith("Specs", StringComparison.OrdinalIgnoreCase);
+
+    static string LogicalProjectIdentity(Project project, string sourceRoot) =>
+        project.FilePath is { } projectFilePath
+            ? ProjectIdentityFor(sourceRoot, projectFilePath)
+            : project.Name;
 
     static string ProjectIdentityFor(string sourceRoot, string projectFilePath) =>
         Path.ChangeExtension(PortableRelativePath(sourceRoot, projectFilePath), null);
