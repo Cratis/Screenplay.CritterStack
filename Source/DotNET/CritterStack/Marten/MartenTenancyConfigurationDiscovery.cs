@@ -28,7 +28,9 @@ static class MartenTenancyConfigurationDiscovery
         "AllDocumentsAreMultiTenantedWithPartitioning"
     ];
 
-    public static IReadOnlyList<GenerationDiagnostic> Discover(DotNetProjectCompilation project)
+    public static IReadOnlyList<GenerationDiagnostic> Discover(
+        DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects)
     {
         var diagnostics = new List<GenerationDiagnostic>();
         foreach (var tree in project.Compilation.SyntaxTrees.Where(_ =>
@@ -49,13 +51,13 @@ static class MartenTenancyConfigurationDiscovery
                     continue;
                 }
 
-                DiscoverDocumentTenancy(project, invocation, method, diagnostics);
+                DiscoverDocumentTenancy(project, subjects, invocation, method, diagnostics);
                 DiscoverPolicyTenancy(project, invocation, method, diagnostics);
             }
 
             foreach (var attribute in root.DescendantNodes().OfType<AttributeSyntax>())
             {
-                DiscoverAttributeTenancy(project, attribute, semanticModel, diagnostics);
+                DiscoverAttributeTenancy(project, subjects, attribute, semanticModel, diagnostics);
             }
         }
 
@@ -102,6 +104,7 @@ static class MartenTenancyConfigurationDiscovery
 
     static void DiscoverDocumentTenancy(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
         List<GenerationDiagnostic> diagnostics)
@@ -124,7 +127,7 @@ static class MartenTenancyConfigurationDiscovery
 
         diagnostics.Add(Diagnostic(
             project,
-            project.SubjectForType(documentType),
+            subjects.SubjectForType(project, documentType),
             $"Marten has an authored document tenancy declaration '{method.Name}' for '{documentType.Name}'; partition callback behavior, precedence, effective state, tenant identities, and database topology were not inferred",
             invocation.GetLocation()));
     }
@@ -149,6 +152,7 @@ static class MartenTenancyConfigurationDiscovery
 
     static void DiscoverAttributeTenancy(
         DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
         AttributeSyntax attribute,
         SemanticModel semanticModel,
         List<GenerationDiagnostic> diagnostics)
@@ -167,7 +171,7 @@ static class MartenTenancyConfigurationDiscovery
             : "SingleTenanted";
         diagnostics.Add(Diagnostic(
             project,
-            project.SubjectForType(documentType),
+            subjects.SubjectForType(project, documentType),
             $"Marten has an authored [{attributeName}] document tenancy declaration for '{documentType.Name}'; attribute evidence alone does not establish a Marten document, and precedence or effective state was not inferred",
             attribute.GetLocation()));
     }

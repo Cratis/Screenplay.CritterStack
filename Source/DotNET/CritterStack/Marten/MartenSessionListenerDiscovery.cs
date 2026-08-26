@@ -10,7 +10,9 @@ namespace Cratis.CritterStack.Screenplay.Marten;
 
 static class MartenSessionListenerDiscovery
 {
-    public static IReadOnlyList<GenerationDiagnostic> Discover(DotNetProjectCompilation project)
+    public static IReadOnlyList<GenerationDiagnostic> Discover(
+        DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects)
     {
         var registrations = ListenerRegistrations(project);
         var catalog = new DotNetArtifactCatalog(project.Compilation);
@@ -29,7 +31,7 @@ static class MartenSessionListenerDiscovery
                         Outcome = GenerationDiagnosticOutcome.Unsupported,
                         Message = $"Authored Marten session listener '{type.Name}' observes document commits; its consequences are not represented",
                         Source = CritterStackSource.RangeForProject(location, project),
-                        Subject = project.SubjectForType(type)
+                        Subject = subjects.SubjectForType(project, type)
                     };
                 })
                 .OrderBy(_ => _.Source?.Path, StringComparer.Ordinal)

@@ -14,6 +14,11 @@ public sealed record CritterStackScreenplayOptions
     public string? Domain { get; init; }
 
     /// <summary>
+    /// Gets an optional project-relative directory beneath which source placement begins.
+    /// </summary>
+    public string? FeatureRoot { get; init; }
+
+    /// <summary>
     /// Gets an optional module that all discovered artifacts should be placed beneath.
     /// </summary>
     public string? Module { get; init; }

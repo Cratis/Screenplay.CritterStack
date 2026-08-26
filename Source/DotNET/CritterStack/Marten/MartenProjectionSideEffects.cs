@@ -17,13 +17,14 @@ static class MartenProjectionSideEffects
     public static MartenProjectionSideEffectResult Discover(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
         ProjectionRegistration registration,
         bool sideEffectsEnabled)
     {
         var projection = registration.Projection ?? registration.Model;
         var projectionSubject = registration.Kind == ProjectionKind.Event
-            ? project.SubjectForType(projection)
-            : new SubjectId { Value = $"{project.SubjectForType(projection).Value}#reducer" };
+            ? subjects.SubjectForType(project, projection)
+            : new SubjectId { Value = $"{subjects.SubjectForType(project, projection).Value}#reducer" };
         var facts = new List<GenerationFact>();
         var diagnostics = new List<GenerationDiagnostic>();
         var messageArtifactIds = new HashSet<string>(StringComparer.Ordinal);
@@ -71,7 +72,7 @@ static class MartenProjectionSideEffects
                     Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
                     Explanation = explanation
                 };
-                var messageSubject = project.SubjectForType(messageType);
+                var messageSubject = subjects.SubjectForType(project, messageType);
                 var artifactId = $"wolverine:message:{messageSubject.Value}";
                 if (messageArtifactIds.Add(artifactId))
                 {
