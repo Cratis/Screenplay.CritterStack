@@ -23,6 +23,9 @@ public class when_analyzing_marten_documents : given.a_marten_document_applicati
     [Fact] void should_not_invent_an_event_built_read_model() => _graph.Artifacts.Any(_ => _.Key.Kind == ArtifactKind.ReadModel).ShouldBeFalse();
     [Fact] void should_report_each_ordinary_document_language_gap() => Contribution.Diagnostics.Count(_ => _.Code == MartenDiagnosticCodes.DocumentModelOmitted).ShouldEqual(3);
     [Fact] void should_diagnose_unresolved_and_ambiguous_identity_configurations_without_guessing() => Contribution.Diagnostics.Count(_ => _.Code == MartenDiagnosticCodes.DocumentIdentityUnresolved).ShouldEqual(2);
+    [Fact] void should_not_discover_a_document_from_a_generated_syntax_tree() => _graph.Artifacts.Any(_ => _.Key.Kind == ArtifactKind.Document && _.Variants.Single().Definition.Name == "GeneratedStudent").ShouldBeFalse();
+    [Fact] void should_not_contribute_a_fact_for_a_generated_document() => Contribution.Facts.OfType<ArtifactFact>().Any(_ => _.Definition.Name == "GeneratedStudent").ShouldBeFalse();
+    [Fact] void should_not_report_a_document_model_omission_for_a_generated_document() => Contribution.Diagnostics.Any(_ => _.Code == MartenDiagnosticCodes.DocumentModelOmitted && _.Message.Contains("GeneratedStudent", StringComparison.Ordinal)).ShouldBeFalse();
 
     IReadOnlyList<Evidence> DocumentEvidence => Artifact("Student").Variants.Single().Evidence;
     ArtifactDefinition Document => Artifact("Student").Variants.Single().Definition;

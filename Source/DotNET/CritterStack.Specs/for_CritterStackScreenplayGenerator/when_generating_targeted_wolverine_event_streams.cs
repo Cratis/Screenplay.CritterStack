@@ -70,8 +70,15 @@ public class when_generating_targeted_wolverine_event_streams : given.a_wolverin
     [Fact] void should_not_guess_the_receiver_alias_event() => EventNames.ShouldNotContain("AliasedEvent");
     [Fact] void should_not_guess_an_event_before_an_opaque_spread() => EventNames.ShouldNotContain("OpaqueLeadingEvent");
     [Fact] void should_not_guess_object_dynamic_variable_or_helper_payloads() => EventNames.Any(_ => new[] { "OpaqueObjectEvent", "DynamicEvent", "VariableEvent", "HelperEvent", "NestedContainerEvent" }.Contains(_, StringComparer.Ordinal)).ShouldBeFalse();
-    [Fact] void should_report_each_unresolved_exact_append_once() => Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).Count.ShouldEqual(6);
+    [Fact] void should_report_each_unresolved_exact_append_once() => Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).Count.ShouldEqual(9);
     [Fact] void should_locate_each_unresolved_append_in_authored_source() => Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).All(_ => _.Source?.Path == "Transfers/Handlers.cs").ShouldBeTrue();
+    [Fact] void should_anchor_each_unresolved_append_at_its_authored_occurrence() => Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).All(_ => _.Source!.StartLine > 0 && _.Source.StartColumn > 0).ShouldBeTrue();
+    [Fact] void should_preserve_each_unresolved_append_occurrence_without_collapsing_locations() => Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).Select(_ => (_.Source!.StartLine, _.Source.StartColumn)).Distinct().Count().ShouldEqual(9);
+    [Fact] void should_report_unresolved_appends_in_authored_declaration_order() => UnresolvedAppendStartLines.SequenceEqual(UnresolvedAppendStartLines.Order()).ShouldBeTrue();
+    [Fact] void should_not_promote_a_member_receiver_append_to_an_event() => EventNames.ShouldNotContain("MemberReceiverEvent");
+    [Fact] void should_not_promote_an_object_round_trip_receiver_append_to_an_event() => EventNames.ShouldNotContain("ObjectRoundTripEvent");
+    [Fact] void should_not_flatten_a_nested_payload_container() => EventNames.ShouldNotContain("NestedContainerEvent");
+    [Fact] void should_recognize_an_event_with_a_computed_constructor_value_by_type() => EventNames.ShouldContain("OrderConfirmed");
     [Fact] void should_report_each_attributed_multiple_stream_binding_once() => Diagnostics(WolverineDiagnosticCodes.MultipleStreamMetadataOmitted).Count.ShouldEqual(6);
     [Fact] void should_locate_each_multiple_stream_metadata_loss() => Diagnostics(WolverineDiagnosticCodes.MultipleStreamMetadataOmitted).All(_ => _.Source?.Path == "Transfers/Handlers.cs").ShouldBeTrue();
     [Fact] void should_report_version_and_concurrency_metadata_per_binding() => Diagnostics(WolverineDiagnosticCodes.StreamVersionOmitted).Count.ShouldEqual(7);
@@ -136,4 +143,9 @@ public class when_generating_targeted_wolverine_event_streams : given.a_wolverin
         _.Variants.Any(variant => names.Contains(variant.Definition.Name, StringComparer.Ordinal)));
 
     IReadOnlyList<GenerationDiagnostic> Diagnostics(string code) => [.. _result.Diagnostics.Where(_ => _.Code == code)];
+
+    IReadOnlyList<int> UnresolvedAppendStartLines =>
+    [
+        .. Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).Select(_ => _.Source!.StartLine)
+    ];
 }

@@ -13,10 +13,11 @@ static class WolverineMethodSyntax
         IMethodSymbol method,
         DotNetProjectCompilation project)
     {
+        var authoredDeclarations = DotNetSource.AuthoredDeclarationsOf(method, project.AuthoredSyntaxTrees).ToHashSet();
         foreach (var syntaxReference in method.DeclaringSyntaxReferences)
         {
-            if (syntaxReference.GetSyntax() is MethodDeclarationSyntax declaration &&
-                project.AuthoredSyntaxTrees.Contains(declaration.SyntaxTree) &&
+            if (authoredDeclarations.Contains(syntaxReference) &&
+                syntaxReference.GetSyntax() is MethodDeclarationSyntax declaration &&
                 !DotNetGeneratedSource.IsGenerated(declaration.SyntaxTree))
             {
                 yield return (declaration, project.Compilation.GetSemanticModel(declaration.SyntaxTree));

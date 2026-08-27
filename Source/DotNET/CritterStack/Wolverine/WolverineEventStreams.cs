@@ -124,9 +124,10 @@ static class WolverineEventStreams
 
         foreach (var (declaration, semanticModel) in WolverineMethodSyntax.Declarations(method, project))
         {
-            foreach (var invocationSyntax in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            foreach (var invocationSyntax in DotNetSource.AuthoredInvocationsIn(declaration, project))
             {
                 if (!IsInDirectHandlerBody(invocationSyntax, declaration) ||
+                    DotNetInvocations.MethodFor(invocationSyntax, semanticModel) is not { } invocationMethod ||
                     semanticModel.GetOperation(invocationSyntax) is not IInvocationOperation invocation ||
                     !TryGetAppendModel(invocation, project, out var invokedModel))
                 {
@@ -135,7 +136,9 @@ static class WolverineEventStreams
 
                 hasDirectWrite = true;
                 var source = CritterStackSource.RangeForProject(invocationSyntax.GetLocation(), project);
-                if (ReceiverParameter(invocation.Instance) is not { } receiver ||
+                if (DotNetInvocations.ReceiverFor(invocationSyntax, invocationMethod, semanticModel) is not { } receiverExpression ||
+                    (semanticModel.GetOperation(receiverExpression) ?? invocation.Instance) is not { } receiverOperation ||
+                    ReceiverParameter(receiverOperation) is not { } receiver ||
                     bindings.FirstOrDefault(binding =>
                         SymbolEqualityComparer.Default.Equals(binding.Parameter, receiver) &&
                         SymbolEqualityComparer.Default.Equals(binding.ModelType, invokedModel)) is not { } binding)
@@ -205,20 +208,13 @@ static class WolverineEventStreams
         }
 
         if (!SymbolEqualityComparer.Default.Equals(method.ContainingType.OriginalDefinition, streamDefinition) ||
-            method.ContainingType.TypeArguments.SingleOrDefault() is not INamedTypeSymbol model ||
-            !streamDefinition.GetMembers(method.Name).OfType<IMethodSymbol>().Any(candidate =>
-                SymbolEqualityComparer.Default.Equals(candidate.OriginalDefinition, method.OriginalDefinition)) ||
-            method.Parameters.Length != 1)
+            method.ContainingType.TypeArguments.SingleOrDefault() is not INamedTypeSymbol model)
         {
             return false;
         }
 
-        var isExactAppend = method.Name switch
-        {
-            "AppendOne" => method.Parameters[0].Type.SpecialType == SpecialType.System_Object,
-            "AppendMany" => IsObjectArray(method.Parameters[0].Type) || IsObjectEnumerable(method.Parameters[0].Type),
-            _ => false
-        };
+        var isExactAppend = ExpectedAppendSignatures(streamDefinition)
+            .Any(signature => DotNetMethodSignatures.Matches(method, signature));
         if (isExactAppend)
         {
             modelType = model;
@@ -226,6 +222,16 @@ static class WolverineEventStreams
 
         return isExactAppend;
     }
+
+    static IEnumerable<DotNetMethodSignature> ExpectedAppendSignatures(INamedTypeSymbol streamDefinition) =>
+        streamDefinition.GetMembers("AppendOne")
+            .OfType<IMethodSymbol>()
+            .Where(candidate => candidate.Parameters is [{ Type.SpecialType: SpecialType.System_Object }])
+            .Concat(streamDefinition.GetMembers("AppendMany")
+                .OfType<IMethodSymbol>()
+                .Where(candidate => candidate.Parameters is [var parameter] &&
+                    (IsObjectArray(parameter.Type) || IsObjectEnumerable(parameter.Type))))
+            .Select(DotNetMethodSignatures.From);
 
     static IReadOnlyList<INamedTypeSymbol> EventStreamInterfaces(ITypeSymbol type)
     {

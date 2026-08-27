@@ -119,6 +119,9 @@ public class a_wolverine_targeted_event_stream_application : Specification
         public record ConventionalVersionCommand(System.Guid FromId, System.Guid ToId, long Version);
         public record FalseIdentityCommand([property: Transfers.Identity] System.Guid Candidate);
         public record LegacyAppend(System.Guid AccountId);
+        public record MemberReceiverAppend(System.Guid Id);
+        public record ObjectRoundTripAppend(System.Guid Id);
+        public record ObjectPayloadAppend(System.Guid Id);
 
         public class Account
         {
@@ -165,6 +168,8 @@ public class a_wolverine_targeted_event_stream_application : Specification
         public record RouteFollowUp(System.Guid Id);
         public record RouteAppended(System.Guid Id);
         public record LegacyAppended(System.Guid Id);
+        public record MemberReceiverEvent(System.Guid Id);
+        public record ObjectRoundTripEvent(System.Guid Id);
 
         public sealed class BoundaryResponse : Wolverine.IResponseAware;
         public sealed class BoundaryEffect : Wolverine.ISideEffect;
@@ -175,6 +180,11 @@ public class a_wolverine_targeted_event_stream_application : Specification
         public partial class GeneratedBaseSaga;
 
         public interface IAccountEventStream : JasperFx.Events.IEventStream<Account>;
+
+        public sealed class MemberReceiverStream
+        {
+            public JasperFx.Events.IEventStream<Account> Inner { get; set; } = null!;
+        }
 
         public sealed class UnrelatedStream<T>
         {
@@ -402,6 +412,27 @@ public class a_wolverine_targeted_event_stream_application : Specification
         {
             public static void Handle(SagaMixedAppend command, JasperFx.Events.IEventStream<Account> stream) =>
                 stream.AppendMany(new TransferSaga(), new SagaSiblingAppended(command.Id));
+        }
+
+        public static class MemberReceiverAppendHandler
+        {
+            public static void Handle(MemberReceiverAppend command, MemberReceiverStream stream) =>
+                stream.Inner.AppendOne(new MemberReceiverEvent(command.Id));
+        }
+
+        public static class ObjectRoundTripAppendHandler
+        {
+            public static void Handle(ObjectRoundTripAppend command, JasperFx.Events.IEventStream<Account> stream)
+            {
+                object boxed = stream;
+                ((JasperFx.Events.IEventStream<Account>)boxed).AppendOne(new ObjectRoundTripEvent(command.Id));
+            }
+        }
+
+        public static class ObjectPayloadAppendHandler
+        {
+            public static void Handle(ObjectPayloadAppend command, JasperFx.Events.IEventStream<Account> stream) =>
+                stream.AppendOne(new object());
         }
         """;
 
