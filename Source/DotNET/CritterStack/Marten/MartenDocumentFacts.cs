@@ -32,9 +32,9 @@ static class MartenDocumentFacts
         foreach (var tree in project.AuthoredSyntaxTrees.Where(_ => !DotNetGeneratedSource.IsGenerated(_)))
         {
             var semanticModel = project.Compilation.GetSemanticModel(tree);
-            foreach (var invocation in tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>())
+            foreach (var invocation in DotNetSource.AuthoredInvocationsIn(tree.GetRoot(), project))
             {
-                if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method || !IsMarten(method))
+                if (DotNetInvocations.MethodFor(invocation, semanticModel) is not { } method || !IsMarten(method))
                 {
                     continue;
                 }
