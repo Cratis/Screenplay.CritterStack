@@ -5,14 +5,14 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.15.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.15.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.15.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet.Vogen" Version="0.15.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.17.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.17.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.17.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet.Vogen" Version="0.17.0" />
     <!-- Canonical fixtures -->
     <PackageVersion Include="Marten" Version="9.30.0" />
     <PackageVersion Include="Vogen" Version="8.0.7" />
-    <PackageVersion Include="WolverineFx" Version="6.30.1" />
+    <PackageVersion Include="WolverineFx" Version="6.30.3" />
     <!-- Microsoft -->
     <PackageVersion Include="Microsoft.Build.Framework" Version="18.9.6" />
     <PackageVersion Include="Microsoft.Build.Locator" Version="1.11.2" />
@@ -27,8 +27,8 @@
     <PackageVersion Include="Roslynator.Analyzers" Version="5.0.0" />
     <PackageVersion Include="Meziantou.Analyzer" Version="3.0.190" />
     <!-- Specs -->
-    <PackageVersion Include="Cratis.Specifications" Version="4.0.0" />
-    <PackageVersion Include="Cratis.Specifications.XUnit" Version="4.0.0" />
+    <PackageVersion Include="Cratis.Specifications" Version="4.0.1" />
+    <PackageVersion Include="Cratis.Specifications.XUnit" Version="4.0.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
