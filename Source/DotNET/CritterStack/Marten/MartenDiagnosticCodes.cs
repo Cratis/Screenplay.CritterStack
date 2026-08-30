@@ -87,4 +87,9 @@ public static class MartenDiagnosticCodes
     /// An authored document-session listener observes commits but its consequences are not represented.
     /// </summary>
     public const string SessionListenerOmitted = "MARTEN0016";
+
+    /// <summary>
+    /// Applicable authored Marten source cannot be mapped to authoritative stable source identity.
+    /// </summary>
+    public const string UnsafeSourceMapping = "MARTEN0017";
 }
