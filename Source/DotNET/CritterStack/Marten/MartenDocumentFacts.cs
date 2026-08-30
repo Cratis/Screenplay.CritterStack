@@ -20,7 +20,8 @@ static class MartenDocumentFacts
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
         CritterStackSubjectResolver subjects,
-        IReadOnlyList<MartenDocumentUsage> projectedDocuments)
+        IReadOnlyList<MartenDocumentUsage> projectedDocuments,
+        bool includeIntegrationApis = true)
     {
         var facts = new List<GenerationFact>();
         var diagnostics = new List<GenerationDiagnostic>();
@@ -34,7 +35,7 @@ static class MartenDocumentFacts
             var semanticModel = project.Compilation.GetSemanticModel(tree);
             foreach (var invocation in DotNetSource.AuthoredInvocationsIn(tree.GetRoot(), project))
             {
-                if (DotNetInvocations.MethodFor(invocation, semanticModel) is not { } method || !IsMarten(method))
+                if (DotNetInvocations.MethodFor(invocation, semanticModel) is not { } method || !IsMarten(method, includeIntegrationApis))
                 {
                     continue;
                 }
@@ -369,14 +370,15 @@ static class MartenDocumentFacts
             .FirstOrDefault(IsSourceType);
     }
 
-    static bool IsMarten(IMethodSymbol method)
+    static bool IsMarten(IMethodSymbol method, bool includeIntegrationApis)
     {
         var candidate = method.ReducedFrom ?? method;
         var @namespace = candidate.ContainingNamespace.ToDisplayString();
         return @namespace == "Marten" ||
                @namespace.StartsWith("Marten.", StringComparison.Ordinal) ||
-               @namespace == "Wolverine.Marten" ||
-               @namespace.StartsWith("Wolverine.Marten.", StringComparison.Ordinal);
+               (includeIntegrationApis &&
+                (@namespace == "Wolverine.Marten" ||
+                 @namespace.StartsWith("Wolverine.Marten.", StringComparison.Ordinal)));
     }
 
     static bool IsInEventProjection(
