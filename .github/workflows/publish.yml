@@ -32,6 +32,7 @@ env:
   DOTNET_VERSION: 10.0.x
 
 permissions:
+  issues: write
   contents: write
   deployments: write
   id-token: write
