@@ -46,7 +46,7 @@ jobs:
       publish: ${{ steps.release.outputs.should-publish }}
       reason: ${{ steps.release.outputs.reason }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Release
         id: release
         uses: cratis/release-action@v1
@@ -62,8 +62,8 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - run: rm -rf ${{ env.NUGET_OUTPUT }}
