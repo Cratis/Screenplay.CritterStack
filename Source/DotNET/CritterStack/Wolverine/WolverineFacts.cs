@@ -69,14 +69,23 @@ static class WolverineFacts
             foreach (var method in type.GetMembers().OfType<IMethodSymbol>().Where(_ => IsPublicSourceMethod(_, project) && !IsIgnored(_)))
             {
                 var endpoint = EndpointFor(method);
+                if (endpoint is null && !IsHandler(type, method, discovery.Policy))
+                {
+                    continue;
+                }
+
+                var slicePattern = WolverineSlicePatterns.Resolve(method, RequestParameter(method, project)?.Type as INamedTypeSymbol, endpoint, project, adapter, diagnostics);
+                var firstPlacement = placements.Count;
                 if (endpoint is not null)
                 {
                     AnalyzeEndpoint(project, options, adapter, subjects, endpoint, validationAuthorization, facts, placements, diagnostics);
                 }
-                else if (IsHandler(type, method, discovery.Policy))
+                else
                 {
                     AnalyzeHandler(project, options, adapter, subjects, method, validationAuthorization, facts, placements, diagnostics);
                 }
+
+                WolverineSlicePatterns.Apply(slicePattern, method, project, placements, firstPlacement, diagnostics);
             }
         }
 
@@ -875,10 +884,16 @@ static class WolverineFacts
         var aggregateSubjects = new HashSet<SubjectId>();
         foreach (var binding in bindings.Where(_ => _.LoadsModel))
         {
+            if (binding.Fetched is not null)
+            {
+                AddFetchedStreamBindingFacts(project, adapter, subjects, commandSubject, commandName, binding, facts, diagnostics);
+                continue;
+            }
+
             var evidence = StateBindingEvidence(
                 adapter,
                 binding,
-                $"Wolverine loads '{binding.ModelType.Name}' through exact IEventStream<T> parameter '{binding.Parameter.Name}'");
+                $"Wolverine loads '{binding.ModelType.Name}' through exact IEventStream<T> parameter '{binding.Parameter!.Name}'");
             var aggregateSubject = subjects.SubjectForType(project, binding.ModelType);
             if (aggregateSubjects.Add(aggregateSubject))
             {
@@ -942,6 +957,53 @@ static class WolverineFacts
         }
     }
 
+    static void AddFetchedStreamBindingFacts(
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
+        SubjectId commandSubject,
+        string commandName,
+        WolverineStateBinding binding,
+        List<GenerationFact> facts,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        var fetched = binding.Fetched!;
+        var evidence = StateBindingEvidence(
+            adapter,
+            binding,
+            $"Exact FetchManyForWriting<{binding.ModelType.Name}> loading at '{fetched.Site}', identity expression '{fetched.IdentityExpression}'");
+        if (!fetched.IsEmpty)
+        {
+            var aggregateSubject = subjects.SubjectForType(project, binding.ModelType);
+            AddAggregateArtifact(project, aggregateSubject, binding.ModelType, evidence, facts);
+            facts.Add(Relationship(
+                $"wolverine:reads:{commandSubject.Value}:{binding.Discriminator}:{aggregateSubject.Value}",
+                commandSubject,
+                RelationshipKind.Reads,
+                aggregateSubject,
+                evidence,
+                sourceMember: binding.IdentityMember is null ? null : LowerFirst(binding.IdentityMember.Name),
+                discriminator: binding.Discriminator,
+                isCollection: fetched.IsCollection));
+        }
+
+        var boundary = fetched switch
+        {
+            { IsEmpty: true } => "the statically empty input establishes no stream instances",
+            { IsCollection: true } => "unknown runtime cardinality and quantified identity correspondence are retained as collection relationship metadata",
+            _ => $"target and identity for slot {fetched.Index} are retained as neutral relationship metadata"
+        };
+        diagnostics.Add(new()
+        {
+            Code = WolverineDiagnosticCodes.MultipleStreamMetadataOmitted,
+            Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = GenerationDiagnosticOutcome.Unsupported,
+            Message = $"Handler '{commandName}' uses FetchManyForWriting; {boundary}, but per-stream loading and optimistic version semantics cannot be lowered faithfully to the current Screenplay language{(fetched.HasRepeatedIdentity ? "; repeated authored identity expressions are not proven distinct, so append targets are not inferred; the framework rejects duplicate IDs at runtime" : string.Empty)}",
+            Source = binding.Source,
+            Subject = commandSubject
+        });
+    }
+
     static void AddEventStreamAppendFacts(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
@@ -978,7 +1040,9 @@ static class WolverineFacts
                 Adapter = adapter,
                 Strength = EvidenceStrength.Exact,
                 Source = append.Source,
-                Explanation = $"Exact IEventStream<{binding.ModelType.Name}> append through handler parameter '{binding.Parameter.Name}'"
+                Explanation = binding.Fetched is { } fetched
+                    ? $"Exact IEventStream<{binding.ModelType.Name}> append through fetched binding '{binding.Discriminator}', identity expression '{fetched.IdentityExpression}'"
+                    : $"Exact IEventStream<{binding.ModelType.Name}> append through handler parameter '{binding.Parameter!.Name}'"
             };
             if (aggregateSubjects.Add(aggregateSubject))
             {
@@ -1015,7 +1079,8 @@ static class WolverineFacts
                     aggregateSubject,
                     evidence,
                     sourceMember: binding.IdentityMember is null ? null : LowerFirst(binding.IdentityMember.Name),
-                    discriminator: relationshipDiscriminator));
+                    discriminator: relationshipDiscriminator,
+                    isCollection: binding.Fetched?.IsCollection ?? false));
             }
         }
     }
@@ -1659,7 +1724,7 @@ static class WolverineFacts
         var identity = streamBindings.Count switch
         {
             0 => aggregateType is null ? IdentityProperty(commandType, null) : IdentityProperty(commandType, aggregateType),
-            1 when streamBindings[0].LoadsModel => streamBindings[0].IdentityMember as IPropertySymbol,
+            1 when streamBindings[0].LoadsModel && streamBindings[0].Fetched is null => streamBindings[0].IdentityMember as IPropertySymbol,
             _ => null
         };
         return
@@ -1697,6 +1762,7 @@ static class WolverineFacts
 
     static IParameterSymbol? RequestParameter(IMethodSymbol method, DotNetProjectCompilation project) => method.Parameters.FirstOrDefault(_ =>
         MessageElementType(_.Type) is not null &&
+        !IsInfrastructureParameter(_.Type) &&
         !IsAggregateParameter(_) &&
         !IsPersistenceBoundParameter(_) &&
         !WolverineEventStreams.IsEventStream(_.Type) &&
@@ -1948,6 +2014,7 @@ static class WolverineFacts
                metadataName.StartsWith("Wolverine.", StringComparison.Ordinal) ||
                metadataName.StartsWith("Microsoft.AspNetCore.", StringComparison.Ordinal) ||
                metadataName.StartsWith("Microsoft.Extensions.", StringComparison.Ordinal) ||
+               metadataName == WellKnownTypes.JasperFxEventStoreOperations ||
                metadataName == "System.Threading.CancellationToken";
     }
 

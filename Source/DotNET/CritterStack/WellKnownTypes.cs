@@ -47,6 +47,11 @@ static class WellKnownTypes
     public const string MartenEventProjection = "Marten.Events.Projections.EventProjection";
     public const string MartenLegacyEventStream = "Marten.Events.Aggregation.IEventStream`1";
     public const string JasperFxEventStream = "JasperFx.Events.IEventStream`1";
+    public const string JasperFxEventStoreOperations = "JasperFx.Events.IEventStoreOperations";
+    public const string MartenEventStoreOperations = "Marten.Events.IEventStoreOperations";
+    public const string JasperFxSlicePattern = "JasperFx.Events.EventModeling.SlicePattern";
+    public const string WolverineSlicePatternAttribute = "Wolverine.Persistence.EventSourcing.SlicePatternAttribute";
+    public const string WolverineSendMyself = "Wolverine.ISendMyself";
     public const string JasperFxEventSlice = "JasperFx.Events.IEventSlice`1";
     public const string JasperFxEventBoundary = "JasperFx.Events.Tags.IEventBoundary`1";
     public const string JasperFxEventTagQuery = "JasperFx.Events.Tags.EventTagQuery";

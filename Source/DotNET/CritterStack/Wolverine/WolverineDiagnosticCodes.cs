@@ -64,7 +64,7 @@ public static class WolverineDiagnosticCodes
     public const string AuthorizationConfigurationUnresolved = "WOLVERINE0011";
 
     /// <summary>
-    /// Parameter-specific metadata for a handler with multiple event streams could not be lowered faithfully.
+    /// Per-stream loading, version, or quantified batch identity metadata could not be lowered faithfully.
     /// </summary>
     public const string MultipleStreamMetadataOmitted = "WOLVERINE0012";
 
@@ -112,4 +112,19 @@ public static class WolverineDiagnosticCodes
     /// Per-handler chain configuration may alter retry or discard delivery semantics that are not represented.
     /// </summary>
     public const string HandlerChainConfigurationOmitted = "WOLVERINE0021";
+
+    /// <summary>
+    /// A SlicePattern declaration contains an unresolved or undefined value.
+    /// </summary>
+    public const string SlicePatternUnresolved = "WOLVERINE0022";
+
+    /// <summary>
+    /// A SlicePattern declaration disagrees with a proven trigger, which takes precedence.
+    /// </summary>
+    public const string SlicePatternConflict = "WOLVERINE0023";
+
+    /// <summary>
+    /// An admitted handler's SlicePattern declaration cannot obtain a supported artifact placement.
+    /// </summary>
+    public const string SlicePatternOmitted = "WOLVERINE0024";
 }

@@ -72,7 +72,10 @@ static class CandidateApi
             MartenDiagnosticCodes.SessionListenerOmitted != "MARTEN0016" ||
             WolverineDiagnosticCodes.ConventionAlterationOmitted != "WOLVERINE0019" ||
             WolverineDiagnosticCodes.CompoundStageOmitted != "WOLVERINE0020" ||
-            WolverineDiagnosticCodes.HandlerChainConfigurationOmitted != "WOLVERINE0021")
+            WolverineDiagnosticCodes.HandlerChainConfigurationOmitted != "WOLVERINE0021" ||
+            WolverineDiagnosticCodes.SlicePatternUnresolved != "WOLVERINE0022" ||
+            WolverineDiagnosticCodes.SlicePatternConflict != "WOLVERINE0023" ||
+            WolverineDiagnosticCodes.SlicePatternOmitted != "WOLVERINE0024")
         {
             throw new InvalidOperationException("The candidate diagnostic-code contract changed");
         }

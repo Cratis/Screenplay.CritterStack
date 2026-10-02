@@ -62,6 +62,22 @@ static class MartenProjectionSideEffects
                     continue;
                 }
 
+                if (project.Compilation.GetTypeByMetadataName(WellKnownTypes.WolverineSendMyself) is { } sendMyself &&
+                    Wolverine.WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(sendMyself, project) &&
+                    messageType.AllInterfaces.Any(contract => SymbolEqualityComparer.Default.Equals(contract, sendMyself)))
+                {
+                    diagnostics.Add(new()
+                    {
+                        Code = MartenDiagnosticCodes.ProjectionSideEffectUnresolved,
+                        Severity = GenerationDiagnosticSeverity.Warning,
+                        Outcome = GenerationDiagnosticOutcome.Unsupported,
+                        Message = $"Projection '{projection.Name}' supplies ISendMyself payload '{messageType.Name}'; custom ApplyAsync sending behavior is not interpreted, and the wrapper is not inferred as a published domain message",
+                        Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
+                        Subject = projectionSubject
+                    });
+                    continue;
+                }
+
                 var explanation = sideEffectsEnabled
                     ? "This projection publishes a message as an inline side effect"
                     : "This projection publishes a message as an inline side effect; side-effect option not observed in authored configuration";

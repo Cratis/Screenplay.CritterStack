@@ -13,7 +13,8 @@ sealed record CritterStackPlacementIntent(
     ArtifactKey Artifact,
     SubjectId? SourceOwner,
     ArtifactPlacement CompatibilityPlacement,
-    Evidence Evidence);
+    Evidence Evidence,
+    Evidence? SliceKindEvidence = null);
 
 static class CritterStackSourcePlacement
 {
@@ -216,6 +217,11 @@ static class CritterStackSourcePlacement
             Subject = intent.Artifact.Subject,
             Artifact = intent.Artifact,
             Placement = placement,
-            Evidence = evidence
+            Evidence = intent.SliceKindEvidence is { } classification
+                ? evidence with
+                {
+                    Explanation = $"{evidence.Explanation}; sliceClassification(strength={classification.Strength}, source={classification.Source?.Path}:{classification.Source?.StartLine}:{classification.Source?.StartColumn}): {classification.Explanation}"
+                }
+                : evidence
         };
 }
