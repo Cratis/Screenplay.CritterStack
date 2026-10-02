@@ -12,7 +12,7 @@ fi
 version=$1
 feed=$(cd "$2" && pwd)
 repo_root=$(cd "$(dirname "$0")/.." && pwd)
-work_dir=$(mktemp -d)
+work_dir=$(mktemp -d "${TMPDIR:-/tmp}/critter-stack-consumer.XXXXXXXXXX")
 trap 'rm -rf "$work_dir"' EXIT
 
 cp "$repo_root/Integration/PackageConsumer/Program.cs" "$work_dir/Program.cs"

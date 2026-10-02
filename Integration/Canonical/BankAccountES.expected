@@ -1,4 +1,4 @@
-# JasperFx/CritterStackSamples @ 2c94389bcb5face1070d0409ef284973e8aaceea
+# JasperFx/CritterStackSamples @ e28ef4a3c502e9b9983d0018c570a64e79046faa
 source-sha256: 4d028470fecb3877ac12526c41af9fe17ed0669a37385abde9e3e869a20355df
 source: command DepositFunds
 source: command WithdrawFunds

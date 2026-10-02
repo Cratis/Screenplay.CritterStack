@@ -16,6 +16,8 @@ public class when_analyzing_typed_snapshots_and_custom_sending : given.a_marten_
     [Fact] void should_not_treat_the_identity_type_as_a_reducer() => Names(ArtifactKind.Reducer).ShouldNotContain("NaturalIdSnapshot");
     [Fact] void should_retain_lifecycle_loss() => _result.Diagnostics.Count(diagnostic => diagnostic.Code == MartenDiagnosticCodes.ProjectionLifecycleOmitted).ShouldEqual(2);
     [Fact] void should_preserve_literal_domain_messages() => Names(ArtifactKind.Message).ShouldContain("Changed");
+    [Fact] void should_preserve_timeout_messages() => Names(ArtifactKind.Message).ShouldContain("Reminder");
+    [Fact] void should_keep_the_timeout_publish_relationship() => _result.Facts.OfType<RelationshipFact>().Any(fact => fact.Definition.Key.Kind == RelationshipKind.Publishes && fact.Definition.Key.Target.Value.EndsWith(".Reminder", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_ignore_an_unrelated_sending_interface() => Names(ArtifactKind.Message).ShouldContain("Impostor");
     [Fact] void should_not_publish_the_custom_delivery_wrapper() => Names(ArtifactKind.Message).ShouldNotContain("Delivery");
     [Fact] void should_diagnose_custom_sending_as_unsupported() => CustomSending.Outcome.ShouldEqual(GenerationDiagnosticOutcome.Unsupported);

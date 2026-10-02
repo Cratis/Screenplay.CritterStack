@@ -9,12 +9,16 @@ namespace Cratis.CritterStack.Screenplay;
 
 sealed record CritterStackSubjectResolutionCheckpoint(int UnresolvedUseCount);
 
-sealed class CritterStackSubjectResolver(DotNetAnalysisContext? context)
+sealed class CritterStackSubjectResolver(DotNetAnalysisContext? context, DotNetAnalysisContext? typeContext = null)
 {
     readonly SortedDictionary<string, GenerationDiagnostic> _diagnostics = new(StringComparer.Ordinal);
     int _unresolvedUseCount;
 
     public IReadOnlyList<GenerationDiagnostic> Diagnostics => [.. _diagnostics.Values];
+
+    public TypeReferenceDefinition TypeReferenceFor(ITypeSymbol type) => (typeContext ?? context) is { } analysis
+        ? DotNetTypeShapes.TypeReferenceFor(type, analysis)
+        : DotNetTypeShapes.TypeReferenceFor(type);
 
     public CritterStackSubjectResolutionCheckpoint Checkpoint() => new(_unresolvedUseCount);
 

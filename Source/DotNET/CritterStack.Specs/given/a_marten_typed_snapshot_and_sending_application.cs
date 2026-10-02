@@ -11,6 +11,10 @@ public class a_marten_typed_snapshot_and_sending_application : Specification
         {
             public interface IMessageContext;
             public interface ISendMyself { System.Threading.Tasks.ValueTask ApplyAsync(IMessageContext context); }
+            public abstract record TimeoutMessage : ISendMyself
+            {
+                public System.Threading.Tasks.ValueTask ApplyAsync(IMessageContext context) => default;
+            }
         }
         namespace Marten { public class StoreOptions; }
         namespace JasperFx.Events
@@ -58,6 +62,7 @@ public class a_marten_typed_snapshot_and_sending_application : Specification
             }
         }
         public record Changed;
+        public record Reminder : Wolverine.TimeoutMessage;
         public interface ISendMyself;
         public record Impostor : ISendMyself;
         public record Delivery : Wolverine.ISendMyself
@@ -69,6 +74,7 @@ public class a_marten_typed_snapshot_and_sending_application : Specification
             public void Apply(Opened value, SnapshotModel model, JasperFx.Events.IEventSlice<SnapshotModel> slice)
             {
                 slice.PublishMessage(new Changed());
+                slice.PublishMessage(new Reminder());
                 slice.PublishMessage(new Delivery());
                 slice.PublishMessage(new Impostor());
             }

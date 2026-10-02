@@ -64,7 +64,8 @@ static class MartenProjectionSideEffects
 
                 if (project.Compilation.GetTypeByMetadataName(WellKnownTypes.WolverineSendMyself) is { } sendMyself &&
                     Wolverine.WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(sendMyself, project) &&
-                    messageType.AllInterfaces.Any(contract => SymbolEqualityComparer.Default.Equals(contract, sendMyself)))
+                    messageType.AllInterfaces.Any(contract => SymbolEqualityComparer.Default.Equals(contract, sendMyself)) &&
+                    !Wolverine.WolverineReturnConsequences.IsTimeoutMessage(messageType))
                 {
                     diagnostics.Add(new()
                     {

@@ -45,8 +45,9 @@ static class ConceptTypeReferenceBinder
         IEnumerable<ArtifactFact> artifacts)
     {
         var sourceTypes = SourceTypes(context);
+        var materialized = artifacts.ToArray();
 
-        return artifacts
+        return materialized
             .Where(artifact => sourceTypes.ContainsKey(artifact.Subject))
             .SelectMany(artifact => PropertiesOf(sourceTypes[artifact.Subject])
                 .GroupBy(property => PropertyName(property.Name), StringComparer.Ordinal)
@@ -54,6 +55,8 @@ static class ConceptTypeReferenceBinder
                 .Where(property => artifact.Definition.Properties.Any(_ => _.Name == PropertyName(property.Name))))
             .Select(property => DotNetTypeShapes.TypeReferenceFor(property.Type, context).Subject)
             .OfType<SubjectId>()
+            .Concat(materialized.SelectMany(artifact => artifact.Definition.Properties)
+                .Select(property => property.Type.Subject).OfType<SubjectId>())
             .ToHashSet();
     }
 

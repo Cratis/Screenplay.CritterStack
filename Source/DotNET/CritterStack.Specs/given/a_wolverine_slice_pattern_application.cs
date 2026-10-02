@@ -21,6 +21,8 @@ public class a_wolverine_slice_pattern_application : Specification
             public abstract class WolverineHttpMethodAttribute(string route) : System.Attribute;
             public class WolverinePostAttribute(string route) : WolverineHttpMethodAttribute(route);
             public class WolverineGetAttribute(string route) : WolverineHttpMethodAttribute(route);
+            public class WolverineHeadAttribute(string route) : WolverineHttpMethodAttribute(route);
+            public class WolverineOptionsAttribute(string route) : WolverineHttpMethodAttribute(route);
         }
         namespace JasperFx.Events.EventModeling
         {

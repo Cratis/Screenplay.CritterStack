@@ -59,7 +59,7 @@ static class WolverineSlicePatterns
         GenerationSliceKind? trigger = IsAuthoredTimeout(request, project) ? GenerationSliceKind.Automation : null;
         if (endpoint is not null)
         {
-            trigger = string.Equals(endpoint.Verb, "GET", StringComparison.Ordinal) || string.Equals(endpoint.Verb, "QUERY", StringComparison.Ordinal)
+            trigger = endpoint.IsRead
                 ? GenerationSliceKind.StateView
                 : GenerationSliceKind.StateChange;
         }

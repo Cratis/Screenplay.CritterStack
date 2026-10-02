@@ -214,6 +214,17 @@ public class a_wolverine_fetch_many_application : Specification
 
     protected DotNetProjectCompilation Project = null!;
 
+    protected void UseApplication(string source)
+    {
+        var framework = Project.Compilation.SyntaxTrees.First();
+        var application = CSharpSyntaxTree.ParseText(source, path: "/workspace/Batches/Handlers.cs");
+        Project = Project with
+        {
+            Compilation = Project.Compilation.RemoveAllSyntaxTrees().AddSyntaxTrees(framework, application),
+            AuthoredSyntaxTrees = new HashSet<SyntaxTree> { framework, application }
+        };
+    }
+
     void Establish()
     {
         var framework = CSharpSyntaxTree.ParseText(FrameworkSource, path: "/workspace/Framework.cs");

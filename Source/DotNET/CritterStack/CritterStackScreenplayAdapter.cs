@@ -45,7 +45,7 @@ public sealed class CritterStackScreenplayAdapter : IDotNetScreenplayAdapter
         var diagnostics = new List<GenerationDiagnostic>();
         var placements = new List<CritterStackPlacementIntent>();
         var hasSourceContext = context.Projects.Any(_ => _.SourceContext is not null);
-        var subjects = new CritterStackSubjectResolver(hasSourceContext ? context : null);
+        var subjects = new CritterStackSubjectResolver(hasSourceContext ? context : null, context);
 
         foreach (var project in context.Projects)
         {

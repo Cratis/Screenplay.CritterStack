@@ -89,23 +89,24 @@ static class WolverineFetchedEventStreams
         InvocationExpressionSyntax append,
         MethodDeclarationSyntax declaration,
         SemanticModel semanticModel,
-        IReadOnlyList<WolverineStateBinding> bindings)
+        IReadOnlyList<WolverineStateBinding> bindings,
+        DotNetProjectCompilation project)
     {
         var fetched = bindings.Where(binding => binding.Fetched is { IsEmpty: false, HasRepeatedIdentity: false }).ToArray();
-        var indexed = IndexedTarget(Unwrap(receiver), fetched, declaration, semanticModel);
+        var indexed = IndexedTarget(Unwrap(receiver), fetched, declaration, semanticModel, project);
         if (indexed is not null)
         {
             return [indexed];
         }
 
-        if (Unwrap(receiver) is not ILocalReferenceOperation local || !IsStable(local.Local, declaration, semanticModel))
+        if (Unwrap(receiver) is not ILocalReferenceOperation local || !IsStable(local.Local, declaration, semanticModel, project))
         {
             return [];
         }
 
         var initializer = local.Local.DeclaringSyntaxReferences.Select(reference => reference.GetSyntax())
             .OfType<VariableDeclaratorSyntax>().SingleOrDefault()?.Initializer?.Value;
-        if (initializer is not null && IndexedTarget(Unwrap(semanticModel.GetOperation(initializer)), fetched, declaration, semanticModel) is { } fromIndex)
+        if (initializer is not null && IndexedTarget(Unwrap(semanticModel.GetOperation(initializer)), fetched, declaration, semanticModel, project) is { } fromIndex)
         {
             return [fromIndex];
         }
@@ -114,7 +115,7 @@ static class WolverineFetchedEventStreams
         {
             if (!SymbolEqualityComparer.Default.Equals(semanticModel.GetDeclaredSymbol(loop), local.Local) ||
                 Unwrap(semanticModel.GetOperation(loop.Expression)) is not ILocalReferenceOperation collection ||
-                !IsStable(collection.Local, declaration, semanticModel))
+                !IsStable(collection.Local, declaration, semanticModel, project))
             {
                 continue;
             }
@@ -129,12 +130,13 @@ static class WolverineFetchedEventStreams
         IOperation? operation,
         IReadOnlyList<WolverineStateBinding> bindings,
         MethodDeclarationSyntax declaration,
-        SemanticModel semanticModel)
+        SemanticModel semanticModel,
+        DotNetProjectCompilation project)
     {
         if (operation is not IPropertyReferenceOperation { Property.IsIndexer: true, Arguments.Length: 1 } indexer ||
             Unwrap(indexer.Instance) is not ILocalReferenceOperation collection ||
             indexer.Arguments[0].Value.ConstantValue is not { HasValue: true, Value: int index } ||
-            !IsStable(collection.Local, declaration, semanticModel))
+            !IsStable(collection.Local, declaration, semanticModel, project))
         {
             return null;
         }
@@ -220,27 +222,54 @@ static class WolverineFetchedEventStreams
             : $"expression:{operation.Syntax.SpanStart.ToString(CultureInfo.InvariantCulture)}";
     }
 
-    static bool IsStable(ILocalSymbol local, MethodDeclarationSyntax declaration, SemanticModel model) =>
-        !declaration.DescendantNodes().OfType<IdentifierNameSyntax>()
-            .Any(identifier => SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(identifier).Symbol, local) &&
-                identifier.Ancestors().TakeWhile(node => node != declaration).Any(node => node switch
-            {
-                AssignmentExpressionSyntax assignment => assignment.Left.Span.Contains(identifier.Span) || IsLocalValue(model.GetOperation(assignment.Right), local),
-                VariableDeclaratorSyntax { Initializer: { } initializer } => IsLocalValue(model.GetOperation(initializer.Value), local),
-                ArgumentSyntax argument => !argument.RefKindKeyword.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.None) || IsLocalValue(model.GetOperation(argument.Expression), local),
-                RefExpressionSyntax => true,
-                PrefixUnaryExpressionSyntax prefix => prefix.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PreIncrementExpression) || prefix.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PreDecrementExpression),
-                PostfixUnaryExpressionSyntax postfix => postfix.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PostIncrementExpression) || postfix.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PostDecrementExpression),
-                _ => false
-            }));
+    static bool IsStable(ILocalSymbol local, MethodDeclarationSyntax declaration, SemanticModel model, DotNetProjectCompilation project) =>
+        declaration.DescendantNodes().OfType<IdentifierNameSyntax>()
+            .Where(identifier => SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(identifier).Symbol, local))
+            .All(identifier => IsDirect(identifier, declaration) &&
+                model.GetOperation(identifier) is { } reference && IsSupportedUse(reference, declaration, model, project));
 
-    static bool IsLocalValue(IOperation? operation, ILocalSymbol local) => operation switch
+    static bool IsSupportedUse(IOperation operation, MethodDeclarationSyntax declaration, SemanticModel model, DotNetProjectCompilation project)
     {
-        ILocalReferenceOperation reference => SymbolEqualityComparer.Default.Equals(reference.Local, local),
-        IConversionOperation conversion => IsLocalValue(conversion.Operand, local),
-        IParenthesizedOperation parenthesized => IsLocalValue(parenthesized.Operand, local),
-        _ => false
-    };
+        operation = Outermost(operation);
+        if (IsDirectAppendReceiver(operation, project))
+        {
+            return true;
+        }
+
+        if (operation.Parent is IPropertyReferenceOperation { Property.IsIndexer: true, Arguments: [{ Value.ConstantValue: { HasValue: true, Value: int } }] } indexer &&
+            indexer.Instance == operation)
+        {
+            var slot = Outermost(indexer);
+            return IsDirectAppendReceiver(slot, project) ||
+                (slot.Parent is IVariableInitializerOperation { Parent: IVariableDeclaratorOperation variable } &&
+                 variable.Symbol.RefKind == RefKind.None && IsStable(variable.Symbol, declaration, model, project));
+        }
+
+        if (operation.Parent is IForEachLoopOperation loop && loop.Collection == operation &&
+            loop.Syntax is ForEachStatementSyntax syntax && model.GetDeclaredSymbol(syntax) is ILocalSymbol element)
+        {
+            return IsStable(element, declaration, model, project);
+        }
+
+        // Unknown reads can alias the stream just as writes can. In particular, extension
+        // receivers, arguments, captures and non-append member access are not safe uses.
+        return false;
+    }
+
+    static bool IsDirectAppendReceiver(IOperation operation, DotNetProjectCompilation project) =>
+        operation.Parent is IInvocationOperation invocation && invocation.Instance == operation &&
+        WolverineEventStreams.IsExactAppend(invocation, project);
+
+    static IOperation Outermost(IOperation operation)
+    {
+        while (operation.Parent is IConversionOperation or IParenthesizedOperation &&
+               Unwrap(operation.Parent) == Unwrap(operation))
+        {
+            operation = operation.Parent;
+        }
+
+        return operation;
+    }
 
     static bool IsDirect(SyntaxNode node, MethodDeclarationSyntax declaration) =>
         !node.Ancestors().TakeWhile(ancestor => ancestor != declaration).Any(ancestor => ancestor is LocalFunctionStatementSyntax or AnonymousFunctionExpressionSyntax);

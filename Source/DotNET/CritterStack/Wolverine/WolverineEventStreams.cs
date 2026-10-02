@@ -61,7 +61,7 @@ static class WolverineEventStreams
         WellKnownTypes.MartenLegacyEventStream
     ];
 
-    public static IReadOnlyList<WolverineStateBinding> Bindings(
+    public static IReadOnlyList<WolverineStateBinding> ParameterBindings(
         IMethodSymbol method,
         INamedTypeSymbol? requestType,
         DotNetProjectCompilation project)
@@ -70,7 +70,7 @@ static class WolverineEventStreams
         var loadedBindingCount = method.Parameters.Count(parameter =>
             EventStreamModels(parameter.Type, project).Count > 0 &&
             WriteModelAttribute(parameter, project) is not null);
-        var handlerKey = $"{project.SubjectForType(method.ContainingType).Value}#{method.MetadataName}";
+        var handlerKey = DotNetMethodIdentity.SubjectFor(project, method).Value;
         foreach (var parameter in method.Parameters)
         {
             var modelTypes = EventStreamModels(parameter.Type, project);
@@ -115,7 +115,6 @@ static class WolverineEventStreams
             }
         }
 
-        bindings.AddRange(WolverineFetchedEventStreams.Bindings(method, requestType, project));
         return bindings;
     }
 
@@ -151,7 +150,7 @@ static class WolverineEventStreams
 
                 var receiver = ReceiverParameter(receiverOperation);
                 var targets = receiver is null
-                    ? WolverineFetchedEventStreams.Targets(receiverOperation, invocationSyntax, declaration, semanticModel, bindings)
+                    ? WolverineFetchedEventStreams.Targets(receiverOperation, invocationSyntax, declaration, semanticModel, bindings, project)
                     : [.. bindings.Where(binding => SymbolEqualityComparer.Default.Equals(binding.Parameter, receiver))];
                 targets = [.. targets.Where(binding => SymbolEqualityComparer.Default.Equals(binding.ModelType, invokedModel))];
                 if (targets.Count == 0)

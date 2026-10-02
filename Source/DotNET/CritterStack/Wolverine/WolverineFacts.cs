@@ -14,7 +14,13 @@ sealed record WolverineDiscoveryResult(
     IReadOnlyList<GenerationDiagnostic> Diagnostics,
     IReadOnlyList<CritterStackPlacementIntent>? Placements = null);
 
-sealed record HttpEndpoint(IMethodSymbol Method, string Verb, string? Route);
+sealed record HttpEndpoint(IMethodSymbol Method, string Verb, string? Route)
+{
+    public bool IsRead => string.Equals(Verb, "GET", StringComparison.Ordinal) ||
+        string.Equals(Verb, "QUERY", StringComparison.Ordinal) ||
+        string.Equals(Verb, "HEAD", StringComparison.Ordinal) ||
+        string.Equals(Verb, "OPTIONS", StringComparison.Ordinal);
+}
 
 sealed record WolverineOutgoingMessageConsequence(INamedTypeSymbol MessageType, bool Delayed);
 
@@ -159,8 +165,7 @@ static class WolverineFacts
         List<CritterStackPlacementIntent> placements,
         List<GenerationDiagnostic> diagnostics)
     {
-        if (string.Equals(endpoint.Verb, "GET", StringComparison.Ordinal) ||
-            string.Equals(endpoint.Verb, "QUERY", StringComparison.Ordinal))
+        if (endpoint.IsRead)
         {
             AnalyzeQuery(project, options, adapter, subjects, endpoint, validationAuthorization, facts, placements, diagnostics);
             return;
@@ -171,7 +176,9 @@ static class WolverineFacts
         var request = RequestParameter(method, project);
         var commandType = request?.Type as INamedTypeSymbol;
         var dcb = WolverineDcb.Discover(method, request, project, isHttpEndpoint: true);
-        var streamBindings = WolverineEventStreams.Bindings(method, commandType, project);
+        var parameterBindings = WolverineEventStreams.ParameterBindings(method, commandType, project);
+        var fetchedBindings = WolverineFetchedEventStreams.Bindings(method, commandType, project);
+        IReadOnlyList<WolverineStateBinding> streamBindings = [.. parameterBindings, .. fetchedBindings];
         var appendDiscovery = WolverineEventStreams.Appends(method, project, streamBindings);
         var aggregate = dcb is null ? AggregateParameter(method, request, aggregateWorkflow) : null;
         var commandSubject = commandType is not null
@@ -184,8 +191,8 @@ static class WolverineFacts
         var evidence = MethodEvidence(method, project, adapter, EvidenceStrength.Exact, $"Wolverine HTTP {endpoint.Verb} endpoint");
         var file = evidence.Source?.Path;
         var properties = commandType is not null
-            ? CommandProperties(commandType, aggregate?.Type as INamedTypeSymbol, streamBindings)
-            : RouteProperties(method);
+            ? CommandProperties(commandType, aggregate?.Type as INamedTypeSymbol, parameterBindings, fetchedBindings.Count > 0)
+            : QueryProperties(method, subjects);
         var feature = StateFeature(commandName, aggregate?.Type as INamedTypeSymbol, streamBindings, dcb?.ModelType);
         var compatibilityPlacement = CritterStackSourcePlacement.CompatibilityPlacement(
             project,
@@ -273,7 +280,7 @@ static class WolverineFacts
         {
             eventTypes = dcb.EventTypes;
         }
-        else if (aggregateWorkflow && streamBindings.Count == 0)
+        else if (aggregateWorkflow && parameterBindings.Count == 0)
         {
             eventTypes = [.. AggregateReturnEvents(method, project)];
         }
@@ -294,7 +301,7 @@ static class WolverineFacts
             project,
             isHttpEndpoint: true,
             aggregateWorkflow || dcb is { IsBoundaryParameter: false },
-            dcb is null && streamBindings.Count > 0);
+            dcb is null && parameterBindings.Count > 0);
         var outgoingMessages = DiscoverOutgoingMessages(method, project);
         AddDocumentDeletes(project, subjects, commandSubject, method, evidence, facts);
         AddReturnConsequences(project, subjects, commandSubject, returnConsequences, evidence, facts, sagaAnalysis: false);
@@ -324,7 +331,9 @@ static class WolverineFacts
         var batched = request!.Type is IArrayTypeSymbol;
         var aggregateWorkflow = IsAggregateWorkflow(method);
         var dcb = WolverineDcb.Discover(method, request, project, isHttpEndpoint: false);
-        var streamBindings = WolverineEventStreams.Bindings(method, requestType, project);
+        var parameterBindings = WolverineEventStreams.ParameterBindings(method, requestType, project);
+        var fetchedBindings = WolverineFetchedEventStreams.Bindings(method, requestType, project);
+        IReadOnlyList<WolverineStateBinding> streamBindings = [.. parameterBindings, .. fetchedBindings];
         var appendDiscovery = WolverineEventStreams.Appends(method, project, streamBindings);
         var aggregate = dcb is null ? AggregateParameter(method, request, aggregateWorkflow) : null;
         var bodyEvents = dcb is null ? PersistenceEvents(method, project).ToArray() : [];
@@ -333,7 +342,7 @@ static class WolverineFacts
         {
             returnEvents = dcb.EventTypes;
         }
-        else if (aggregateWorkflow && streamBindings.Count == 0)
+        else if (aggregateWorkflow && parameterBindings.Count == 0)
         {
             returnEvents = [.. AggregateReturnEvents(method, project)];
         }
@@ -345,7 +354,7 @@ static class WolverineFacts
             project,
             isHttpEndpoint: false,
             aggregateWorkflow || dcb is { IsBoundaryParameter: false },
-            dcb is null && streamBindings.Count > 0);
+            dcb is null && parameterBindings.Count > 0);
         var outgoingMessages = DiscoverOutgoingMessages(method, project);
         var compoundStages = dcb is null
             ? WolverineCompoundStages.StagesFor(method, requestType, project)
@@ -418,7 +427,7 @@ static class WolverineFacts
             key,
             requestType.Name,
             evidence.Source?.Path,
-            CommandProperties(requestType, aggregate?.Type as INamedTypeSymbol, streamBindings),
+            CommandProperties(requestType, aggregate?.Type as INamedTypeSymbol, parameterBindings, fetchedBindings.Count > 0),
             evidence));
         placements.Add(new(
             $"wolverine:placement:command:{commandSubject.Value}",
@@ -563,7 +572,7 @@ static class WolverineFacts
         }
 
         var evidence = MethodEvidence(endpoint.Method, project, adapter, EvidenceStrength.Exact, $"Wolverine HTTP {endpoint.Verb} endpoint");
-        var compiledQueryDiscovery = MartenCompiledQueryDiscovery.Discover(endpoint.Method, querySubject, project, adapter);
+        var compiledQueryDiscovery = MartenCompiledQueryDiscovery.Discover(endpoint.Method, querySubject, project, adapter, subjects);
         var compiledQueries = compiledQueryDiscovery.Links;
         diagnostics.AddRange(compiledQueryDiscovery.Diagnostics);
         var queryName = endpoint.Method.ContainingType.Name.EndsWith("Endpoints", StringComparison.Ordinal)
@@ -584,7 +593,7 @@ static class WolverineFacts
             queryKey,
             queryName,
             evidence.Source?.Path,
-            QueryProperties(endpoint.Method, compiledQueries.SelectMany(_ => _.Parameters)),
+            QueryProperties(endpoint.Method, subjects, compiledQueries.SelectMany(_ => _.Parameters)),
             evidence));
         placements.Add(new(
             $"wolverine:placement:query:{querySubject.Value}",
@@ -942,7 +951,7 @@ static class WolverineFacts
                 });
             }
 
-            if (bindings.Count > 1)
+            if (bindings.Count(binding => binding.Parameter is not null) > 1)
             {
                 diagnostics.Add(new GenerationDiagnostic
                 {
@@ -1719,12 +1728,14 @@ static class WolverineFacts
     static IReadOnlyList<PropertyDefinition> CommandProperties(
         INamedTypeSymbol commandType,
         INamedTypeSymbol? aggregateType,
-        IReadOnlyList<WolverineStateBinding> streamBindings)
+        IReadOnlyList<WolverineStateBinding> parameterBindings,
+        bool hasFetchedStreams)
     {
-        var identity = streamBindings.Count switch
+        var identity = parameterBindings.Count switch
         {
-            0 => aggregateType is null ? IdentityProperty(commandType, null) : IdentityProperty(commandType, aggregateType),
-            1 when streamBindings[0].LoadsModel && streamBindings[0].Fetched is null => streamBindings[0].IdentityMember as IPropertySymbol,
+            0 when aggregateType is null && hasFetchedStreams => null,
+            0 => IdentityProperty(commandType, aggregateType),
+            1 when parameterBindings[0].LoadsModel => parameterBindings[0].IdentityMember as IPropertySymbol,
             _ => null
         };
         return
@@ -1739,6 +1750,7 @@ static class WolverineFacts
 
     static IReadOnlyList<PropertyDefinition> QueryProperties(
         IMethodSymbol method,
+        CritterStackSubjectResolver subjects,
         IEnumerable<PropertyDefinition>? compiledParameters = null)
     {
         var endpointParameters = method.Parameters
@@ -1746,7 +1758,7 @@ static class WolverineFacts
             .Select((parameter, index) => new PropertyDefinition
             {
                 Name = LowerFirst(parameter.Name),
-                Type = DotNetTypeShapes.TypeReferenceFor(parameter.Type),
+                Type = subjects.TypeReferenceFor(parameter.Type),
                 IsIdentifier = index == 0
             });
         return
@@ -1757,8 +1769,6 @@ static class WolverineFacts
                 .Select(_ => _.First())
         ];
     }
-
-    static IReadOnlyList<PropertyDefinition> RouteProperties(IMethodSymbol method) => QueryProperties(method);
 
     static IParameterSymbol? RequestParameter(IMethodSymbol method, DotNetProjectCompilation project) => method.Parameters.FirstOrDefault(_ =>
         MessageElementType(_.Type) is not null &&
@@ -1779,6 +1789,7 @@ static class WolverineFacts
             ? method.Parameters.FirstOrDefault(_ =>
                 !SymbolEqualityComparer.Default.Equals(_, request) &&
                 IsSourceType(_.Type) &&
+                !IsInfrastructureParameter(_.Type) &&
                 !WolverineEventStreams.IsEventStream(_.Type))
             : null);
     }
@@ -1982,7 +1993,7 @@ static class WolverineFacts
         !DotNetGeneratedSource.IsGenerated(location.SourceTree);
 
     static bool IsSourceType(ITypeSymbol type) =>
-        type is INamedTypeSymbol named && named.Locations.Any(_ => _.IsInSource);
+        type is INamedTypeSymbol { TypeKind: not TypeKind.Enum } named && named.Locations.Any(_ => _.IsInSource);
 
     static INamedTypeSymbol? MessageElementType(ITypeSymbol type) => type switch
     {
@@ -2085,7 +2096,12 @@ static class WolverineFacts
             return dcbModelType.Name;
         }
 
-        var models = streamBindings
+        // Explicit parameter conventions own the primary state feature; additional
+        // fetched streams must not move an otherwise identical handler's placement.
+        var primaryBindings = streamBindings.Any(binding => binding.Parameter is not null)
+            ? streamBindings.Where(binding => binding.Parameter is not null)
+            : streamBindings;
+        var models = primaryBindings
             .Select(_ => _.ModelType)
             .GroupBy(DotNetSubjectIds.MetadataName, StringComparer.Ordinal)
             .Select(_ => _.First())
