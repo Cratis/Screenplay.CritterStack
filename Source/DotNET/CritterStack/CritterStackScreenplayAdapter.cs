@@ -83,11 +83,11 @@ public sealed class CritterStackScreenplayAdapter : IDotNetScreenplayAdapter
             ? CritterStackSourcePlacement.Derive(context, options, placements, diagnostics)
             : CritterStackSourcePlacement.Compatibility(placements));
 
-        return new()
+        return EnumConceptFacts.AddTo(context, new AdapterContribution
         {
             Adapter = Identity,
             Facts = facts,
             Diagnostics = diagnostics
-        };
+        });
     }
 }

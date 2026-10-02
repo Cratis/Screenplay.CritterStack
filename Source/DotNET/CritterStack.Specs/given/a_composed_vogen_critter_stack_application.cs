@@ -48,8 +48,9 @@ public class a_composed_vogen_critter_stack_application : Specification
                 string.IsNullOrWhiteSpace(value) ? Vogen.Validation.Invalid(InvalidMessage) : Vogen.Validation.Ok;
         }
 
-        public sealed record PlaceOrder(OrderId Id, CustomerCode Code, CustomerCode? ReferralCode);
-        public sealed record Order(OrderId Id, CustomerCode Code, CustomerCode? ReferralCode);
+        public enum OrderStatus { Draft, Placed }
+        public sealed record PlaceOrder(OrderId Id, CustomerCode Code, CustomerCode? ReferralCode, OrderStatus Status = OrderStatus.Draft);
+        public sealed record Order(OrderId Id, CustomerCode Code, CustomerCode? ReferralCode, OrderStatus Status = OrderStatus.Draft);
 
         public static class PlaceOrderHandler
         {

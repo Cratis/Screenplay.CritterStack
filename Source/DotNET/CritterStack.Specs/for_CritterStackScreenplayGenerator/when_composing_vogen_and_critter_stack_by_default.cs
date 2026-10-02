@@ -12,6 +12,8 @@ public class when_composing_vogen_and_critter_stack_by_default : given.a_compose
         new CritterStackScreenplayOptions { Domain = "Ordering" });
 
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
+    [Fact] void should_generate_the_enum_alongside_vogen_concepts() => _result.Source.ShouldContain("concept OrderStatus : Enum");
+    [Fact] void should_keep_enum_provenance_independent_of_vogen() => EvidenceFor(ArtifactKind.Concept, "OrderStatus").Single().Adapter.Id.ShouldEqual("cratis.critter-stack");
     [Fact] void should_generate_the_vogen_uuid_concept() => _result.Source.ShouldContain("concept OrderId : Uuid");
     [Fact] void should_generate_the_vogen_text_concept() => _result.Source.ShouldContain("concept CustomerCode : String");
     [Fact] void should_resolve_the_command_concept_usage() => _result.Source.ShouldContain("id OrderId");

@@ -24,11 +24,7 @@ static class ConceptTypeReferenceBinder
             return contributions;
         }
 
-        var sourceTypes = context.Projects
-            .SelectMany(project => new DotNetArtifactCatalog(project.Compilation).Types
-                .Select(type => new { Subject = project.SubjectForType(type), Type = type }))
-            .GroupBy(_ => _.Subject)
-            .ToDictionary(_ => _.Key, _ => _.First().Type);
+        var sourceTypes = SourceTypes(context);
 
         return
         [
@@ -43,6 +39,29 @@ static class ConceptTypeReferenceBinder
             })
         ];
     }
+
+    public static IReadOnlySet<SubjectId> ReferencedSubjects(
+        DotNetAnalysisContext context,
+        IEnumerable<ArtifactFact> artifacts)
+    {
+        var sourceTypes = SourceTypes(context);
+
+        return artifacts
+            .Where(artifact => sourceTypes.ContainsKey(artifact.Subject))
+            .SelectMany(artifact => PropertiesOf(sourceTypes[artifact.Subject])
+                .GroupBy(property => PropertyName(property.Name), StringComparer.Ordinal)
+                .Select(group => group.First())
+                .Where(property => artifact.Definition.Properties.Any(_ => _.Name == PropertyName(property.Name))))
+            .Select(property => DotNetTypeShapes.TypeReferenceFor(property.Type, context).Subject)
+            .OfType<SubjectId>()
+            .ToHashSet();
+    }
+
+    static Dictionary<SubjectId, INamedTypeSymbol> SourceTypes(DotNetAnalysisContext context) => context.Projects
+        .SelectMany(project => new DotNetArtifactCatalog(project.Compilation).Types
+            .Select(type => new { Subject = project.SubjectForType(type), Type = type }))
+        .GroupBy(_ => _.Subject)
+        .ToDictionary(_ => _.Key, _ => _.First().Type);
 
     static ArtifactFact BindArtifact(
         DotNetAnalysisContext context,

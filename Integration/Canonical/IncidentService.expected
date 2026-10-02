@@ -1,5 +1,8 @@
 # JasperFx/wolverine @ af4807b5fb225ce7535c67785b74007fdad2dd9f
-source-sha256: 78d8201b1b4dc2ec0097e0748bda7d37bf01ebf99a4803c35652bbc8c4d0b1ba
+source-sha256: 579ab688d7415b50bab1d5cc754e62fdd835e1229c1e51715ff60b0b41dbc335
+source: concept IncidentCategory : Enum
+source: concept IncidentStatus : Enum
+source: concept ResolutionType : Enum
 source: command LogIncident
 source: command CategoriseIncident
 source: command CloseIncident
