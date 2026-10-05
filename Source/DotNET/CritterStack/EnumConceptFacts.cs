@@ -227,7 +227,7 @@ static class EnumConceptFacts
 
     static bool IsScreenplayEnumValue(string value) =>
         value.Length > 0 &&
-        (value[0] == '_' || char.IsLower(value[0])) &&
+        (value[0] == '_' || char.IsAsciiLetterLower(value[0])) &&
         value.Skip(1).All(_ => _ == '_' || char.IsLetterOrDigit(_)) &&
         !string.Equals(value, "file", StringComparison.Ordinal) &&
         !string.Equals(value, "validate", StringComparison.Ordinal);
