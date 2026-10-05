@@ -47,12 +47,14 @@ static class ConceptTypeReferenceBinder
     /// Method-backed properties bind source-owned types so enum concepts can be discovered. A type that is
     /// not composed as a concept (for example a [Flags] enum, a generated enum, an authored record, or a value
     /// object without its concept adapter) keeps its name, shape, and optionality without a concept reference,
-    /// instead of making the lowerer omit the whole artifact.
+    /// instead of making the lowerer omit the whole artifact. Enum concepts whose concept name collides with another
+    /// subject's concept are removed first, so their uses are normalized the same way.
     /// </remarks>
     /// <param name="contributions">The contributions to normalize together.</param>
     /// <returns>The contributions whose property type subjects all reference contributed concepts.</returns>
     public static IReadOnlyList<AdapterContribution> WithoutMissingConcepts(IReadOnlyList<AdapterContribution> contributions)
     {
+        contributions = EnumConceptFacts.WithoutConflictingNames(contributions);
         var conceptSubjects = contributions
             .SelectMany(_ => _.Facts)
             .OfType<ArtifactFact>()

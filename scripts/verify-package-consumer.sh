@@ -68,6 +68,8 @@ static class CandidateApi
         _ = new CritterStackScreenplayGenerator([new CritterStackScreenplayAdapter()]);
 
         if (CritterStackDiagnosticCodes.FlagsEnumOmitted != "CRITTERSTACK0001" ||
+            CritterStackDiagnosticCodes.EnumValuesUnsupported != "CRITTERSTACK0002" ||
+            CritterStackDiagnosticCodes.EnumConceptNameConflict != "CRITTERSTACK0003" ||
             MartenDiagnosticCodes.ConventionAlterationOmitted != "MARTEN0014" ||
             MartenDiagnosticCodes.ProjectionSideEffectUnresolved != "MARTEN0015" ||
             MartenDiagnosticCodes.SessionListenerOmitted != "MARTEN0016" ||

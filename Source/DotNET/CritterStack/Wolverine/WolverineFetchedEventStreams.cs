@@ -219,24 +219,45 @@ static class WolverineFetchedEventStreams
 
         return operation switch
         {
-            // A field read is the same identity wherever it appears, so key it by symbol (and receiver for
-            // instance fields) rather than by position; otherwise `[Guid.Empty, Guid.Empty]` looks distinct.
-            IFieldReferenceOperation { Field.IsStatic: true } field =>
-                $"field:{field.Field.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}",
+            // A member read is the same identity wherever and however it is written, so key it by the member's
+            // containing type and name plus a normalized receiver rather than by source text or position; otherwise
+            // `[Guid.Empty, Guid.Empty]` or `[command.Id, (command).Id]` looks distinct, and `SourceIds.Id` and
+            // `DestinationIds.Id` look the same.
             IFieldReferenceOperation field =>
-                $"field:{FieldReceiverKey(field.Instance)}.{field.Field.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}",
-            IPropertyReferenceOperation or IParameterReferenceOperation or ILocalReferenceOperation =>
-                operation.Syntax.WithoutTrivia().ToString(),
+                $"field:{MemberKey(field.Field)}{ReceiverKey(field.Instance, field.Field.IsStatic)}",
+            IPropertyReferenceOperation property =>
+                $"property:{MemberKey(property.Property)}{ReceiverKey(property.Instance, property.Property.IsStatic)}{ArgumentsKey(property.Arguments)}",
+            IParameterReferenceOperation parameter =>
+                $"parameter:{SymbolKey(parameter.Parameter.ContainingSymbol)}:{parameter.Parameter.Ordinal.ToString(CultureInfo.InvariantCulture)}",
+            ILocalReferenceOperation local =>
+                $"local:{local.Local.Name}:{LocationKey(local.Local)}",
             _ => $"expression:{operation.Syntax.SpanStart.ToString(CultureInfo.InvariantCulture)}"
         };
     }
 
-    static string FieldReceiverKey(IOperation? receiver) => Unwrap(receiver) switch
-    {
-        IInstanceReferenceOperation => "this",
-        { } instance => $"({IdentityKey(instance)})",
-        null => "?"
-    };
+    static string MemberKey(ISymbol member) => $"{SymbolKey(member.ContainingType)}.{member.MetadataName}";
+
+    static string SymbolKey(ISymbol? symbol) => symbol?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat
+        .WithMemberOptions(SymbolDisplayMemberOptions.IncludeContainingType | SymbolDisplayMemberOptions.IncludeParameters)) ?? "?";
+
+    static string LocationKey(ISymbol symbol) => symbol.Locations
+        .Where(_ => _.IsInSource)
+        .Select(_ => _.SourceSpan.Start.ToString(CultureInfo.InvariantCulture))
+        .DefaultIfEmpty("?")
+        .First();
+
+    static string ReceiverKey(IOperation? receiver, bool isStatic) => isStatic
+        ? string.Empty
+        : Unwrap(receiver) switch
+        {
+            IInstanceReferenceOperation => "@this",
+            { } instance => $"@({IdentityKey(instance)})",
+            null => "@?"
+        };
+
+    static string ArgumentsKey(IReadOnlyList<IArgumentOperation> arguments) => arguments.Count == 0
+        ? string.Empty
+        : $"[{string.Join(',', arguments.Select(argument => IdentityKey(argument.Value)))}]";
 
     static bool IsStable(ILocalSymbol local, MethodDeclarationSyntax declaration, SemanticModel model, DotNetProjectCompilation project) =>
         declaration.DescendantNodes().OfType<IdentifierNameSyntax>()

@@ -87,7 +87,8 @@ static class WolverineFacts
                     continue;
                 }
 
-                var slicePattern = WolverineSlicePatterns.Resolve(method, RequestParameter(method, project)?.Type as INamedTypeSymbol, endpoint, project, adapter, diagnostics);
+                var request = RequestParameter(method, project);
+                var slicePattern = WolverineSlicePatterns.Resolve(method, request is not null ? MessageElementType(request.Type) : null, endpoint, project, adapter, diagnostics);
                 var firstPlacement = placements.Count;
                 if (endpoint is not null)
                 {
