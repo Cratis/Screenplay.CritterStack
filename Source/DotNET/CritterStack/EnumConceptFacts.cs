@@ -55,7 +55,7 @@ static class EnumConceptFacts
                     Outcome = GenerationDiagnosticOutcome.Unsupported,
                     Subject = subject,
                     Source = evidence.Source,
-                    Message = $"Flags enum '{candidate.Type.Name}' permits combinations that cannot be represented by an enumeration concept; its field types were left unchanged"
+                    Message = $"Flags enum '{candidate.Type.Name}' permits combinations that cannot be represented by an enumeration concept; it is not declared as a concept and its uses keep the plain type name without a concept reference"
                 });
                 continue;
             }

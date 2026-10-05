@@ -40,6 +40,52 @@ static class ConceptTypeReferenceBinder
         ];
     }
 
+    /// <summary>
+    /// Removes type subjects that do not resolve to a concept contributed by any of the contributions.
+    /// </summary>
+    /// <remarks>
+    /// Method-backed properties bind source-owned types so enum concepts can be discovered. A type that is
+    /// not composed as a concept (for example a [Flags] enum, a generated enum, an authored record, or a value
+    /// object without its concept adapter) keeps its name, shape, and optionality without a concept reference,
+    /// instead of making the lowerer omit the whole artifact.
+    /// </remarks>
+    /// <param name="contributions">The contributions to normalize together.</param>
+    /// <returns>The contributions whose property type subjects all reference contributed concepts.</returns>
+    public static IReadOnlyList<AdapterContribution> WithoutMissingConcepts(IReadOnlyList<AdapterContribution> contributions)
+    {
+        var conceptSubjects = contributions
+            .SelectMany(_ => _.Facts)
+            .OfType<ArtifactFact>()
+            .Where(_ => _.Definition.Key.Kind == ArtifactKind.Concept)
+            .Select(_ => _.Subject)
+            .ToHashSet();
+        bool IsMissing(PropertyDefinition property) => property.Type.Subject is { } subject && !conceptSubjects.Contains(subject);
+
+        return
+        [
+            .. contributions.Select(contribution => contribution with
+            {
+                Facts =
+                [
+                    .. contribution.Facts.Select(fact => fact is ArtifactFact artifact && artifact.Definition.Properties.Any(IsMissing)
+                        ? artifact with
+                        {
+                            Definition = artifact.Definition with
+                            {
+                                Properties =
+                                [
+                                    .. artifact.Definition.Properties.Select(property => IsMissing(property)
+                                        ? property with { Type = property.Type with { Subject = null } }
+                                        : property)
+                                ]
+                            }
+                        }
+                        : fact)
+                ]
+            })
+        ];
+    }
+
     public static IReadOnlySet<SubjectId> ReferencedSubjects(
         DotNetAnalysisContext context,
         IEnumerable<ArtifactFact> artifacts)

@@ -59,9 +59,14 @@ static class WolverineSlicePatterns
         GenerationSliceKind? trigger = IsAuthoredTimeout(request, project) ? GenerationSliceKind.Automation : null;
         if (endpoint is not null)
         {
-            trigger = endpoint.IsRead
-                ? GenerationSliceKind.StateView
-                : GenerationSliceKind.StateChange;
+            // HEAD and OPTIONS are safe verbs that are still analyzed for effects, so the verb
+            // proves neither a view nor a state change; a declaration may classify them.
+            trigger = endpoint switch
+            {
+                { IsQuery: true } => GenerationSliceKind.StateView,
+                { IsUnclassifiedSafeVerb: true } => null,
+                _ => GenerationSliceKind.StateChange
+            };
         }
         if (declared is not null && trigger is not null && declared != trigger)
         {

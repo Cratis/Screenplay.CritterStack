@@ -67,7 +67,8 @@ static class CandidateApi
         _ = context.Files[tree].Identity;
         _ = new CritterStackScreenplayGenerator([new CritterStackScreenplayAdapter()]);
 
-        if (MartenDiagnosticCodes.ConventionAlterationOmitted != "MARTEN0014" ||
+        if (CritterStackDiagnosticCodes.FlagsEnumOmitted != "CRITTERSTACK0001" ||
+            MartenDiagnosticCodes.ConventionAlterationOmitted != "MARTEN0014" ||
             MartenDiagnosticCodes.ProjectionSideEffectUnresolved != "MARTEN0015" ||
             MartenDiagnosticCodes.SessionListenerOmitted != "MARTEN0016" ||
             WolverineDiagnosticCodes.ConventionAlterationOmitted != "WOLVERINE0019" ||

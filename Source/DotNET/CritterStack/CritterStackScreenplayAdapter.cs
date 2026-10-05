@@ -31,12 +31,20 @@ public sealed class CritterStackScreenplayAdapter : IDotNetScreenplayAdapter
 
     /// <inheritdoc/>
     public AdapterContribution Analyze(DotNetAnalysisContext context, DotNetAdapterOptions options) =>
-        Analyze(context, options, useSharedPlacement: context.Projects.Any(_ => _.SourceContext is not null));
+        ConceptTypeReferenceBinder.WithoutMissingConcepts(
+            [AnalyzeForComposition(context, options, useSharedPlacement: context.Projects.Any(_ => _.SourceContext is not null))])[0];
 
     internal AdapterContribution AnalyzeCompatibility(DotNetAnalysisContext context, DotNetAdapterOptions options) =>
-        Analyze(context, options, useSharedPlacement: false);
+        ConceptTypeReferenceBinder.WithoutMissingConcepts([AnalyzeForComposition(context, options, useSharedPlacement: false)])[0];
 
-    AdapterContribution Analyze(
+    /// <summary>
+    /// Analyzes while retaining type subjects that independently composed adapters may contribute concepts for.
+    /// </summary>
+    /// <param name="context">The analysis context.</param>
+    /// <param name="options">The adapter options.</param>
+    /// <param name="useSharedPlacement">Whether to derive shared source placement.</param>
+    /// <returns>The contribution; the composer must remove type subjects without a contributed concept.</returns>
+    internal AdapterContribution AnalyzeForComposition(
         DotNetAnalysisContext context,
         DotNetAdapterOptions options,
         bool useSharedPlacement)

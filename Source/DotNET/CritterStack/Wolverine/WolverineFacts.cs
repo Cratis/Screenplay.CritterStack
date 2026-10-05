@@ -16,9 +16,16 @@ sealed record WolverineDiscoveryResult(
 
 sealed record HttpEndpoint(IMethodSymbol Method, string Verb, string? Route)
 {
-    public bool IsRead => string.Equals(Verb, "GET", StringComparison.Ordinal) ||
-        string.Equals(Verb, "QUERY", StringComparison.Ordinal) ||
-        string.Equals(Verb, "HEAD", StringComparison.Ordinal) ||
+    /// <summary>
+    /// Gets whether the endpoint is analyzed as a query; other verbs keep their full effect analysis.
+    /// </summary>
+    public bool IsQuery => string.Equals(Verb, "GET", StringComparison.Ordinal) ||
+        string.Equals(Verb, "QUERY", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Gets whether the verb is safe but the handler is still analyzed for effects, so the verb alone proves no slice kind.
+    /// </summary>
+    public bool IsUnclassifiedSafeVerb => string.Equals(Verb, "HEAD", StringComparison.Ordinal) ||
         string.Equals(Verb, "OPTIONS", StringComparison.Ordinal);
 }
 
@@ -165,7 +172,7 @@ static class WolverineFacts
         List<CritterStackPlacementIntent> placements,
         List<GenerationDiagnostic> diagnostics)
     {
-        if (endpoint.IsRead)
+        if (endpoint.IsQuery)
         {
             AnalyzeQuery(project, options, adapter, subjects, endpoint, validationAuthorization, facts, placements, diagnostics);
             return;
@@ -1753,13 +1760,19 @@ static class WolverineFacts
         CritterStackSubjectResolver subjects,
         IEnumerable<PropertyDefinition>? compiledParameters = null)
     {
-        var endpointParameters = method.Parameters
+        var included = method.Parameters
             .Where(_ => !IsInfrastructureParameter(_.Type) && !IsSourceType(_.Type))
-            .Select((parameter, index) => new PropertyDefinition
+            .ToArray();
+
+        // Authored enum parameters are kept as properties, but they never take the identifier
+        // from the first non-enum parameter that was chosen before enums were admitted.
+        var identifier = included.FirstOrDefault(_ => !IsAuthoredEnum(_.Type));
+        var endpointParameters = included
+            .Select(parameter => new PropertyDefinition
             {
                 Name = LowerFirst(parameter.Name),
                 Type = subjects.TypeReferenceFor(parameter.Type),
-                IsIdentifier = index == 0
+                IsIdentifier = SymbolEqualityComparer.Default.Equals(parameter, identifier)
             });
         return
         [
@@ -1994,6 +2007,9 @@ static class WolverineFacts
 
     static bool IsSourceType(ITypeSymbol type) =>
         type is INamedTypeSymbol { TypeKind: not TypeKind.Enum } named && named.Locations.Any(_ => _.IsInSource);
+
+    static bool IsAuthoredEnum(ITypeSymbol type) =>
+        type is INamedTypeSymbol { TypeKind: TypeKind.Enum } named && named.Locations.Any(_ => _.IsInSource);
 
     static INamedTypeSymbol? MessageElementType(ITypeSymbol type) => type switch
     {

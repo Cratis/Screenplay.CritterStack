@@ -8,6 +8,8 @@ public class when_fetched_stream_bindings_escape : given.a_wolverine_fetch_many_
     static readonly string[] _escapes =
     [
         "streams.Escape();",
+        "streams.SwapEntries();",
+        "((List<JasperFx.Events.IEventStream<Account>>)streams).Reverse();",
         "slot.Escape();",
         "streams[0].Escape();",
         "Escapes.Accept(streams);",
@@ -29,6 +31,7 @@ public class when_fetched_stream_bindings_escape : given.a_wolverine_fetch_many_
     void Establish() => UseApplication(
         $$"""
         using System;
+        using System.Collections.Generic;
         using System.Threading.Tasks;
         namespace Escaping;
         public class Account;
@@ -36,6 +39,7 @@ public class when_fetched_stream_bindings_escape : given.a_wolverine_fetch_many_
         public static class Escapes
         {
             public static void Escape<T>(this T value) { }
+            public static void SwapEntries<T>(this IReadOnlyList<T> values) { }
             public static void Accept<T>(T value) { }
             public static void Change<T>(ref T value) { }
             public static void Replace<T>(out T value) => value = default!;

@@ -217,10 +217,26 @@ static class WolverineFetchedEventStreams
             return $"constant:{operation.Type}:{operation.ConstantValue.Value}";
         }
 
-        return operation is IPropertyReferenceOperation or IParameterReferenceOperation or ILocalReferenceOperation
-            ? operation.Syntax.WithoutTrivia().ToString()
-            : $"expression:{operation.Syntax.SpanStart.ToString(CultureInfo.InvariantCulture)}";
+        return operation switch
+        {
+            // A field read is the same identity wherever it appears, so key it by symbol (and receiver for
+            // instance fields) rather than by position; otherwise `[Guid.Empty, Guid.Empty]` looks distinct.
+            IFieldReferenceOperation { Field.IsStatic: true } field =>
+                $"field:{field.Field.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}",
+            IFieldReferenceOperation field =>
+                $"field:{FieldReceiverKey(field.Instance)}.{field.Field.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}",
+            IPropertyReferenceOperation or IParameterReferenceOperation or ILocalReferenceOperation =>
+                operation.Syntax.WithoutTrivia().ToString(),
+            _ => $"expression:{operation.Syntax.SpanStart.ToString(CultureInfo.InvariantCulture)}"
+        };
     }
+
+    static string FieldReceiverKey(IOperation? receiver) => Unwrap(receiver) switch
+    {
+        IInstanceReferenceOperation => "this",
+        { } instance => $"({IdentityKey(instance)})",
+        null => "?"
+    };
 
     static bool IsStable(ILocalSymbol local, MethodDeclarationSyntax declaration, SemanticModel model, DotNetProjectCompilation project) =>
         declaration.DescendantNodes().OfType<IdentifierNameSyntax>()
