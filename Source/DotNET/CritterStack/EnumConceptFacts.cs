@@ -27,6 +27,7 @@ static class EnumConceptFacts
             .Where(_ => _.Subject is not null && referencedSubjects.Contains(_.Subject))
             .OrderBy(_ => _.Subject!.Value, StringComparer.Ordinal);
 
+        var rejectedNames = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var candidate in candidates)
         {
             var declaration = DotNetSource.AuthoredDeclarationsOf(candidate.Type, candidate.Project.AuthoredSyntaxTrees)
@@ -57,6 +58,7 @@ static class EnumConceptFacts
                     Source = evidence.Source,
                     Message = $"Flags enum '{candidate.Type.Name}' permits combinations that cannot be represented by an enumeration concept; it is not declared as a concept and its uses keep the plain type name without a concept reference"
                 });
+                rejectedNames[candidate.Type.Name] = rejectedNames.GetValueOrDefault(candidate.Type.Name) + 1;
                 continue;
             }
 
@@ -74,6 +76,7 @@ static class EnumConceptFacts
                         ? $"Enum '{candidate.Type.Name}' declares no named values, which an enumeration concept cannot represent; it is not declared as a concept and its uses keep the plain type name without a concept reference"
                         : $"Enum '{candidate.Type.Name}' has values that collide or are not valid Screenplay identifiers after Screenplay naming; it is not declared as a concept and its uses keep the plain type name without a concept reference"
                 });
+                rejectedNames[candidate.Type.Name] = rejectedNames.GetValueOrDefault(candidate.Type.Name) + 1;
                 continue;
             }
 
@@ -104,6 +107,25 @@ static class EnumConceptFacts
                     Kind = ConceptRepresentationKind.Enumeration,
                     EnumerationValues = [.. values]
                 }
+            });
+        }
+
+        // A rejected enum keeps its plain type name, which would resolve to a same-named enum concept and silently take
+        // on that unrelated enumeration's values. Drop such enum concepts so neither enum is modeled by the other.
+        var captured = facts
+            .OfType<ArtifactFact>()
+            .Where(_ => _.Definition.Key.Kind == ArtifactKind.Concept && IsEnumConcept(_) && rejectedNames.ContainsKey(_.Definition.Name))
+            .OrderBy(_ => _.Subject.Value, StringComparer.Ordinal)
+            .ToArray();
+        if (captured.Length > 0)
+        {
+            var capturedSubjects = captured.Select(_ => _.Subject).ToHashSet();
+            diagnostics.AddRange(captured.Select(_ => ConflictDiagnostic(_, _.Definition.Name, rejectedNames[_.Definition.Name])));
+            facts.RemoveAll(fact => fact switch
+            {
+                ArtifactFact artifact => artifact.Definition.Key.Kind == ArtifactKind.Concept && capturedSubjects.Contains(artifact.Subject),
+                ConceptRepresentationFact representation => capturedSubjects.Contains(representation.Definition.Concept) && IsEnumRepresentation(representation),
+                _ => false
             });
         }
 
