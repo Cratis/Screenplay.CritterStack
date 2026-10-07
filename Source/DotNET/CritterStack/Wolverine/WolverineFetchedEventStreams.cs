@@ -18,7 +18,11 @@ sealed record WolverineFetchedStreamBinding(
     bool IsCollection,
     bool IsEmpty,
     bool HasRepeatedIdentity,
-    string IdentityExpression);
+    bool HasUncomparableIdentity,
+    string IdentityExpression)
+{
+    public bool IsProvenDistinct => !HasRepeatedIdentity && !HasUncomparableIdentity;
+}
 
 static class WolverineFetchedEventStreams
 {
@@ -45,7 +49,13 @@ static class WolverineFetchedEventStreams
                 var site = $"{DotNetMethodIdentity.SubjectFor(project, method).Value}:{source?.Path}:{fetch.Syntax.SpanStart.ToString(CultureInfo.InvariantCulture)}";
                 var input = Unwrap(identities)!;
                 var elements = Elements(input);
-                var repeated = elements is not null && elements.Select(IdentityKey).Distinct(StringComparer.Ordinal).Count() != elements.Count;
+
+                // A fixed batch of two or more identities only proves distinct streams when every identity is keyed
+                // semantically; an identity that is not (an invocation or another arbitrary expression) may repeat
+                // another, and the framework rejects duplicate IDs at runtime.
+                var keys = elements is { Count: > 1 } ? elements.Select(IdentityKey).ToArray() : [];
+                var uncomparable = keys.Any(key => key is null);
+                var repeated = !uncomparable && keys.Distinct(StringComparer.Ordinal).Count() != keys.Length;
                 if (elements is { Count: > 0 })
                 {
                     for (var index = 0; index < elements.Count; index++)
@@ -75,7 +85,7 @@ static class WolverineFetchedEventStreams
                         false,
                         source)
                     {
-                        Fetched = new(local, site, index, isCollection, isEmpty, repeated, identity.Syntax.ToString())
+                        Fetched = new(local, site, index, isCollection, isEmpty, repeated, uncomparable, identity.Syntax.ToString())
                     });
                 }
             }
@@ -92,7 +102,7 @@ static class WolverineFetchedEventStreams
         IReadOnlyList<WolverineStateBinding> bindings,
         DotNetProjectCompilation project)
     {
-        var fetched = bindings.Where(binding => binding.Fetched is { IsEmpty: false, HasRepeatedIdentity: false }).ToArray();
+        var fetched = bindings.Where(binding => binding.Fetched is { IsEmpty: false, IsProvenDistinct: true }).ToArray();
         var indexed = IndexedTarget(Unwrap(receiver), fetched, declaration, semanticModel, project);
         if (indexed is not null)
         {
@@ -209,7 +219,8 @@ static class WolverineFetchedEventStreams
         _ => null
     };
 
-    static string IdentityKey(IOperation operation)
+    // Returns null when the identity is not keyed semantically, so it cannot be proven distinct from another identity.
+    static string? IdentityKey(IOperation operation)
     {
         operation = Unwrap(operation)!;
         if (operation.ConstantValue.HasValue)
@@ -224,16 +235,20 @@ static class WolverineFetchedEventStreams
             // `[Guid.Empty, Guid.Empty]` or `[command.Id, (command).Id]` looks distinct, and `SourceIds.Id` and
             // `DestinationIds.Id` look the same.
             IFieldReferenceOperation field =>
-                $"field:{MemberKey(field.Field)}{ReceiverKey(field.Instance, field.Field.IsStatic)}",
+                Join($"field:{MemberKey(field.Field)}", ReceiverKey(field.Instance, field.Field.IsStatic)),
             IPropertyReferenceOperation property =>
-                $"property:{MemberKey(property.Property)}{ReceiverKey(property.Instance, property.Property.IsStatic)}{ArgumentsKey(property.Arguments)}",
+                Join($"property:{MemberKey(property.Property)}", ReceiverKey(property.Instance, property.Property.IsStatic), ArgumentsKey(property.Arguments.Select(argument => argument.Value))),
+            IArrayElementReferenceOperation element =>
+                Join("element:", ReceiverKey(element.ArrayReference, isStatic: false), ArgumentsKey(element.Indices)),
             IParameterReferenceOperation parameter =>
                 $"parameter:{SymbolKey(parameter.Parameter.ContainingSymbol)}:{parameter.Parameter.Ordinal.ToString(CultureInfo.InvariantCulture)}",
             ILocalReferenceOperation local =>
                 $"local:{local.Local.Name}:{LocationKey(local.Local)}",
-            _ => $"expression:{operation.Syntax.SpanStart.ToString(CultureInfo.InvariantCulture)}"
+            _ => null
         };
     }
+
+    static string? Join(params string?[] parts) => parts.Any(part => part is null) ? null : string.Concat(parts);
 
     static string MemberKey(ISymbol member) => $"{SymbolKey(member.ContainingType)}.{member.MetadataName}";
 
@@ -246,18 +261,25 @@ static class WolverineFetchedEventStreams
         .DefaultIfEmpty("?")
         .First();
 
-    static string ReceiverKey(IOperation? receiver, bool isStatic) => isStatic
+    static string? ReceiverKey(IOperation? receiver, bool isStatic) => isStatic
         ? string.Empty
         : Unwrap(receiver) switch
         {
             IInstanceReferenceOperation => "@this",
-            { } instance => $"@({IdentityKey(instance)})",
+            { } instance => IdentityKey(instance) is { } key ? $"@({key})" : null,
             null => "@?"
         };
 
-    static string ArgumentsKey(IReadOnlyList<IArgumentOperation> arguments) => arguments.Count == 0
-        ? string.Empty
-        : $"[{string.Join(',', arguments.Select(argument => IdentityKey(argument.Value)))}]";
+    static string? ArgumentsKey(IEnumerable<IOperation> arguments)
+    {
+        var keys = arguments.Select(IdentityKey).ToArray();
+        if (keys.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        return keys.Any(key => key is null) ? null : $"[{string.Join(',', keys)}]";
+    }
 
     static bool IsStable(ILocalSymbol local, MethodDeclarationSyntax declaration, SemanticModel model, DotNetProjectCompilation project) =>
         declaration.DescendantNodes().OfType<IdentifierNameSyntax>()

@@ -21,8 +21,9 @@ public static class CritterStackDiagnosticCodes
     public const string EnumValuesUnsupported = "CRITTERSTACK0002";
 
     /// <summary>
-    /// An enum used by an emitted artifact shares its concept name with another source subject's concept, so the enum is not
-    /// declared as a concept and its uses keep the plain type name without a concept reference; non-enum concepts are kept.
+    /// An enum used by an emitted artifact shares its concept name with another source subject's concept, or with a different
+    /// type used without a concept reference, so the enum is not declared as a concept and its uses keep the plain type name
+    /// without a concept reference; non-enum concepts are kept.
     /// </summary>
     public const string EnumConceptNameConflict = "CRITTERSTACK0003";
 }

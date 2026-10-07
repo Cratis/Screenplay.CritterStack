@@ -1015,11 +1015,18 @@ static class WolverineFacts
             Code = WolverineDiagnosticCodes.MultipleStreamMetadataOmitted,
             Severity = GenerationDiagnosticSeverity.Warning,
             Outcome = GenerationDiagnosticOutcome.Unsupported,
-            Message = $"Handler '{commandName}' uses FetchManyForWriting; {boundary}, but per-stream loading and optimistic version semantics cannot be lowered faithfully to the current Screenplay language{(fetched.HasRepeatedIdentity ? "; repeated authored identity expressions are not proven distinct, so append targets are not inferred; the framework rejects duplicate IDs at runtime" : string.Empty)}",
+            Message = $"Handler '{commandName}' uses FetchManyForWriting; {boundary}, but per-stream loading and optimistic version semantics cannot be lowered faithfully to the current Screenplay language{DistinctnessLoss(fetched)}",
             Source = binding.Source,
             Subject = commandSubject
         });
     }
+
+    static string DistinctnessLoss(WolverineFetchedStreamBinding fetched) => fetched switch
+    {
+        { HasUncomparableIdentity: true } => "; authored identity expressions that cannot be compared semantically are not proven distinct, so append targets are not inferred; the framework rejects duplicate IDs at runtime",
+        { HasRepeatedIdentity: true } => "; repeated authored identity expressions are not proven distinct, so append targets are not inferred; the framework rejects duplicate IDs at runtime",
+        _ => string.Empty
+    };
 
     static void AddEventStreamAppendFacts(
         DotNetProjectCompilation project,

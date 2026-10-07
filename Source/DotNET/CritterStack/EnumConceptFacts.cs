@@ -10,6 +10,8 @@ namespace Cratis.CritterStack.Screenplay;
 
 static class EnumConceptFacts
 {
+    static readonly HashSet<string> _primitiveNames = new(["Bool", "Date", "DateTime", "Decimal", "Int", "String", "Uuid"], StringComparer.Ordinal);
+
     public static AdapterContribution AddTo(DotNetAnalysisContext context, AdapterContribution contribution)
     {
         var facts = contribution.Facts.ToList();
@@ -27,7 +29,6 @@ static class EnumConceptFacts
             .Where(_ => _.Subject is not null && referencedSubjects.Contains(_.Subject))
             .OrderBy(_ => _.Subject!.Value, StringComparer.Ordinal);
 
-        var rejectedNames = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var candidate in candidates)
         {
             var declaration = DotNetSource.AuthoredDeclarationsOf(candidate.Type, candidate.Project.AuthoredSyntaxTrees)
@@ -58,7 +59,6 @@ static class EnumConceptFacts
                     Source = evidence.Source,
                     Message = $"Flags enum '{candidate.Type.Name}' permits combinations that cannot be represented by an enumeration concept; it is not declared as a concept and its uses keep the plain type name without a concept reference"
                 });
-                rejectedNames[candidate.Type.Name] = rejectedNames.GetValueOrDefault(candidate.Type.Name) + 1;
                 continue;
             }
 
@@ -76,7 +76,6 @@ static class EnumConceptFacts
                         ? $"Enum '{candidate.Type.Name}' declares no named values, which an enumeration concept cannot represent; it is not declared as a concept and its uses keep the plain type name without a concept reference"
                         : $"Enum '{candidate.Type.Name}' has values that collide or are not valid Screenplay identifiers after Screenplay naming; it is not declared as a concept and its uses keep the plain type name without a concept reference"
                 });
-                rejectedNames[candidate.Type.Name] = rejectedNames.GetValueOrDefault(candidate.Type.Name) + 1;
                 continue;
             }
 
@@ -110,28 +109,10 @@ static class EnumConceptFacts
             });
         }
 
-        // A rejected enum keeps its plain type name, which would resolve to a same-named enum concept and silently take
-        // on that unrelated enumeration's values. Drop such enum concepts so neither enum is modeled by the other.
-        var captured = facts
-            .OfType<ArtifactFact>()
-            .Where(_ => _.Definition.Key.Kind == ArtifactKind.Concept && IsEnumConcept(_) && rejectedNames.ContainsKey(_.Definition.Name))
-            .OrderBy(_ => _.Subject.Value, StringComparer.Ordinal)
-            .ToArray();
-        if (captured.Length > 0)
-        {
-            var capturedSubjects = captured.Select(_ => _.Subject).ToHashSet();
-            diagnostics.AddRange(captured.Select(_ => ConflictDiagnostic(_, _.Definition.Name, rejectedNames[_.Definition.Name])));
-            facts.RemoveAll(fact => fact switch
-            {
-                ArtifactFact artifact => artifact.Definition.Key.Kind == ArtifactKind.Concept && capturedSubjects.Contains(artifact.Subject),
-                ConceptRepresentationFact representation => capturedSubjects.Contains(representation.Definition.Concept) && IsEnumRepresentation(representation),
-                _ => false
-            });
-        }
-
-        // Bind here for direct adapter consumers; the generator also binds independently contributed Vogen concepts.
-        var resolved = WithoutConflictingNames([contribution with { Facts = facts, Diagnostics = diagnostics }]);
-        return ConceptTypeReferenceBinder.Bind(context, resolved)[0];
+        // Bind before resolving captured names, so uses of each enum carry its subject and only other types print its
+        // plain name; the generator also binds independently contributed Vogen concepts and normalizes again.
+        var bound = ConceptTypeReferenceBinder.Bind(context, WithoutConflictingNames([contribution with { Facts = facts, Diagnostics = diagnostics }]));
+        return WithoutCapturedNames(bound)[0];
     }
 
     /// <summary>
@@ -147,22 +128,8 @@ static class EnumConceptFacts
     /// <returns>The contributions without conflicting enum concepts, with a located diagnostic for each dropped enum.</returns>
     public static IReadOnlyList<AdapterContribution> WithoutConflictingNames(IReadOnlyList<AdapterContribution> contributions)
     {
-        var concepts = contributions
-            .SelectMany(_ => _.Facts)
-            .OfType<ArtifactFact>()
-            .Where(_ => _.Definition.Key.Kind == ArtifactKind.Concept)
-            .ToArray();
-        var enumRepresentations = contributions
-            .SelectMany(_ => _.Facts)
-            .OfType<ConceptRepresentationFact>()
-            .Where(IsEnumRepresentation)
-            .Select(_ => _.Definition.Concept)
-            .ToHashSet();
-        var enumSubjects = concepts
-            .GroupBy(_ => _.Subject)
-            .Where(_ => enumRepresentations.Contains(_.Key) && _.All(IsEnumConcept))
-            .Select(_ => _.Key)
-            .ToHashSet();
+        var concepts = ConceptsIn(contributions).ToArray();
+        var enumSubjects = EnumSubjectsIn(contributions);
         var conflicts = concepts
             .GroupBy(_ => _.Definition.Name, StringComparer.Ordinal)
             .Select(_ => new { Name = _.Key, Subjects = _.Select(fact => fact.Subject).Distinct().ToArray() })
@@ -172,7 +139,82 @@ static class EnumConceptFacts
                 .Select(subject => new { Subject = subject, conflict.Name, Others = conflict.Subjects.Length - 1 }))
             .GroupBy(_ => _.Subject)
             .ToDictionary(_ => _.Key, _ => _.OrderBy(conflict => conflict.Name, StringComparer.Ordinal).First());
-        if (conflicts.Count == 0)
+
+        return Drop(
+            contributions,
+            conflicts.ToDictionary(
+                _ => _.Key,
+                _ => $"Enum '{_.Value.Name}' shares its Screenplay concept name with {_.Value.Others} other source subject{(_.Value.Others == 1 ? string.Empty : "s")}; it is not declared as a concept and its uses keep the plain type name without a concept reference"));
+    }
+
+    /// <summary>
+    /// Removes enum concepts whose name is printed for a different type that has no concept reference.
+    /// </summary>
+    /// <remarks>
+    /// The shared lowerer prints a type without a resolvable concept reference by its plain name, and the Screenplay
+    /// compiler resolves that name to a same-named concept. A generated or [Flags] enum, a metadata enum, an authored
+    /// record or struct, or a value object without its concept adapter would then silently take on an authored enum's
+    /// values. Such an enum concept is dropped together with its representation and its own uses keep the plain type
+    /// name, so neither type is modeled by the other. Screenplay primitive names are not types and never capture a
+    /// concept, and concepts contributed by other conventions (Vogen, Marten value types) are never dropped.
+    /// </remarks>
+    /// <param name="contributions">The contributions to normalize together; property types must already be bound.</param>
+    /// <returns>The contributions without captured enum concepts, with a located diagnostic for each dropped enum.</returns>
+    public static IReadOnlyList<AdapterContribution> WithoutCapturedNames(IReadOnlyList<AdapterContribution> contributions)
+    {
+        var conceptSubjects = ConceptsIn(contributions).Select(_ => _.Subject).ToHashSet();
+        var enumSubjects = EnumSubjectsIn(contributions);
+        var plainNames = contributions
+            .SelectMany(_ => _.Facts)
+            .OfType<ArtifactFact>()
+            .SelectMany(_ => _.Definition.Properties)
+            .Select(_ => _.Type)
+            .Where(type => !IsConceptReference(type, conceptSubjects) && !_primitiveNames.Contains(type.Name))
+            .Select(_ => _.Name)
+            .ToHashSet(StringComparer.Ordinal);
+        var captured = ConceptsIn(contributions)
+            .Where(_ => enumSubjects.Contains(_.Subject) && plainNames.Contains(_.Definition.Name))
+            .GroupBy(_ => _.Subject)
+            .ToDictionary(
+                _ => _.Key,
+                _ => $"Enum '{_.OrderBy(fact => fact.Definition.Name, StringComparer.Ordinal).First().Definition.Name}' shares its Screenplay type name with a different type used without a concept reference, which would resolve to this enumeration; it is not declared as a concept and its uses keep the plain type name without a concept reference");
+
+        return Drop(contributions, captured);
+    }
+
+    // Mirrors ScreenplayLowerer.TypeName (Screenplay.Generation 0.18): only a concept-targeted subject with a contributed
+    // concept prints the concept name; every other type reference prints its plain name.
+    static bool IsConceptReference(TypeReferenceDefinition type, HashSet<SubjectId> conceptSubjects) =>
+        type.Subject is { } subject &&
+        type.TargetArtifactKind is null or ArtifactKind.Concept &&
+        conceptSubjects.Contains(subject);
+
+    static IEnumerable<ArtifactFact> ConceptsIn(IReadOnlyList<AdapterContribution> contributions) => contributions
+        .SelectMany(_ => _.Facts)
+        .OfType<ArtifactFact>()
+        .Where(_ => _.Definition.Key.Kind == ArtifactKind.Concept);
+
+    static HashSet<SubjectId> EnumSubjectsIn(IReadOnlyList<AdapterContribution> contributions)
+    {
+        var enumRepresentations = contributions
+            .SelectMany(_ => _.Facts)
+            .OfType<ConceptRepresentationFact>()
+            .Where(IsEnumRepresentation)
+            .Select(_ => _.Definition.Concept)
+            .ToHashSet();
+
+        return
+        [
+            .. ConceptsIn(contributions)
+                .GroupBy(_ => _.Subject)
+                .Where(_ => enumRepresentations.Contains(_.Key) && _.All(IsEnumConcept))
+                .Select(_ => _.Key)
+        ];
+    }
+
+    static IReadOnlyList<AdapterContribution> Drop(IReadOnlyList<AdapterContribution> contributions, Dictionary<SubjectId, string> dropped)
+    {
+        if (dropped.Count == 0)
         {
             return contributions;
         }
@@ -180,11 +222,13 @@ static class EnumConceptFacts
         var reporters = contributions
             .SelectMany((contribution, index) => contribution.Facts
                 .OfType<ArtifactFact>()
-                .Where(_ => _.Definition.Key.Kind == ArtifactKind.Concept && conflicts.ContainsKey(_.Subject))
+                .Where(_ => _.Definition.Key.Kind == ArtifactKind.Concept && dropped.ContainsKey(_.Subject))
                 .Select(fact => new { Index = index, Fact = fact }))
             .GroupBy(_ => _.Fact.Subject)
             .Select(_ => _.First())
             .ToArray();
+        bool IsDropped(PropertyDefinition property) => property.Type.Subject is { } subject && dropped.ContainsKey(subject);
+
         return
         [
             .. contributions.Select((contribution, index) =>
@@ -193,18 +237,33 @@ static class EnumConceptFacts
                 diagnostics.AddRange(reporters
                     .Where(_ => _.Index == index)
                     .OrderBy(_ => _.Fact.Subject.Value, StringComparer.Ordinal)
-                    .Select(_ => ConflictDiagnostic(_.Fact, conflicts[_.Fact.Subject].Name, conflicts[_.Fact.Subject].Others)));
+                    .Select(_ => ConflictDiagnostic(_.Fact, dropped[_.Fact.Subject])));
 
                 return contribution with
                 {
                     Facts =
                     [
-                        .. contribution.Facts.Where(fact => fact switch
-                        {
-                            ArtifactFact artifact => artifact.Definition.Key.Kind != ArtifactKind.Concept || !conflicts.ContainsKey(artifact.Subject),
-                            ConceptRepresentationFact representation => !conflicts.ContainsKey(representation.Definition.Concept) || !IsEnumRepresentation(representation),
-                            _ => true
-                        })
+                        .. contribution.Facts
+                            .Where(fact => fact switch
+                            {
+                                ArtifactFact artifact => artifact.Definition.Key.Kind != ArtifactKind.Concept || !dropped.ContainsKey(artifact.Subject),
+                                ConceptRepresentationFact representation => !dropped.ContainsKey(representation.Definition.Concept) || !IsEnumRepresentation(representation),
+                                _ => true
+                            })
+                            .Select(fact => fact is ArtifactFact artifact && artifact.Definition.Properties.Any(IsDropped)
+                                ? artifact with
+                                {
+                                    Definition = artifact.Definition with
+                                    {
+                                        Properties =
+                                        [
+                                            .. artifact.Definition.Properties.Select(property => IsDropped(property)
+                                                ? property with { Type = property.Type with { Subject = null } }
+                                                : property)
+                                        ]
+                                    }
+                                }
+                                : fact)
                     ],
                     Diagnostics = diagnostics
                 };
@@ -212,14 +271,14 @@ static class EnumConceptFacts
         ];
     }
 
-    static GenerationDiagnostic ConflictDiagnostic(ArtifactFact concept, string name, int others) => new()
+    static GenerationDiagnostic ConflictDiagnostic(ArtifactFact concept, string message) => new()
     {
         Code = CritterStackDiagnosticCodes.EnumConceptNameConflict,
         Severity = GenerationDiagnosticSeverity.Warning,
         Outcome = GenerationDiagnosticOutcome.Conflict,
         Subject = concept.Subject,
         Source = concept.Evidence.Source,
-        Message = $"Enum '{name}' shares its Screenplay concept name with {others} other source subject{(others == 1 ? string.Empty : "s")}; it is not declared as a concept and its uses keep the plain type name without a concept reference"
+        Message = message
     };
 
     static string ConceptFactId(AdapterIdentity adapter, SubjectId subject) => $"{adapter.Id}:concept:{subject.Value}";
