@@ -1,0 +1,19 @@
+# Cratis-owned fixture: Marten 9.45.0, WolverineFx 6.45.0, WolverineFx.Http 6.45.0, WolverineFx.Marten 6.45.0
+source-sha256: 32c14d6d9193378da7ced6c94e42ca311cebd83315e609d804a97ef8eeeb6528
+source: command PlanBatch
+source: id Uuid identifier
+source: produces BatchPlanned
+source: produces PortionsPrepared
+source: file Integration/Canonical/CommunityKitchen/Kitchen/Serving/ServeBatch.cs
+source: slice StateChange ServeBatch
+not-source: file Integration/Canonical/CommunityKitchen/Kitchen/Serving/ServeBatchEndpoint.cs
+not-source: file Integration/Canonical/CommunityKitchen/Kitchen/Planning/PlanBatchEndpoint.cs
+not-source: slice StateView BatchServed
+not-source: slice StateView BatchPlanned
+not-source: slice StateView PortionsPrepared
+not-source: produces BatchServed
+not-source: produces TargetAdjusted
+diagnostic: WOLVERINE0025
+diagnostic-message: WOLVERINE0025|Command 'ServeBatch' is not linked to event 'BatchServed' with produces because the handler yields it only on some paths
+diagnostic-message: WOLVERINE0025|Command 'AdjustTarget' is not linked to event 'TargetAdjusted' with produces because the stream identity is not read directly from a property of the command
+diagnostic-message: WOLVERINE0002|forwards 'ServeBatch' to its Wolverine handler

@@ -43,7 +43,7 @@ static class CritterStackSourcePlacement
             return [];
         }
 
-        var strongestIntents = RetainStrongest(orderedIntents);
+        var strongestIntents = CollapseProducedEvents(RetainStrongest(orderedIntents));
         var snapshot = DotNetSourceStructures.Create(context);
         diagnostics.AddRange(snapshot.Diagnostics);
         if (!snapshot.IsSuccess)
@@ -91,20 +91,22 @@ static class CritterStackSourcePlacement
         }
 
         var selectedIntents = SelectRepresentatives(strongestIntents);
+        var derived = placementSnapshot.Placements
+            .Select(placement => new CritterStackDerivedPlacement(
+                selectedIntents.Single(_ => _.Artifact == placement.Artifact),
+                placement.Placement,
+                ProvenanceExplanation(placement)))
+            .ToArray();
         return
         [
-            .. placementSnapshot.Placements.Select(placement =>
-            {
-                var intent = selectedIntents.Single(_ => _.Artifact == placement.Artifact);
-                return PlacementFact(
-                    intent,
-                    placement.Placement,
-                    intent.Evidence with
-                    {
-                        Strength = EvidenceStrength.Heuristic,
-                        Explanation = ProvenanceExplanation(placement)
-                    });
-            })
+            .. CritterStackSliceKindSplit.Split(derived, diagnostics).Select(placement => PlacementFact(
+                placement.Intent,
+                placement.Placement,
+                placement.Intent.Evidence with
+                {
+                    Strength = EvidenceStrength.Heuristic,
+                    Explanation = placement.Explanation
+                }))
         ];
     }
 
@@ -165,6 +167,39 @@ static class CritterStackSourcePlacement
             {
                 var strongest = group.Min(_ => _.Evidence.Strength);
                 return group.Where(_ => _.Evidence.Strength == strongest);
+            })
+            .OrderBy(_ => _.Artifact.Subject.Value, StringComparer.Ordinal)
+            .ThenBy(_ => _.Artifact.Kind)
+            .ThenBy(_ => _.SourceOwner?.Value, StringComparer.Ordinal)
+            .ThenBy(_ => _.Id, StringComparer.Ordinal)
+    ];
+
+    /// <summary>
+    /// Gives an event one placement request: with its producing command when exactly one command produces it, otherwise from its own source.
+    /// </summary>
+    /// <remarks>
+    /// An event that is also consumed by a projection carries a self-owned request from that projection; the producing
+    /// command still wins, because an event belongs to the state change that appends it rather than to a state view.
+    /// </remarks>
+    static IReadOnlyList<CritterStackPlacementIntent> CollapseProducedEvents(IReadOnlyList<CritterStackPlacementIntent> intents) =>
+    [
+        .. intents
+            .GroupBy(_ => _.Artifact)
+            .SelectMany(group =>
+            {
+                var candidates = group.ToArray();
+                if (group.Key.Kind != ArtifactKind.Event || candidates.Length == 1)
+                {
+                    return candidates;
+                }
+
+                var producers = candidates.Where(_ => _.SourceOwner is not null).ToArray();
+                if (producers.Length == 0)
+                {
+                    return [candidates[0]];
+                }
+
+                return [producers.Select(_ => _.SourceOwner).Distinct().Count() == 1 ? producers[0] : candidates[0] with { SourceOwner = null }];
             })
             .OrderBy(_ => _.Artifact.Subject.Value, StringComparer.Ordinal)
             .ThenBy(_ => _.Artifact.Kind)

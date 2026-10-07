@@ -1,5 +1,5 @@
 # JasperFx/wolverine @ af4807b5fb225ce7535c67785b74007fdad2dd9f
-source-sha256: 579ab688d7415b50bab1d5cc754e62fdd835e1229c1e51715ff60b0b41dbc335
+source-sha256: e2823dd98ea7198b31850c3c15b8b1a591af47f45fb43f82e42b756919e3b92c
 source: concept IncidentCategory : Enum
 source: concept IncidentStatus : Enum
 source: concept ResolutionType : Enum
@@ -24,3 +24,4 @@ diagnostic: WOLVERINE0002
 diagnostic: WOLVERINE0003
 diagnostic: WOLVERINE0004
 diagnostic: WOLVERINE0005
+diagnostic: WOLVERINE0025
