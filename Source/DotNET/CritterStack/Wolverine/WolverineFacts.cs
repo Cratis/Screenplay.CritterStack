@@ -1263,8 +1263,11 @@ static class WolverineFacts
         productions.Count == 0 &&
         !method.Parameters.Any(IsPersistenceBoundParameter) &&
         !HasDocumentPersistence(method, project) &&
-        WolverineBusConsequences.Discover(method, project)
-            .Any(_ => SymbolEqualityComparer.Default.Equals(_.MessageType, commandType));
+        WolverineBusConsequences.Discover(method, project) is [var consequence] &&
+        SymbolEqualityComparer.Default.Equals(consequence.MessageType, commandType) &&
+        DiscoverOutgoingMessages(method, project).Count == 0 &&
+        WolverineReturnConsequences.Classify(method, project, isHttpEndpoint: true, aggregateWorkflow: false, hasEventStream: false)
+            .All(_ => _.Kind == WolverineReturnConsequenceKind.HttpResponse);
 
     static void AddForwarderDiagnostics(
         HttpEndpoint endpoint,

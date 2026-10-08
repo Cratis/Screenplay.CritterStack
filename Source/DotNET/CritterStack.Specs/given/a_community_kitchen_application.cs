@@ -64,7 +64,11 @@ public class a_community_kitchen_application : Specification
             {
                 System.Threading.Tasks.Task InvokeAsync(object message);
             }
-            public interface IMessageBus : ICommandBus;
+            public interface IMessageBus : ICommandBus
+            {
+                System.Threading.Tasks.ValueTask PublishAsync<T>(T message);
+            }
+            public class OutgoingMessages : System.Collections.Generic.List<object>;
         }
 
         namespace Wolverine.Http
@@ -342,7 +346,12 @@ public class a_community_kitchen_application : Specification
         .Replace("Kitchen.Target", "Target", StringComparison.Ordinal)
         .Replace("Kitchen.Tasting", "Tasting", StringComparison.Ordinal);
 
-    static DotNetProjectCompilation CreateProject(IReadOnlyList<(string Source, string ProjectPath)> sources)
+    /// <summary>
+    /// Creates a kitchen project from authored source files.
+    /// </summary>
+    /// <param name="sources">The source files and their project-relative paths.</param>
+    /// <returns>The project compilation.</returns>
+    protected static DotNetProjectCompilation CreateProject(IReadOnlyList<(string Source, string ProjectPath)> sources)
     {
         var frameworkTree = CSharpSyntaxTree.ParseText(FrameworkSource, path: "/workspace/Framework.cs");
         var authoredTrees = sources

@@ -124,7 +124,7 @@ static class WolverineProductionPlan
             .Select(_ => new Blocker(_, "it is appended through an IEventStream<T> handler parameter", GenerationDiagnosticOutcome.Unsupported, null)));
         if (sources.HasCompoundValidation)
         {
-            blockers.AddRange(Distinct(returnEvents.Concat(yieldEvents))
+            blockers.AddRange(Distinct(returnEvents.Concat(yieldEvents).Concat(sessionEvents))
                 .Select(_ => new Blocker(_, "compound validation decides whether it is produced", GenerationDiagnosticOutcome.Unsupported, null)));
         }
 
