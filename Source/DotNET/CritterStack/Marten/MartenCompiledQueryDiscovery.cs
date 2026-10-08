@@ -38,7 +38,8 @@ static class MartenCompiledQueryDiscovery
         IMethodSymbol entryPoint,
         SubjectId entryPointSubject,
         DotNetProjectCompilation project,
-        AdapterIdentity adapter)
+        AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects)
     {
         var links = new List<MartenCompiledQueryLink>();
         var diagnostics = new List<GenerationDiagnostic>();
@@ -76,7 +77,7 @@ static class MartenCompiledQueryDiscovery
                     plan.PlanType,
                     plan.DocumentType,
                     plan.OutputType,
-                    plan.Parameters,
+                    ParametersOf(plan.PlanType, subjects),
                     new Evidence
                     {
                         Adapter = adapter,
@@ -207,7 +208,7 @@ static class MartenCompiledQueryDiscovery
         return implementation is IMethodSymbol method && method.Locations.Any(IsAuthoredSourceLocation);
     }
 
-    static IReadOnlyList<PropertyDefinition> ParametersOf(INamedTypeSymbol planType)
+    static IReadOnlyList<PropertyDefinition> ParametersOf(INamedTypeSymbol planType, CritterStackSubjectResolver? subjects = null)
     {
         var members = new List<ISymbol>();
         for (var current = planType; current is not null; current = current.BaseType)
@@ -223,7 +224,7 @@ static class MartenCompiledQueryDiscovery
                 .Select(_ => new PropertyDefinition
                 {
                     Name = LowerFirst(_.Name),
-                    Type = DotNetTypeShapes.TypeReferenceFor(TypeOf(_))
+                    Type = subjects?.TypeReferenceFor(TypeOf(_)) ?? DotNetTypeShapes.TypeReferenceFor(TypeOf(_))
                 })
         ];
     }

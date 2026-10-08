@@ -7,4 +7,4 @@ This deterministic compatibility fixture is copied from:
 - path: `src/Samples/IncidentService/IncidentService`
 - license: MIT; see [`LICENSE.upstream`](LICENSE.upstream)
 
-The project file replaces upstream project references with the equivalent published Wolverine 6.29.1 packages so the fixture tests consumer-facing NuGet APIs without compiling the entire Wolverine repository. Application source remains the canonical sample source at the pinned commit, except trailing whitespace is normalized to satisfy repository diff checks.
+The project file replaces upstream project references with the equivalent published Wolverine 6.45.0 packages so the fixture tests consumer-facing NuGet APIs without compiling the entire Wolverine repository. Application source remains the canonical sample source at the pinned commit, except trailing whitespace is normalized to satisfy repository diff checks.

@@ -18,7 +18,8 @@
         <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
         <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
-        <PackageReference Include="Microsoft.NET.StringTools" ExcludeAssets="runtime" PrivateAssets="all" />
+        <!-- MSBuildLocator supplies the SDK runtime assemblies. Do not import StringTools' runtime-TFM check. -->
+        <PackageReference Include="Microsoft.NET.StringTools" ExcludeAssets="runtime;build;buildTransitive" PrivateAssets="all" />
         <PackageReference Update="Microsoft.CodeAnalysis.Workspaces.Common" PrivateAssets="none" />
         <ProjectReference Include="../CritterStack/CritterStack.csproj" />
     </ItemGroup>

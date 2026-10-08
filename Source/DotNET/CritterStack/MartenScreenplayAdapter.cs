@@ -27,7 +27,7 @@ public sealed class MartenScreenplayAdapter : IDescribedDotNetScreenplayAdapter,
         Category = AdapterCategory.EventStore,
         CompatibleGenerationVersions = new GenerationVersionRange
         {
-            MinimumInclusive = new Version(0, 17, 0)
+            MinimumInclusive = new Version(0, 18, 0)
         },
         RequiredHostCapabilities =
         [
@@ -40,6 +40,7 @@ public sealed class MartenScreenplayAdapter : IDescribedDotNetScreenplayAdapter,
         [
             GenerationFactCapability.Artifact,
             GenerationFactCapability.ArtifactPlacement,
+            GenerationFactCapability.ConceptRepresentation,
             GenerationFactCapability.Relationship
         ]
     };
@@ -121,12 +122,12 @@ public sealed class MartenScreenplayAdapter : IDescribedDotNetScreenplayAdapter,
         diagnostics.AddRange(subjects.Diagnostics);
         facts.AddRange(CritterStackSourcePlacement.Derive(context, options, placements, diagnostics));
 
-        return new AdapterContribution
+        return EnumConceptFacts.AddTo(context, new AdapterContribution
         {
             Adapter = Identity,
             Facts = facts,
             Diagnostics = diagnostics
-        };
+        });
     }
 
     static IEnumerable<AdapterProbeEvidence> AuthoredMartenUsesIn(DotNetProjectCompilation project)

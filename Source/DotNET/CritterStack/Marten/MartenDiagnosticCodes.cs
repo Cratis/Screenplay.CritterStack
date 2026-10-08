@@ -79,7 +79,7 @@ public static class MartenDiagnosticCodes
     public const string ConventionAlterationOmitted = "MARTEN0014";
 
     /// <summary>
-    /// A projection side-effect message payload could not be resolved exactly from authored source.
+    /// A projection side-effect message payload or custom ISendMyself sending behavior could not be resolved exactly.
     /// </summary>
     public const string ProjectionSideEffectUnresolved = "MARTEN0015";
 

@@ -24,11 +24,7 @@ static class ConceptTypeReferenceBinder
             return contributions;
         }
 
-        var sourceTypes = context.Projects
-            .SelectMany(project => new DotNetArtifactCatalog(project.Compilation).Types
-                .Select(type => new { Subject = project.SubjectForType(type), Type = type }))
-            .GroupBy(_ => _.Subject)
-            .ToDictionary(_ => _.Key, _ => _.First().Type);
+        var sourceTypes = SourceTypes(context);
 
         return
         [
@@ -43,6 +39,81 @@ static class ConceptTypeReferenceBinder
             })
         ];
     }
+
+    /// <summary>
+    /// Removes type subjects that do not resolve to a concept contributed by any of the contributions.
+    /// </summary>
+    /// <remarks>
+    /// Method-backed properties bind source-owned types so enum concepts can be discovered. A type that is
+    /// not composed as a concept (for example a [Flags] enum, a generated enum, an authored record, or a value
+    /// object without its concept adapter) keeps its name, shape, and optionality without a concept reference,
+    /// instead of making the lowerer omit the whole artifact. Enum concepts whose concept name collides with another
+    /// subject's concept, or whose name is printed for a different type without a concept reference, are removed first,
+    /// so their uses are normalized the same way.
+    /// </remarks>
+    /// <param name="contributions">The contributions to normalize together.</param>
+    /// <returns>The contributions whose property type subjects all reference contributed concepts.</returns>
+    public static IReadOnlyList<AdapterContribution> WithoutMissingConcepts(IReadOnlyList<AdapterContribution> contributions)
+    {
+        contributions = EnumConceptFacts.WithoutCapturedNames(EnumConceptFacts.WithoutConflictingNames(contributions));
+        var conceptSubjects = contributions
+            .SelectMany(_ => _.Facts)
+            .OfType<ArtifactFact>()
+            .Where(_ => _.Definition.Key.Kind == ArtifactKind.Concept)
+            .Select(_ => _.Subject)
+            .ToHashSet();
+        bool IsMissing(PropertyDefinition property) => property.Type.Subject is { } subject && !conceptSubjects.Contains(subject);
+
+        return
+        [
+            .. contributions.Select(contribution => contribution with
+            {
+                Facts =
+                [
+                    .. contribution.Facts.Select(fact => fact is ArtifactFact artifact && artifact.Definition.Properties.Any(IsMissing)
+                        ? artifact with
+                        {
+                            Definition = artifact.Definition with
+                            {
+                                Properties =
+                                [
+                                    .. artifact.Definition.Properties.Select(property => IsMissing(property)
+                                        ? property with { Type = property.Type with { Subject = null } }
+                                        : property)
+                                ]
+                            }
+                        }
+                        : fact)
+                ]
+            })
+        ];
+    }
+
+    public static IReadOnlySet<SubjectId> ReferencedSubjects(
+        DotNetAnalysisContext context,
+        IEnumerable<ArtifactFact> artifacts)
+    {
+        var sourceTypes = SourceTypes(context);
+        var materialized = artifacts.ToArray();
+
+        return materialized
+            .Where(artifact => sourceTypes.ContainsKey(artifact.Subject))
+            .SelectMany(artifact => PropertiesOf(sourceTypes[artifact.Subject])
+                .GroupBy(property => PropertyName(property.Name), StringComparer.Ordinal)
+                .Select(group => group.First())
+                .Where(property => artifact.Definition.Properties.Any(_ => _.Name == PropertyName(property.Name))))
+            .Select(property => DotNetTypeShapes.TypeReferenceFor(property.Type, context).Subject)
+            .OfType<SubjectId>()
+            .Concat(materialized.SelectMany(artifact => artifact.Definition.Properties)
+                .Select(property => property.Type.Subject).OfType<SubjectId>())
+            .ToHashSet();
+    }
+
+    static Dictionary<SubjectId, INamedTypeSymbol> SourceTypes(DotNetAnalysisContext context) => context.Projects
+        .SelectMany(project => new DotNetArtifactCatalog(project.Compilation).Types
+            .Select(type => new { Subject = project.SubjectForType(type), Type = type }))
+        .GroupBy(_ => _.Subject)
+        .ToDictionary(_ => _.Key, _ => _.First().Type);
 
     static ArtifactFact BindArtifact(
         DotNetAnalysisContext context,

@@ -12,14 +12,15 @@ namespace Cratis.CritterStack.Screenplay.Wolverine;
 enum WolverineStateBindingKind
 {
     DirectEventStream,
-    LoadedEventStream
+    LoadedEventStream,
+    FetchedEventStream
 }
 
 sealed record WolverineStateBindingEvidence<T>(T Value, SourceRange? Source);
 
 sealed record WolverineStateBinding(
     string HandlerKey,
-    IParameterSymbol Parameter,
+    IParameterSymbol? Parameter,
     INamedTypeSymbol ModelType,
     WolverineStateBindingKind Kind,
     WolverineStateBindingEvidence<string?> Identity,
@@ -31,9 +32,13 @@ sealed record WolverineStateBinding(
     bool HasAmbiguousConventionalVersion,
     SourceRange? Source)
 {
-    public bool LoadsModel => Kind == WolverineStateBindingKind.LoadedEventStream;
+    public WolverineFetchedStreamBinding? Fetched { get; init; }
 
-    public string Discriminator => $"stream:{HandlerKey}:{Parameter.Ordinal}:{Parameter.Name}";
+    public bool LoadsModel => Kind is WolverineStateBindingKind.LoadedEventStream or WolverineStateBindingKind.FetchedEventStream;
+
+    public string Discriminator => Fetched is { } fetched
+        ? $"stream:fetch:{fetched.Site}:{(fetched.Index is { } index ? index.ToString(System.Globalization.CultureInfo.InvariantCulture) : "family")}"
+        : $"stream:{HandlerKey}:{Parameter!.Ordinal}:{Parameter.Name}";
 }
 
 sealed record WolverineEventStreamAppend(
@@ -56,7 +61,7 @@ static class WolverineEventStreams
         WellKnownTypes.MartenLegacyEventStream
     ];
 
-    public static IReadOnlyList<WolverineStateBinding> Bindings(
+    public static IReadOnlyList<WolverineStateBinding> ParameterBindings(
         IMethodSymbol method,
         INamedTypeSymbol? requestType,
         DotNetProjectCompilation project)
@@ -65,7 +70,7 @@ static class WolverineEventStreams
         var loadedBindingCount = method.Parameters.Count(parameter =>
             EventStreamModels(parameter.Type, project).Count > 0 &&
             WriteModelAttribute(parameter, project) is not null);
-        var handlerKey = $"{project.SubjectForType(method.ContainingType).Value}#{method.MetadataName}";
+        var handlerKey = DotNetMethodIdentity.SubjectFor(project, method).Value;
         foreach (var parameter in method.Parameters)
         {
             var modelTypes = EventStreamModels(parameter.Type, project);
@@ -137,13 +142,20 @@ static class WolverineEventStreams
                 hasDirectWrite = true;
                 var source = CritterStackSource.RangeForProject(invocationSyntax.GetLocation(), project);
                 if (DotNetInvocations.ReceiverFor(invocationSyntax, invocationMethod, semanticModel) is not { } receiverExpression ||
-                    (semanticModel.GetOperation(receiverExpression) ?? invocation.Instance) is not { } receiverOperation ||
-                    ReceiverParameter(receiverOperation) is not { } receiver ||
-                    bindings.FirstOrDefault(binding =>
-                        SymbolEqualityComparer.Default.Equals(binding.Parameter, receiver) &&
-                        SymbolEqualityComparer.Default.Equals(binding.ModelType, invokedModel)) is not { } binding)
+                    (semanticModel.GetOperation(receiverExpression) ?? invocation.Instance) is not { } receiverOperation)
                 {
-                    unresolved.Add(new("the receiver is not rooted directly in an IEventStream<T> handler parameter", source));
+                    unresolved.Add(new("the receiver could not be resolved", source));
+                    continue;
+                }
+
+                var receiver = ReceiverParameter(receiverOperation);
+                var targets = receiver is null
+                    ? WolverineFetchedEventStreams.Targets(receiverOperation, invocationSyntax, declaration, semanticModel, bindings, project)
+                    : [.. bindings.Where(binding => SymbolEqualityComparer.Default.Equals(binding.Parameter, receiver))];
+                targets = [.. targets.Where(binding => SymbolEqualityComparer.Default.Equals(binding.ModelType, invokedModel))];
+                if (targets.Count == 0)
+                {
+                    unresolved.Add(new("the receiver is not rooted directly in an IEventStream<T> handler parameter or a supported, unmodified fetched-stream slot or foreach binding", source));
                     continue;
                 }
 
@@ -158,7 +170,7 @@ static class WolverineEventStreams
                     .ToArray();
                 if (admittedEventTypes.Length > 0)
                 {
-                    appends.Add(new(binding, admittedEventTypes, source));
+                    appends.AddRange(targets.Select(binding => new WolverineEventStreamAppend(binding, admittedEventTypes, source)));
                 }
             }
         }

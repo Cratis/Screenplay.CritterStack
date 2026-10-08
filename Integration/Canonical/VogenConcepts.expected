@@ -1,5 +1,5 @@
-# Cratis-owned fixture: Vogen 8.0.7, Marten 9.29.0, Wolverine 6.29.2
-source-sha256: 688ab242f2f40c2a5334f61194af644bdb24b6d189083fc1a0c6878cf10cc745
+# Cratis-owned fixture: Vogen 8.0.7, Marten 9.45.0, Wolverine 6.45.0
+source-sha256: bf51ed285a5d2adcd37e60f61da17e3ee41b03d4f8e52fe704334c97d28c9078
 source: concept OrderKey : Uuid
 source: concept CorrelationId : Uuid
 source: concept CustomerCode : String
@@ -49,7 +49,7 @@ artifact: Aggregate:OrderBoundary
 artifact: Event:OrderBoundaryReviewed
 artifact-count: Concept|4
 artifact-count: Document|1
-artifact-count: Event|4
+artifact-count: Event|7
 artifact-count: Message|5
 artifact-count: Handler|4
 artifact-count: Saga|1
@@ -103,3 +103,31 @@ diagnostic-message: WOLVERINE0016|does not safely establish portable conditional
 diagnostic-message: WOLVERINE0016|realization/provenance
 diagnostic-message: WOLVERINE0016|ordinary Event Modeling building blocks
 diagnostic-message: WOLVERINE0016|MarkCompleted
+source: slice Automation RebalanceOrders
+source: slice StateChange CancelOrders
+source: command RebalanceOrders
+source: command CancelOrders
+source: event BatchOrderDebited
+source: event BatchOrderCredited
+source: event BatchOrderCancelled
+source: file Integration/Canonical/VogenConcepts/Conventions.cs
+artifact: Command:RebalanceOrders
+artifact: Command:CancelOrders
+artifact: Aggregate:BatchOrder
+artifact: Event:BatchOrderDebited
+artifact: Event:BatchOrderCredited
+artifact: Event:BatchOrderCancelled
+relationship-count: Reads|Command:RebalanceOrders|Aggregate:BatchOrder|2
+relationship-count: Appends|Command:RebalanceOrders|Aggregate:BatchOrder|2
+relationship-count: Produces|Command:RebalanceOrders|Event:BatchOrderDebited|1
+relationship-count: Produces|Command:RebalanceOrders|Event:BatchOrderCredited|1
+relationship-count: Reads|Command:CancelOrders|Aggregate:BatchOrder|1
+relationship-count: Appends|Command:CancelOrders|Aggregate:BatchOrder|1
+relationship-count: Produces|Command:CancelOrders|Event:BatchOrderCancelled|1
+not-identifier: Command:RebalanceOrders:fromId
+not-identifier: Command:RebalanceOrders:toId
+not-identifier: Command:CancelOrders:ids
+evidence: Command:RebalanceOrders|cratis.critter-stack|Integration/Canonical/VogenConcepts/Conventions.cs
+diagnostic-message: WOLVERINE0012|target and identity for slot 0
+diagnostic-message: WOLVERINE0012|target and identity for slot 1
+diagnostic-message: WOLVERINE0012|unknown runtime cardinality and quantified identity correspondence

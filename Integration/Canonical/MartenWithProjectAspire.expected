@@ -1,5 +1,6 @@
-# JasperFx/CritterStackSamples @ 2c94389bcb5face1070d0409ef284973e8aaceea
-source-sha256: 06b77a1bb5b7b243e6167081891dd33d1c52e67a3ad2ace4f2b1071151a08958
+# JasperFx/CritterStackSamples @ e28ef4a3c502e9b9983d0018c570a64e79046faa (TripBuildingService: Marten 9.45.0)
+source-sha256: 165fe4cd20a74c4a9f72449842845f81af4fdf04e0d9a32277339e20127896e5
+source: concept Direction : Enum
 source: readmodel Trip
 source: reducer TripProjection => Trip
 source: readmodel Day

@@ -117,11 +117,11 @@ public sealed class CritterStackScreenplayGenerator(
         };
         var contributions = adapters
             .Where(_ => _.CanAnalyze(context))
-            .Select(adapter => useCompatibilityPlacement && adapter is CritterStackScreenplayAdapter critterStackAdapter
-                ? critterStackAdapter.AnalyzeCompatibility(context, adapterOptions)
+            .Select(adapter => adapter is CritterStackScreenplayAdapter critterStackAdapter
+                ? critterStackAdapter.AnalyzeForComposition(context, adapterOptions, useSharedPlacement: !useCompatibilityPlacement)
                 : adapter.Analyze(context, adapterOptions))
             .ToArray();
-        var boundContributions = ConceptTypeReferenceBinder.Bind(context, contributions);
+        var boundContributions = ConceptTypeReferenceBinder.WithoutMissingConcepts(ConceptTypeReferenceBinder.Bind(context, contributions));
         var domain = options.Domain ?? (projects.Count == 1 ? projects[0].Name : "Application");
 
         return generator.Generate(

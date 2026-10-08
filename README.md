@@ -73,7 +73,7 @@ The compatibility plan uses:
 - `JasperFx/CritterStackHelpDesk` for Marten 6/Wolverine 1 behavior;
 - BankAccountES and other focused applications from the pinned public `JasperFx/CritterStackSamples` repository;
 - MartenWithProjectAspire for instance-registered async, multi-stream, and event projections;
-- the repository-owned `VogenConcepts` fixture pinned to Vogen 8.0.7, Marten 9.29.0, and Wolverine 6.29.2, including the canonical store-agnostic DCB and authored saga APIs.
+- the repository-owned `VogenConcepts` fixture pinned to Vogen 8.0.7, Marten 9.45.0, and Wolverine 6.45.0, including the canonical store-agnostic DCB and authored saga APIs.
 
 These pinned samples and focused source-shape specs provide compatibility evidence for the versions and behaviors they exercise. They do not establish a broad support promise or close the requirement for a wholly Cratis-owned deterministic release fixture before broader Preview positioning.
 

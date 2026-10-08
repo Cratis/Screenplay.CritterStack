@@ -12,7 +12,7 @@ fi
 version=$1
 feed=$(cd "$2" && pwd)
 repo_root=$(cd "$(dirname "$0")/.." && pwd)
-work_dir=$(mktemp -d)
+work_dir=$(mktemp -d "${TMPDIR:-/tmp}/critter-stack-consumer.XXXXXXXXXX")
 trap 'rm -rf "$work_dir"' EXIT
 
 cp "$repo_root/Integration/PackageConsumer/Program.cs" "$work_dir/Program.cs"
@@ -67,12 +67,18 @@ static class CandidateApi
         _ = context.Files[tree].Identity;
         _ = new CritterStackScreenplayGenerator([new CritterStackScreenplayAdapter()]);
 
-        if (MartenDiagnosticCodes.ConventionAlterationOmitted != "MARTEN0014" ||
+        if (CritterStackDiagnosticCodes.FlagsEnumOmitted != "CRITTERSTACK0001" ||
+            CritterStackDiagnosticCodes.EnumValuesUnsupported != "CRITTERSTACK0002" ||
+            CritterStackDiagnosticCodes.EnumConceptNameConflict != "CRITTERSTACK0003" ||
+            MartenDiagnosticCodes.ConventionAlterationOmitted != "MARTEN0014" ||
             MartenDiagnosticCodes.ProjectionSideEffectUnresolved != "MARTEN0015" ||
             MartenDiagnosticCodes.SessionListenerOmitted != "MARTEN0016" ||
             WolverineDiagnosticCodes.ConventionAlterationOmitted != "WOLVERINE0019" ||
             WolverineDiagnosticCodes.CompoundStageOmitted != "WOLVERINE0020" ||
-            WolverineDiagnosticCodes.HandlerChainConfigurationOmitted != "WOLVERINE0021")
+            WolverineDiagnosticCodes.HandlerChainConfigurationOmitted != "WOLVERINE0021" ||
+            WolverineDiagnosticCodes.SlicePatternUnresolved != "WOLVERINE0022" ||
+            WolverineDiagnosticCodes.SlicePatternConflict != "WOLVERINE0023" ||
+            WolverineDiagnosticCodes.SlicePatternOmitted != "WOLVERINE0024")
         {
             throw new InvalidOperationException("The candidate diagnostic-code contract changed");
         }

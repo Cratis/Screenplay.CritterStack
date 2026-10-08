@@ -21,8 +21,9 @@ public class when_project_and_syntax_tree_order_is_reversed : given.a_shared_sou
         """
         namespace Payments.Billing.Capture;
 
-        public record CapturePayment(System.Guid PaymentId);
-        public record PaymentCaptured(System.Guid PaymentId);
+        public enum PaymentMethod { Cash, Card, Transfer }
+        public record CapturePayment(System.Guid PaymentId, PaymentMethod Method);
+        public record PaymentCaptured(System.Guid PaymentId, PaymentMethod Method);
         public class Payment;
         """;
 
@@ -32,7 +33,7 @@ public class when_project_and_syntax_tree_order_is_reversed : given.a_shared_sou
 
         public static class PaymentAggregateHandler
         {
-            public static PaymentCaptured Handle(CapturePayment command, Payment payment) => new(command.PaymentId);
+            public static PaymentCaptured Handle(CapturePayment command, Payment payment) => new(command.PaymentId, command.Method);
         }
         """;
 
@@ -87,6 +88,7 @@ public class when_project_and_syntax_tree_order_is_reversed : given.a_shared_sou
             options);
     }
 
+    [Fact] void should_include_the_enum_concept_in_every_order() => Vectors.All(_ => _.Result.Source.Contains("concept PaymentMethod : Enum", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_succeed_in_every_order() => Vectors.All(_ => _.Result.IsSuccess).ShouldBeTrue();
     [Fact] void should_include_the_primary_projects_command_and_event_facts() => new[] { _primaryCommand, _primaryEvent }.All(subject => _baseline.Result.Graph.Artifacts.Any(artifact => artifact.Key.Subject == subject)).ShouldBeTrue();
     [Fact] void should_include_the_secondary_projects_independent_command_and_event_facts() => new[] { _secondaryCommand, _secondaryEvent }.All(subject => _baseline.Result.Graph.Artifacts.Any(artifact => artifact.Key.Subject == subject)).ShouldBeTrue();

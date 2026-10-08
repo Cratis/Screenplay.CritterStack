@@ -30,25 +30,25 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout adapter
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: adapter
 
       - name: Checkout Critter Stack samples
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: JasperFx/CritterStackSamples
-          ref: 2c94389bcb5face1070d0409ef284973e8aaceea
+          ref: e28ef4a3c502e9b9983d0018c570a64e79046faa
           path: samples/critter-stack
 
       - name: Checkout legacy HelpDesk sample
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: JasperFx/CritterStackHelpDesk
           ref: b67659dd7ca6d8ff07e7b9dad20affc4a37b6062
           path: samples/helpdesk
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -62,7 +62,7 @@ jobs:
         run: |
           # The pinned TripBuildingService source uses Marten directly but omits its package reference.
           # Add the exact compatibility-matrix version to the disposable checkout so a clean runner is reproducible.
-          dotnet add samples/critter-stack/MartenWithProjectAspire/TripBuildingService/TripBuildingService.csproj package Marten --version 9.20.1
+          dotnet add samples/critter-stack/MartenWithProjectAspire/TripBuildingService/TripBuildingService.csproj package Marten --version 9.45.0
 
       - name: Build canonical applications
         run: |
