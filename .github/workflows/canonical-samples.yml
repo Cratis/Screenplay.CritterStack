@@ -70,6 +70,7 @@ jobs:
           dotnet build samples/critter-stack/CqrsMinimalApi/CqrsMinimalApi.csproj --configuration Debug
           dotnet build samples/critter-stack/Reports/Reports.csproj --configuration Debug
           dotnet build samples/critter-stack/MartenWithProjectAspire/TripBuildingService/TripBuildingService.csproj --configuration Debug
+          dotnet build adapter/Integration/Canonical/CommunityKitchen/CommunityKitchen.csproj --configuration Debug
           dotnet build adapter/Integration/Canonical/IncidentService/IncidentService.csproj --configuration Debug
           dotnet build adapter/Integration/Canonical/VogenConcepts/VogenConcepts.csproj --configuration Debug
           dotnet build samples/helpdesk/Helpdesk.Api/Helpdesk.Api.csproj --configuration Debug
@@ -105,6 +106,14 @@ jobs:
             samples/critter-stack/MartenWithProjectAspire/TripBuildingService/TripBuildingService.csproj \
             adapter/Integration/Canonical/MartenWithProjectAspire.expected \
             "${RUNNER_TEMP}/MartenWithProjectAspire.play"
+
+      - name: Generate and verify CommunityKitchen
+        run: |
+          adapter/scripts/verify-canonical.sh \
+            adapter/Source/DotNET/Canonical/bin/Release/net10.0/Cratis.CritterStack.Screenplay.Canonical.dll \
+            adapter/Integration/Canonical/CommunityKitchen/CommunityKitchen.csproj \
+            adapter/Integration/Canonical/CommunityKitchen.expected \
+            "${RUNNER_TEMP}/CommunityKitchen.play"
 
       - name: Generate and verify IncidentService
         run: |

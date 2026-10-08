@@ -26,4 +26,9 @@ public static class CritterStackDiagnosticCodes
     /// without a concept reference; non-enum concepts are kept.
     /// </summary>
     public const string EnumConceptNameConflict = "CRITTERSTACK0003";
+
+    /// <summary>
+    /// Source placement put artifacts of more than one slice kind in one slice, so they were split by artifact.
+    /// </summary>
+    public const string MixedSliceKindsSplit = "CRITTERSTACK0004";
 }

@@ -127,4 +127,9 @@ public static class WolverineDiagnosticCodes
     /// An admitted handler's SlicePattern declaration cannot obtain a supported artifact placement.
     /// </summary>
     public const string SlicePatternOmitted = "WOLVERINE0024";
+
+    /// <summary>
+    /// A command's produced event could not be linked with <c>produces</c>, so the model references the handler instead.
+    /// </summary>
+    public const string ProductionLinkOmitted = "WOLVERINE0025";
 }

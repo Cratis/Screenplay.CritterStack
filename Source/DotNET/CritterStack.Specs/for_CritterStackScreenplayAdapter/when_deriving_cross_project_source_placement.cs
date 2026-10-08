@@ -120,9 +120,10 @@ public class when_deriving_cross_project_source_placement : given.a_cross_projec
     [Fact] void should_keep_type_backed_placement_requests_self_owned() => new[]
     {
         PlacementIntents(ArtifactKind.Command, _domainRequest),
-        PlacementIntents(ArtifactKind.Event, _domainEvent),
         PlacementIntents(ArtifactKind.ReadModel, _domainModel)
     }.SelectMany(_ => _).All(_ => _.SourceOwner is null).ShouldBeTrue();
+    [Fact] void should_request_a_produced_event_placement_from_its_exact_cross_project_command() => PlacementIntents(ArtifactKind.Event, _domainEvent).ShouldContain(_ => _.SourceOwner == _domainRequest);
+    [Fact] void should_place_a_produced_event_with_its_command() => Placement(_contribution, ArtifactKind.Event, _domainEvent).ShouldEqual(Placement(_contribution, ArtifactKind.Command, _domainRequest));
     [Fact] void should_keep_the_exact_projection_owner_for_the_synthetic_reducer() => PlacementIntent(ArtifactKind.Reducer, new SubjectId { Value = $"{_projection.Value}#reducer" }).SourceOwner.ShouldEqual(_projection);
     [Fact] void should_keep_the_exact_containing_type_owner_for_the_query_method() => _placementIntents.Single(_ => _.Artifact.Kind == ArtifactKind.Query).SourceOwner.ShouldEqual(SubjectForContainingType("Application.Orders.Configuration.OrderEndpoints"));
     [Fact] void should_keep_the_exact_containing_type_owner_for_the_reaction_method() => _placementIntents.Single(_ => _.Artifact.Kind == ArtifactKind.Reaction).SourceOwner.ShouldEqual(SubjectForContainingType("Application.Orders.Configuration.NotificationHandler"));

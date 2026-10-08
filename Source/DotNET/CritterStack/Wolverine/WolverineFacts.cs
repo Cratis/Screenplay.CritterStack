@@ -77,6 +77,7 @@ static class WolverineFacts
         facts.AddRange(sagaDiscovery.Facts);
         diagnostics.AddRange(sagaDiscovery.Diagnostics);
         var catalog = new DotNetArtifactCatalog(project.Compilation);
+        var endpoints = new List<HttpEndpoint>();
         foreach (var type in catalog.Types.Where(_ => IsPublicSourceType(_, project) && !IsIgnored(_) && !WolverineSagaFacts.IsSagaType(_, project)))
         {
             foreach (var method in type.GetMembers().OfType<IMethodSymbol>().Where(_ => IsPublicSourceMethod(_, project) && !IsIgnored(_)))
@@ -87,20 +88,34 @@ static class WolverineFacts
                     continue;
                 }
 
-                var request = RequestParameter(method, project);
-                var slicePattern = WolverineSlicePatterns.Resolve(method, request is not null ? MessageElementType(request.Type) : null, endpoint, project, adapter, diagnostics);
-                var firstPlacement = placements.Count;
                 if (endpoint is not null)
                 {
-                    AnalyzeEndpoint(project, options, adapter, subjects, endpoint, validationAuthorization, facts, placements, diagnostics);
+                    endpoints.Add(endpoint);
                 }
                 else
                 {
+                    var request = RequestParameter(method, project);
+                    var slicePattern = WolverineSlicePatterns.Resolve(method, request is not null ? MessageElementType(request.Type) : null, endpoint, project, adapter, diagnostics);
+                    var firstPlacement = placements.Count;
                     AnalyzeHandler(project, options, adapter, subjects, method, validationAuthorization, facts, placements, diagnostics);
+                    WolverineSlicePatterns.Apply(slicePattern, method, project, placements, firstPlacement, diagnostics);
                 }
-
-                WolverineSlicePatterns.Apply(slicePattern, method, project, placements, firstPlacement, diagnostics);
             }
+        }
+
+        // Endpoints are analyzed after handlers so an endpoint that only forwards its command to a handler defers to it.
+        var handledCommands = facts
+            .OfType<ArtifactFact>()
+            .Where(_ => _.Definition.Key.Kind == ArtifactKind.Command)
+            .Select(_ => _.Definition.Key.Subject)
+            .ToHashSet();
+        foreach (var endpoint in endpoints)
+        {
+            var request = RequestParameter(endpoint.Method, project);
+            var slicePattern = WolverineSlicePatterns.Resolve(endpoint.Method, request is not null ? MessageElementType(request.Type) : null, endpoint, project, adapter, diagnostics);
+            var firstPlacement = placements.Count;
+            AnalyzeEndpoint(project, options, adapter, subjects, endpoint, validationAuthorization, handledCommands, facts, placements, diagnostics);
+            WolverineSlicePatterns.Apply(slicePattern, endpoint.Method, project, placements, firstPlacement, diagnostics);
         }
 
         return new(facts, diagnostics, placements);
@@ -169,6 +184,7 @@ static class WolverineFacts
         CritterStackSubjectResolver subjects,
         HttpEndpoint endpoint,
         WolverineValidationAuthorizationDiscoveryResult validationAuthorization,
+        HashSet<SubjectId> handledCommands,
         List<GenerationFact> facts,
         List<CritterStackPlacementIntent> placements,
         List<GenerationDiagnostic> diagnostics)
@@ -197,9 +213,49 @@ static class WolverineFacts
             ? $"{method.Name}{entity?.Type.Name}"
             : method.ContainingType.Name.Replace("Endpoint", string.Empty, StringComparison.Ordinal));
         var evidence = MethodEvidence(method, project, adapter, EvidenceStrength.Exact, $"Wolverine HTTP {endpoint.Verb} endpoint");
+        var hasCompoundValidation = validationAuthorization.HasCompoundValidation(method);
+        IReadOnlyList<ITypeSymbol> eventTypes = [];
+        if (dcb is not null)
+        {
+            eventTypes = dcb.EventTypes;
+        }
+        else if (aggregateWorkflow && parameterBindings.Count == 0)
+        {
+            eventTypes = [.. AggregateReturnEvents(method, project)];
+        }
+        var bodyEvents = dcb is null ? PersistenceEvents(method, project).ToArray() : [];
+        var returnIdentity = commandType is not null && aggregate?.Type is INamedTypeSymbol identityAggregate
+            ? IdentityProperty(commandType, identityAggregate)
+            : null;
+        var productionDiagnostics = new List<GenerationDiagnostic>();
+        var productions = WolverineProductionPlan.Decide(
+            new(
+                commandName,
+                commandSubject,
+                evidence.Source,
+                eventTypes,
+                returnIdentity,
+                bodyEvents,
+                dcb is null ? WolverineProductionLinks.SessionAppends(method, request, project) : [],
+                dcb is null && aggregateWorkflow && parameterBindings.Count == 0
+                    ? WolverineProductionLinks.AggregateYields(method, returnIdentity, project)
+                    : [],
+                dcb?.ImperativeEventTypes ?? [],
+                [.. appendDiscovery.Appends.SelectMany(_ => _.EventTypes)],
+                hasCompoundValidation),
+            productionDiagnostics);
+        if (commandType is not null &&
+            handledCommands.Contains(commandSubject) &&
+            IsHandlerForwarder(method, project, commandType, aggregate, dcb, streamBindings, appendDiscovery, productions))
+        {
+            AddForwarderDiagnostics(endpoint, commandType, commandSubject, evidence, validationAuthorization, diagnostics);
+            return;
+        }
+
+        diagnostics.AddRange(productionDiagnostics);
         var file = evidence.Source?.Path;
         var properties = commandType is not null
-            ? CommandProperties(commandType, aggregate?.Type as INamedTypeSymbol, parameterBindings, fetchedBindings.Count > 0)
+            ? CommandProperties(commandType, aggregate?.Type as INamedTypeSymbol, parameterBindings, fetchedBindings.Count > 0, LinkedStreamIdentity(productions))
             : QueryProperties(method, subjects);
         var feature = StateFeature(commandName, aggregate?.Type as INamedTypeSymbol, streamBindings, dcb?.ModelType);
         var compatibilityPlacement = CritterStackSourcePlacement.CompatibilityPlacement(
@@ -282,27 +338,12 @@ static class WolverineFacts
         }
         diagnostics.AddRange(validationAuthorization.AuthorizationDiagnostics(method, commandSubject));
 
-        var hasCompoundValidation = validationAuthorization.HasCompoundValidation(method);
-        IReadOnlyList<ITypeSymbol> eventTypes = [];
-        if (dcb is not null)
+        var eventOwner = commandSourceOwner ?? commandSubject;
+        foreach (var production in productions)
         {
-            eventTypes = dcb.EventTypes;
+            AddEventAndProduction(project, subjects, commandSubject, eventOwner, production, compatibilityPlacement, evidence, facts, placements);
         }
-        else if (aggregateWorkflow && parameterBindings.Count == 0)
-        {
-            eventTypes = [.. AggregateReturnEvents(method, project)];
-        }
-        var bodyEvents = dcb is null ? PersistenceEvents(method, project).ToArray() : [];
-        foreach (var eventType in eventTypes.Concat(bodyEvents).Distinct(SymbolEqualityComparer.Default).OfType<INamedTypeSymbol>())
-        {
-            var isImperativeDcbEvent = dcb?.ImperativeEventTypes.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) ?? false;
-            var declarative = eventTypes.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) &&
-                              !bodyEvents.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) &&
-                              !isImperativeDcbEvent &&
-                              !hasCompoundValidation;
-            AddEventAndProduction(project, subjects, commandSubject, eventType, compatibilityPlacement, evidence, declarative, facts, placements);
-        }
-        AddEventStreamAppendFacts(project, adapter, subjects, commandSubject, compatibilityPlacement, appendDiscovery, facts, placements, diagnostics);
+        AddEventStreamAppendFacts(project, adapter, subjects, commandSubject, eventOwner, compatibilityPlacement, appendDiscovery, facts, placements, diagnostics);
 
         var returnConsequences = WolverineReturnConsequences.Classify(
             method,
@@ -354,6 +395,13 @@ static class WolverineFacts
         {
             returnEvents = [.. AggregateReturnEvents(method, project)];
         }
+        var returnIdentity = aggregate?.Type is INamedTypeSymbol identityAggregate
+            ? IdentityProperty(requestType, identityAggregate)
+            : null;
+        var sessionAppends = dcb is null ? WolverineProductionLinks.SessionAppends(method, request, project) : [];
+        var yields = dcb is null && aggregateWorkflow && parameterBindings.Count == 0
+            ? WolverineProductionLinks.AggregateYields(method, returnIdentity, project)
+            : [];
         var deletedDocuments = DocumentDeletes(method, project).ToArray();
         var hasDocumentPersistence = HasDocumentPersistence(method, project);
         var busConsequences = WolverineBusConsequences.Discover(method, project);
@@ -369,6 +417,7 @@ static class WolverineFacts
             : [];
         if (bodyEvents.Length == 0 &&
             returnEvents.Count == 0 &&
+            yields.Count == 0 &&
             deletedDocuments.Length == 0 &&
             !appendDiscovery.HasDirectWrite &&
             !streamBindings.Any(_ => _.LoadsModel) &&
@@ -422,6 +471,20 @@ static class WolverineFacts
             isHttpEndpoint: false));
         var evidenceExplanation = $"Wolverine message handler with persistence effects{(batched ? " (batched: Wolverine delivers arrays of this message)" : string.Empty)}";
         var evidence = MethodEvidence(method, project, adapter, EvidenceStrength.Exact, evidenceExplanation);
+        var productions = WolverineProductionPlan.Decide(
+            new(
+                requestType.Name,
+                commandSubject,
+                evidence.Source,
+                returnEvents,
+                returnIdentity,
+                bodyEvents,
+                sessionAppends,
+                yields,
+                dcb?.ImperativeEventTypes ?? [],
+                [.. appendDiscovery.Appends.SelectMany(_ => _.EventTypes)],
+                HasCompoundValidation: false),
+            diagnostics);
         var feature = StateFeature(requestType.Name, aggregate?.Type as INamedTypeSymbol, streamBindings, dcb?.ModelType);
         var compatibilityPlacement = CritterStackSourcePlacement.CompatibilityPlacement(
             project,
@@ -435,7 +498,7 @@ static class WolverineFacts
             key,
             requestType.Name,
             evidence.Source?.Path,
-            CommandProperties(requestType, aggregate?.Type as INamedTypeSymbol, parameterBindings, fetchedBindings.Count > 0),
+            CommandProperties(requestType, aggregate?.Type as INamedTypeSymbol, parameterBindings, fetchedBindings.Count > 0, LinkedStreamIdentity(productions)),
             evidence));
         placements.Add(new(
             $"wolverine:placement:command:{commandSubject.Value}",
@@ -461,15 +524,11 @@ static class WolverineFacts
             diagnostics);
         AddDcbFacts(project, adapter, subjects, commandSubject, requestType.Name, dcb, facts, diagnostics);
 
-        foreach (var eventType in returnEvents.Concat(bodyEvents).Distinct(SymbolEqualityComparer.Default).OfType<INamedTypeSymbol>())
+        foreach (var production in productions)
         {
-            var isImperativeDcbEvent = dcb?.ImperativeEventTypes.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) ?? false;
-            var declarative = returnEvents.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) &&
-                              !bodyEvents.Any(_ => SymbolEqualityComparer.Default.Equals(_, eventType)) &&
-                              !isImperativeDcbEvent;
-            AddEventAndProduction(project, subjects, commandSubject, eventType, compatibilityPlacement, evidence, declarative, facts, placements);
+            AddEventAndProduction(project, subjects, commandSubject, commandSubject, production, compatibilityPlacement, evidence, facts, placements);
         }
-        AddEventStreamAppendFacts(project, adapter, subjects, commandSubject, compatibilityPlacement, appendDiscovery, facts, placements, diagnostics);
+        AddEventStreamAppendFacts(project, adapter, subjects, commandSubject, commandSubject, compatibilityPlacement, appendDiscovery, facts, placements, diagnostics);
 
         AddDocumentDeletes(project, subjects, commandSubject, method, evidence, facts);
         AddReturnConsequences(project, subjects, commandSubject, returnConsequences, evidence, facts, sagaAnalysis: false);
@@ -1033,6 +1092,7 @@ static class WolverineFacts
         AdapterIdentity adapter,
         CritterStackSubjectResolver subjects,
         SubjectId commandSubject,
+        SubjectId eventOwner,
         ArtifactPlacement compatibilityPlacement,
         WolverineEventStreamAppendDiscovery discovery,
         List<GenerationFact> facts,
@@ -1082,10 +1142,10 @@ static class WolverineFacts
                         project,
                         subjects,
                         commandSubject,
-                        eventType,
+                        eventOwner,
+                        new WolverineProductionDecision(eventType, Declarative: false, StreamIdentity: null),
                         compatibilityPlacement,
                         evidence,
-                        declarative: false,
                         facts,
                         placements);
                 }
@@ -1137,13 +1197,14 @@ static class WolverineFacts
         DotNetProjectCompilation project,
         CritterStackSubjectResolver subjects,
         SubjectId commandSubject,
-        INamedTypeSymbol eventType,
+        SubjectId eventOwner,
+        WolverineProductionDecision production,
         ArtifactPlacement compatibilityPlacement,
         Evidence evidence,
-        bool declarative,
         List<GenerationFact> facts,
         List<CritterStackPlacementIntent> placements)
     {
+        var eventType = production.EventType;
         if (WolverineSagaTypes.IsSagaState(eventType, project))
         {
             return;
@@ -1161,7 +1222,7 @@ static class WolverineFacts
         placements.Add(new(
             $"wolverine:placement:event:{eventSubject.Value}:{commandSubject.Value}",
             eventKey,
-            null,
+            eventOwner,
             compatibilityPlacement,
             evidence));
         facts.Add(Relationship(
@@ -1170,7 +1231,67 @@ static class WolverineFacts
             RelationshipKind.Produces,
             eventSubject,
             evidence,
-            discriminator: declarative ? "declarative" : "imperative"));
+            sourceMember: production.StreamIdentity is null ? null : LowerFirst(production.StreamIdentity.Name),
+            discriminator: production.Declarative ? "declarative" : "imperative"));
+    }
+
+    static IPropertySymbol? LinkedStreamIdentity(IReadOnlyList<WolverineProductionDecision> productions)
+    {
+        var identities = productions
+            .Where(_ => _.Declarative)
+            .Select(_ => _.StreamIdentity)
+            .OfType<IPropertySymbol>()
+            .Distinct(SymbolEqualityComparer.Default)
+            .OfType<IPropertySymbol>()
+            .ToArray();
+        return identities.Length == 1 ? identities[0] : null;
+    }
+
+    static bool IsHandlerForwarder(
+        IMethodSymbol method,
+        DotNetProjectCompilation project,
+        INamedTypeSymbol commandType,
+        IParameterSymbol? aggregate,
+        WolverineDcbDiscovery? dcb,
+        IReadOnlyList<WolverineStateBinding> streamBindings,
+        WolverineEventStreamAppendDiscovery appendDiscovery,
+        IReadOnlyList<WolverineProductionDecision> productions) =>
+        aggregate is null &&
+        dcb is null &&
+        streamBindings.Count == 0 &&
+        !appendDiscovery.HasDirectWrite &&
+        productions.Count == 0 &&
+        !method.Parameters.Any(IsPersistenceBoundParameter) &&
+        !HasDocumentPersistence(method, project) &&
+        WolverineBusConsequences.Discover(method, project) is [var consequence] &&
+        SymbolEqualityComparer.Default.Equals(consequence.MessageType, commandType) &&
+        DiscoverOutgoingMessages(method, project).Count == 0 &&
+        WolverineReturnConsequences.Classify(method, project, isHttpEndpoint: true, aggregateWorkflow: false, hasEventStream: false)
+            .All(_ => _.Kind == WolverineReturnConsequenceKind.HttpResponse);
+
+    static void AddForwarderDiagnostics(
+        HttpEndpoint endpoint,
+        INamedTypeSymbol commandType,
+        SubjectId commandSubject,
+        Evidence evidence,
+        WolverineValidationAuthorizationDiscoveryResult validationAuthorization,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        diagnostics.Add(new GenerationDiagnostic
+        {
+            Code = WolverineDiagnosticCodes.HttpMetadataOmitted,
+            Severity = GenerationDiagnosticSeverity.Information,
+            Outcome = GenerationDiagnosticOutcome.Unsupported,
+            Message = $"HTTP {endpoint.Verb} route '{endpoint.Route}' forwards '{commandType.Name}' to its Wolverine handler; the route is not represented by the current Screenplay language",
+            Source = evidence.Source,
+            Subject = commandSubject
+        });
+        diagnostics.AddRange(validationAuthorization.ValidationDiagnostics(
+            endpoint.Method,
+            commandType,
+            commandSubject,
+            isHttpEndpoint: true));
+        diagnostics.AddRange(validationAuthorization.AuthorizationDiagnostics(endpoint.Method, commandSubject));
     }
 
     static void AddDirectBusConsequences(
@@ -1744,9 +1865,10 @@ static class WolverineFacts
         INamedTypeSymbol commandType,
         INamedTypeSymbol? aggregateType,
         IReadOnlyList<WolverineStateBinding> parameterBindings,
-        bool hasFetchedStreams)
+        bool hasFetchedStreams,
+        IPropertySymbol? linkedStreamIdentity = null)
     {
-        var identity = parameterBindings.Count switch
+        var identity = linkedStreamIdentity ?? parameterBindings.Count switch
         {
             0 when aggregateType is null && hasFetchedStreams => null,
             0 => IdentityProperty(commandType, aggregateType),
