@@ -5,17 +5,17 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Screenplay" Version="4.47.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.18.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.18.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.18.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet.Vogen" Version="0.18.0" />
+    <PackageVersion Include="Cratis.Screenplay" Version="4.141.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.18.1" />
+    <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.18.1" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.18.1" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet.Vogen" Version="0.18.1" />
     <!-- Canonical fixtures -->
-    <PackageVersion Include="Marten" Version="9.45.0" />
+    <PackageVersion Include="Marten" Version="9.49.0" />
     <PackageVersion Include="Vogen" Version="8.0.7" />
-    <PackageVersion Include="WolverineFx" Version="6.45.0" />
-    <PackageVersion Include="WolverineFx.Http" Version="6.45.0" />
-    <PackageVersion Include="WolverineFx.Marten" Version="6.45.0" />
+    <PackageVersion Include="WolverineFx" Version="6.49.0" />
+    <PackageVersion Include="WolverineFx.Http" Version="6.49.0" />
+    <PackageVersion Include="WolverineFx.Marten" Version="6.49.0" />
     <!-- Microsoft -->
     <PackageVersion Include="Microsoft.Build.Framework" Version="18.10.1" />
     <PackageVersion Include="Microsoft.Build.Locator" Version="1.11.2" />
@@ -27,13 +27,13 @@
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
     <!-- Analysis -->
     <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556" NoWarn="NU5104" />
-    <PackageVersion Include="Roslynator.Analyzers" Version="5.0.0" />
-    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.291" />
+    <PackageVersion Include="Roslynator.Analyzers" Version="5.0.1" />
+    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.299" />
     <!-- Specs -->
     <PackageVersion Include="Cratis.Specifications" Version="4.1.1" />
     <PackageVersion Include="Cratis.Specifications.XUnit" Version="4.1.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
     <PackageVersion Include="NSubstitute" Version="6.2.0" />
   </ItemGroup>
