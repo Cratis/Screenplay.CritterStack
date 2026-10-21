@@ -16,7 +16,7 @@ public class when_generating_nullable_and_collection_enum_properties : given.an_
         _collection = Generate(CreateProject(propertyType: "System.Collections.Generic.IReadOnlyList<Priority>"));
     }
 
-    [Fact] void should_preserve_nullable_enum_fields() => _nullable.Source.ShouldContain("priority Priority?");
+    [Fact] void should_preserve_nullable_enum_fields() => _nullable.Source.ShouldContain("priority Priority optional");
     [Fact] void should_preserve_array_enum_fields() => _array.Source.ShouldContain("priority Priority[]");
     [Fact] void should_preserve_collection_enum_fields() => _collection.Source.ShouldContain("priority Priority[]");
     [Fact] void should_emit_a_concept_for_each_supported_shape() => Results.All(_ => _.Source.Contains("concept Priority : Enum", StringComparison.Ordinal)).ShouldBeTrue();
