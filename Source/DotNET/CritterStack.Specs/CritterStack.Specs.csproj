@@ -15,7 +15,7 @@
         <PackageReference Include="Cratis.Screenplay.Generation.DotNet.Vogen" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
 
-        <ProjectReference Include="../Canonical/Canonical.csproj" Condition="'$(Configuration)' == 'Debug'" />
+        <ProjectReference Include="../Canonical/Canonical.csproj" />
         <ProjectReference Include="../CritterStack/CritterStack.csproj" />
     </ItemGroup>
 </Project>
