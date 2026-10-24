@@ -9,7 +9,7 @@ public class when_analyzing_compound_handler_stages : given.a_compound_stage_han
 
     void Because() => _graph = new GenerationResolver().Resolve([Contribution]);
 
-    [Fact] void should_compile_the_fixture() => Project.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_fixture() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_preserve_the_request_as_a_command() => ArtifactNames(ArtifactKind.Command).ShouldContainOnly("InspectionRequested");
     [Fact] void should_select_the_message_after_the_bound_parameter() => ArtifactNames(ArtifactKind.Command).ShouldNotContain("InspectionRecord");
     [Fact] void should_retain_the_queryable_read() => Contribution.Facts.OfType<RelationshipFact>().Count(_ => _.Definition.Key.Kind == RelationshipKind.Reads && RelationshipTarget(_) == "InspectionRecord").ShouldEqual(1);

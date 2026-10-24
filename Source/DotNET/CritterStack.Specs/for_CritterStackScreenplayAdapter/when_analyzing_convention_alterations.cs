@@ -9,8 +9,8 @@ public class when_analyzing_convention_alterations : given.a_convention_alterati
 
     void Because() => _graph = new GenerationResolver().Resolve([Contribution]);
 
-    [Fact] void should_compile_the_baseline_fixture() => BaselineProject.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
-    [Fact] void should_compile_the_altered_fixture() => Project.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_baseline_fixture() => BaselineProject.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_altered_fixture() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_report_each_wolverine_alteration() => WolverineDiagnostics.Count.ShouldEqual(4);
     [Fact] void should_report_the_handler_policy_once() => WolverineDiagnostics.Count(_ => _.Message.Contains("CustomHandlerPolicy", StringComparison.Ordinal)).ShouldEqual(1);
     [Fact] void should_report_the_combined_policy_extension_once() => WolverineDiagnostics.Count(_ => _.Message.Contains("CustomPolicyExtension", StringComparison.Ordinal)).ShouldEqual(1);

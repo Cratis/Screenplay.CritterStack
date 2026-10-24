@@ -9,7 +9,7 @@ public class when_analyzing_storage_action_returns : given.a_storage_action_hand
 
     void Because() => _graph = new GenerationResolver().Resolve([Contribution]);
 
-    [Fact] void should_compile_the_fixture() => Project.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_fixture() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_store_each_returned_storage_action_document() => RelationshipTargets(RelationshipKind.Stores).ShouldContainOnly("ManifestDocument", "CountState", "ManifestDocument", "ManifestDocument");
     [Fact] void should_refine_each_delete_storage_factory() => RelationshipTargets(RelationshipKind.Deletes).ShouldContainOnly("ManifestDocument", "ManifestDocument");
     [Fact] void should_refine_the_update_storage_factory() => RelationshipTargets(RelationshipKind.Updates).ShouldContainOnly("ManifestDocument");

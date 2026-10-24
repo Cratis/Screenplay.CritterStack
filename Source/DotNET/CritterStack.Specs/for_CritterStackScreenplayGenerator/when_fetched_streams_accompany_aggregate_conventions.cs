@@ -76,7 +76,7 @@ public class when_fetched_streams_accompany_aggregate_conventions : given.a_wolv
 
     void Because() => _result = new CritterStackScreenplayGenerator().Generate([Project], new CritterStackScreenplayOptions { Domain = "Mixed" });
 
-    [Fact] void should_compile_the_input() => Project.Compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_input() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_generate_a_valid_candidate() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_keep_aggregate_returned_events() => Names(ArtifactKind.Event).ShouldContain("Changed");
     [Fact] void should_keep_http_aggregate_returned_events() => Names(ArtifactKind.Event).ShouldContain("HttpChanged");

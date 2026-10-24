@@ -9,7 +9,7 @@ public class when_analyzing_overloaded_wolverine_handlers : given.an_overloaded_
 
     void Because() => _graph = new GenerationResolver().Resolve([Contribution]);
 
-    [Fact] void should_compile_the_fixture() => Project.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_fixture() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_discover_each_overload_as_a_distinct_reaction() => Reactions.Select(_ => _.Key.Subject).Distinct().Count().ShouldEqual(2);
     [Fact] void should_link_each_overload_to_its_message() => HandledMessageNames.ShouldContainOnly("FirstTrigger", "SecondTrigger");
     [Fact] void should_keep_fact_identities_distinct() => Contribution.Facts.Select(_ => _.Id.Value).Distinct(StringComparer.Ordinal).Count().ShouldEqual(Contribution.Facts.Count);

@@ -45,7 +45,7 @@ public class and_the_other_type_is_a_generated_enum : given.an_application_print
         _direct = new ScreenplayDefinitionGenerator().Generate([new CritterStackScreenplayAdapter().Analyze(new([Project]), new())], new ScreenplayGenerationOptions { Domain = "Ordering" });
     }
 
-    [Fact] void should_compile_the_input() => Project.Compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_input() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_succeed_for_direct_adapter_consumers() => _direct.IsSuccess.ShouldBeTrue();
     [Fact] void should_not_declare_the_authored_enum() => _result.Source.ShouldNotContain("concept Status");

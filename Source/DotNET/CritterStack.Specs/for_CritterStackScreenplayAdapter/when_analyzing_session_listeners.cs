@@ -9,8 +9,8 @@ public class when_analyzing_session_listeners : given.a_session_listener_applica
 
     void Because() => _graph = new GenerationResolver().Resolve([Contribution]);
 
-    [Fact] void should_compile_the_baseline_fixture() => BaselineProject.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
-    [Fact] void should_compile_the_listener_fixture() => Project.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_baseline_fixture() => BaselineProject.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_listener_fixture() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_report_the_listener_once() => ListenerDiagnostics.Count.ShouldEqual(1);
     [Fact] void should_name_the_listener() => ListenerDiagnostics.Single().Message.ShouldContain("CommitListener");
     [Fact] void should_classify_the_loss_as_unsupported_information() => ListenerDiagnostics.All(_ => _.Severity == GenerationDiagnosticSeverity.Information && _.Outcome == GenerationDiagnosticOutcome.Unsupported).ShouldBeTrue();

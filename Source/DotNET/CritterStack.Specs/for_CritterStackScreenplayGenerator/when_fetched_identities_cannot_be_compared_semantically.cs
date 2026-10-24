@@ -61,7 +61,7 @@ public class when_fetched_identities_cannot_be_compared_semantically : given.a_w
 
     void Because() => _result = new CritterStackScreenplayGenerator().Generate([Project], new CritterStackScreenplayOptions { Domain = "Elements" });
 
-    [Fact] void should_compile_the_input() => Project.Compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_input() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_keep_reads_for_a_repeated_array_element() => Relationships("RepeatElement", RelationshipKind.Reads).Count.ShouldEqual(2);
     [Fact] void should_not_append_through_a_repeated_array_element() => Relationships("RepeatElement", RelationshipKind.Appends).ShouldBeEmpty();
     [Fact] void should_not_produce_through_a_repeated_array_element() => Relationships("RepeatElement", RelationshipKind.Produces).ShouldBeEmpty();

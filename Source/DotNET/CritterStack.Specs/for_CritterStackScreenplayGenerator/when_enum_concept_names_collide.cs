@@ -86,7 +86,7 @@ public class when_enum_concept_names_collide : Specification
         _direct = new ScreenplayDefinitionGenerator().Generate([new CritterStackScreenplayAdapter().Analyze(new([_project]), new())], new ScreenplayGenerationOptions { Domain = "Ordering" });
     }
 
-    [Fact] void should_compile_the_input() => _project.Compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_input() => _project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_succeed_for_direct_adapter_consumers() => _direct.IsSuccess.ShouldBeTrue();
     [Fact] void should_keep_the_command_using_a_nested_enum() => _result.Source.ShouldContain("command PlaceOrder");

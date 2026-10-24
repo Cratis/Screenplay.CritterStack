@@ -11,7 +11,7 @@ public class when_generating_a_wolverine_application_with_unresolved_discovery :
         [UnresolvedProject],
         new CritterStackScreenplayOptions { Domain = "UnresolvedDiscovery" });
 
-    [Fact] void should_compile_the_fixture() => UnresolvedProject.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_fixture() => UnresolvedProject.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_emit_stable_diagnostics_for_the_unresolved_configuration() => _result.Diagnostics.Count(_ => _.Code == WolverineDiagnosticCodes.HandlerDiscoveryConfigurationUnresolved).ShouldEqual(2);
     [Fact] void should_classify_the_unresolved_configuration_as_unknown() => _result.Diagnostics.Where(_ => _.Code == WolverineDiagnosticCodes.HandlerDiscoveryConfigurationUnresolved).All(_ => _.Outcome == GenerationDiagnosticOutcome.Unknown).ShouldBeTrue();

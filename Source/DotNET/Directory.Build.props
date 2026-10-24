@@ -37,20 +37,6 @@
     -->
     <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
         <IsTestProject>true</IsTestProject>
-
-        <!-- The test SDK generates an entry point; projects with top-level statements keep their own. -->
-        <NoWarn>$(NoWarn);CS7022</NoWarn>
     </PropertyGroup>
 
-    <ItemGroup Condition="'$(Configuration)' == 'Debug' AND '$(DedicatedSpecsProject)' != 'true'">
-        <PackageReference Include="xunit" />
-        <PackageReference Include="xunit.runner.visualstudio">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
-        <PackageReference Include="NSubstitute" />
-        <PackageReference Include="Microsoft.NET.Test.Sdk" />
-        <PackageReference Include="Cratis.Specifications" />
-        <PackageReference Include="Cratis.Specifications.XUnit" />
-    </ItemGroup>
 </Project>

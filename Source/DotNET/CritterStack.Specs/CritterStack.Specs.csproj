@@ -5,6 +5,7 @@
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
         <DedicatedSpecsProject>true</DedicatedSpecsProject>
+        <TargetFrameworks>net10.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>
@@ -12,15 +13,7 @@
         <PackageReference Include="Cratis.Screenplay.Generation" />
         <PackageReference Include="Cratis.Screenplay.Generation.DotNet" />
         <PackageReference Include="Cratis.Screenplay.Generation.DotNet.Vogen" />
-        <PackageReference Include="Cratis.Specifications" />
-        <PackageReference Include="Cratis.Specifications.XUnit" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
-        <PackageReference Include="Microsoft.NET.Test.Sdk" />
-        <PackageReference Include="xunit" />
-        <PackageReference Include="xunit.runner.visualstudio">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
 
         <ProjectReference Include="../Canonical/Canonical.csproj" Condition="'$(Configuration)' == 'Debug'" />
         <ProjectReference Include="../CritterStack/CritterStack.csproj" />

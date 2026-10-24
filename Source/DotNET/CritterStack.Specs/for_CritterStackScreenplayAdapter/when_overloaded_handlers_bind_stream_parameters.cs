@@ -29,7 +29,7 @@ public class when_overloaded_handlers_bind_stream_parameters : given.a_wolverine
         _reversed = adapter.Analyze(new([reversed]), new());
     }
 
-    [Fact] void should_compile_the_input() => Project.Compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_input() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_keep_overloaded_append_targets_distinct() => Discriminators(_result).Distinct().Count().ShouldEqual(2);
     [Fact] void should_keep_discriminators_stable_when_syntax_trees_are_reordered() => Discriminators(_result).ShouldContainOnly(Discriminators(_reversed));
 

@@ -11,7 +11,7 @@ public class when_generating_a_wolverine_application_with_validation_and_authori
         [PositiveProject],
         new CritterStackScreenplayOptions { Domain = "ValidationAuthorization" });
 
-    [Fact] void should_compile_the_fixture() => PositiveProject.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_fixture() => PositiveProject.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_classify_each_recognized_policy_gap_as_unsupported() => _result.Diagnostics.All(_ => _.Outcome == GenerationDiagnosticOutcome.Unsupported).ShouldBeTrue();
     [Fact] void should_record_each_exact_validation_policy_activation() => _result.Diagnostics.Count(_ => _.Code == WolverineDiagnosticCodes.ValidationPolicyOmitted).ShouldEqual(4);

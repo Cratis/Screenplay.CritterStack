@@ -9,8 +9,8 @@ public class when_analyzing_projection_side_effects : given.a_projection_side_ef
 
     void Because() => _graph = new GenerationResolver().Resolve([Contribution]);
 
-    [Fact] void should_compile_the_fixture() => Project.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
-    [Fact] void should_compile_the_unconfigured_fixture() => UnconfiguredProject.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_fixture() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_unconfigured_fixture() => UnconfiguredProject.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_discover_the_published_message() => ArtifactNames(ArtifactKind.Message).ShouldContain("SummaryChanged");
     [Fact] void should_publish_from_the_projection() => RelationshipSource(Publishes).ShouldEqual("SummaryProjection");
     [Fact] void should_publish_the_literal_message() => RelationshipTarget(Publishes).ShouldEqual("SummaryChanged");

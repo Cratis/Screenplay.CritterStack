@@ -43,7 +43,7 @@ public class when_query_parameters_start_with_an_enum : Specification
 
     void Because() => _result = new CritterStackScreenplayAdapter().Analyze(new([_project]), new());
 
-    [Fact] void should_compile_the_input() => _project.Compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_input() => _project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_keep_the_authored_enum_parameter() => Property("Get", "status").IsIdentifier.ShouldBeFalse();
     [Fact] void should_keep_the_identifier_on_the_first_non_enum_parameter() => Property("Get", "customerId").IsIdentifier.ShouldBeTrue();
     [Fact] void should_not_make_an_authored_enum_the_only_identifier() => Query("ByStatus").Definition.Properties.Any(property => property.IsIdentifier).ShouldBeFalse();

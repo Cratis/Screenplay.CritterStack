@@ -11,7 +11,7 @@ public class when_generating_a_wolverine_application_with_validation_packages_on
         [PackageOnlyProject],
         new CritterStackScreenplayOptions { Domain = "PackageOnly" });
 
-    [Fact] void should_compile_the_fixture() => PackageOnlyProject.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_fixture() => PackageOnlyProject.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_not_treat_fluent_validation_types_as_policy_activation() => _result.Diagnostics.Select(_ => _.Code).ShouldNotContain(WolverineDiagnosticCodes.ValidationPolicyOmitted);
     [Fact] void should_not_apply_fluent_validation_without_enablement() => _result.Diagnostics.Select(_ => _.Code).ShouldNotContain(WolverineDiagnosticCodes.ValidationOmitted);

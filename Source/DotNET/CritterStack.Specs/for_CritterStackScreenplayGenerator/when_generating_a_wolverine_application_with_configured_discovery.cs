@@ -11,7 +11,7 @@ public class when_generating_a_wolverine_application_with_configured_discovery :
         [Project],
         new CritterStackScreenplayOptions { Domain = "ConfiguredDiscovery" });
 
-    [Fact] void should_compile_the_fixture() => Project.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_fixture() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_activate_an_included_conventional_method() => HasMessage("IncludedTrigger").ShouldBeTrue();
     [Fact] void should_activate_an_included_current_explicit_method() => HasMessage("CurrentExplicitTrigger").ShouldBeTrue();

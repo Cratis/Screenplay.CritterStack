@@ -7,8 +7,8 @@ public class when_analyzing_handler_chain_configuration : given.a_handler_chain_
 {
     void Because() => new GenerationResolver().Resolve([Contribution]);
 
-    [Fact] void should_compile_the_baseline_fixture() => BaselineProject.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
-    [Fact] void should_compile_the_configured_fixture() => Project.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_baseline_fixture() => BaselineProject.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_configured_fixture() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_report_the_chain_configuration_once() => ChainDiagnostics.Count.ShouldEqual(1);
     [Fact] void should_report_retry_and_discard_delivery_loss() => ChainDiagnostics.Single().Message.ShouldContain("retry or discard delivery semantics");
     [Fact] void should_classify_the_loss_as_unsupported_information() => ChainDiagnostics.All(_ => _.Severity == GenerationDiagnosticSeverity.Information && _.Outcome == GenerationDiagnosticOutcome.Unsupported).ShouldBeTrue();

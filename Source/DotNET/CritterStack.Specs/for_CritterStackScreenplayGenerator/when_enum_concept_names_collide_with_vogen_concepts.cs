@@ -59,7 +59,7 @@ public class when_enum_concept_names_collide_with_vogen_concepts : Specification
 
     void Because() => _result = new CritterStackScreenplayGenerator().Generate([_project], new CritterStackScreenplayOptions { Domain = "Ordering" });
 
-    [Fact] void should_compile_the_input() => _project.Compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_input() => _project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_keep_the_vogen_concept() => _result.Source.ShouldContain("concept Status : Uuid");
     [Fact] void should_not_declare_the_enum_concept() => _result.Source.ShouldNotContain("concept Status : Enum");

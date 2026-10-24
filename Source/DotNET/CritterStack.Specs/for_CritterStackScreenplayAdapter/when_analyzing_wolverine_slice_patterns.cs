@@ -9,7 +9,7 @@ public class when_analyzing_wolverine_slice_patterns : given.a_wolverine_slice_p
 
     void Because() => _result = new CritterStackScreenplayAdapter().Analyze(new([Project]), new());
 
-    [Fact] void should_have_compiler_checked_input() => Project.Compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_have_compiler_checked_input() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_map_command_explicitly_and_prefer_method_over_type() => Placement("Change").Placement.SliceKind.ShouldEqual(GenerationSliceKind.StateChange);
     [Fact] void should_map_view_without_changing_the_command_kind() => Placement("View").Placement.SliceKind.ShouldEqual(GenerationSliceKind.StateView);
     [Fact] void should_map_automation_over_persistence_inference() => Placement("Automate").Placement.SliceKind.ShouldEqual(GenerationSliceKind.Automation);
