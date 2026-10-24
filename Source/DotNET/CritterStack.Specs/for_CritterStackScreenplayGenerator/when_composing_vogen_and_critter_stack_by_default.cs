@@ -17,7 +17,11 @@ public class when_composing_vogen_and_critter_stack_by_default : given.a_compose
     [Fact] void should_generate_the_vogen_uuid_concept() => _result.Source.ShouldContain("concept OrderId : Uuid");
     [Fact] void should_generate_the_vogen_text_concept() => _result.Source.ShouldContain("concept CustomerCode : String");
     [Fact] void should_resolve_the_command_concept_usage() => _result.Source.ShouldContain("id OrderId");
-    [Fact] void should_preserve_nullable_concept_usage() => _result.Source.ShouldContain("referralCode CustomerCode?");
+    [Fact] void should_preserve_nullable_concept_usage()
+    {
+        _result.Source.ShouldContain("referralCode CustomerCode optional");
+        _result.Graph.Artifacts.Single(_ => _.Key.Kind == ArtifactKind.Command).Variants.Single().Definition.Properties.Single(_ => _.Name == "referralCode").Type.IsOptional.ShouldBeTrue();
+    }
     [Fact] void should_preserve_the_named_validation_rule() => _result.Source.ShouldContain("rule Validate");
     [Fact] void should_preserve_the_constant_validation_message() => _result.Source.ShouldContain("message \"Customer codes cannot be blank\"");
     [Fact] void should_keep_vogen_concept_provenance() => EvidenceFor(ArtifactKind.Concept, "CustomerCode").Single().Adapter.Id.ShouldEqual("vogen");
