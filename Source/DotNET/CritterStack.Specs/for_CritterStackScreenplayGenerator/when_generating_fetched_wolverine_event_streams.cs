@@ -9,7 +9,7 @@ public class when_generating_fetched_wolverine_event_streams : given.a_wolverine
 
     void Because() => _result = new CritterStackScreenplayGenerator().Generate([Project], new CritterStackScreenplayOptions { Domain = "Batches" });
 
-    [Fact] void should_have_compiler_checked_input() => Project.Compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_have_compiler_checked_input() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_recognize_inherited_guid_fetch_with_named_cancellation_and_configure_await() => Relationships("Move", RelationshipKind.Reads).Select(relationship => relationship.Definitions.Single().SourceMember).ShouldContainOnly(["fromId", "toId"]);
     [Fact] void should_target_the_debit_slot() => Append("Move", "Debit").Definitions.Single().SourceMember.ShouldEqual("fromId");

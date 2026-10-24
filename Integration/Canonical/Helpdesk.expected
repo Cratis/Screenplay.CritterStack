@@ -1,5 +1,5 @@
 # JasperFx/CritterStackHelpDesk @ b67659dd7ca6d8ff07e7b9dad20affc4a37b6062
-source-sha256: 0915b4551b32e5de9c25e5714f5cd1170e80672127e5efaaa68cdb0246bd2edc
+source-sha256: 8c60590a408fef93bb8d41016921a0f8c79c75b1f2f22b58e5987f78b3354122
 source: concept IncidentCategory : Enum
 source: concept IncidentPriority : Enum
 source: concept IncidentStatus : Enum

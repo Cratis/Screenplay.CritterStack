@@ -49,7 +49,7 @@ public class when_fetched_identities_share_member_names : given.a_wolverine_fetc
 
     void Because() => _result = new CritterStackScreenplayGenerator().Generate([Project], new CritterStackScreenplayOptions { Domain = "Members" });
 
-    [Fact] void should_compile_the_input() => Project.Compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_input() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_keep_appends_through_same_named_fields_of_different_types() => Relationships("Transfer", RelationshipKind.Appends).Count.ShouldEqual(1);
     [Fact] void should_keep_the_event_appended_through_same_named_fields() => _result.Source.ShouldContain("event Transferred");
     [Fact] void should_treat_a_parenthesized_receiver_as_the_same_identity() => Relationships("Parenthesized", RelationshipKind.Appends).ShouldBeEmpty();

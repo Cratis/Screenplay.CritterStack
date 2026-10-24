@@ -83,7 +83,7 @@ public class when_method_properties_have_no_concept : Specification
         _direct = new ScreenplayDefinitionGenerator().Generate([new CritterStackScreenplayAdapter().Analyze(new([_project]), new())], new ScreenplayGenerationOptions { Domain = "Methods" });
     }
 
-    [Fact] void should_compile_the_input() => _project.Compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_input() => _project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_keep_the_flags_query() => _result.Source.ShouldContain("query Flags");
     [Fact] void should_keep_the_flags_command() => _result.Source.ShouldContain("command ChangeFlags");
     [Fact] void should_keep_the_generated_enum_query() => _result.Source.ShouldContain("query Generated");

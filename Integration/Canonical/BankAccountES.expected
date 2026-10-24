@@ -1,12 +1,12 @@
 # JasperFx/CritterStackSamples @ e28ef4a3c502e9b9983d0018c570a64e79046faa
-source-sha256: 4d028470fecb3877ac12526c41af9fe17ed0669a37385abde9e3e869a20355df
+source-sha256: 3d9e513c0a5b65860b3f88efdf0388677add0a4d6d350f1019b6887fc67ecdc9
 source: command DepositFunds
 source: command WithdrawFunds
 source: command OpenAccount
 source: readmodel Account
 source: reducer AccountSnapshot => Account
 source: readmodel AccountTransactions
-source: query GetTransactions => AccountTransactions?
+source: query GetTransactions => AccountTransactions optional
 source: event FundsDeposited
 source: event FundsWithdrawn
 not-source: event IResult

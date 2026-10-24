@@ -9,7 +9,7 @@ public class when_analyzing_batched_message_handlers : given.a_batched_message_h
 
     void Because() => _graph = new GenerationResolver().Resolve([Contribution]);
 
-    [Fact] void should_compile_the_fixture() => Project.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_fixture() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_discover_the_message() => _graph.Artifacts.Any(_ => _.Key.Kind == ArtifactKind.Message && _.Variants.Single().Definition.Name == "ServiceUpdates").ShouldBeTrue();
     [Fact] void should_discover_the_reaction() => _graph.Artifacts.Any(_ => _.Key.Kind == ArtifactKind.Reaction && _.Variants.Single().Definition.Name == "ServiceUpdatesBatch").ShouldBeTrue();
     [Fact] void should_link_the_batch_handler() => HandlesRelationships.Count.ShouldEqual(1);

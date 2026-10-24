@@ -1,11 +1,11 @@
 # JasperFx/CritterStackSamples @ e28ef4a3c502e9b9983d0018c570a64e79046faa
-source-sha256: 8237e8710ebbbdc8a6193cf062c2a7856d5762d0c38614dbf2233daf978e9e9c
+source-sha256: 7370a79800b02e503a39fd8803bcc308e387f4687219a077abe4133966ec51ca
 source: command CreateStudentRequest
 source: command UpdateStudentRequest
 source: command DeleteStudent
 source: query GetAll => Student[]
-source: query GetById => Student?
-source: query GetByName => Student?
+source: query GetById => Student optional
+source: query GetByName => Student optional
 source: readmodel Student
 not-source: projection Student
 not-source: reducer Student

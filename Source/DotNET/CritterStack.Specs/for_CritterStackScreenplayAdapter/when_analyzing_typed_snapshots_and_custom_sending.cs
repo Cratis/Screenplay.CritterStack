@@ -9,7 +9,7 @@ public class when_analyzing_typed_snapshots_and_custom_sending : given.a_marten_
 
     void Because() => _result = new CritterStackScreenplayAdapter().Analyze(new([Project]), new());
 
-    [Fact] void should_compile_the_real_overload_shapes() => Project.Compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_real_overload_shapes() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_admit_the_snapshot_model() => Names(ArtifactKind.ReadModel).ShouldContain("SnapshotModel");
     [Fact] void should_admit_the_live_model() => Names(ArtifactKind.ReadModel).ShouldContain("LiveModel");
     [Fact] void should_not_treat_the_identity_type_as_a_model() => Names(ArtifactKind.ReadModel).ShouldNotContain("NaturalId");

@@ -9,7 +9,7 @@ public class when_analyzing_persistence_bound_queries : given.a_persistence_boun
 
     void Because() => _graph = new GenerationResolver().Resolve([Contribution]);
 
-    [Fact] void should_compile_the_fixture() => Project.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_fixture() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_retain_each_bound_query_read() => Reads.Count.ShouldEqual(3);
     [Fact] void should_retain_the_entity_read() => ReadFrom("GetById", "Student").Definition.Key.Discriminator.ShouldEqual("entity");
     [Fact] void should_retain_the_first_or_default_read() => ReadFrom("GetDefaults", "Defaults").Definition.Key.Discriminator.ShouldEqual("first-or-default");

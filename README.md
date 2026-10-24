@@ -84,11 +84,26 @@ See:
 
 ## Build and test
 
+The specifications use Cratis.Specifications 5.0 and the native xUnit v3 executable runner. The dedicated specification project requires .NET 10 in Debug and Release; the library still targets net8.0, net9.0, and net10.0 in Release and remains a library.
+
 ```shell
-dotnet test Screenplay.CritterStack.slnx --configuration Debug
-dotnet build Screenplay.CritterStack.slnx --configuration Release
-dotnet pack Screenplay.CritterStack.slnx --no-build --configuration Release -o Artifacts/NuGet
+dotnet build Screenplay.CritterStack.slnx --configuration Debug --warnaserror
+bash .github/scripts/run-specifications.sh Debug
+dotnet build Screenplay.CritterStack.slnx --configuration Release -p:Version=9999.0.0 --warnaserror
+bash .github/scripts/run-specifications.sh Release
+dotnet pack Screenplay.CritterStack.slnx --no-build --configuration Release -o Artifacts/NuGet -p:Version=9999.0.0
+./scripts/verify-package-consumer.sh 9999.0.0 Artifacts/NuGet
 ```
+
+The runner writes fresh logs and TRX files under `TestResults/`. Missing projects or executables, nonzero child exits, and missing, invalid, or zero-test TRX results fail the run. Run `bash .github/scripts/run-specifications.sh --self-test` to exercise these guards (Node.js required); validating TRX results requires Python 3.
+
+Run the specification project directly (append `.exe` on Windows):
+
+```shell
+Source/DotNET/CritterStack.Specs/bin/Debug/net10.0/Cratis.CritterStack.Screenplay.Specs
+```
+
+Use `-class`, `-method`, or `-namespace` with fully qualified names to filter tests; `-?` lists all options. `dotnet test Screenplay.CritterStack.slnx --configuration Debug --no-build` and IDE test explorers remain supported through the VSTest adapter; no Microsoft.Testing.Platform configuration is required.
 
 ## The Cratis ecosystem
 

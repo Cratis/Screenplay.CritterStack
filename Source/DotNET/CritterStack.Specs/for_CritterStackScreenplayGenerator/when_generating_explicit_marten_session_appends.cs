@@ -14,7 +14,7 @@ public class when_generating_explicit_marten_session_appends : given.a_community
         [_project],
         new CritterStackScreenplayOptions { Domain = "CommunityKitchen" });
 
-    [Fact] void should_compile_the_fixture() => _project.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_fixture() => _project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_link_the_started_stream_declaratively() => Production(_result, "PlanBatch", "BatchPlanned")!.Key.Discriminator.ShouldEqual("declarative");
     [Fact] void should_record_the_started_stream_identity() => Production(_result, "PlanBatch", "BatchPlanned")!.Definitions.Single().SourceMember.ShouldEqual("id");

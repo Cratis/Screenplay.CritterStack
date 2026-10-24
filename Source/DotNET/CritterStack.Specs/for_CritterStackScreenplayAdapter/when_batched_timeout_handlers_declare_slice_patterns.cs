@@ -24,7 +24,7 @@ public class when_batched_timeout_handlers_declare_slice_patterns : given.a_wolv
 
     void Because() => _result = new CritterStackScreenplayAdapter().Analyze(new([Project]), new());
 
-    [Fact] void should_compile_the_input() => Project.Compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_input() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_report_the_declaration_conflicting_with_the_timeout_trigger() => _result.Diagnostics.Single(diagnostic => diagnostic.Code == WolverineDiagnosticCodes.SlicePatternConflict).Message.ShouldContain("TimeoutMessage");
     [Fact] void should_not_let_the_declaration_classify_the_batched_timeout_handler() => _result.Facts.OfType<ArtifactPlacementFact>().Any(fact => fact.Placement.SliceKind == GenerationSliceKind.StateChange && fact.Evidence.Explanation?.Contains("sliceClassification", StringComparison.Ordinal) == true).ShouldBeFalse();
 }

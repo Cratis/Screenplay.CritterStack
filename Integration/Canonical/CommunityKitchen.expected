@@ -1,5 +1,5 @@
 # Cratis-owned fixture: Marten 9.45.0, WolverineFx 6.45.0, WolverineFx.Http 6.45.0, WolverineFx.Marten 6.45.0
-source-sha256: 32c14d6d9193378da7ced6c94e42ca311cebd83315e609d804a97ef8eeeb6528
+source-sha256: d11d9c6ea166b87c56f5ef59ff33a3ef497757207f51326e88507a38c18b7352
 source: command PlanBatch
 source: id Uuid identifier
 source: produces BatchPlanned

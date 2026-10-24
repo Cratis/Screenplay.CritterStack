@@ -62,7 +62,7 @@ public class when_fetched_stream_bindings_escape : given.a_wolverine_fetch_many_
 
     void Because() => _result = new CritterStackScreenplayGenerator().Generate([Project], new CritterStackScreenplayOptions { Domain = "Escaping" });
 
-    [Fact] void should_compile_the_escape_shapes() => Project.Compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_escape_shapes() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_not_invent_any_escaped_append() => _result.Graph.Relationships.Where(relationship => relationship.Key.Kind == RelationshipKind.Appends).ShouldBeEmpty();
     [Fact] void should_not_invent_any_escaped_event() => _result.Graph.Artifacts.Where(artifact => artifact.Key.Kind == ArtifactKind.Event).ShouldBeEmpty();
     [Fact] void should_retain_independent_fetch_reads() => _result.Graph.Relationships.Count(relationship => relationship.Key.Kind == RelationshipKind.Reads).ShouldEqual(_escapes.Length);

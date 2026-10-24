@@ -76,7 +76,7 @@ public class when_enums_are_used_by_method_backed_artifacts : Specification
 
     void Because() => _result = new CritterStackScreenplayGenerator().Generate([_project], new CritterStackScreenplayOptions { Domain = "Methods" });
 
-    [Fact] void should_compile_the_input() => _project.Compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_input() => _project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_generate_a_valid_candidate() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_discover_every_referenced_enum() => _result.Graph.Artifacts.Where(artifact => artifact.Key.Kind == ArtifactKind.Concept).Select(artifact => artifact.Variants[0].Definition.Name).ShouldContainOnly(["RouteChoice", "QueryChoice", "PlanChoice", "ReturnChoice"]);
     [Fact] void should_bind_the_route_parameter() => Property("Choose", "choice").Type.Subject!.Value.ShouldContain(".RouteChoice");

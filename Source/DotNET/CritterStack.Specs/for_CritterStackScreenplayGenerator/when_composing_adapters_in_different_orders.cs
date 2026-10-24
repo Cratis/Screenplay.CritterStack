@@ -18,6 +18,6 @@ public class when_composing_adapters_in_different_orders : given.a_composed_voge
     }
 
     [Fact] void should_generate_byte_identical_source() => _second.Source.ShouldEqual(_first.Source);
-    [Fact] void should_generate_identical_diagnostics() => _second.Diagnostics.ShouldEqual(_first.Diagnostics);
+    [Fact] void should_generate_identical_diagnostics() => _second.Diagnostics.ToArray().ShouldEqualInOrder([.. _first.Diagnostics]);
     [Fact] void should_keep_both_adapter_identities() => _first.Graph.Artifacts.SelectMany(_ => _.Variants).SelectMany(_ => _.Evidence).Select(_ => _.Adapter.Id).Distinct().ShouldContainOnly("vogen", "cratis.critter-stack");
 }

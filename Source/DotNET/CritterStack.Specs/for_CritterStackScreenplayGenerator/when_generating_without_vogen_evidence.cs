@@ -18,6 +18,6 @@ public class when_generating_without_vogen_evidence : given.a_critter_stack_appl
     }
 
     [Fact] void should_generate_byte_identical_source() => _composed.Source.ShouldEqual(_critterStackOnly.Source);
-    [Fact] void should_generate_identical_diagnostics() => _composed.Diagnostics.ShouldEqual(_critterStackOnly.Diagnostics);
+    [Fact] void should_generate_identical_diagnostics() => _composed.Diagnostics.ToArray().ShouldEqualInOrder([.. _critterStackOnly.Diagnostics]);
     [Fact] void should_not_add_vogen_provenance() => _composed.Graph.Artifacts.SelectMany(_ => _.Variants).SelectMany(_ => _.Evidence).Any(_ => _.Adapter.Id == "vogen").ShouldBeFalse();
 }

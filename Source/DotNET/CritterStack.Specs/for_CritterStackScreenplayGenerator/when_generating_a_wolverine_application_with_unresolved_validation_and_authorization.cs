@@ -11,7 +11,7 @@ public class when_generating_a_wolverine_application_with_unresolved_validation_
         [UnresolvedProject],
         new CritterStackScreenplayOptions { Domain = "UnresolvedPolicies" });
 
-    [Fact] void should_compile_the_fixture() => UnresolvedProject.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_fixture() => UnresolvedProject.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_report_each_unresolved_validation_configuration() => _result.Diagnostics.Count(_ => _.Code == WolverineDiagnosticCodes.ValidationConfigurationUnresolved).ShouldEqual(4);
     [Fact] void should_identify_the_runtime_fluent_validation_callback() => _result.Diagnostics.Any(_ => _.Code == WolverineDiagnosticCodes.ValidationConfigurationUnresolved && _.Message.Contains("configuration callback", StringComparison.Ordinal)).ShouldBeTrue();

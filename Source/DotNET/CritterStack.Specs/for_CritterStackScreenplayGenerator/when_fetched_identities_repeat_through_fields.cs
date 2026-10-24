@@ -50,7 +50,7 @@ public class when_fetched_identities_repeat_through_fields : given.a_wolverine_f
 
     void Because() => _result = new CritterStackScreenplayGenerator().Generate([Project], new CritterStackScreenplayOptions { Domain = "Repeats" });
 
-    [Fact] void should_compile_the_input() => Project.Compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_input() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_keep_reads_for_a_repeated_static_field() => Relationships("ShareEmpty", RelationshipKind.Reads).Count.ShouldEqual(2);
     [Fact] void should_not_append_through_a_repeated_static_field() => Relationships("ShareEmpty", RelationshipKind.Appends).ShouldBeEmpty();
     [Fact] void should_not_produce_through_a_repeated_static_field() => Relationships("ShareEmpty", RelationshipKind.Produces).ShouldBeEmpty();

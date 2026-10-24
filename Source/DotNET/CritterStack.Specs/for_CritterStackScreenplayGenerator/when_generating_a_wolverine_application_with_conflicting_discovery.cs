@@ -11,7 +11,7 @@ public class when_generating_a_wolverine_application_with_conflicting_discovery 
         [ConflictingProject],
         new CritterStackScreenplayOptions { Domain = "ConflictingDiscovery" });
 
-    [Fact] void should_compile_the_fixture() => ConflictingProject.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_fixture() => ConflictingProject.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_report_one_discovery_conflict() => ConflictDiagnostics.Count.ShouldEqual(1);
     [Fact] void should_classify_the_conflict() => ConflictDiagnostics.Single().Outcome.ShouldEqual(GenerationDiagnosticOutcome.Conflict);

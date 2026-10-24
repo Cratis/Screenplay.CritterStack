@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-#if DEBUG
 using Cratis.CritterStack.Screenplay.Canonical;
 
 namespace Cratis.CritterStack.Screenplay.for_CanonicalRunner;
@@ -92,4 +91,3 @@ public class when_selecting_the_application_project_reference_closure : Specific
     readonly record struct SyntheticProject(string Name, string RelativePath);
     readonly record struct SyntheticReference(string Project, string Dependency);
 }
-#endif

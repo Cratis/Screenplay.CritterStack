@@ -9,8 +9,8 @@ public class when_analyzing_marten_wire_configuration : given.a_marten_wire_conf
 
     void Because() => _graph = new GenerationResolver().Resolve([Contribution]);
 
-    [Fact] void should_compile_the_baseline_fixture() => BaselineProject.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
-    [Fact] void should_compile_the_configured_fixture() => Project.Compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_baseline_fixture() => BaselineProject.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_compile_the_configured_fixture() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_report_each_wire_configuration() => WireDiagnostics.Count.ShouldEqual(3);
     [Fact] void should_report_the_binary_serialized_event_type() => BinarySerializerDiagnostic.Message.ShouldContain("WireEvent");
     [Fact] void should_report_the_binary_serializer_type() => BinarySerializerDiagnostic.Message.ShouldContain("CustomBinarySerializer");
