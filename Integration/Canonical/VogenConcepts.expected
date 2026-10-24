@@ -1,5 +1,5 @@
 # Cratis-owned fixture: Vogen 8.0.7, Marten 9.45.0, Wolverine 6.45.0
-source-sha256: bf51ed285a5d2adcd37e60f61da17e3ee41b03d4f8e52fe704334c97d28c9078
+source-sha256: bb99d03fd694b6e7f230da0bd61d80a8af9da31177ce30d254a3a068fb21a667
 source: concept OrderKey : Uuid
 source: concept CorrelationId : Uuid
 source: concept CustomerCode : String
@@ -10,7 +10,7 @@ source: file Integration/Canonical/VogenConcepts/Concepts.cs
 source: command RegisterOrder
 source: key OrderKey
 source: correlationId CorrelationId
-source: referralCode CustomerCode?
+source: referralCode CustomerCode optional
 source: event OrderRegistered
 source: command TransferBetweenOrders
 source: sourceOrder OrderKey
