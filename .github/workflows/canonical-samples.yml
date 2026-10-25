@@ -25,7 +25,20 @@ env:
   DOTNET_VERSION: 10.0.x
 
 jobs:
+  already-ran:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      skip: ${{ steps.gate.outputs.skip }}
+    steps:
+      - id: gate
+        uses: Cratis/Workflows/.github/actions/skip-if-already-ran@main
+
   verify:
+    needs: already-ran
+    if: needs.already-ran.outputs.skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
