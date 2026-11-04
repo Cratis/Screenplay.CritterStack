@@ -3,9 +3,9 @@ title: Extend a source adapter
 description: Apply the generic Screenplay.Generation adapter contract using Marten and Wolverine as a case study.
 ---
 
-When a Marten or Wolverine convention is not represented, add the smallest bounded interpretation that the authored source proves. This case study shows how Screenplay.CritterStack applies the generic source-adapter model without moving framework-neutral responsibilities into this repository.
+When a Marten or Wolverine convention is missing from the recovered model, start with the authored source that proves it. This guide follows an existing storage-action fixture through the Screenplay.CritterStack readers to its relationship assertions, so you can place a new rule and decide what evidence it needs.
 
-The canonical contract is [Build a .NET source adapter](/screenplay/generation/guides/build-source-adapter/). Read it first. Screenplay.Generation owns adapter composition, neutral facts, evidence, source identity, resolution, lowering, canonical printing, and compiler verification. This repository owns only Marten and Wolverine interpretation.
+Read [Build a .NET source adapter](/screenplay/generation/guides/build-source-adapter/) first for the shared contract. Screenplay.Generation owns adapter composition, neutral facts, evidence, source identity, resolution, lowering, canonical printing, and compiler verification. This repository owns only Marten and Wolverine interpretation; adding a framework rule does not move those shared responsibilities into the adapter.
 
 ```mermaid
 flowchart LR
@@ -17,7 +17,7 @@ flowchart LR
 
 ## Choose the framework owner
 
-Put a new behavior in the reader that already owns its framework contract.
+Choose the reader from the framework contract you need to recognize, not from the Screenplay syntax you hope to produce. For the storage-action example below, return-slot classification belongs to `WolverineReturnConsequences`; relationship emission belongs to `WolverineFacts`. Use the ownership table to make the same choice for another source shape.
 
 | Source concern | Current owner |
 | --- | --- |
@@ -34,7 +34,7 @@ Create a focused discovery helper when a concern needs its own admission rules o
 
 ## Match semantic framework identity
 
-Record exact metadata names in `WellKnownTypes.cs`, then match bound Roslyn symbols.
+Prove which framework contract a source shape uses before giving it domain meaning. Record exact metadata names in `WellKnownTypes.cs`, then match bound Roslyn symbols. For example, the storage-action classifier recognizes the generic contract and its interface implementations; the spelling of a local type is not enough.
 
 - Use `OriginalDefinition` for generic contracts.
 - Use `ReducedFrom` for extension methods.
@@ -48,13 +48,13 @@ For overloaded methods, use a full .NET documentation method identity. A short m
 
 ## Admit the context before reading a body
 
-A call has framework meaning only inside an admitted handler, endpoint, projection, subscription, listener, or configuration context. Prove that context first. Then inspect exact bound invocations and arguments within it.
+First establish that the enclosing source is an admitted handler, endpoint, projection, subscription, listener, or configuration context. Only then inspect its exact bound invocations and arguments. Finding a familiar call in a body does not establish the context that gives the call framework meaning.
 
-A same-named call in unrelated source must contribute nothing. If Roslyn cannot resolve an exact symbol, report or omit the unresolved behavior rather than using candidate symbols as authority.
+Keep a close lookalike outside that context in the negative specification: a same-named call in unrelated source must contribute nothing. If Roslyn cannot resolve an exact symbol, report or omit the unresolved behavior rather than treating candidate symbols as authority.
 
 ## Classify each consequence independently
 
-One handler can have several consequences. Keep tuple slots and body effects separate so one supported sibling is not lost because another is unknown.
+Classify each tuple slot and body effect separately. A handler can return a response, persist a document and send a message; recognizing one consequence must not erase another, and an unknown sibling must not discard a supported one. Use the following list as a classification checklist, not as mutually exclusive labels for the whole handler.
 
 - HTTP response
 - persisted event
@@ -69,11 +69,17 @@ One handler can have several consequences. Keep tuple slots and body effects sep
 
 Do not classify a source-authored wrapper, response, message, or document as an event merely because its type is local. `WolverineReturnConsequences` separates return slots; `WolverineFacts` emits only relationships established by the classified result.
 
+To follow one complete case, open `Source/DotNET/CritterStack.Specs/given/a_storage_action_handler_application.cs`. Its `MixedStorageActionsRequestedHandler` returns three storage-action slots for the same `ManifestDocument`: `Storage.Store`, `Storage.Delete` and `Storage.Nothing`. Sharing an entity type does not make those slots the same consequence.
+
+`WolverineReturnConsequences` recognizes the storage-action contract before falling back to ordinary payload classification. `WolverineFacts.StorageActions.cs` then inspects the returned factories by slot: the first slot contributes `Stores`, the second contributes `Deletes`, and the third contributes no document-write relationship.
+
+Read `Source/DotNET/CritterStack.Specs/for_CritterStackScreenplayAdapter/when_analyzing_storage_action_returns.cs` beside that fixture. It asserts the two relationship kinds independently, excludes discriminator `storage-action:2`, requires exact storage-action evidence, and expects no loss diagnostics. `Storage.Nothing` is a deliberate no-write result here, not unsupported behavior that needs a loss warning. These are assertions in an existing static-analysis specification, not an observed runtime result.
+
 When flow is unresolved, retain a conservative relationship only if the framework contract still proves it. Otherwise emit a diagnostic and omit the guess.
 
 ## Keep evidence contributions independent
 
-Marten and Wolverine can describe the same source subject. Give compatible observations the same stable subject identity and let Generation merge them. Do not call one framework reader from another to manufacture precedence, and do not let reader order select semantics.
+After classifying a consequence, keep its evidence independent of observations from the other framework. Marten and Wolverine may describe the same source subject: give compatible observations the same stable subject identity and let Generation merge them. Calling one framework reader from another to manufacture precedence, or allowing reader order to select semantics, would hide the distinction the evidence needs to preserve.
 
 Use evidence strength deliberately:
 
@@ -88,13 +94,15 @@ Equally strong incompatible facts must remain visible conflicts. Heuristic evide
 
 ## Report bounded loss
 
-Allocate a stable diagnostic code in the owning framework catalog. Include the severity, outcome, affected subject, authored source location, and a message that distinguishes what was observed from what was not represented.
+When authored behavior cannot be represented, make the loss distinguishable from a deliberate no-op such as the storage-action example. Allocate a stable diagnostic code in the owning framework catalog. Include the severity, outcome, affected subject, authored source location, and a message that separates the observed source from the behavior that was not represented.
 
-Use presence-only diagnostics for custom policies, listeners, middleware, and other unbounded extension bodies. Do not interpret arbitrary extension code to suppress a warning. Hosts must display diagnostics even when generation has no error diagnostics.
+For a custom policy, listener, middleware or other unbounded extension body, report its presence rather than attempting to recover arbitrary behavior from the body. Do not interpret arbitrary extension code to suppress a warning. Hosts must display diagnostics even when generation has no error diagnostics.
+
+The convention-alteration case shows what to assert for that boundary. `WolverineConventionAlterationDiscovery` reports `WOLVERINE0019` with a warning severity and an `Unsupported` outcome: the recovered model reflects default conventions, not the custom policy's runtime behavior. In `Source/DotNET/CritterStack.Specs/for_CritterStackScreenplayAdapter/when_analyzing_convention_alterations.cs`, the assertions check the diagnostic and preserve the baseline fact IDs. A presence warning is not permission to invent replacement facts.
 
 ## Add focused specifications
 
-Give each behavior a minimal authored-source scenario and a corresponding analysis specification. Prove:
+Turn the source shape and expected classification into assertions before treating a new rule as recovered behavior. Give each behavior a minimal authored-source scenario and a corresponding analysis specification. The storage-action case pairs relationship and discriminator assertions with an empty diagnostic set; the convention-alteration case pairs an exact diagnostic with unchanged facts. For your change, prove:
 
 1. the framework stub and application compile;
 2. exact artifacts and relationships;
@@ -115,15 +123,22 @@ Compatibility checks should pin semantic assertions as well as source hashes. Ge
 
 ## Run the repository gates
 
+For an implementation change, run the .NET Build sequence below from the repository root, using the SDK selected by `global.json`. The specification runner checks that a nonzero number of tests ran; a successful build is not a specification result. It also requires `python3` to validate the results. Its self-test uses Node.js. The package-consumer script uses a temporary package cache when `NUGET_PACKAGES` is unset; do not substitute a warm developer cache for the clean-consumer check.
+
 ```shell
-dotnet test Screenplay.CritterStack.slnx --configuration Debug
-dotnet build Screenplay.CritterStack.slnx --configuration Release -p:Version=9999.0.0
-dotnet pack Screenplay.CritterStack.slnx --no-build --configuration Release \
-  -o Artifacts/NuGet -p:Version=9999.0.0
-./scripts/verify-package-consumer.sh 9999.0.0 Artifacts/NuGet
+dotnet restore --property:Configuration=Debug
+dotnet build --configuration Debug --no-restore --warnaserror
+bash .github/scripts/run-specifications.sh --self-test
+dotnet restore --property:Configuration=Release
+dotnet build --no-restore --configuration Release -p:Version=9999.0.0 --warnaserror
+bash .github/scripts/run-specifications.sh Release
+dotnet pack --no-build --configuration Release -o ./Artifacts/NuGet -p:Version=9999.0.0
+./scripts/verify-package-consumer.sh 9999.0.0 ./Artifacts/NuGet
 ```
 
-The pinned compatibility matrix is defined by `.github/workflows/canonical-samples.yml`. Review every generated-source change before accepting an expectation update.
+Stop at a failed check before running dependent steps. Keep its command, exit status and first relevant error with the source shape you changed. In a human or AI-assisted handoff, name the reader, expected facts and omissions, diagnostic identifiers, and checks actually run; do not report a specification you only read as a passing test.
+
+The pinned compatibility matrix is defined by `.github/workflows/canonical-samples.yml` and is a separate check, not a result established by the commands above. Review every generated-source change before accepting an expectation update. If a sample check cannot be run, record that gap rather than extending the exercised compatibility claim.
 
 ## Stop at the ownership boundary
 
