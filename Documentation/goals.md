@@ -3,7 +3,7 @@ title: Adapter goals
 description: The bounded Marten and Wolverine semantics the adapter recovers, and the evidence and diagnostic boundaries it enforces.
 ---
 
-Use this reference when deciding what a Marten or Wolverine source shape can contribute to a Screenplay candidate. Screenplay.CritterStack is an optional, pre-release source adapter: it recovers bounded semantics from authorized .NET source, not a runnable replacement for the application. The [overview](index.md) explains its place in the generation pipeline and the host's responsibilities.
+Use this reference when deciding what a Marten or Wolverine source shape can contribute to a Screenplay candidate. Screenplay.CritterStack is an optional source adapter: it recovers bounded semantics from authorized .NET source, not a runnable replacement for the application. The [overview](index.md) explains its place in the generation pipeline and the host's responsibilities.
 
 Recovery has more than one outcome. An admitted source shape can contribute model facts, retain configuration or provenance as diagnostic evidence, or require a separately composed adapter. Keep those outcomes distinct when reviewing the candidate; a compiler-checked definition is not proof that the application's business behavior has been reproduced.
 
