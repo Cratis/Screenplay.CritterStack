@@ -1,6 +1,6 @@
 ---
 title: Screenplay.CritterStack
-description: Understand the optional Marten and Wolverine source adapter and its evidence boundaries.
+description: Recover bounded Marten and Wolverine semantics from .NET source with Screenplay.CritterStack, and review adapter evidence, diagnostics and limitations.
 ---
 
 Screenplay.CritterStack is an optional compatibility adapter. Given an authorized .NET source context, it identifies bounded Marten and Wolverine semantics and contributes neutral facts, evidence, and diagnostics to Screenplay.Generation. The result is a reviewable Screenplay candidate; it is not an automatic migration or a claim of behavioral equivalence.
