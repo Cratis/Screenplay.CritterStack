@@ -1,6 +1,6 @@
 ---
 title: Extend a source adapter
-description: Apply the generic Screenplay.Generation adapter contract using Marten and Wolverine as a case study.
+description: Extend a .NET source adapter with Marten and Wolverine rules, tracing source evidence through neutral facts, diagnostics and focused specifications.
 ---
 
 When a Marten or Wolverine convention is missing from the recovered model, start with the authored source that proves it. This guide follows an existing storage-action fixture through the Screenplay.CritterStack readers to its relationship assertions, so you can place a new rule and decide what evidence it needs.
