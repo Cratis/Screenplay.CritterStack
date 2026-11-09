@@ -33,7 +33,7 @@ for project in "${projects[@]}"; do
         echo "::error::Expected one AssemblyName in $project"
         exit 2
     fi
-    executable="${project%/*}/bin/$configuration/net10.0/$assembly$suffix"
+    executable="${project%/*}/bin/$configuration/net11.0/$assembly$suffix"
     if [[ ! -x $executable ]]; then
         echo "::error::Missing specification executable: $executable"
         exit 2

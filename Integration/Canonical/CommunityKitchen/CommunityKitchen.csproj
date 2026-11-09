@@ -4,7 +4,8 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 -->
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <TargetFrameworks>net10.0</TargetFrameworks>
+        <TargetFrameworks></TargetFrameworks>
+        <TargetFramework>net11.0</TargetFramework>
         <IsPackable>false</IsPackable>
     </PropertyGroup>
 

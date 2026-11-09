@@ -3,7 +3,8 @@
         <AssemblyName>Cratis.CritterStack.Screenplay.Canonical</AssemblyName>
         <RootNamespace>Cratis.CritterStack.Screenplay.Canonical</RootNamespace>
         <OutputType>Exe</OutputType>
-        <TargetFrameworks>net10.0</TargetFrameworks>
+        <TargetFrameworks></TargetFrameworks>
+        <TargetFramework>net11.0</TargetFramework>
         <IsPackable>false</IsPackable>
         <IsTestProject>false</IsTestProject>
         <DedicatedSpecsProject>true</DedicatedSpecsProject>

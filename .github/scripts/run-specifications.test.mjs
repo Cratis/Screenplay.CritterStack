@@ -30,7 +30,7 @@ function fixture(t, options = {}) {
     copyFileSync(join(scripts, 'run-specifications.sh'), join(target, 'run-specifications.sh'));
     for (let index = 0; index < count; index++) {
         const project = join(directory, `Source/DotNET/Project${index}.Specs`);
-        const output = join(project, 'bin/Release/net10.0');
+        const output = join(project, 'bin/Release/net11.0');
         mkdirSync(output, { recursive: true });
         writeFileSync(join(project, `Project${index}.Specs.csproj`), `<Project><AssemblyName>Assembly${index}</AssemblyName></Project>`);
         if (index === missing) continue;
