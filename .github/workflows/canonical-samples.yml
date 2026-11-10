@@ -18,11 +18,14 @@ on:
       - "Directory.Build.props"
       - "Directory.Packages.props"
       - "Screenplay.CritterStack.slnx"
+      - "global.json"
       - "scripts/**"
       - ".github/workflows/canonical-samples.yml"
 
 env:
-  DOTNET_VERSION: 10.0.x
+  DOTNET_VERSION: |
+    10.0.x
+    11.0.x
 
 jobs:
   already-ran:
@@ -91,7 +94,7 @@ jobs:
       - name: Generate and verify BankAccountES
         run: |
           adapter/scripts/verify-canonical.sh \
-            adapter/Source/DotNET/Canonical/bin/Release/net10.0/Cratis.CritterStack.Screenplay.Canonical.dll \
+            adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
             samples/critter-stack/BankAccountES/BankAccountES.csproj \
             adapter/Integration/Canonical/BankAccountES.expected \
             "${RUNNER_TEMP}/BankAccountES.play"
@@ -99,7 +102,7 @@ jobs:
       - name: Generate and verify document CRUD
         run: |
           adapter/scripts/verify-canonical.sh \
-            adapter/Source/DotNET/Canonical/bin/Release/net10.0/Cratis.CritterStack.Screenplay.Canonical.dll \
+            adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
             samples/critter-stack/CqrsMinimalApi/CqrsMinimalApi.csproj \
             adapter/Integration/Canonical/CqrsMinimalApi.expected \
             "${RUNNER_TEMP}/CqrsMinimalApi.play"
@@ -107,7 +110,7 @@ jobs:
       - name: Generate and verify Marten operation returns
         run: |
           adapter/scripts/verify-canonical.sh \
-            adapter/Source/DotNET/Canonical/bin/Release/net10.0/Cratis.CritterStack.Screenplay.Canonical.dll \
+            adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
             samples/critter-stack/Reports/Reports.csproj \
             adapter/Integration/Canonical/Reports.expected \
             "${RUNNER_TEMP}/Reports.play"
@@ -115,7 +118,7 @@ jobs:
       - name: Generate and verify Marten async projections
         run: |
           adapter/scripts/verify-canonical.sh \
-            adapter/Source/DotNET/Canonical/bin/Release/net10.0/Cratis.CritterStack.Screenplay.Canonical.dll \
+            adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
             samples/critter-stack/MartenWithProjectAspire/TripBuildingService/TripBuildingService.csproj \
             adapter/Integration/Canonical/MartenWithProjectAspire.expected \
             "${RUNNER_TEMP}/MartenWithProjectAspire.play"
@@ -123,7 +126,7 @@ jobs:
       - name: Generate and verify CommunityKitchen
         run: |
           adapter/scripts/verify-canonical.sh \
-            adapter/Source/DotNET/Canonical/bin/Release/net10.0/Cratis.CritterStack.Screenplay.Canonical.dll \
+            adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
             adapter/Integration/Canonical/CommunityKitchen/CommunityKitchen.csproj \
             adapter/Integration/Canonical/CommunityKitchen.expected \
             "${RUNNER_TEMP}/CommunityKitchen.play"
@@ -131,7 +134,7 @@ jobs:
       - name: Generate and verify IncidentService
         run: |
           adapter/scripts/verify-canonical.sh \
-            adapter/Source/DotNET/Canonical/bin/Release/net10.0/Cratis.CritterStack.Screenplay.Canonical.dll \
+            adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
             adapter/Integration/Canonical/IncidentService/IncidentService.csproj \
             adapter/Integration/Canonical/IncidentService.expected \
             "${RUNNER_TEMP}/IncidentService.play"
@@ -139,7 +142,7 @@ jobs:
       - name: Generate and verify Vogen concepts
         run: |
           adapter/scripts/verify-canonical.sh \
-            adapter/Source/DotNET/Canonical/bin/Release/net10.0/Cratis.CritterStack.Screenplay.Canonical.dll \
+            adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
             adapter/Integration/Canonical/VogenConcepts/VogenConcepts.csproj \
             adapter/Integration/Canonical/VogenConcepts.expected \
             "${RUNNER_TEMP}/VogenConcepts.play"
@@ -147,7 +150,7 @@ jobs:
       - name: Generate and verify legacy HelpDesk
         run: |
           adapter/scripts/verify-canonical.sh \
-            adapter/Source/DotNET/Canonical/bin/Release/net10.0/Cratis.CritterStack.Screenplay.Canonical.dll \
+            adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
             samples/helpdesk/Helpdesk.Api/Helpdesk.Api.csproj \
             adapter/Integration/Canonical/Helpdesk.expected \
             "${RUNNER_TEMP}/Helpdesk.play"
