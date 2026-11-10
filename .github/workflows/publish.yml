@@ -70,7 +70,6 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-          dotnet-quality: preview # drop at GA
       - run: rm -rf ${{ env.NUGET_OUTPUT }}
       - name: Restore
         run: dotnet restore --property:Configuration=Release

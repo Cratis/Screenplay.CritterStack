@@ -41,7 +41,6 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-          dotnet-quality: preview # drop at GA
 
       - name: Restore Debug
         run: dotnet restore --property:Configuration=Debug
