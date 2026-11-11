@@ -1,0 +1,137 @@
+diagnostic WOLVERINE0016|Information|Unsupported|~AlphaSaga|Saga/Alpha.cs:9:1-12:2|Saga 'AlphaSaga' <lifecycle>
+diagnostic WOLVERINE0016|Information|Unsupported|~AttrFromSaga|Saga/Correlation.cs:12:1-12:123|Saga 'AttrFromSaga' <lifecycle>
+diagnostic WOLVERINE0017|Information|Unknown|~AttributeAmbiguousSaga#method:M%3AVariants.AttributeAmbiguousSaga.Handle%28Variants.AttributeAmbiguousMessage%29|Saga/Correlation.cs:9:56-9:113|Saga handler for 'AttributeAmbiguousSaga' cannot safely select an authored correlation member for 'AttributeAmbiguousMessage' because multiple public [SagaIdentity] members are visible; correlation remains runtime-resolved
+diagnostic WOLVERINE0016|Information|Unsupported|~AttributeAmbiguousSaga|Saga/Correlation.cs:9:1-9:115|Saga 'AttributeAmbiguousSaga' <lifecycle>
+diagnostic WOLVERINE0016|Information|Unsupported|~AttributeSaga|Saga/Correlation.cs:6:1-6:97|Saga 'AttributeSaga' <lifecycle>
+diagnostic WOLVERINE0018|Warning|Unknown|~ChainSaga#method:M%3AVariants.ChainSaga.Starts%28Variants.NoChainMessage%29|Saga/Roles.cs:34:5-34:69|Wolverine saga role 'ChainSaga.Starts(NoChainMessage)' was not admitted because no other exact lifecycle method for the same message establishes a Wolverine SagaChain
+diagnostic WOLVERINE0016|Information|Unsupported|~ChainSaga|Saga/Roles.cs:32:1-37:2|Saga 'ChainSaga' <lifecycle>
+diagnostic WOLVERINE0016|Information|Unsupported|~CompletionSaga|Saga/Completion.cs:8:58-8:73|Saga 'CompletionSaga' invokes Wolverine.Saga.MarkCompleted() within Wolverine-managed lifecycle. Authored source does not safely establish portable conditional completion or a portable domain workflow; neutral Saga/Handler/Handles facts are retained as realization/provenance, and Screenplay uses ordinary Event Modeling building blocks
+diagnostic WOLVERINE0018|Warning|Unknown|~CtorNotFoundSaga#method:M%3AVariants.CtorNotFoundSaga.NotFound%28Variants.CtorNotFoundAloneMessage%29|Saga/Roles.cs:68:5-68:70|Wolverine saga role 'CtorNotFoundSaga.NotFound(CtorNotFoundAloneMessage)' was not admitted because Wolverine must create saga state, but the saga has no accessible public parameterless constructor and no exact returned saga supplies creation
+diagnostic WOLVERINE0016|Information|Unsupported|~CtorNotFoundSaga|Saga/Roles.cs:65:1-71:2|Saga 'CtorNotFoundSaga' <lifecycle>
+diagnostic WOLVERINE0018|Warning|Unknown|~CtorStartOrHandleSaga#method:M%3AVariants.CtorStartOrHandleSaga.StartOrHandle%28Variants.CtorAloneMessage%29|Saga/Roles.cs:46:5-46:60|Wolverine saga role 'CtorStartOrHandleSaga.StartOrHandle(CtorAloneMessage)' was not admitted because Wolverine must create saga state, but the saga has no accessible public parameterless constructor and no exact returned saga supplies creation
+diagnostic WOLVERINE0018|Warning|Unknown|~CtorStartOrHandleSaga#method:M%3AVariants.CtorStartOrHandleSaga.StartOrHandle%28Variants.CtorMixedMessage%29|Saga/Roles.cs:44:5-44:60|Wolverine saga role 'CtorStartOrHandleSaga.StartOrHandle(CtorMixedMessage)' was not admitted because Wolverine must create saga state, but the saga has no accessible public parameterless constructor and no exact returned saga supplies creation
+diagnostic WOLVERINE0016|Information|Unsupported|~CtorStartOrHandleSaga|Saga/Roles.cs:41:1-47:2|Saga 'CtorStartOrHandleSaga' <lifecycle>
+diagnostic WOLVERINE0018|Warning|Unknown|~CtorStartSaga#method:M%3AVariants.CtorStartSaga.Start%28Variants.CtorOrchestratedMessage%29|Saga/Roles.cs:58:5-58:81|Wolverine saga role 'CtorStartSaga.Start(CtorOrchestratedMessage)' was not admitted because Wolverine must create saga state, but the saga has no accessible public parameterless constructor and no exact returned saga supplies creation
+diagnostic WOLVERINE0018|Warning|Unknown|~CtorStartSaga#method:M%3AVariants.CtorStartSaga.Start%28Variants.CtorVoidMessage%29|Saga/Roles.cs:57:5-57:58|Wolverine saga role 'CtorStartSaga.Start(CtorVoidMessage)' was not admitted because Wolverine must create saga state, but the saga has no accessible public parameterless constructor and no exact returned saga supplies creation
+diagnostic WOLVERINE0016|Information|Unsupported|~CtorStartSaga|Saga/Roles.cs:53:1-61:2|Saga 'CtorStartSaga' <lifecycle>
+diagnostic WOLVERINE0017|Information|Unknown|~FieldBeforePropertySaga#method:M%3AVariants.FieldBeforePropertySaga.Handle%28Variants.FieldBeforePropertyMessage%29|Saga/Correlation.cs:79:57-79:115|Saga handler for 'FieldBeforePropertySaga' cannot safely select an authored correlation member for 'FieldBeforePropertyMessage' because multiple public members match Wolverine convention 'SagaId'; correlation remains runtime-resolved
+diagnostic WOLVERINE0016|Information|Unsupported|~FieldBeforePropertySaga|Saga/Correlation.cs:79:1-79:117|Saga 'FieldBeforePropertySaga' <lifecycle>
+diagnostic WOLVERINE0016|Information|Unsupported|~FieldSaga|Saga/Correlation.cs:75:1-75:89|Saga 'FieldSaga' <lifecycle>
+diagnostic WOLVERINE0017|Information|Unknown|~FromAmbiguousSaga#method:M%3AVariants.FromAmbiguousSaga.Handle%28Variants.FromAmbiguousMessage%29|Saga/Correlation.cs:36:51-36:132|Saga handler for 'FromAmbiguousSaga' cannot safely select an authored correlation member for 'FromAmbiguousMessage' because multiple public members match explicit [SagaIdentityFrom] name 'Picked'; correlation remains runtime-resolved
+diagnostic WOLVERINE0016|Information|Unsupported|~FromAmbiguousSaga|Saga/Correlation.cs:36:1-36:134|Saga 'FromAmbiguousSaga' <lifecycle>
+diagnostic WOLVERINE0017|Information|Unknown|~FromConflictSaga#method:M%3AVariants.FromConflictSaga.Handle%28Variants.FromConflictMessage%2CSystem.Int32%29|Saga/Correlation.cs:20:5-20:101|Saga handler for 'FromConflictSaga' cannot safely select an authored correlation member for 'FromConflictMessage' because conflicting [SagaIdentityFrom] member names are declared across parameters in the same message chain; correlation remains runtime-resolved
+diagnostic WOLVERINE0017|Information|Unknown|~FromConflictSaga#method:M%3AVariants.FromConflictSaga.Handles%28Variants.FromConflictMessage%2CSystem.String%29|Saga/Correlation.cs:21:5-21:103|Saga handler for 'FromConflictSaga' cannot safely select an authored correlation member for 'FromConflictMessage' because conflicting [SagaIdentityFrom] member names are declared across parameters in the same message chain; correlation remains runtime-resolved
+diagnostic WOLVERINE0016|Information|Unsupported|~FromConflictSaga|Saga/Correlation.cs:18:1-22:2|Saga 'FromConflictSaga' <lifecycle>
+diagnostic WOLVERINE0016|Information|Unsupported|~FromMissingSaga|Saga/Correlation.cs:32:1-32:128|Saga 'FromMissingSaga' <lifecycle>
+diagnostic WOLVERINE0016|Information|Unsupported|~FromRepeatedSaga|Saga/Correlation.cs:25:1-29:2|Saga 'FromRepeatedSaga' <lifecycle>
+diagnostic WOLVERINE0016|Information|Unsupported|~FromSaga|Saga/Correlation.cs:15:1-15:116|Saga 'FromSaga' <lifecycle>
+diagnostic WOLVERINE0017|Information|Unknown|~FullAmbiguousSaga#method:M%3AVariants.FullAmbiguousSaga.Handle%28Variants.FullAmbiguousMessage%29|Saga/Correlation.cs:43:51-43:103|Saga handler for 'FullAmbiguousSaga' cannot safely select an authored correlation member for 'FullAmbiguousMessage' because multiple public members match Wolverine convention 'FullAmbiguousSagaId'; correlation remains runtime-resolved
+diagnostic WOLVERINE0016|Information|Unsupported|~FullAmbiguousSaga|Saga/Correlation.cs:43:1-43:105|Saga 'FullAmbiguousSaga' <lifecycle>
+diagnostic WOLVERINE0016|Information|Unsupported|~FullNameSaga|Saga/Correlation.cs:39:1-39:95|Saga 'FullNameSaga' <lifecycle>
+diagnostic WOLVERINE0016|Information|Unsupported|~GeneratedMemberSaga|Saga/Correlation.cs:82:1-82:109|Saga 'GeneratedMemberSaga' <lifecycle>
+diagnostic WOLVERINE0017|Information|Unknown|~IdAmbiguousSaga#method:M%3AVariants.IdAmbiguousSaga.Handle%28Variants.IdAmbiguousMessage%29|Saga/Correlation.cs:66:49-66:99|Saga handler for 'IdAmbiguousSaga' cannot safely select an authored correlation member for 'IdAmbiguousMessage' because multiple public members match Wolverine's case-insensitive Id convention; correlation remains runtime-resolved
+diagnostic WOLVERINE0016|Information|Unsupported|~IdAmbiguousSaga|Saga/Correlation.cs:66:1-66:101|Saga 'IdAmbiguousSaga' <lifecycle>
+diagnostic WOLVERINE0016|Information|Unsupported|~IdSaga|Saga/Correlation.cs:63:1-63:83|Saga 'IdSaga' <lifecycle>
+diagnostic WOLVERINE0016|Information|Unsupported|~MemberKindsSaga|Saga/Correlation.cs:72:1-72:101|Saga 'MemberKindsSaga' <lifecycle>
+diagnostic WOLVERINE0017|Information|Unknown|~NoCorrelationSaga#method:M%3AVariants.NoCorrelationSaga.Handle%28Variants.NoCorrelationMessage%29|Saga/Correlation.cs:69:51-69:103|Saga handler 'NoCorrelationSaga.Handle' has no authored message correlation member for 'NoCorrelationMessage'; correlation remains runtime-resolved
+diagnostic WOLVERINE0016|Information|Unsupported|~NoCorrelationSaga|Saga/Correlation.cs:69:1-69:105|Saga 'NoCorrelationSaga' <lifecycle>
+diagnostic WOLVERINE0016|Information|Unsupported|~NotCompletedSaga|Saga/Completion.cs:13:1-16:2|Saga 'NotCompletedSaga' <lifecycle>
+diagnostic WOLVERINE0016|Information|Unsupported|~OrdersagaSaga|Saga/Correlation.cs:49:1-49:104|Saga 'OrdersagaSaga' <lifecycle>
+diagnostic WOLVERINE0018|Warning|Unknown|~RoleShapesSaga#method:M%3AVariants.RoleShapesSaga.Handle%28Variants.RoleMessage%29|Saga/Roles.cs:10:5-10:49|Wolverine saga role 'RoleShapesSaga.Handle(RoleMessage)' was not admitted because the method must be a public, ordinary, non-generic method with a message parameter
+diagnostic WOLVERINE0018|Warning|Unknown|~RoleShapesSaga#method:M%3AVariants.RoleShapesSaga.Handle%60%601%28Variants.RoleMessage%29|Saga/Roles.cs:11:5-11:51|Wolverine saga role 'RoleShapesSaga.Handle`1(RoleMessage)' was not admitted because the method must be a public, ordinary, non-generic method with a message parameter
+diagnostic WOLVERINE0018|Warning|Unknown|~RoleShapesSaga#method:M%3AVariants.RoleShapesSaga.Handle|Saga/Roles.cs:12:5-12:29|Wolverine saga role 'RoleShapesSaga.Handle()' was not admitted because the method must be a public, ordinary, non-generic method with a message parameter
+diagnostic WOLVERINE0018|Warning|Unknown|~RoleShapesSaga#method:M%3AVariants.RoleShapesSaga.Handle%28Variants.SecondRoleMessage%29|Saga/Roles.cs:13:5-13:55|Wolverine saga role 'RoleShapesSaga.Handle(SecondRoleMessage)' was not admitted because Wolverine handler discovery rejects methods that directly return a primitive type
+diagnostic WOLVERINE0018|Warning|Unknown|~RoleShapesSaga#method:M%3AVariants.RoleShapesSaga.Handles%28System.Object%29|Saga/Roles.cs:14:5-14:44|Wolverine saga role 'RoleShapesSaga.Handles(object)' was not admitted because the first parameter must be an authored non-saga message payload
+diagnostic WOLVERINE0018|Warning|Unknown|~RoleShapesSaga#method:M%3AVariants.RoleShapesSaga.Handles%28System.Int32%29|Saga/Roles.cs:15:5-15:41|Wolverine saga role 'RoleShapesSaga.Handles(int)' was not admitted because the first parameter must be an authored non-saga message payload
+diagnostic WOLVERINE0018|Warning|Unknown|~RoleShapesSaga#method:M%3AVariants.RoleShapesSaga.Handles%28System.String%29|Saga/Roles.cs:16:5-16:44|Wolverine saga role 'RoleShapesSaga.Handles(string)' was not admitted because the first parameter must be an authored non-saga message payload
+diagnostic WOLVERINE0018|Warning|Unknown|~RoleShapesSaga#method:M%3AVariants.RoleShapesSaga.Consume%28System.Guid%5B%5D%29|Saga/Roles.cs:17:5-17:51|Wolverine saga role 'RoleShapesSaga.Consume(System.Guid[])' was not admitted because the first parameter must be an authored non-saga message payload
+diagnostic WOLVERINE0018|Warning|Unknown|~RoleShapesSaga#method:M%3AVariants.RoleShapesSaga.Consumes%28Variants.RoleShapesSaga%29|Saga/Roles.cs:18:5-18:53|Wolverine saga role 'RoleShapesSaga.Consumes(RoleShapesSaga)' was not admitted because the first parameter must be an authored non-saga message payload
+diagnostic WOLVERINE0018|Warning|Unknown|~RoleShapesSaga#method:M%3AVariants.RoleShapesSaga.Orchestrate%28Variants.RoleMessage%29|Saga/Roles.cs:19:5-19:60|Wolverine saga role 'RoleShapesSaga.Orchestrate(RoleMessage)' was not admitted because an existing-state role must be an instance method
+diagnostic WOLVERINE0018|Warning|Unknown|~RoleShapesSaga#method:M%3AVariants.RoleShapesSaga.StartOrHandle%28Variants.RoleMessage%29|Saga/Roles.cs:20:5-20:62|Wolverine saga role 'RoleShapesSaga.StartOrHandle(RoleMessage)' was not admitted because a start-or-handle role must be an instance method
+diagnostic WOLVERINE0018|Warning|Unknown|~RoleShapesSaga#method:M%3AVariants.RoleShapesSaga.NotFound%28Variants.RoleMessage%29|Saga/Roles.cs:21:5-21:50|Wolverine saga role 'RoleShapesSaga.NotFound(RoleMessage)' was not admitted because a not-found role must be a static method
+diagnostic WOLVERINE0018|Warning|Unknown|~RoleShapesSaga#method:M%3AVariants.RoleShapesSaga.Orchestrates%28System.Collections.Generic.List%7BVariants.RoleMessage%7D%29|Saga/Roles.cs:22:5-22:87|Wolverine saga role 'RoleShapesSaga.Orchestrates(System.Collections.Generic.List<Variants.RoleMessage>)' was not admitted because the first parameter must be an authored non-saga message payload
+diagnostic WOLVERINE0016|Information|Unsupported|~RoleShapesSaga|Saga/Roles.cs:6:1-28:2|Saga 'RoleShapesSaga' <lifecycle>
+diagnostic WOLVERINE0017|Information|Unknown|~SagaIdAmbiguousSaga#method:M%3AVariants.SagaIdAmbiguousSaga.Handle%28Variants.SagaIdAmbiguousMessage%29|Saga/Correlation.cs:60:53-60:107|Saga handler for 'SagaIdAmbiguousSaga' cannot safely select an authored correlation member for 'SagaIdAmbiguousMessage' because multiple public members match Wolverine convention 'SagaId'; correlation remains runtime-resolved
+diagnostic WOLVERINE0016|Information|Unsupported|~SagaIdAmbiguousSaga|Saga/Correlation.cs:60:1-60:109|Saga 'SagaIdAmbiguousSaga' <lifecycle>
+diagnostic WOLVERINE0016|Information|Unsupported|~SagaIdConventionSaga|Saga/Correlation.cs:56:1-56:111|Saga 'SagaIdConventionSaga' <lifecycle>
+diagnostic WOLVERINE0017|Information|Unknown|~StrippedAmbiguousSaga#method:M%3AVariants.StrippedAmbiguousSaga.Handle%28Variants.StrippedAmbiguousMessage%29|Saga/Correlation.cs:53:55-53:111|Saga handler for 'StrippedAmbiguousSaga' cannot safely select an authored correlation member for 'StrippedAmbiguousMessage' because multiple public members match Wolverine convention 'StrippedAmbiguousId'; correlation remains runtime-resolved
+diagnostic WOLVERINE0016|Information|Unsupported|~StrippedAmbiguousSaga|Saga/Correlation.cs:53:1-53:113|Saga 'StrippedAmbiguousSaga' <lifecycle>
+diagnostic WOLVERINE0016|Information|Unsupported|~StrippedSaga|Saga/Correlation.cs:46:1-46:95|Saga 'StrippedSaga' <lifecycle>
+diagnostic WOLVERINE0001|Warning|Unsupported|~TimeoutSaga#method:M%3AVariants.TimeoutSaga.Handle%28Variants.TimeoutMessageIn%29|Saga/Completion.cs:23:5-23:106|Saga handler 'TimeoutSaga.Handle' returns timeout message 'ReminderTimeout', whose delayed delivery cannot be represented by the current Screenplay language
+diagnostic WOLVERINE0001|Warning|Unsupported|~TimeoutSaga#method:M%3AVariants.TimeoutSaga.Handle%28Variants.TimeoutMessageIn%29|Saga/Completion.cs:23:5-23:106|Saga handler 'TimeoutSaga.Handle' returns timeout message 'ExpiryTimeout', whose delayed delivery cannot be represented by the current Screenplay language
+diagnostic WOLVERINE0016|Information|Unsupported|~TimeoutSaga|Saga/Completion.cs:21:1-24:2|Saga 'TimeoutSaga' <lifecycle>
+diagnostic WOLVERINE0016|Information|Unsupported|~ZetaSaga|Saga/Alpha.cs:3:1-7:2|Saga 'ZetaSaga' <lifecycle>
+saga wolverine:saga:~AlphaSaga|
+relationship ~AlphaSaga#method:M%3AVariants.AlphaSaga.Handle%28Variants.OrderAMessage%29:~OrderAMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Zeta.cs:4:29-4:47|sagaId
+saga wolverine:saga:~AttrFromSaga|
+relationship ~AttrFromSaga#method:M%3AVariants.AttrFromSaga.Handle%28Variants.AttrFromMessage%29:~AttrFromMessage:wolverine:saga:orchestrate|Exact|Exact Wolverine [SagaIdentity] message member|Saga/Correlation.cs:11:32-11:86|chosen
+saga wolverine:saga:~AttributeAmbiguousSaga|
+relationship ~AttributeAmbiguousSaga#method:M%3AVariants.AttributeAmbiguousSaga.Handle%28Variants.AttributeAmbiguousMessage%29:~AttributeAmbiguousMessage:wolverine:saga:orchestrate|Conventional|Authored Wolverine saga orchestrate role method|Saga/Correlation.cs:9:56-9:113|
+saga wolverine:saga:~AttributeSaga|
+relationship ~AttributeSaga#method:M%3AVariants.AttributeSaga.Handle%28Variants.AttributeMessage%29:~AttributeMessage:wolverine:saga:orchestrate|Exact|Exact Wolverine [SagaIdentity] message member|Saga/Correlation.cs:5:33-5:87|chosen
+saga wolverine:saga:~ChainSaga|
+relationship ~ChainSaga#method:M%3AVariants.ChainSaga.Starts%28Variants.ChainedMessage%29:~ChainedMessage:wolverine:saga:start|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Roles.cs:31:30-31:48|sagaId
+relationship ~ChainSaga#method:M%3AVariants.ChainSaga.Handles%28Variants.ChainedMessage%29:~ChainedMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Roles.cs:31:30-31:48|sagaId
+saga wolverine:saga:~CompletionSaga|
+relationship ~CompletionSaga#method:M%3AVariants.CompletionSaga.Handle%28Variants.CompletionFirstMessage%29:~CompletionFirstMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Completion.cs:3:38-3:56|sagaId
+relationship ~CompletionSaga#method:M%3AVariants.CompletionSaga.Handle%28Variants.CompletionSecondMessage%29:~CompletionSecondMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Completion.cs:4:39-4:57|sagaId
+saga wolverine:saga:~CtorNotFoundSaga|
+relationship ~CtorNotFoundSaga#method:M%3AVariants.CtorNotFoundSaga.NotFound%28Variants.CtorNotFoundHandledMessage%29:~CtorNotFoundHandledMessage:wolverine:saga:not-found|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Roles.cs:64:42-64:60|sagaId
+relationship ~CtorNotFoundSaga#method:M%3AVariants.CtorNotFoundSaga.Handle%28Variants.CtorNotFoundHandledMessage%29:~CtorNotFoundHandledMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Roles.cs:64:42-64:60|sagaId
+saga wolverine:saga:~CtorStartOrHandleSaga|
+relationship ~CtorStartOrHandleSaga#method:M%3AVariants.CtorStartOrHandleSaga.Handle%28Variants.CtorMixedMessage%29:~CtorMixedMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Roles.cs:39:32-39:50|sagaId
+saga wolverine:saga:~CtorStartSaga|
+relationship ~CtorStartSaga#method:M%3AVariants.CtorStartSaga.StartAsync%28Variants.CtorAsyncMessage%29:~CtorAsyncMessage:wolverine:saga:start|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Roles.cs:52:32-52:50|sagaId
+relationship ~CtorStartSaga#method:M%3AVariants.CtorStartSaga.Handle%28Variants.CtorOrchestratedMessage%29:~CtorOrchestratedMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Roles.cs:51:39-51:57|sagaId
+relationship ~CtorStartSaga#method:M%3AVariants.CtorStartSaga.Start%28Variants.CtorReturnedMessage%29:~CtorReturnedMessage:wolverine:saga:start|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Roles.cs:49:35-49:53|sagaId
+saga wolverine:saga:~FieldBeforePropertySaga|
+relationship ~FieldBeforePropertySaga#method:M%3AVariants.FieldBeforePropertySaga.Handle%28Variants.FieldBeforePropertyMessage%29:~FieldBeforePropertyMessage:wolverine:saga:orchestrate|Conventional|Authored Wolverine saga orchestrate role method|Saga/Correlation.cs:79:57-79:115|
+saga wolverine:saga:~FieldSaga|
+relationship ~FieldSaga#method:M%3AVariants.FieldSaga.Handle%28Variants.FieldMessage%29:~FieldMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'FieldSagaId'|Saga/Correlation.cs:74:48-74:59|fieldSagaId
+saga wolverine:saga:~FromAmbiguousSaga|
+relationship ~FromAmbiguousSaga#method:M%3AVariants.FromAmbiguousSaga.Handle%28Variants.FromAmbiguousMessage%29:~FromAmbiguousMessage:wolverine:saga:orchestrate|Conventional|Authored Wolverine saga orchestrate role method|Saga/Correlation.cs:36:51-36:132|
+saga wolverine:saga:~FromConflictSaga|
+relationship ~FromConflictSaga#method:M%3AVariants.FromConflictSaga.Handle%28Variants.FromConflictMessage%2CSystem.Int32%29:~FromConflictMessage:wolverine:saga:orchestrate|Exact|Exact Wolverine [SagaIdentityFrom] handler parameter|Saga/Correlation.cs:20:53-20:96|
+relationship ~FromConflictSaga#method:M%3AVariants.FromConflictSaga.Handles%28Variants.FromConflictMessage%2CSystem.String%29:~FromConflictMessage:wolverine:saga:orchestrate|Exact|Exact Wolverine [SagaIdentityFrom] handler parameter|Saga/Correlation.cs:20:53-20:96|
+saga wolverine:saga:~FromMissingSaga|
+relationship ~FromMissingSaga#method:M%3AVariants.FromMissingSaga.Handle%28Variants.FromMissingMessage%29:~FromMissingMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'FromMissingId'|Saga/Correlation.cs:31:86-31:132|fromMissingId
+saga wolverine:saga:~FromRepeatedSaga|
+relationship ~FromRepeatedSaga#method:M%3AVariants.FromRepeatedSaga.Handle%28Variants.FromRepeatedMessage%2CSystem.Int32%29:~FromRepeatedMessage:wolverine:saga:orchestrate|Exact|Exact Wolverine [SagaIdentityFrom] handler parameter|Saga/Correlation.cs:27:53-27:94|primary
+relationship ~FromRepeatedSaga#method:M%3AVariants.FromRepeatedSaga.Handles%28Variants.FromRepeatedMessage%2CSystem.String%29:~FromRepeatedMessage:wolverine:saga:orchestrate|Exact|Exact Wolverine [SagaIdentityFrom] handler parameter|Saga/Correlation.cs:27:53-27:94|primary
+saga wolverine:saga:~FromSaga|
+relationship ~FromSaga#method:M%3AVariants.FromSaga.Handle%28Variants.FromMessage%29:~FromMessage:wolverine:saga:orchestrate|Exact|Exact Wolverine [SagaIdentityFrom] handler parameter|Saga/Correlation.cs:15:61-15:109|picked
+saga wolverine:saga:~FullAmbiguousSaga|
+relationship ~FullAmbiguousSaga#method:M%3AVariants.FullAmbiguousSaga.Handle%28Variants.FullAmbiguousMessage%29:~FullAmbiguousMessage:wolverine:saga:orchestrate|Conventional|Authored Wolverine saga orchestrate role method|Saga/Correlation.cs:43:51-43:103|
+saga wolverine:saga:~FullNameSaga|
+relationship ~FullNameSaga#method:M%3AVariants.FullNameSaga.Handle%28Variants.FullNameMessage%29:~FullNameMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'FullNameSagaId'|Saga/Correlation.cs:38:32-38:79|fullNameSagaId
+saga wolverine:saga:~GeneratedMemberSaga|
+relationship ~GeneratedMemberSaga#method:M%3AVariants.GeneratedMemberSaga.Handle%28Variants.GeneratedMemberMessage%29:~GeneratedMemberMessage:wolverine:saga:orchestrate|Conventional|Wolverine case-insensitive Id saga correlation convention|Saga/Correlation.cs:81:47-81:82|id
+saga wolverine:saga:~IdAmbiguousSaga|
+relationship ~IdAmbiguousSaga#method:M%3AVariants.IdAmbiguousSaga.Handle%28Variants.IdAmbiguousMessage%29:~IdAmbiguousMessage:wolverine:saga:orchestrate|Conventional|Authored Wolverine saga orchestrate role method|Saga/Correlation.cs:66:49-66:99|
+saga wolverine:saga:~IdSaga|
+relationship ~IdSaga#method:M%3AVariants.IdSaga.Handle%28Variants.IdMessage%29:~IdMessage:wolverine:saga:orchestrate|Conventional|Wolverine case-insensitive Id saga correlation convention|Saga/Correlation.cs:62:26-62:61|iD
+saga wolverine:saga:~MemberKindsSaga|
+relationship ~MemberKindsSaga#method:M%3AVariants.MemberKindsSaga.Handle%28Variants.MemberKindsMessage%29:~MemberKindsMessage:wolverine:saga:orchestrate|Conventional|Wolverine case-insensitive Id saga correlation convention|Saga/Correlation.cs:71:182-71:217|id
+saga wolverine:saga:~NoCorrelationSaga|
+relationship ~NoCorrelationSaga#method:M%3AVariants.NoCorrelationSaga.Handle%28Variants.NoCorrelationMessage%29:~NoCorrelationMessage:wolverine:saga:orchestrate|Conventional|Authored Wolverine saga orchestrate role method|Saga/Correlation.cs:69:51-69:103|
+saga wolverine:saga:~NotCompletedSaga|
+relationship ~NotCompletedSaga#method:M%3AVariants.NotCompletedSaga.Handle%28Variants.NotCompletedMessage%29:~NotCompletedMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Completion.cs:11:35-11:53|sagaId
+saga wolverine:saga:~OrdersagaSaga|
+relationship ~OrdersagaSaga#method:M%3AVariants.OrdersagaSaga.Handle%28Variants.StrippedAnywhereMessage%29:~StrippedAnywhereMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'OrderId'|Saga/Correlation.cs:48:40-48:80|orderId
+saga wolverine:saga:~RoleShapesSaga|sagaId
+relationship ~RoleShapesSaga#method:M%3AVariants.RoleShapesSaga.HandleAsync%28Variants.RoleMessage%29:~RoleMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Roles.cs:3:27-3:45|sagaId
+saga wolverine:saga:~SagaIdAmbiguousSaga|
+relationship ~SagaIdAmbiguousSaga#method:M%3AVariants.SagaIdAmbiguousSaga.Handle%28Variants.SagaIdAmbiguousMessage%29:~SagaIdAmbiguousMessage:wolverine:saga:orchestrate|Conventional|Authored Wolverine saga orchestrate role method|Saga/Correlation.cs:60:53-60:107|
+saga wolverine:saga:~SagaIdConventionSaga|
+relationship ~SagaIdConventionSaga#method:M%3AVariants.SagaIdConventionSaga.Handle%28Variants.SagaIdConventionMessage%29:~SagaIdConventionMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Correlation.cs:55:40-55:79|sagaId
+saga wolverine:saga:~StrippedAmbiguousSaga|
+relationship ~StrippedAmbiguousSaga#method:M%3AVariants.StrippedAmbiguousSaga.Handle%28Variants.StrippedAmbiguousMessage%29:~StrippedAmbiguousMessage:wolverine:saga:orchestrate|Conventional|Authored Wolverine saga orchestrate role method|Saga/Correlation.cs:53:55-53:111|
+saga wolverine:saga:~StrippedSaga|
+relationship ~StrippedSaga#method:M%3AVariants.StrippedSaga.Handle%28Variants.StrippedMessage%29:~StrippedMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'StrippedId'|Saga/Correlation.cs:45:32-45:75|strippedId
+saga wolverine:saga:~TimeoutSaga|
+relationship ~TimeoutSaga#method:M%3AVariants.TimeoutSaga.Handle%28Variants.TimeoutMessageIn%29:~TimeoutMessageIn:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Completion.cs:20:32-20:50|sagaId
+saga wolverine:saga:~ZetaSaga|
+relationship ~ZetaSaga#method:M%3AVariants.ZetaSaga.Handle%28Variants.OrderAMessage%29:~OrderAMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Zeta.cs:4:29-4:47|sagaId
+relationship ~ZetaSaga#method:M%3AVariants.ZetaSaga.Handle%28Variants.OrderAMessage%2CSystem.String%29:~OrderAMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Zeta.cs:4:29-4:47|sagaId
+relationship ~ZetaSaga#method:M%3AVariants.ZetaSaga.Handles%28Variants.OrderZMessage%29:~OrderZMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Zeta.cs:3:29-3:47|sagaId
+relationship ~ZetaSaga#method:M%3AVariants.ZetaSaga.Handle%28Variants.OrderZMessage%29:~OrderZMessage:wolverine:saga:orchestrate|Conventional|Wolverine saga correlation member convention 'SagaId'|Saga/Zeta.cs:3:29-3:47|sagaId
