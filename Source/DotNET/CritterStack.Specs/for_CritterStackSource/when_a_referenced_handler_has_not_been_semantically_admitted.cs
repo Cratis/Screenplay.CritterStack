@@ -33,6 +33,7 @@ public class when_a_referenced_handler_has_not_been_semantically_admitted : give
         _contribution = adapter.Analyze(new DotNetAnalysisContext([project]), new DotNetAdapterOptions());
     }
 
-    [Fact] void should_not_create_artifacts_from_compatibility_source_fallback() =>
+    [Fact]
+    void should_not_create_artifacts_from_compatibility_source_fallback() =>
         _contribution.Facts.OfType<ArtifactFact>().ShouldBeEmpty();
 }

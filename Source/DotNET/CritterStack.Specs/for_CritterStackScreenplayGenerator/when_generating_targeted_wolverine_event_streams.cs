@@ -42,7 +42,8 @@ public class when_generating_targeted_wolverine_event_streams : given.a_wolverin
     [Fact] void should_retain_a_loaded_stream_without_a_direct_append() => ReadsFrom("InspectAccount").Single().Definitions.Single().SourceMember.ShouldEqual("accountId");
     [Fact] void should_retain_both_ambiguous_conventional_version_bindings() => ReadsFrom("ConventionalVersionCommand").Select(_ => _.Definitions.Single().SourceMember).ShouldContainOnly(["fromId", "toId"]);
     [Fact] void should_report_ambiguous_conventional_version_for_each_binding() => Diagnostics(WolverineDiagnosticCodes.StreamVersionOmitted).Count(_ => _.Message.Contains("ConventionalVersionCommand", StringComparison.Ordinal)).ShouldEqual(2);
-    [Fact] void should_make_conventional_version_diagnostics_parameter_specific() => Diagnostics(WolverineDiagnosticCodes.StreamVersionOmitted).Where(_ => _.Message.Contains("ConventionalVersionCommand", StringComparison.Ordinal)).Select(_ => _.Message).ShouldContainOnly([
+    [Fact]
+    void should_make_conventional_version_diagnostics_parameter_specific() => Diagnostics(WolverineDiagnosticCodes.StreamVersionOmitted).Where(_ => _.Message.Contains("ConventionalVersionCommand", StringComparison.Ordinal)).Select(_ => _.Message).ShouldContainOnly([
         "The conventional Version member for 'ConventionalVersionCommand' cannot be attributed safely to stream parameter 'source' because the handler loads multiple streams",
         "The conventional Version member for 'ConventionalVersionCommand' cannot be attributed safely to stream parameter 'destination' because the handler loads multiple streams"]);
     [Fact] void should_ignore_an_unrelated_identity_attribute() => ReadsFrom("FalseIdentityCommand").Single().Definitions.Single().SourceMember.ShouldBeNull();

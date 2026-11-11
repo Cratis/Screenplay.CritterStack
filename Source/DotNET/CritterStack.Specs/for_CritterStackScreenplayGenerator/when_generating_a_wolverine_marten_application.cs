@@ -47,7 +47,8 @@ public class when_generating_a_wolverine_marten_application : given.a_wolverine_
     [Fact] void should_not_treat_a_pure_automation_message_as_an_event() => _result.Source.ShouldNotContain("event NotifyEscalation");
     [Fact] void should_record_a_pure_bus_handler_as_a_reaction() => _result.Graph.Artifacts.Any(_ => _.Key.Kind == ArtifactKind.Reaction).ShouldBeTrue();
     [Fact] void should_record_the_pure_automation_trigger_as_a_message() => _result.Graph.Artifacts.Any(_ => _.Key.Kind == ArtifactKind.Message && _.Key.Subject.Value.EndsWith("/IncidentService.IncidentEscalated", StringComparison.Ordinal)).ShouldBeTrue();
-    [Fact] void should_generate_get_incident_as_a_query()
+    [Fact]
+    void should_generate_get_incident_as_a_query()
     {
         _result.Source.ShouldContain("query GetIncident => Incident optional");
         var query = _result.Graph.Artifacts.Single(_ => _.Key.Kind == ArtifactKind.Query && _.Variants.Single().Definition.Name == "GetIncident");

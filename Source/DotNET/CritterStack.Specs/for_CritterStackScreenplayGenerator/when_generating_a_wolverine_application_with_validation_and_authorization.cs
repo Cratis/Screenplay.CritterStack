@@ -30,7 +30,8 @@ public class when_generating_a_wolverine_application_with_validation_and_authori
     [Fact] void should_record_allow_anonymous_as_an_override() => _result.Diagnostics.Any(_ => _.Code == WolverineDiagnosticCodes.AuthorizationOmitted && _.Message.Contains("explicitly allows anonymous access", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_retain_activation_source_evidence() => _result.Diagnostics.Where(_ => _.Code == WolverineDiagnosticCodes.ValidationPolicyOmitted).All(_ => _.Source?.Path == "ValidationAuthorization/Program.cs").ShouldBeTrue();
     [Fact] void should_retain_applied_behavior_source_evidence() => _result.Diagnostics.Where(_ => _.Code == WolverineDiagnosticCodes.ValidationOmitted || (_.Code == WolverineDiagnosticCodes.AuthorizationOmitted && _.Source?.Path != "ValidationAuthorization/Program.cs")).All(_ => _.Source?.Path == "ValidationAuthorization/Endpoints.cs").ShouldBeTrue();
-    [Fact] void should_not_overload_unrelated_relationships()
+    [Fact]
+    void should_not_overload_unrelated_relationships()
     {
         _result.Graph.Relationships.Count.ShouldEqual(4);
         _result.Graph.Relationships.Count(_ => _.Key.Kind == RelationshipKind.Produces).ShouldEqual(2);
