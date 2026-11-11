@@ -10,341 +10,155 @@ namespace Cratis.CritterStack.Screenplay.Wolverine;
 
 static class WolverineValidationAuthorizationDiscovery
 {
+    static readonly (string ContainingType, string MethodName, WolverineValidationPolicyKind Kind, WolverineValidationPolicyScope Scope)[] _validationActivations =
+    [
+        (WellKnownTypes.WolverineFluentValidationExtensions, "UseFluentValidation", WolverineValidationPolicyKind.FluentValidation, WolverineValidationPolicyScope.MessageHandlers),
+        (WellKnownTypes.WolverineDataAnnotationsValidationExtensions, "UseDataAnnotationsValidation", WolverineValidationPolicyKind.DataAnnotations, WolverineValidationPolicyScope.MessageHandlers),
+        (WellKnownTypes.WolverineHttpFluentValidationExtensions, "UseFluentValidationProblemDetailMiddleware", WolverineValidationPolicyKind.FluentValidation, WolverineValidationPolicyScope.HttpEndpoints),
+        (WellKnownTypes.WolverineHttpOptions, "UseDataAnnotationsValidationProblemDetailMiddleware", WolverineValidationPolicyKind.DataAnnotations, WolverineValidationPolicyScope.HttpEndpoints)
+    ];
+
     public static WolverineValidationAuthorizationDiscoveryResult Discover(
         DotNetProjectCompilation project,
         CritterStackSubjectResolver subjects)
     {
-        var validationPolicies = new List<WolverineValidationPolicyActivation>();
-        var authorizationPolicies = new List<WolverineAuthorizationPolicyActivation>();
-        var diagnostics = new List<GenerationDiagnostic>();
+        var context = new DiscoveryContext(project, subjects);
         var sourceTypes = new DotNetArtifactCatalog(project.Compilation).Types.ToArray();
 
         foreach (var call in ConfigurationCalls(project))
         {
-            var containingType = DotNetSubjectIds.MetadataName(call.Method.ContainingType.OriginalDefinition);
-            if (IsValidationActivation(containingType, call.Method.Name, out var kind, out var scope))
-            {
-                DiscoverValidationActivation(project, subjects, call, kind, scope, validationPolicies, diagnostics);
-                continue;
-            }
-
-            if (containingType == WellKnownTypes.WolverineHttpOptions)
-            {
-                switch (call.Method.Name)
-                {
-                    case "RequireAuthorizeOnAll":
-                        DiscoverGlobalAuthorization(project, subjects, call, "RequireAuthorizeOnAll", authorizationPolicies, diagnostics);
-                        break;
-                    case "ConfigureEndpoints":
-                        DiscoverConfiguredEndpointAuthorization(project, subjects, call, authorizationPolicies, diagnostics);
-                        break;
-                }
-            }
+            DiscoverCall(context, call);
         }
 
-        diagnostics.AddRange(validationPolicies.Select(policy => new GenerationDiagnostic
-        {
-            Code = WolverineDiagnosticCodes.ValidationPolicyOmitted,
-            Severity = GenerationDiagnosticSeverity.Information,
-            Outcome = GenerationDiagnosticOutcome.Unsupported,
-            Message = $"Wolverine {ValidationName(policy.Kind)} {ScopeName(policy.Scope)} policy is enabled by '{policy.MethodName}', but current generation contracts cannot represent policy activation",
-            Source = policy.Source,
-            Subject = policy.Subject
-        }));
-        diagnostics.AddRange(authorizationPolicies.Select(policy => new GenerationDiagnostic
-        {
-            Code = WolverineDiagnosticCodes.AuthorizationOmitted,
-            Severity = GenerationDiagnosticSeverity.Warning,
-            Outcome = GenerationDiagnosticOutcome.Unsupported,
-            Message = $"Global Wolverine HTTP authorization is enabled by {policy.Description}, but current generation contracts cannot represent authorization without overloading an unrelated relationship",
-            Source = policy.Source,
-            Subject = policy.Subject
-        }));
+        context.AddActivationDiagnostics();
+        return new(project, context.ValidationPolicies, sourceTypes, context.Diagnostics);
+    }
 
-        return new(project, validationPolicies, sourceTypes, diagnostics);
+    static void DiscoverCall(DiscoveryContext context, ConfigurationCall call)
+    {
+        var containingType = DotNetSubjectIds.MetadataName(call.Method.ContainingType.OriginalDefinition);
+        if (IsValidationActivation(containingType, call.Method.Name, out var kind, out var scope))
+        {
+            DiscoverValidationActivation(context, call, kind, scope);
+            return;
+        }
+
+        if (containingType != WellKnownTypes.WolverineHttpOptions)
+        {
+            return;
+        }
+
+        switch (call.Method.Name)
+        {
+            case "RequireAuthorizeOnAll":
+                DiscoverGlobalAuthorization(context, call, "RequireAuthorizeOnAll");
+                break;
+            case "ConfigureEndpoints":
+                DiscoverConfiguredEndpointAuthorization(context, call);
+                break;
+        }
     }
 
     static void DiscoverValidationActivation(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
+        DiscoveryContext context,
         ConfigurationCall call,
         WolverineValidationPolicyKind kind,
-        WolverineValidationPolicyScope scope,
-        List<WolverineValidationPolicyActivation> policies,
-        List<GenerationDiagnostic> diagnostics)
+        WolverineValidationPolicyScope scope)
     {
         if (IsConditionallyExecuted(call.Invocation))
         {
-            diagnostics.Add(UnresolvedValidation(
-                project,
-                subjects,
-                call,
-                "the policy call is conditionally executed at runtime"));
+            context.ReportUnresolvedValidation(call, "the policy call is conditionally executed at runtime");
             return;
         }
 
-        var canDiscoverValidators = true;
-        var includeInternalValidators = false;
-        var optionsResolved = true;
-        if (kind == WolverineValidationPolicyKind.FluentValidation &&
-            !TryResolveFluentValidationOptions(call, out canDiscoverValidators, out includeInternalValidators, out var reason))
+        var isFluent = kind == WolverineValidationPolicyKind.FluentValidation;
+        var options = isFluent
+            ? WolverineFluentValidationOptions.Resolve(call.Invocation, call.SemanticModel)
+            : new WolverineFluentValidationOptions();
+        var optionsResolved = options.Resolved;
+        if (!optionsResolved)
         {
-            diagnostics.Add(UnresolvedValidation(project, subjects, call, reason));
-            canDiscoverValidators = false;
-            includeInternalValidators = false;
-            optionsResolved = false;
+            context.ReportUnresolvedValidation(call, options.Failure!);
+            options.CanDiscoverValidators = false;
+            options.IncludeInternalValidators = false;
         }
 
-        var source = CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project);
-        var subject = ConfigurationSubject(project, subjects, call);
-        policies.Add(new(
+        context.ValidationPolicies.Add(new(
             kind,
             scope,
-            canDiscoverValidators,
-            includeInternalValidators,
-            source,
-            subject,
+            options.CanDiscoverValidators,
+            options.IncludeInternalValidators,
+            context.SourceOf(call),
+            context.SubjectOf(call),
             call.Method.Name));
 
-        if (kind == WolverineValidationPolicyKind.FluentValidation && optionsResolved && !canDiscoverValidators)
+        if (isFluent && optionsResolved && !options.CanDiscoverValidators)
         {
-            diagnostics.Add(UnresolvedValidation(
-                project,
-                subjects,
-                call,
-                "validator applicability depends on explicit runtime container registrations"));
+            context.ReportUnresolvedValidation(call, "validator applicability depends on explicit runtime container registrations");
         }
     }
 
-    static void DiscoverGlobalAuthorization(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        ConfigurationCall call,
-        string description,
-        List<WolverineAuthorizationPolicyActivation> policies,
-        List<GenerationDiagnostic> diagnostics)
+    static void DiscoverGlobalAuthorization(DiscoveryContext context, ConfigurationCall call, string description)
     {
         if (IsConditionallyExecuted(call.Invocation))
         {
-            diagnostics.Add(UnresolvedAuthorization(
-                project,
-                subjects,
-                call,
-                "the global authorization call is conditionally executed at runtime"));
+            context.ReportUnresolvedAuthorization(call, "the global authorization call is conditionally executed at runtime");
             return;
         }
 
-        policies.Add(new(
-            CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project),
-            ConfigurationSubject(project, subjects, call),
-            $"'{description}'"));
+        context.AuthorizationPolicies.Add(new(context.SourceOf(call), context.SubjectOf(call), $"'{description}'"));
     }
 
-    static void DiscoverConfiguredEndpointAuthorization(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        ConfigurationCall call,
-        List<WolverineAuthorizationPolicyActivation> policies,
-        List<GenerationDiagnostic> diagnostics)
+    static void DiscoverConfiguredEndpointAuthorization(DiscoveryContext context, ConfigurationCall call)
     {
         if (call.Invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is not LambdaExpressionSyntax lambda ||
-            LambdaParameter(lambda, call.SemanticModel) is not { } callbackParameter)
+            WolverineLambdaSyntax.Parameter(lambda, call.SemanticModel) is not { } callbackParameter)
         {
             return;
         }
 
-        var authorizationCalls = new List<InvocationExpressionSyntax>();
-        foreach (var invocation in lambda.DescendantNodes().OfType<InvocationExpressionSyntax>())
-        {
-            if (call.SemanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol invoked &&
-                invoked.Name == "RequireAuthorization" &&
-                DotNetSubjectIds.MetadataName((invoked.ReducedFrom ?? invoked).ContainingType.OriginalDefinition) == WellKnownTypes.AspNetAuthorizationEndpointExtensions &&
-                invocation.Expression is MemberAccessExpressionSyntax memberAccess &&
-                IsRootedInParameter(memberAccess.Expression, callbackParameter, call.SemanticModel))
-            {
-                authorizationCalls.Add(invocation);
-            }
-        }
-
+        var authorizationCalls = EndpointAuthorizationCalls(lambda, callbackParameter, call.SemanticModel);
         if (authorizationCalls.Count == 0)
         {
             return;
         }
 
-        if (IsConditionallyExecuted(call.Invocation) ||
-            authorizationCalls.Exists(_ => IsConditionallyExecuted(_) || !HasConstantAuthorizationArguments(call.SemanticModel, _)))
+        if (IsConditionallyExecuted(call.Invocation) || authorizationCalls.Exists(_ => IsRuntimeAuthorization(call.SemanticModel, _)))
         {
-            diagnostics.Add(UnresolvedAuthorization(
-                project,
-                subjects,
-                call,
-                "the endpoint authorization policy is conditional or has runtime arguments"));
+            context.ReportUnresolvedAuthorization(call, "the endpoint authorization policy is conditional or has runtime arguments");
             return;
         }
 
-        policies.Add(new(
-            CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project),
-            ConfigurationSubject(project, subjects, call),
+        context.AuthorizationPolicies.Add(new(
+            context.SourceOf(call),
+            context.SubjectOf(call),
             "'ConfigureEndpoints(... RequireAuthorization(...))'"));
     }
+
+    static List<InvocationExpressionSyntax> EndpointAuthorizationCalls(
+        LambdaExpressionSyntax lambda,
+        IParameterSymbol callbackParameter,
+        SemanticModel semanticModel) =>
+        [.. lambda.DescendantNodes()
+            .OfType<InvocationExpressionSyntax>()
+            .Where(_ => IsAuthorizationCallOnParameter(semanticModel, _, callbackParameter))];
+
+    static bool IsAuthorizationCallOnParameter(
+        SemanticModel semanticModel,
+        InvocationExpressionSyntax invocation,
+        IParameterSymbol callbackParameter) =>
+        semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol { Name: "RequireAuthorization" } invoked &&
+        DotNetSubjectIds.MetadataName((invoked.ReducedFrom ?? invoked).ContainingType.OriginalDefinition) == WellKnownTypes.AspNetAuthorizationEndpointExtensions &&
+        invocation.Expression is MemberAccessExpressionSyntax memberAccess &&
+        WolverineLambdaSyntax.IsRootedInParameter(memberAccess.Expression, callbackParameter, semanticModel);
+
+    static bool IsRuntimeAuthorization(SemanticModel semanticModel, InvocationExpressionSyntax invocation) =>
+        IsConditionallyExecuted(invocation) || !HasConstantAuthorizationArguments(semanticModel, invocation);
 
     static bool HasConstantAuthorizationArguments(SemanticModel semanticModel, InvocationExpressionSyntax invocation) =>
         invocation.ArgumentList.Arguments.All(argument =>
             semanticModel.GetTypeInfo(argument.Expression).ConvertedType?.SpecialType == SpecialType.System_String &&
             semanticModel.GetConstantValue(argument.Expression).HasValue);
-
-    static bool TryResolveFluentValidationOptions(
-        ConfigurationCall call,
-        out bool canDiscoverValidators,
-        out bool includeInternalValidators,
-        out string reason)
-    {
-        canDiscoverValidators = true;
-        includeInternalValidators = false;
-        reason = string.Empty;
-        foreach (var argument in call.Invocation.ArgumentList.Arguments)
-        {
-            var expression = argument.Expression;
-            if (expression is LambdaExpressionSyntax lambda)
-            {
-                return TryResolveFluentValidationCallback(
-                    call.SemanticModel,
-                    lambda,
-                    out canDiscoverValidators,
-                    out includeInternalValidators,
-                    out reason);
-            }
-
-            if (expression is AnonymousMethodExpressionSyntax)
-            {
-                reason = "the FluentValidation configuration callback is executed at runtime";
-                return false;
-            }
-
-            var convertedType = call.SemanticModel.GetTypeInfo(expression).ConvertedType;
-            if (convertedType is INamedTypeSymbol { TypeKind: TypeKind.Delegate } delegateType &&
-                delegateType.TypeArguments.Any(_ => _ is INamedTypeSymbol named && DotNetSubjectIds.MetadataName(named) == WellKnownTypes.WolverineFluentValidationConfiguration))
-            {
-                reason = "the FluentValidation configuration callback is executed at runtime";
-                return false;
-            }
-
-            var constant = call.SemanticModel.GetConstantValue(expression);
-            if (!constant.HasValue)
-            {
-                reason = "a FluentValidation option is not a compile-time constant";
-                return false;
-            }
-
-            if (convertedType?.SpecialType == SpecialType.System_Boolean && constant.Value is bool includeInternal)
-            {
-                includeInternalValidators = includeInternal;
-                continue;
-            }
-
-            if (convertedType is INamedTypeSymbol enumType &&
-                DotNetSubjectIds.MetadataName(enumType.OriginalDefinition) == WellKnownTypes.WolverineFluentValidationRegistrationBehavior &&
-                constant.Value is int behavior)
-            {
-                canDiscoverValidators = behavior == 0;
-                continue;
-            }
-
-            reason = "a FluentValidation option uses an unsupported runtime configuration shape";
-            return false;
-        }
-
-        return true;
-    }
-
-    static bool TryResolveFluentValidationCallback(
-        SemanticModel semanticModel,
-        LambdaExpressionSyntax lambda,
-        out bool canDiscoverValidators,
-        out bool includeInternalValidators,
-        out string reason)
-    {
-        canDiscoverValidators = true;
-        includeInternalValidators = false;
-        reason = string.Empty;
-        if (LambdaParameter(lambda, semanticModel) is not { } callbackParameter)
-        {
-            reason = "the FluentValidation configuration callback parameter cannot be resolved";
-            return false;
-        }
-
-        var assignments = lambda.Body switch
-        {
-            AssignmentExpressionSyntax assignment => [assignment],
-            BlockSyntax block when block.Statements.All(_ => _ is ExpressionStatementSyntax { Expression: AssignmentExpressionSyntax }) =>
-                block.Statements.Cast<ExpressionStatementSyntax>().Select(_ => (AssignmentExpressionSyntax)_.Expression).ToArray(),
-            _ => []
-        };
-        if (assignments.Length == 0)
-        {
-            reason = "the FluentValidation configuration callback contains runtime or custom behavior";
-            return false;
-        }
-
-        foreach (var assignment in assignments)
-        {
-            if (semanticModel.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol property ||
-                DotNetSubjectIds.MetadataName(property.ContainingType) != WellKnownTypes.WolverineFluentValidationConfiguration ||
-                assignment.Left is not MemberAccessExpressionSyntax memberAccess ||
-                !IsRootedInParameter(memberAccess.Expression, callbackParameter, semanticModel))
-            {
-                reason = "the FluentValidation configuration callback contains runtime or custom behavior";
-                return false;
-            }
-
-            var constant = semanticModel.GetConstantValue(assignment.Right);
-            if (!constant.HasValue)
-            {
-                reason = $"FluentValidation option '{property.Name}' is not a compile-time constant";
-                return false;
-            }
-
-            switch (property.Name)
-            {
-                case "IncludeInternalTypes" when constant.Value is bool includeInternal:
-                    includeInternalValidators = includeInternal;
-                    break;
-                case "RegistrationBehavior" when constant.Value is int behavior:
-                    canDiscoverValidators = behavior == 0;
-                    break;
-                default:
-                    reason = $"FluentValidation option '{property.Name}' is not statically supported";
-                    return false;
-            }
-        }
-
-        return true;
-    }
-
-    static IParameterSymbol? LambdaParameter(LambdaExpressionSyntax lambda, SemanticModel semanticModel)
-    {
-        var parameter = lambda switch
-        {
-            SimpleLambdaExpressionSyntax simple => simple.Parameter,
-            ParenthesizedLambdaExpressionSyntax { ParameterList.Parameters.Count: 1 } parenthesized => parenthesized.ParameterList.Parameters[0],
-            _ => null
-        };
-        return parameter is null ? null : semanticModel.GetDeclaredSymbol(parameter) as IParameterSymbol;
-    }
-
-    static bool IsRootedInParameter(
-        ExpressionSyntax expression,
-        IParameterSymbol parameter,
-        SemanticModel semanticModel) => expression switch
-        {
-            IdentifierNameSyntax identifier => SymbolEqualityComparer.Default.Equals(
-                semanticModel.GetSymbolInfo(identifier).Symbol,
-                parameter),
-            MemberAccessExpressionSyntax memberAccess => IsRootedInParameter(memberAccess.Expression, parameter, semanticModel),
-            ParenthesizedExpressionSyntax parenthesized => IsRootedInParameter(parenthesized.Expression, parameter, semanticModel),
-            CastExpressionSyntax cast => IsRootedInParameter(cast.Expression, parameter, semanticModel),
-            _ => false
-        };
 
     static bool IsValidationActivation(
         string containingType,
@@ -352,32 +166,14 @@ static class WolverineValidationAuthorizationDiscovery
         out WolverineValidationPolicyKind kind,
         out WolverineValidationPolicyScope scope)
     {
-        if (containingType == WellKnownTypes.WolverineFluentValidationExtensions && methodName == "UseFluentValidation")
+        foreach (var activation in _validationActivations)
         {
-            kind = WolverineValidationPolicyKind.FluentValidation;
-            scope = WolverineValidationPolicyScope.MessageHandlers;
-            return true;
-        }
-
-        if (containingType == WellKnownTypes.WolverineDataAnnotationsValidationExtensions && methodName == "UseDataAnnotationsValidation")
-        {
-            kind = WolverineValidationPolicyKind.DataAnnotations;
-            scope = WolverineValidationPolicyScope.MessageHandlers;
-            return true;
-        }
-
-        if (containingType == WellKnownTypes.WolverineHttpFluentValidationExtensions && methodName == "UseFluentValidationProblemDetailMiddleware")
-        {
-            kind = WolverineValidationPolicyKind.FluentValidation;
-            scope = WolverineValidationPolicyScope.HttpEndpoints;
-            return true;
-        }
-
-        if (containingType == WellKnownTypes.WolverineHttpOptions && methodName == "UseDataAnnotationsValidationProblemDetailMiddleware")
-        {
-            kind = WolverineValidationPolicyKind.DataAnnotations;
-            scope = WolverineValidationPolicyScope.HttpEndpoints;
-            return true;
+            if (containingType == activation.ContainingType && methodName == activation.MethodName)
+            {
+                kind = activation.Kind;
+                scope = activation.Scope;
+                return true;
+            }
         }
 
         kind = default;
@@ -427,45 +223,6 @@ static class WolverineValidationAuthorizationDiscovery
         return false;
     }
 
-    static GenerationDiagnostic UnresolvedValidation(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        ConfigurationCall call,
-        string reason) => new()
-        {
-            Code = WolverineDiagnosticCodes.ValidationConfigurationUnresolved,
-            Severity = GenerationDiagnosticSeverity.Warning,
-            Outcome = GenerationDiagnosticOutcome.Unknown,
-            Message = $"Wolverine validation call '{call.Method.Name}' was not applied because {reason}",
-            Source = CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project),
-            Subject = ConfigurationSubject(project, subjects, call)
-        };
-
-    static GenerationDiagnostic UnresolvedAuthorization(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        ConfigurationCall call,
-        string reason) => new()
-        {
-            Code = WolverineDiagnosticCodes.AuthorizationConfigurationUnresolved,
-            Severity = GenerationDiagnosticSeverity.Warning,
-            Outcome = GenerationDiagnosticOutcome.Unknown,
-            Message = $"Wolverine authorization configuration call '{call.Method.Name}' was not applied because {reason}",
-            Source = CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project),
-            Subject = ConfigurationSubject(project, subjects, call)
-        };
-
-    static SubjectId ConfigurationSubject(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        ConfigurationCall call)
-    {
-        var containingType = call.SemanticModel.GetEnclosingSymbol(call.Invocation.SpanStart)?.ContainingType;
-        return containingType is null
-            ? new SubjectId { Value = $"dotnet://{project.Name}/#wolverine-configuration" }
-            : subjects.SubjectForType(project, containingType);
-    }
-
     static string ValidationName(WolverineValidationPolicyKind kind) => kind == WolverineValidationPolicyKind.FluentValidation
         ? "FluentValidation"
         : "DataAnnotations";
@@ -478,4 +235,69 @@ static class WolverineValidationAuthorizationDiscovery
         InvocationExpressionSyntax Invocation,
         IMethodSymbol Method,
         SemanticModel SemanticModel);
+
+    sealed class DiscoveryContext(DotNetProjectCompilation project, CritterStackSubjectResolver subjects)
+    {
+        public List<WolverineValidationPolicyActivation> ValidationPolicies { get; } = [];
+
+        public List<WolverineAuthorizationPolicyActivation> AuthorizationPolicies { get; } = [];
+
+        public List<GenerationDiagnostic> Diagnostics { get; } = [];
+
+        public SourceRange? SourceOf(ConfigurationCall call) =>
+            CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project);
+
+        public SubjectId SubjectOf(ConfigurationCall call)
+        {
+            var containingType = call.SemanticModel.GetEnclosingSymbol(call.Invocation.SpanStart)?.ContainingType;
+            return containingType is null
+                ? new SubjectId { Value = $"dotnet://{project.Name}/#wolverine-configuration" }
+                : subjects.SubjectForType(project, containingType);
+        }
+
+        public void ReportUnresolvedValidation(ConfigurationCall call, string reason) =>
+            ReportUnresolved(
+                call,
+                WolverineDiagnosticCodes.ValidationConfigurationUnresolved,
+                $"Wolverine validation call '{call.Method.Name}' was not applied because {reason}");
+
+        public void ReportUnresolvedAuthorization(ConfigurationCall call, string reason) =>
+            ReportUnresolved(
+                call,
+                WolverineDiagnosticCodes.AuthorizationConfigurationUnresolved,
+                $"Wolverine authorization configuration call '{call.Method.Name}' was not applied because {reason}");
+
+        public void AddActivationDiagnostics()
+        {
+            Diagnostics.AddRange(ValidationPolicies.Select(policy => new GenerationDiagnostic
+            {
+                Code = WolverineDiagnosticCodes.ValidationPolicyOmitted,
+                Severity = GenerationDiagnosticSeverity.Information,
+                Outcome = GenerationDiagnosticOutcome.Unsupported,
+                Message = $"Wolverine {ValidationName(policy.Kind)} {ScopeName(policy.Scope)} policy is enabled by '{policy.MethodName}', but current generation contracts cannot represent policy activation",
+                Source = policy.Source,
+                Subject = policy.Subject
+            }));
+            Diagnostics.AddRange(AuthorizationPolicies.Select(policy => new GenerationDiagnostic
+            {
+                Code = WolverineDiagnosticCodes.AuthorizationOmitted,
+                Severity = GenerationDiagnosticSeverity.Warning,
+                Outcome = GenerationDiagnosticOutcome.Unsupported,
+                Message = $"Global Wolverine HTTP authorization is enabled by {policy.Description}, but current generation contracts cannot represent authorization without overloading an unrelated relationship",
+                Source = policy.Source,
+                Subject = policy.Subject
+            }));
+        }
+
+        void ReportUnresolved(ConfigurationCall call, string code, string message) =>
+            Diagnostics.Add(new()
+            {
+                Code = code,
+                Severity = GenerationDiagnosticSeverity.Warning,
+                Outcome = GenerationDiagnosticOutcome.Unknown,
+                Message = message,
+                Source = SourceOf(call),
+                Subject = SubjectOf(call)
+            });
+    }
 }

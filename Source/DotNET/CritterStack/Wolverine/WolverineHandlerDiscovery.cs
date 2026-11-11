@@ -15,76 +15,83 @@ static class WolverineHandlerDiscovery
         CritterStackSubjectResolver subjects)
     {
         var calls = ConfigurationCalls(project).ToArray();
-        var explicitTypes = new List<INamedTypeSymbol>();
-        var diagnostics = new List<GenerationDiagnostic>(WolverineConventionAlterationDiscovery.Discover(project, subjects));
-        var disableValues = new List<bool>();
-        var conventionalDiscoveryResolvable = true;
+        var state = new DiscoveryState(project, subjects);
+        state.Diagnostics.AddRange(WolverineConventionAlterationDiscovery.Discover(project, subjects));
 
         foreach (var call in calls)
         {
-            switch (call.Method.Name)
-            {
-                case "DisableConventionalDiscovery":
-                    if (TryGetDisabledValue(call, out var disabled))
-                    {
-                        disableValues.Add(disabled);
-                    }
-                    else
-                    {
-                        conventionalDiscoveryResolvable = false;
-                        diagnostics.Add(UnresolvedDiagnostic(project, subjects, call, "the enabled state is not a compile-time constant"));
-                    }
-                    break;
-                case "IncludeType":
-                    if (TryGetIncludedType(call, out var includedType) && IsAuthoredSourceType(includedType, project))
-                    {
-                        if (!explicitTypes.Exists(_ => SymbolEqualityComparer.Default.Equals(_, includedType)))
-                        {
-                            explicitTypes.Add(includedType);
-                        }
-                    }
-                    else
-                    {
-                        diagnostics.Add(UnresolvedDiagnostic(project, subjects, call, "the included handler type is not authored source in this compilation"));
-                    }
-                    break;
-                case "IncludeAssembly":
-                    if (!ReferencesCurrentAssembly(project, call))
-                    {
-                        diagnostics.Add(UnresolvedDiagnostic(project, subjects, call, "assembly scanning outside the current source compilation is not supported"));
-                    }
-                    break;
-                case "CustomizeHandlerDiscovery":
-                    conventionalDiscoveryResolvable = false;
-                    diagnostics.Add(UnresolvedDiagnostic(project, subjects, call, "custom handler predicates and lambdas are not statically interpreted"));
-                    break;
-                case "IgnoreAssembly":
-                    conventionalDiscoveryResolvable = false;
-                    diagnostics.Add(UnresolvedDiagnostic(project, subjects, call, "assembly removal cannot be resolved from the current source compilation"));
-                    break;
-            }
+            ApplyCall(state, call);
         }
 
-        var distinctDisableValues = disableValues.Distinct().ToArray();
+        var distinctDisableValues = state.DisableValues.Distinct().ToArray();
         if (distinctDisableValues.Length > 1)
         {
-            conventionalDiscoveryResolvable = false;
+            state.ConventionalDiscoveryResolvable = false;
             var call = calls.First(_ => _.Method.Name == "DisableConventionalDiscovery");
-            diagnostics.Add(UnresolvedDiagnostic(
-                project,
-                subjects,
-                call,
-                "conflicting enabled states depend on runtime execution order",
-                GenerationDiagnosticOutcome.Conflict));
+            state.Report(call, "conflicting enabled states depend on runtime execution order", GenerationDiagnosticOutcome.Conflict);
         }
 
         var conventionalDiscoveryEnabled = distinctDisableValues.Length == 0 || !distinctDisableValues[0];
         var policy = new WolverineHandlerDiscoveryPolicy(
             conventionalDiscoveryEnabled,
-            conventionalDiscoveryResolvable,
-            explicitTypes);
+            state.ConventionalDiscoveryResolvable,
+            state.ExplicitTypes);
 
-        return new(policy, diagnostics);
+        return new(policy, state.Diagnostics);
+    }
+
+    static void ApplyCall(DiscoveryState state, ConfigurationCall call)
+    {
+        switch (call.Method.Name)
+        {
+            case "DisableConventionalDiscovery":
+                ApplyDisable(state, call);
+                break;
+            case "IncludeType":
+                ApplyIncludeType(state, call);
+                break;
+            case "IncludeAssembly":
+                if (!ReferencesCurrentAssembly(state.Project, call))
+                {
+                    state.Report(call, "assembly scanning outside the current source compilation is not supported");
+                }
+
+                break;
+            case "CustomizeHandlerDiscovery":
+                state.ConventionalDiscoveryResolvable = false;
+                state.Report(call, "custom handler predicates and lambdas are not statically interpreted");
+                break;
+            case "IgnoreAssembly":
+                state.ConventionalDiscoveryResolvable = false;
+                state.Report(call, "assembly removal cannot be resolved from the current source compilation");
+                break;
+        }
+    }
+
+    static void ApplyDisable(DiscoveryState state, ConfigurationCall call)
+    {
+        if (TryGetDisabledValue(call, out var disabled))
+        {
+            state.DisableValues.Add(disabled);
+            return;
+        }
+
+        state.ConventionalDiscoveryResolvable = false;
+        state.Report(call, "the enabled state is not a compile-time constant");
+    }
+
+    static void ApplyIncludeType(DiscoveryState state, ConfigurationCall call)
+    {
+        if (!TryGetIncludedType(call, out var includedType) || !IsAuthoredSourceType(includedType, state.Project))
+        {
+            state.Report(call, "the included handler type is not authored source in this compilation");
+            return;
+        }
+
+        if (!state.ExplicitTypes.Exists(_ => SymbolEqualityComparer.Default.Equals(_, includedType)))
+        {
+            state.ExplicitTypes.Add(includedType);
+        }
     }
 
     static IEnumerable<ConfigurationCall> ConfigurationCalls(DotNetProjectCompilation project)
@@ -131,6 +138,13 @@ static class WolverineHandlerDiscovery
 
     static bool TryGetIncludedType(ConfigurationCall call, out INamedTypeSymbol type)
     {
+        var found = TryGetGenericTypeArgument(call) ?? TryGetTypeOfArgument(call);
+        type = found!;
+        return found is not null;
+    }
+
+    static INamedTypeSymbol? TryGetGenericTypeArgument(ConfigurationCall call)
+    {
         var genericName = call.Invocation.Expression switch
         {
             GenericNameSyntax direct => direct,
@@ -138,24 +152,16 @@ static class WolverineHandlerDiscovery
             _ => null
         };
         var syntaxType = genericName?.TypeArgumentList.Arguments.FirstOrDefault();
-        if (syntaxType is not null && call.SemanticModel.GetTypeInfo(syntaxType).Type is INamedTypeSymbol typeArgument)
-        {
-            type = typeArgument;
-            return true;
-        }
+        return syntaxType is null ? null : call.SemanticModel.GetTypeInfo(syntaxType).Type as INamedTypeSymbol;
+    }
 
+    static INamedTypeSymbol? TryGetTypeOfArgument(ConfigurationCall call)
+    {
         var typeOf = call.Invocation.ArgumentList.Arguments
             .Select(_ => _.Expression)
             .OfType<TypeOfExpressionSyntax>()
             .FirstOrDefault();
-        if (typeOf is not null && call.SemanticModel.GetTypeInfo(typeOf.Type).Type is INamedTypeSymbol typeOfArgument)
-        {
-            type = typeOfArgument;
-            return true;
-        }
-
-        type = null!;
-        return false;
+        return typeOf is null ? null : call.SemanticModel.GetTypeInfo(typeOf.Type).Type as INamedTypeSymbol;
     }
 
     static bool ReferencesCurrentAssembly(DotNetProjectCompilation project, ConfigurationCall call)
@@ -174,32 +180,43 @@ static class WolverineHandlerDiscovery
         project.AuthoredSyntaxTrees.Contains(_.SourceTree) &&
         !DotNetGeneratedSource.IsGenerated(_.SourceTree));
 
-    static GenerationDiagnostic UnresolvedDiagnostic(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        ConfigurationCall call,
-        string reason,
-        GenerationDiagnosticOutcome outcome = GenerationDiagnosticOutcome.Unknown)
-    {
-        var containingType = call.SemanticModel.GetEnclosingSymbol(call.Invocation.SpanStart)?.ContainingType;
-        var subject = containingType is null
-            ? new SubjectId { Value = $"dotnet://{project.Name}/#wolverine-handler-discovery" }
-            : subjects.SubjectForType(project, containingType);
-        return new()
-        {
-            Code = WolverineDiagnosticCodes.HandlerDiscoveryConfigurationUnresolved,
-            Severity = GenerationDiagnosticSeverity.Warning,
-            Outcome = outcome,
-            Message = $"Wolverine handler discovery call '{call.Method.Name}' was not applied because {reason}",
-            Source = CritterStackSource.RangeForProject(call.Invocation.GetLocation(), project),
-            Subject = subject
-        };
-    }
-
     sealed record ConfigurationCall(
         InvocationExpressionSyntax Invocation,
         IMethodSymbol Method,
         SemanticModel SemanticModel);
+
+    sealed class DiscoveryState(DotNetProjectCompilation project, CritterStackSubjectResolver subjects)
+    {
+        public DotNetProjectCompilation Project { get; } = project;
+
+        public List<INamedTypeSymbol> ExplicitTypes { get; } = [];
+
+        public List<GenerationDiagnostic> Diagnostics { get; } = [];
+
+        public List<bool> DisableValues { get; } = [];
+
+        public bool ConventionalDiscoveryResolvable { get; set; } = true;
+
+        public void Report(
+            ConfigurationCall call,
+            string reason,
+            GenerationDiagnosticOutcome outcome = GenerationDiagnosticOutcome.Unknown)
+        {
+            var containingType = call.SemanticModel.GetEnclosingSymbol(call.Invocation.SpanStart)?.ContainingType;
+            var subject = containingType is null
+                ? new SubjectId { Value = $"dotnet://{Project.Name}/#wolverine-handler-discovery" }
+                : subjects.SubjectForType(Project, containingType);
+            Diagnostics.Add(new()
+            {
+                Code = WolverineDiagnosticCodes.HandlerDiscoveryConfigurationUnresolved,
+                Severity = GenerationDiagnosticSeverity.Warning,
+                Outcome = outcome,
+                Message = $"Wolverine handler discovery call '{call.Method.Name}' was not applied because {reason}",
+                Source = CritterStackSource.RangeForProject(call.Invocation.GetLocation(), Project),
+                Subject = subject
+            });
+        }
+    }
 }
 
 sealed record WolverineHandlerDiscoveryResult(
@@ -218,20 +235,21 @@ sealed class WolverineHandlerDiscoveryPolicy(
             return true;
         }
 
-        if (!conventionalDiscoveryEnabled || !conventionalDiscoveryResolvable)
-        {
-            return false;
-        }
-
-        return type.Name.EndsWith("Handler", StringComparison.Ordinal) ||
-               type.Name.EndsWith("Consumer", StringComparison.Ordinal) ||
-               DotNetSymbols.IsOrInheritsFrom(type, WellKnownTypes.WolverineSaga) ||
-               DotNetSymbols.Implements(type, WellKnownTypes.WolverineHandlerInterface) ||
-               HasHandlerAttribute(type) ||
-               type.GetMembers().OfType<IMethodSymbol>().Any(HasHandlerAttribute);
+        return conventionalDiscoveryEnabled && conventionalDiscoveryResolvable && FollowsHandlerConvention(type);
     }
 
-    bool HasHandlerAttribute(ISymbol symbol) =>
+    static bool FollowsHandlerConvention(INamedTypeSymbol type) =>
+        HasHandlerSuffix(type) ||
+        DotNetSymbols.IsOrInheritsFrom(type, WellKnownTypes.WolverineSaga) ||
+        DotNetSymbols.Implements(type, WellKnownTypes.WolverineHandlerInterface) ||
+        HasHandlerAttribute(type) ||
+        type.GetMembers().OfType<IMethodSymbol>().Any(HasHandlerAttribute);
+
+    static bool HasHandlerSuffix(INamedTypeSymbol type) =>
+        type.Name.EndsWith("Handler", StringComparison.Ordinal) ||
+        type.Name.EndsWith("Consumer", StringComparison.Ordinal);
+
+    static bool HasHandlerAttribute(ISymbol symbol) =>
         DotNetSymbols.HasAttribute(symbol, WellKnownTypes.WolverineHandlerAttribute) ||
         DotNetSymbols.HasAttribute(symbol, WellKnownTypes.WolverineLegacyHandlerAttribute);
 }
