@@ -49,6 +49,7 @@ static class MartenMultiStreamConfigurationDiscovery
         CritterStackSubjectResolver subjects,
         INamedTypeSymbol projection)
     {
+        var scope = new ProjectionScope(project, adapter, subjects, projection);
         if (projection.BaseType is null ||
             DotNetSubjectIds.MetadataName(projection.BaseType.OriginalDefinition) != WellKnownTypes.MartenMultiStreamProjection)
         {
@@ -56,10 +57,7 @@ static class MartenMultiStreamConfigurationDiscovery
                 [],
                 [],
                 [
-                Loss(
-                    project,
-                    subjects,
-                    projection,
+                scope.Loss(
                     CritterStackSource.EvidenceFor(
                         projection,
                         adapter,
@@ -71,128 +69,121 @@ static class MartenMultiStreamConfigurationDiscovery
             ]);
         }
 
-        var identities = new List<MartenMultiStreamIdentity>();
-        var fanOuts = new List<MartenMultiStreamFanOut>();
-        var diagnostics = new List<GenerationDiagnostic>();
         foreach (var constructor in projection.DeclaringSyntaxReferences
                      .Select(_ => _.GetSyntax())
                      .OfType<TypeDeclarationSyntax>()
                      .SelectMany(_ => _.Members.OfType<ConstructorDeclarationSyntax>()))
         {
-            var semanticModel = project.Compilation.GetSemanticModel(constructor.SyntaxTree);
-            foreach (var invocation in constructor.DescendantNodes().OfType<InvocationExpressionSyntax>())
-            {
-                if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
-                    !IsExactConfigurationMethod(method))
-                {
-                    continue;
-                }
-
-                var evidence = InvocationEvidence(project, adapter, invocation, method.Name);
-                if (!IsTopLevelConfiguration(invocation, constructor))
-                {
-                    diagnostics.Add(Loss(
-                        project,
-                        subjects,
-                        projection,
-                        evidence,
-                        $"Marten {method.Name} configuration in '{projection.Name}' is conditional or nested and cannot be resolved safely",
-                        GenerationDiagnosticOutcome.Unknown));
-                    continue;
-                }
-
-                switch (method.Name)
-                {
-                    case "Identity":
-                    case "Identities":
-                        DiscoverIdentity(project, subjects, projection, invocation, method, semanticModel, evidence, identities, diagnostics);
-                        break;
-                    case "FanOut":
-                        DiscoverFanOut(project, subjects, projection, invocation, method, semanticModel, evidence, fanOuts, diagnostics);
-                        break;
-                    case "CustomGrouping":
-                        diagnostics.Add(Loss(
-                            project,
-                            subjects,
-                            projection,
-                            evidence,
-                            $"Multi-stream projection '{projection.Name}' uses arbitrary custom grouping through CustomGrouping and no identity mapping was inferred"));
-                        break;
-                    case "RollUpByTenant":
-                        diagnostics.Add(Loss(
-                            project,
-                            subjects,
-                            projection,
-                            evidence,
-                            $"Multi-stream projection '{projection.Name}' groups by tenant through RollUpByTenant and no identity mapping was inferred"));
-                        break;
-                }
-            }
-
-            foreach (var assignment in constructor.DescendantNodes().OfType<AssignmentExpressionSyntax>())
-            {
-                if (semanticModel.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol property ||
-                    property.Name != "TenancyGrouping" ||
-                    DotNetSubjectIds.MetadataName(property.ContainingType.OriginalDefinition) != JasperFxMultiStreamProjection)
-                {
-                    continue;
-                }
-
-                var evidence = new Evidence
-                {
-                    Adapter = adapter,
-                    Strength = EvidenceStrength.Exact,
-                    Source = CritterStackSource.RangeForProject(assignment.GetLocation(), project),
-                    Explanation = "Marten multi-stream tenancy grouping assignment"
-                };
-                diagnostics.Add(Loss(
-                    project,
-                    subjects,
-                    projection,
-                    evidence,
-                    $"Multi-stream projection '{projection.Name}' configures tenancy-dependent grouping and no identity mapping was inferred from that assignment"));
-            }
+            var constructorScope = new ConstructorScope(scope, constructor, project.Compilation.GetSemanticModel(constructor.SyntaxTree));
+            DiscoverConfigurationInvocations(constructorScope);
+            DiscoverTenancyGroupingAssignments(constructorScope);
         }
 
         return new(
-            [.. identities.OrderBy(_ => DotNetSubjectIds.MetadataName(_.EventType), StringComparer.Ordinal).ThenBy(_ => _.TargetMember, StringComparer.Ordinal)],
-            [.. fanOuts.OrderBy(_ => DotNetSubjectIds.MetadataName(_.ParentEventType), StringComparer.Ordinal).ThenBy(_ => DotNetSubjectIds.MetadataName(_.ChildEventType), StringComparer.Ordinal).ThenBy(_ => _.SourceMember, StringComparer.Ordinal)],
-            [.. diagnostics.OrderBy(_ => _.Source?.Path, StringComparer.Ordinal).ThenBy(_ => _.Source?.StartLine).ThenBy(_ => _.Message, StringComparer.Ordinal)]);
+            [.. scope.Identities.OrderBy(_ => DotNetSubjectIds.MetadataName(_.EventType), StringComparer.Ordinal).ThenBy(_ => _.TargetMember, StringComparer.Ordinal)],
+            [.. scope.FanOuts.OrderBy(_ => DotNetSubjectIds.MetadataName(_.ParentEventType), StringComparer.Ordinal).ThenBy(_ => DotNetSubjectIds.MetadataName(_.ChildEventType), StringComparer.Ordinal).ThenBy(_ => _.SourceMember, StringComparer.Ordinal)],
+            [.. scope.Diagnostics.OrderBy(_ => _.Source?.Path, StringComparer.Ordinal).ThenBy(_ => _.Source?.StartLine).ThenBy(_ => _.Message, StringComparer.Ordinal)]);
     }
 
-    static void DiscoverIdentity(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        INamedTypeSymbol projection,
-        InvocationExpressionSyntax invocation,
-        IMethodSymbol method,
-        SemanticModel semanticModel,
-        Evidence evidence,
-        List<MartenMultiStreamIdentity> identities,
-        List<GenerationDiagnostic> diagnostics)
+    static void DiscoverConfigurationInvocations(ConstructorScope constructorScope)
     {
-        if (method.TypeArguments is not [INamedTypeSymbol configuredEventType] ||
-            invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is not LambdaExpressionSyntax lambda ||
-            !TryMemberPath(lambda, semanticModel, out var path, out var lambdaParameterType))
+        foreach (var invocation in constructorScope.Constructor.DescendantNodes().OfType<InvocationExpressionSyntax>())
         {
-            diagnostics.Add(Loss(
-                project,
-                subjects,
-                projection,
+            if (constructorScope.SemanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
+                !IsExactConfigurationMethod(method))
+            {
+                continue;
+            }
+
+            var site = new ConfigurationSite(
+                invocation,
+                method,
+                constructorScope.SemanticModel,
+                InvocationEvidence(constructorScope.Projection, invocation, method.Name));
+            if (!IsTopLevelConfiguration(invocation, constructorScope.Constructor))
+            {
+                constructorScope.Projection.Report(
+                    site.Evidence,
+                    $"Marten {method.Name} configuration in '{constructorScope.Projection.Projection.Name}' is conditional or nested and cannot be resolved safely",
+                    GenerationDiagnosticOutcome.Unknown);
+                continue;
+            }
+
+            DiscoverConfiguration(constructorScope.Projection, site);
+        }
+    }
+
+    static void DiscoverConfiguration(ProjectionScope scope, ConfigurationSite site)
+    {
+        switch (site.Method.Name)
+        {
+            case "Identity":
+            case "Identities":
+                DiscoverIdentity(scope, site);
+                break;
+            case "FanOut":
+                DiscoverFanOut(scope, site);
+                break;
+            case "CustomGrouping":
+                scope.Report(
+                    site.Evidence,
+                    $"Multi-stream projection '{scope.Projection.Name}' uses arbitrary custom grouping through CustomGrouping and no identity mapping was inferred");
+                break;
+            case "RollUpByTenant":
+                scope.Report(
+                    site.Evidence,
+                    $"Multi-stream projection '{scope.Projection.Name}' groups by tenant through RollUpByTenant and no identity mapping was inferred");
+                break;
+        }
+    }
+
+    static void DiscoverTenancyGroupingAssignments(ConstructorScope constructorScope)
+    {
+        foreach (var assignment in constructorScope.Constructor.DescendantNodes().OfType<AssignmentExpressionSyntax>())
+        {
+            if (!IsTenancyGroupingAssignment(assignment, constructorScope.SemanticModel))
+            {
+                continue;
+            }
+
+            var evidence = new Evidence
+            {
+                Adapter = constructorScope.Projection.Adapter,
+                Strength = EvidenceStrength.Exact,
+                Source = CritterStackSource.RangeForProject(assignment.GetLocation(), constructorScope.Projection.Project),
+                Explanation = "Marten multi-stream tenancy grouping assignment"
+            };
+            constructorScope.Projection.Report(
                 evidence,
-                $"Marten {method.Name} configuration in '{projection.Name}' is not a simple member-selector lambda and no identity mapping was inferred",
-                GenerationDiagnosticOutcome.Unknown));
+                $"Multi-stream projection '{constructorScope.Projection.Projection.Name}' configures tenancy-dependent grouping and no identity mapping was inferred from that assignment");
+        }
+    }
+
+    static bool IsTenancyGroupingAssignment(AssignmentExpressionSyntax assignment, SemanticModel semanticModel) =>
+        semanticModel.GetSymbolInfo(assignment.Left).Symbol is IPropertySymbol property &&
+        string.Equals(property.Name, "TenancyGrouping", StringComparison.Ordinal) &&
+        DotNetSubjectIds.MetadataName(property.ContainingType.OriginalDefinition) == JasperFxMultiStreamProjection;
+
+    static void DiscoverIdentity(ProjectionScope scope, ConfigurationSite site)
+    {
+        var method = site.Method;
+        var projectionName = scope.Projection.Name;
+        if (method.TypeArguments is not [INamedTypeSymbol configuredEventType] ||
+            site.Invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is not LambdaExpressionSyntax lambda ||
+            !TryMemberPath(lambda, site.SemanticModel, out var path, out var lambdaParameterType))
+        {
+            scope.Report(
+                site.Evidence,
+                $"Marten {method.Name} configuration in '{projectionName}' is not a simple member-selector lambda and no identity mapping was inferred",
+                GenerationDiagnosticOutcome.Unknown);
             return;
         }
 
         if (path.Split('.').Any(_ => string.Equals(_, "tenantId", StringComparison.OrdinalIgnoreCase)))
         {
-            diagnostics.Add(Loss(
-                project,
-                subjects,
-                projection,
-                evidence,
-                $"Marten {method.Name} configuration in '{projection.Name}' depends on tenant identity and no identity mapping was inferred"));
+            scope.Report(
+                site.Evidence,
+                $"Marten {method.Name} configuration in '{projectionName}' depends on tenant identity and no identity mapping was inferred");
             return;
         }
 
@@ -200,68 +191,51 @@ static class MartenMultiStreamConfigurationDiscovery
         path = NormalizeWrapperPath(path, lambdaParameterType);
         if (path.Length == 0)
         {
-            diagnostics.Add(Loss(
-                project,
-                subjects,
-                projection,
-                evidence,
-                $"Marten {method.Name} configuration in '{projection.Name}' does not select a member of the authored event and no identity mapping was inferred",
-                GenerationDiagnosticOutcome.Unknown));
+            scope.Report(
+                site.Evidence,
+                $"Marten {method.Name} configuration in '{projectionName}' does not select a member of the authored event and no identity mapping was inferred",
+                GenerationDiagnosticOutcome.Unknown);
             return;
         }
 
-        identities.Add(new(
+        scope.Identities.Add(new(
             eventType,
             path,
             method.Name == "Identities",
-            evidence));
+            site.Evidence));
     }
 
-    static void DiscoverFanOut(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        INamedTypeSymbol projection,
-        InvocationExpressionSyntax invocation,
-        IMethodSymbol method,
-        SemanticModel semanticModel,
-        Evidence evidence,
-        List<MartenMultiStreamFanOut> fanOuts,
-        List<GenerationDiagnostic> diagnostics)
+    static void DiscoverFanOut(ProjectionScope scope, ConfigurationSite site)
     {
-        if (method.TypeArguments is not [INamedTypeSymbol parentEventType, INamedTypeSymbol childEventType] ||
-            invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is not LambdaExpressionSyntax lambda ||
-            !TryMemberPath(lambda, semanticModel, out var path, out var lambdaParameterType) ||
-            !TryFanOutMode(invocation, semanticModel, out var mode))
+        var projectionName = scope.Projection.Name;
+        if (site.Method.TypeArguments is not [INamedTypeSymbol parentEventType, INamedTypeSymbol childEventType] ||
+            site.Invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is not LambdaExpressionSyntax lambda ||
+            !TryMemberPath(lambda, site.SemanticModel, out var path, out var lambdaParameterType) ||
+            !TryFanOutMode(site.Invocation, site.SemanticModel, out var mode))
         {
-            diagnostics.Add(Loss(
-                project,
-                subjects,
-                projection,
-                evidence,
-                $"Marten FanOut configuration in '{projection.Name}' is not an exact declaration with a simple member-selector lambda and no fan-out mapping was inferred",
-                GenerationDiagnosticOutcome.Unknown));
+            scope.Report(
+                site.Evidence,
+                $"Marten FanOut configuration in '{projectionName}' is not an exact declaration with a simple member-selector lambda and no fan-out mapping was inferred",
+                GenerationDiagnosticOutcome.Unknown);
             return;
         }
 
         path = NormalizeWrapperPath(path, lambdaParameterType);
         if (path.Length == 0)
         {
-            diagnostics.Add(Loss(
-                project,
-                subjects,
-                projection,
-                evidence,
-                $"Marten FanOut configuration in '{projection.Name}' does not select an authored parent-event member and no fan-out mapping was inferred",
-                GenerationDiagnosticOutcome.Unknown));
+            scope.Report(
+                site.Evidence,
+                $"Marten FanOut configuration in '{projectionName}' does not select an authored parent-event member and no fan-out mapping was inferred",
+                GenerationDiagnosticOutcome.Unknown);
             return;
         }
 
-        fanOuts.Add(new(
+        scope.FanOuts.Add(new(
             NormalizeEventType(parentEventType),
             NormalizeEventType(childEventType),
             path,
             mode,
-            evidence));
+            site.Evidence));
     }
 
     static bool TryMemberPath(
@@ -279,24 +253,12 @@ static class MartenMultiStreamConfigurationDiscovery
 
         parameterType = (semanticModel.GetDeclaredSymbol(parameter) as IParameterSymbol)?.Type as INamedTypeSymbol;
         var segments = new Stack<string>();
-        var current = UnwrapParentheses(lambda.ExpressionBody);
-        while (current is MemberAccessExpressionSyntax memberAccess)
+        if (CollectMemberSegments(UnwrapParentheses(lambda.ExpressionBody), semanticModel, segments) is not { } current)
         {
-            var member = semanticModel.GetSymbolInfo(memberAccess).Symbol;
-            if (member is not (IPropertySymbol or IFieldSymbol))
-            {
-                return false;
-            }
-
-            segments.Push(LowerFirst(member.Name));
-            current = UnwrapParentheses(memberAccess.Expression);
+            return false;
         }
 
-        if (current is not IdentifierNameSyntax identifier ||
-            semanticModel.GetSymbolInfo(identifier).Symbol is not IParameterSymbol identifierParameter ||
-            semanticModel.GetDeclaredSymbol(parameter) is not IParameterSymbol lambdaParameter ||
-            !SymbolEqualityComparer.Default.Equals(identifierParameter, lambdaParameter) ||
-            segments.Count == 0)
+        if (!IsReferenceToParameter(current, parameter, semanticModel) || segments.Count == 0)
         {
             return false;
         }
@@ -304,6 +266,30 @@ static class MartenMultiStreamConfigurationDiscovery
         path = string.Join('.', segments);
         return true;
     }
+
+    static ExpressionSyntax? CollectMemberSegments(ExpressionSyntax start, SemanticModel semanticModel, Stack<string> segments)
+    {
+        var current = start;
+        while (current is MemberAccessExpressionSyntax memberAccess)
+        {
+            var member = semanticModel.GetSymbolInfo(memberAccess).Symbol;
+            if (member is not (IPropertySymbol or IFieldSymbol))
+            {
+                return null;
+            }
+
+            segments.Push(LowerFirst(member.Name));
+            current = UnwrapParentheses(memberAccess.Expression);
+        }
+
+        return current;
+    }
+
+    static bool IsReferenceToParameter(ExpressionSyntax expression, ParameterSyntax parameter, SemanticModel semanticModel) =>
+        expression is IdentifierNameSyntax identifier &&
+        semanticModel.GetSymbolInfo(identifier).Symbol is IParameterSymbol identifierParameter &&
+        semanticModel.GetDeclaredSymbol(parameter) is IParameterSymbol lambdaParameter &&
+        SymbolEqualityComparer.Default.Equals(identifierParameter, lambdaParameter);
 
     static ParameterSyntax? LambdaParameter(LambdaExpressionSyntax lambda) => lambda switch
     {
@@ -333,9 +319,7 @@ static class MartenMultiStreamConfigurationDiscovery
             return true;
         }
 
-        if (semanticModel.GetSymbolInfo(invocation.ArgumentList.Arguments[1].Expression).Symbol is not IFieldSymbol field ||
-            field.ContainingType.Name != "FanoutMode" ||
-            field.ContainingNamespace.ToDisplayString() is not ("JasperFx.Events.Projections" or "Marten.Events.Projections"))
+        if (FanoutModeField(invocation.ArgumentList.Arguments[1].Expression, semanticModel) is not { } field)
         {
             return false;
         }
@@ -348,6 +332,15 @@ static class MartenMultiStreamConfigurationDiscovery
         };
         return mode.Length > 0;
     }
+
+    static IFieldSymbol? FanoutModeField(ExpressionSyntax expression, SemanticModel semanticModel) =>
+        semanticModel.GetSymbolInfo(expression).Symbol is IFieldSymbol field &&
+        field.ContainingType.Name == "FanoutMode" &&
+        field.ContainingNamespace.ToDisplayString() is var fieldNamespace &&
+        (string.Equals(fieldNamespace, "JasperFx.Events.Projections", StringComparison.Ordinal) ||
+         string.Equals(fieldNamespace, "Marten.Events.Projections", StringComparison.Ordinal))
+            ? field
+            : null;
 
     static bool IsExactConfigurationMethod(IMethodSymbol method)
     {
@@ -394,34 +387,66 @@ static class MartenMultiStreamConfigurationDiscovery
             : path;
 
     static Evidence InvocationEvidence(
-        DotNetProjectCompilation project,
-        AdapterIdentity adapter,
+        ProjectionScope scope,
         InvocationExpressionSyntax invocation,
         string methodName) => new()
         {
-            Adapter = adapter,
+            Adapter = scope.Adapter,
             Strength = EvidenceStrength.Exact,
-            Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
+            Source = CritterStackSource.RangeForProject(invocation.GetLocation(), scope.Project),
             Explanation = $"Marten multi-stream configuration through {methodName}"
-        };
-
-    static GenerationDiagnostic Loss(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        INamedTypeSymbol projection,
-        Evidence evidence,
-        string message,
-        GenerationDiagnosticOutcome outcome = GenerationDiagnosticOutcome.Unsupported) => new()
-        {
-            Code = MartenDiagnosticCodes.MultiStreamGroupingOmitted,
-            Severity = GenerationDiagnosticSeverity.Warning,
-            Outcome = outcome,
-            Message = message,
-            Source = evidence.Source,
-            Subject = subjects.SubjectForType(project, projection)
         };
 
     static string LowerFirst(string value) => value.Length == 0
         ? value
         : $"{char.ToLowerInvariant(value[0])}{value[1..]}";
+
+    sealed record ConfigurationSite(
+        InvocationExpressionSyntax Invocation,
+        IMethodSymbol Method,
+        SemanticModel SemanticModel,
+        Evidence Evidence);
+
+    sealed record ConstructorScope(
+        ProjectionScope Projection,
+        ConstructorDeclarationSyntax Constructor,
+        SemanticModel SemanticModel);
+
+    sealed class ProjectionScope(
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
+        INamedTypeSymbol projection)
+    {
+        public DotNetProjectCompilation Project { get; } = project;
+
+        public AdapterIdentity Adapter { get; } = adapter;
+
+        public INamedTypeSymbol Projection { get; } = projection;
+
+        public List<MartenMultiStreamIdentity> Identities { get; } = [];
+
+        public List<MartenMultiStreamFanOut> FanOuts { get; } = [];
+
+        public List<GenerationDiagnostic> Diagnostics { get; } = [];
+
+        public void Report(
+            Evidence evidence,
+            string message,
+            GenerationDiagnosticOutcome outcome = GenerationDiagnosticOutcome.Unsupported) =>
+            Diagnostics.Add(Loss(evidence, message, outcome));
+
+        public GenerationDiagnostic Loss(
+            Evidence evidence,
+            string message,
+            GenerationDiagnosticOutcome outcome = GenerationDiagnosticOutcome.Unsupported) => new()
+            {
+                Code = MartenDiagnosticCodes.MultiStreamGroupingOmitted,
+                Severity = GenerationDiagnosticSeverity.Warning,
+                Outcome = outcome,
+                Message = message,
+                Source = evidence.Source,
+                Subject = subjects.SubjectForType(Project, Projection)
+            };
+    }
 }
