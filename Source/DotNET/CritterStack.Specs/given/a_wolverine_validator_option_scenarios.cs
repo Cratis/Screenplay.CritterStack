@@ -121,7 +121,7 @@ public class a_wolverine_validator_option_scenarios : Specification
 
         var discovery = WolverineValidationAuthorizationDiscovery.Discover(project, new CritterStackSubjectResolver(new([project])));
         var subject = new SubjectId { Value = "dotnet://Scenario/Scenario/Scenario.Handler" };
-        var handlers = compilation.GetTypeByMetadataName("Scenario.Handler")!.GetMembers("Handle").OfType<IMethodSymbol>().ToArray();
+        var handlers = compilation.GetTypeByMetadataName("Scenario.Handler").GetMembers("Handle").OfType<IMethodSymbol>().ToArray();
         return
         [
             .. discovery.Diagnostics.Select(Format),

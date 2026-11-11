@@ -91,6 +91,9 @@ static class WolverineReturnConsequences
     /// <summary>
     /// The kinds decided before a storage action: saga state, timeouts, outgoing messages and side effects, in that order.
     /// </summary>
+    /// <param name="named">The returned type.</param>
+    /// <param name="project">The project compilation.</param>
+    /// <returns>The kind, or <see langword="null"/> when a later stage decides.</returns>
     static WolverineReturnConsequenceKind? MessagingKind(INamedTypeSymbol named, DotNetProjectCompilation project)
     {
         if (IsSagaState(named, project))
@@ -114,6 +117,10 @@ static class WolverineReturnConsequences
     /// <summary>
     /// The kinds decided after a storage action: persistence operations, responses, aggregate events, the HTTP body and cascades.
     /// </summary>
+    /// <param name="named">The returned type.</param>
+    /// <param name="slot">The position of the value among the created values.</param>
+    /// <param name="context">The classification context.</param>
+    /// <returns>The kind.</returns>
     static WolverineReturnConsequenceKind ResponseKind(INamedTypeSymbol named, int slot, WolverineReturnContext context)
     {
         if (_persistenceOperations.Contains(DotNetSubjectIds.MetadataName(named.OriginalDefinition)))
