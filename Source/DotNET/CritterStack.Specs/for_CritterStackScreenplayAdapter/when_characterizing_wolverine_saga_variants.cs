@@ -13,7 +13,11 @@ public class when_characterizing_wolverine_saga_variants : given.a_wolverine_sag
 {
     string[] _expected = [];
 
-    void Because() => _expected = File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "Golden", "wolverine-saga-variants.txt"));
+    void Because()
+    {
+        Analyze();
+        _expected = File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "Golden", "wolverine-saga-variants.txt"));
+    }
 
     [Fact] void should_report_the_diagnostics_in_the_pinned_order() =>
         string.Join('\n', Lines.Where(_ => _.StartsWith("diagnostic ", StringComparison.Ordinal)))

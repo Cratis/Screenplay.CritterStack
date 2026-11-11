@@ -537,8 +537,10 @@ public class a_wolverine_returns_and_links_variants_application : Specification
             Compilation = compilation,
             AuthoredSyntaxTrees = compilation.SyntaxTrees.ToHashSet()
         };
+    }
+
+    protected void Analyze() =>
         Contribution = new CritterStackScreenplayAdapter().Analyze(
             new DotNetAnalysisContext([Project]),
             new DotNetAdapterOptions());
-    }
 }

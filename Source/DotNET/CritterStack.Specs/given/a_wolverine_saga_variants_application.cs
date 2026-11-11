@@ -285,9 +285,10 @@ public class a_wolverine_saga_variants_application : Specification
     protected static string[] For(IReadOnlyList<string> lines, string saga) =>
         [.. lines.Where(_ => _.Contains($"Variants.{saga}", StringComparison.Ordinal) || _.Contains($"'{saga}'", StringComparison.Ordinal) || _.Contains($"'{saga}.", StringComparison.Ordinal))];
 
-    void Establish()
-    {
-        var project = Project(
+    DotNetProjectCompilation _project = null!;
+
+    void Establish() =>
+        _project = Project(
             ("/workspace/Saga/Framework.cs", FrameworkSource),
             ("/workspace/Saga/Correlation.cs", CorrelationSource),
             ("/workspace/Saga/Generated.cs", GeneratedSource),
@@ -295,7 +296,10 @@ public class a_wolverine_saga_variants_application : Specification
             ("/workspace/Saga/Zeta.cs", OrderingZetaSource),
             ("/workspace/Saga/Alpha.cs", OrderingAlphaSource),
             ("/workspace/Saga/Completion.cs", CompletionSource));
-        var contribution = new CritterStackScreenplayAdapter().Analyze(new DotNetAnalysisContext([project]), new DotNetAdapterOptions());
+
+    protected void Analyze()
+    {
+        var contribution = new CritterStackScreenplayAdapter().Analyze(new DotNetAnalysisContext([_project]), new DotNetAdapterOptions());
         Lines =
         [
             .. diagnostic_ranges.Of(contribution).Select(_ => "diagnostic " + _),

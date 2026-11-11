@@ -12,7 +12,11 @@ public class when_characterizing_wolverine_returns_and_links : given.a_wolverine
 {
     (string Expected, string Actual) _transcript;
 
-    void Because() => _transcript = given.contribution_transcript.Compare(Contribution, "wolverine-returns-and-links");
+    void Because()
+    {
+        Analyze();
+        _transcript = given.contribution_transcript.Compare(Contribution, "wolverine-returns-and-links");
+    }
 
     [Fact] void should_have_compiler_checked_input() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_preserve_every_fact_and_diagnostic() => _transcript.Actual.ShouldEqual(_transcript.Expected);
