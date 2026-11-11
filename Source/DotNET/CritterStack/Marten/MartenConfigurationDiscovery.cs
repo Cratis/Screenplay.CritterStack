@@ -241,10 +241,9 @@ static class MartenConfigurationDiscovery
     static void ReportDaemonMode(ProjectScope scope, string? mode, string label, Location location) =>
         scope.ReportOnProject(
             MartenDiagnosticCodes.DaemonConfigurationOmitted,
-            ExactOrUnknown(
-                mode is not null,
-                $"Marten {label} '{mode}' is configured; daemon hosting and shard execution configuration are not expressible in the current Screenplay contracts",
-                $"Marten {label} is computed or otherwise non-constant and could not be resolved safely"),
+            mode is null
+                ? Finding.Unknown($"Marten {label} is computed or otherwise non-constant and could not be resolved safely")
+                : Finding.Unsupported($"Marten {label} '{mode}' is configured; daemon hosting and shard execution configuration are not expressible in the current Screenplay contracts"),
             location);
 
     static void DiscoverProjectionRegistrationMetadata(ProjectScope scope, InvocationSite site)
