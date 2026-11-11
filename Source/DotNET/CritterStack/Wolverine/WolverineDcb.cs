@@ -126,7 +126,7 @@ static class WolverineDcb
             attributeType,
             admittedMetadataName,
             project,
-            new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default));
+            [with(SymbolEqualityComparer.Default)]);
 
     static bool IsAuthoredOrMetadataInheritance(
         INamedTypeSymbol attributeType,
