@@ -70,53 +70,70 @@ static class WolverineEventStreams
         var loadedBindingCount = method.Parameters.Count(parameter =>
             EventStreamModels(parameter.Type, project).Count > 0 &&
             WriteModelAttribute(parameter, project) is not null);
-        var handlerKey = DotNetMethodIdentity.SubjectFor(project, method).Value;
+        var context = new BindingContext(method, requestType, project, DotNetMethodIdentity.SubjectFor(project, method).Value, loadedBindingCount);
         foreach (var parameter in method.Parameters)
         {
             var modelTypes = EventStreamModels(parameter.Type, project);
-            if (modelTypes.Count == 0)
+            if (modelTypes.Count > 0)
             {
-                continue;
-            }
-
-            var attribute = WriteModelAttribute(parameter, project);
-            var source = SourceOf(attribute, parameter, project);
-            var identityName = attribute?.ConstructorArguments.FirstOrDefault().Value as string;
-            var versionName = NamedString(attribute, "VersionSource");
-            var loadStyle = NamedEnum(attribute, "LoadStyle") ?? "Optimistic";
-            var consistency = NamedBoolean(attribute, "AlwaysEnforceConsistency") ?? false;
-            foreach (var modelType in modelTypes)
-            {
-                var identityMember = attribute is null
-                    ? null
-                    : IdentityMember(method, requestType, modelType, identityName, project);
-                var versionMember = attribute is null
-                    ? null
-                    : VersionMember(method, requestType, versionName, loadedBindingCount, project);
-                var hasAmbiguousConventionalVersion = attribute is not null &&
-                    string.IsNullOrWhiteSpace(versionName) &&
-                    loadedBindingCount > 1 &&
-                    VersionMember(method, requestType, "Version", loadedBindingCount: 1, project: project) is not null;
-                bindings.Add(new(
-                    handlerKey,
-                    parameter,
-                    modelType,
-                    attribute is null
-                        ? WolverineStateBindingKind.DirectEventStream
-                        : WolverineStateBindingKind.LoadedEventStream,
-                    new(identityName ?? identityMember?.Name, EvidenceSource(identityMember, source, project)),
-                    new(versionName ?? versionMember?.Name, EvidenceSource(versionMember, source, project)),
-                    new(loadStyle, source),
-                    new(consistency, source),
-                    identityMember,
-                    versionMember,
-                    hasAmbiguousConventionalVersion,
-                    source));
+                bindings.AddRange(BindingsForParameter(context, parameter, modelTypes));
             }
         }
 
         return bindings;
     }
+
+    static IEnumerable<WolverineStateBinding> BindingsForParameter(
+        BindingContext context,
+        IParameterSymbol parameter,
+        IReadOnlyList<INamedTypeSymbol> modelTypes)
+    {
+        var (method, requestType, project, handlerKey, loadedBindingCount) = context;
+        var attribute = WriteModelAttribute(parameter, project);
+        var source = SourceOf(attribute, parameter, project);
+        var identityName = attribute?.ConstructorArguments.FirstOrDefault().Value as string;
+        var versionName = NamedString(attribute, "VersionSource");
+        var loadStyle = NamedEnum(attribute, "LoadStyle") ?? "Optimistic";
+        var consistency = NamedBoolean(attribute, "AlwaysEnforceConsistency") ?? false;
+        foreach (var modelType in modelTypes)
+        {
+            var identityMember = attribute is null
+                ? null
+                : IdentityMember(method, requestType, modelType, identityName, project);
+            var versionMember = attribute is null
+                ? null
+                : VersionMember(method, requestType, versionName, loadedBindingCount, project);
+            var hasAmbiguousConventionalVersion = attribute is not null &&
+                string.IsNullOrWhiteSpace(versionName) &&
+                HasConventionalVersionMember(context);
+            yield return new(
+                handlerKey,
+                parameter,
+                modelType,
+                attribute is null
+                    ? WolverineStateBindingKind.DirectEventStream
+                    : WolverineStateBindingKind.LoadedEventStream,
+                new(identityName ?? identityMember?.Name, EvidenceSource(identityMember, source, project)),
+                new(versionName ?? versionMember?.Name, EvidenceSource(versionMember, source, project)),
+                new(loadStyle, source),
+                new(consistency, source),
+                identityMember,
+                versionMember,
+                hasAmbiguousConventionalVersion,
+                source);
+        }
+    }
+
+    static bool HasConventionalVersionMember(BindingContext context) =>
+        context.LoadedBindingCount > 1 &&
+        VersionMember(context.Method, context.RequestType, "Version", loadedBindingCount: 1, project: context.Project) is not null;
+
+    sealed record BindingContext(
+        IMethodSymbol Method,
+        INamedTypeSymbol? RequestType,
+        DotNetProjectCompilation Project,
+        string HandlerKey,
+        int LoadedBindingCount);
 
     public static WolverineEventStreamAppendDiscovery Appends(
         IMethodSymbol method,
@@ -148,11 +165,7 @@ static class WolverineEventStreams
                     continue;
                 }
 
-                var receiver = ReceiverParameter(receiverOperation);
-                var targets = receiver is null
-                    ? WolverineFetchedEventStreams.Targets(receiverOperation, invocationSyntax, declaration, semanticModel, bindings, project)
-                    : [.. bindings.Where(binding => SymbolEqualityComparer.Default.Equals(binding.Parameter, receiver))];
-                targets = [.. targets.Where(binding => SymbolEqualityComparer.Default.Equals(binding.ModelType, invokedModel))];
+                var targets = AppendTargets(receiverOperation, invocationSyntax, invokedModel, new(declaration, semanticModel, project, bindings));
                 if (targets.Count == 0)
                 {
                     unresolved.Add(new("the receiver is not rooted directly in an IEventStream<T> handler parameter or a supported, unmodified fetched-stream slot or foreach binding", source));
@@ -181,6 +194,26 @@ static class WolverineEventStreams
     public static bool TryGetDirectPayloads(
         IInvocationOperation invocation,
         out IReadOnlyList<INamedTypeSymbol> eventTypes) => TryGetPayloads(invocation, out eventTypes);
+
+    static IReadOnlyList<WolverineStateBinding> AppendTargets(
+        IOperation receiverOperation,
+        InvocationExpressionSyntax invocationSyntax,
+        INamedTypeSymbol invokedModel,
+        AppendScope scope)
+    {
+        var receiver = ReceiverParameter(receiverOperation);
+        var bindings = scope.Bindings;
+        var targets = receiver is null
+            ? WolverineFetchedEventStreams.Targets(receiverOperation, invocationSyntax, scope.Declaration, scope.SemanticModel, bindings, scope.Project)
+            : [.. bindings.Where(binding => SymbolEqualityComparer.Default.Equals(binding.Parameter, receiver))];
+        return [.. targets.Where(binding => SymbolEqualityComparer.Default.Equals(binding.ModelType, invokedModel))];
+    }
+
+    sealed record AppendScope(
+        MethodDeclarationSyntax Declaration,
+        SemanticModel SemanticModel,
+        DotNetProjectCompilation Project,
+        IReadOnlyList<WolverineStateBinding> Bindings);
 
     public static bool TryGetDirectPayloads(
         IOperation operation,
@@ -291,25 +324,26 @@ static class WolverineEventStreams
             return true;
         }
 
-        foreach (var syntaxReference in named.DeclaringSyntaxReferences)
-        {
-            if (syntaxReference.GetSyntax() is not TypeDeclarationSyntax { BaseList: not null } declaration ||
-                !project.AuthoredSyntaxTrees.Contains(declaration.SyntaxTree) ||
-                DotNetGeneratedSource.IsGenerated(declaration.SyntaxTree))
-            {
-                continue;
-            }
+        return AuthoredBaseTypes(named, project).Any(candidate =>
+            EventStreamInterfaces(candidate).Any(@interface => SymbolEqualityComparer.Default.Equals(@interface, streamType)));
+    }
 
-            var semanticModel = project.Compilation.GetSemanticModel(declaration.SyntaxTree);
-            if (declaration.BaseList.Types.Any(baseType =>
-                semanticModel.GetTypeInfo(baseType.Type).Type is INamedTypeSymbol candidate &&
-                EventStreamInterfaces(candidate).Any(@interface => SymbolEqualityComparer.Default.Equals(@interface, streamType))))
-            {
-                return true;
-            }
-        }
+    static IEnumerable<INamedTypeSymbol> AuthoredBaseTypes(INamedTypeSymbol type, DotNetProjectCompilation project) =>
+        type.DeclaringSyntaxReferences
+            .Select(reference => reference.GetSyntax())
+            .OfType<TypeDeclarationSyntax>()
+            .Where(declaration =>
+                declaration.BaseList is not null &&
+                project.AuthoredSyntaxTrees.Contains(declaration.SyntaxTree) &&
+                !DotNetGeneratedSource.IsGenerated(declaration.SyntaxTree))
+            .SelectMany(declaration => BaseListTypes(declaration, project));
 
-        return false;
+    static IEnumerable<INamedTypeSymbol> BaseListTypes(TypeDeclarationSyntax declaration, DotNetProjectCompilation project)
+    {
+        var semanticModel = project.Compilation.GetSemanticModel(declaration.SyntaxTree);
+        return declaration.BaseList!.Types
+            .Select(baseType => semanticModel.GetTypeInfo(baseType.Type).Type)
+            .OfType<INamedTypeSymbol>();
     }
 
     static AttributeData? WriteModelAttribute(IParameterSymbol parameter, DotNetProjectCompilation project) =>
@@ -344,25 +378,8 @@ static class WolverineEventStreams
             return true;
         }
 
-        foreach (var syntaxReference in attributeType.DeclaringSyntaxReferences)
-        {
-            if (syntaxReference.GetSyntax() is not TypeDeclarationSyntax { BaseList: not null } declaration ||
-                !project.AuthoredSyntaxTrees.Contains(declaration.SyntaxTree) ||
-                DotNetGeneratedSource.IsGenerated(declaration.SyntaxTree))
-            {
-                continue;
-            }
-
-            var semanticModel = project.Compilation.GetSemanticModel(declaration.SyntaxTree);
-            if (declaration.BaseList.Types.Any(baseType =>
-                semanticModel.GetTypeInfo(baseType.Type).Type is INamedTypeSymbol candidate &&
-                admittedBases.Any(metadataName => DotNetSymbols.IsOrInheritsFrom(candidate, metadataName))))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return AuthoredBaseTypes(attributeType, project).Any(candidate =>
+            admittedBases.Any(metadataName => DotNetSymbols.IsOrInheritsFrom(candidate, metadataName)));
     }
 
     static ISymbol? IdentityMember(
@@ -572,24 +589,20 @@ static class WolverineEventStreams
         foreach (var operation in initializer.Initializers)
         {
             if (operation is not IInvocationOperation invocation ||
-                invocation.TargetMethod.Name != "Add" ||
-                !invocation.TargetMethod.ContainingNamespace.ToDisplayString().StartsWith("System.Collections", StringComparison.Ordinal) ||
-                invocation.Arguments.Length == 0)
+                !IsCollectionAdd(invocation) ||
+                !invocation.Arguments.All(argument => TryGetPayloads(argument.Value, eventTypes, allowContainer: false)))
             {
                 return false;
-            }
-
-            foreach (var argument in invocation.Arguments)
-            {
-                if (!TryGetPayloads(argument.Value, eventTypes, allowContainer: false))
-                {
-                    return false;
-                }
             }
         }
 
         return true;
     }
+
+    static bool IsCollectionAdd(IInvocationOperation invocation) =>
+        invocation.TargetMethod.Name == "Add" &&
+        invocation.TargetMethod.ContainingNamespace.ToDisplayString().StartsWith("System.Collections", StringComparison.Ordinal) &&
+        invocation.Arguments.Length != 0;
 
     static bool TryGetAllPayloads(
         IEnumerable<IOperation> operations,
