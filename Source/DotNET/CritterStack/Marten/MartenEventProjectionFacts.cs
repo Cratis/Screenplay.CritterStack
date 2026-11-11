@@ -42,82 +42,15 @@ static class MartenEventProjectionFacts
         CritterStackSubjectResolver subjects,
         ProjectionRegistration registration)
     {
-        var projection = registration.Projection!;
-        var operations = new List<EventDocumentOperation>();
-        var teardownTypes = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
-
+        var scan = new OperationScan(project, adapter, registration.Projection!);
         foreach (var tree in project.Compilation.SyntaxTrees.Where(_ => !DotNetGeneratedSource.IsGenerated(_)))
         {
             var semanticModel = project.Compilation.GetSemanticModel(tree);
-            foreach (var declaration in tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>())
-            {
-                if (semanticModel.GetDeclaredSymbol(declaration) is not IMethodSymbol method ||
-                    !SymbolEqualityComparer.Default.Equals(method.ContainingType, projection) ||
-                    method.Name is not ("Create" or "Transform"))
-                {
-                    continue;
-                }
-
-                var eventType = EventTypeFrom(method);
-                var documentType = DocumentReturnTypeFrom(method);
-                if (eventType is null || documentType is null)
-                {
-                    continue;
-                }
-
-                operations.Add(new(
-                    eventType,
-                    documentType,
-                    RelationshipKind.Stores,
-                    CritterStackSource.EvidenceFor(method, adapter, project, EvidenceStrength.Exact, $"Marten EventProjection {method.Name} returns the '{documentType.Name}' document for '{eventType.Name}'")));
-            }
-
-            foreach (var invocation in tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>())
-            {
-                if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method)
-                {
-                    continue;
-                }
-
-                var enclosingSymbol = semanticModel.GetEnclosingSymbol(invocation.SpanStart);
-                if (enclosingSymbol is IMethodSymbol teardownMethod &&
-                    SymbolEqualityComparer.Default.Equals(teardownMethod.ContainingType, projection) &&
-                    TryGetTeardownType(method, out var teardownType))
-                {
-                    teardownTypes.Add(teardownType);
-                    continue;
-                }
-
-                if (!IsDocumentOperation(method) ||
-                    enclosingSymbol is not IMethodSymbol containingMethod ||
-                    !SymbolEqualityComparer.Default.Equals(containingMethod.ContainingType, projection))
-                {
-                    continue;
-                }
-
-                var eventType = EventTypeFor(invocation, containingMethod, semanticModel);
-                var documentType = DocumentTypeFrom(method);
-                var relationshipKind = RelationshipKindFor(method.Name);
-                if (eventType is null || documentType is null || relationshipKind is null)
-                {
-                    continue;
-                }
-
-                operations.Add(new(
-                    eventType,
-                    documentType,
-                    relationshipKind.Value,
-                    new Evidence
-                    {
-                        Adapter = adapter,
-                        Strength = EvidenceStrength.Exact,
-                        Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
-                        Explanation = $"Marten EventProjection '{eventType.Name}' operation uses IDocumentOperations.{method.Name} for '{documentType.Name}'"
-                    }));
-            }
+            scan.CollectConventionalOperations(tree, semanticModel);
+            scan.CollectInvocationOperations(tree, semanticModel);
         }
 
-        var exactOperations = operations
+        var exactOperations = scan.Operations
             .GroupBy(_ => new OperationKey(
                 subjects.SubjectForType(project, _.EventType),
                 subjects.SubjectForType(project, _.DocumentType),
@@ -129,7 +62,17 @@ static class MartenEventProjectionFacts
             .ThenBy(_ => DotNetSubjectIds.MetadataName(_.DocumentType), StringComparer.Ordinal)
             .ThenBy(_ => _.Kind)
             .ToArray();
+        return BuildResult(project, subjects, registration, exactOperations, scan.TeardownTypes);
+    }
 
+    static MartenEventProjectionResult BuildResult(
+        DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
+        ProjectionRegistration registration,
+        EventDocumentOperation[] exactOperations,
+        HashSet<INamedTypeSymbol> teardownTypes)
+    {
+        var projection = registration.Projection!;
         var diagnostics = new List<GenerationDiagnostic>
         {
             EventProjectionDiagnostic(project, subjects, registration, exactOperations.Length > 0)
@@ -152,6 +95,19 @@ static class MartenEventProjectionFacts
                 registration.Evidence)
         };
 
+        AddEventFacts(facts, project, subjects, projectionSubject, exactOperations);
+        var documents = AddDocumentFacts(facts, project, subjects, projectionSubject, exactOperations, teardownTypes);
+        AddOperationFacts(facts, project, subjects, projectionSubject, exactOperations);
+        return new(facts, diagnostics, documents);
+    }
+
+    static void AddEventFacts(
+        List<GenerationFact> facts,
+        DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
+        SubjectId projectionSubject,
+        EventDocumentOperation[] exactOperations)
+    {
         foreach (var eventGroup in exactOperations.GroupBy(_ => subjects.SubjectForType(project, _.EventType)))
         {
             var operation = eventGroup.First();
@@ -172,7 +128,16 @@ static class MartenEventProjectionFacts
                 eventSubject,
                 operation.Evidence));
         }
+    }
 
+    static List<MartenDocumentUsage> AddDocumentFacts(
+        List<GenerationFact> facts,
+        DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
+        SubjectId projectionSubject,
+        EventDocumentOperation[] exactOperations,
+        HashSet<INamedTypeSymbol> teardownTypes)
+    {
         var documents = new List<MartenDocumentUsage>();
         foreach (var documentGroup in exactOperations.GroupBy(_ => subjects.SubjectForType(project, _.DocumentType)))
         {
@@ -193,6 +158,16 @@ static class MartenEventProjectionFacts
                 evidence));
         }
 
+        return documents;
+    }
+
+    static void AddOperationFacts(
+        List<GenerationFact> facts,
+        DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects,
+        SubjectId projectionSubject,
+        EventDocumentOperation[] exactOperations)
+    {
         foreach (var operation in exactOperations)
         {
             var documentSubject = subjects.SubjectForType(project, operation.DocumentType);
@@ -205,8 +180,6 @@ static class MartenEventProjectionFacts
                 operation.Evidence,
                 discriminator: eventSubject.Value));
         }
-
-        return new(facts, diagnostics, documents);
     }
 
     static INamedTypeSymbol? EventTypeFor(
@@ -219,14 +192,15 @@ static class MartenEventProjectionFacts
             return EventTypeFrom(containingMethod);
         }
 
-        if (containingMethod.Name != "ApplyAsync" ||
-            invocation.Ancestors().OfType<SwitchSectionSyntax>().FirstOrDefault() is not { } section ||
-            section.Parent is not SwitchStatementSyntax switchStatement ||
-            !SwitchesOnRawEventData(switchStatement, containingMethod, semanticModel))
-        {
-            return null;
-        }
+        return containingMethod.Name == "ApplyAsync" &&
+               invocation.Ancestors().OfType<SwitchSectionSyntax>().FirstOrDefault() is { Parent: SwitchStatementSyntax switchStatement } section &&
+               SwitchesOnRawEventData(switchStatement, containingMethod, semanticModel)
+            ? EventTypeFromLabels(section, semanticModel)
+            : null;
+    }
 
+    static INamedTypeSymbol? EventTypeFromLabels(SwitchSectionSyntax section, SemanticModel semanticModel)
+    {
         foreach (var label in section.Labels.OfType<CasePatternSwitchLabelSyntax>())
         {
             var type = label.Pattern switch
@@ -408,4 +382,91 @@ static class MartenEventProjectionFacts
         Evidence Evidence);
 
     sealed record OperationKey(SubjectId Event, SubjectId Document, RelationshipKind Kind);
+
+    sealed class OperationScan(DotNetProjectCompilation project, AdapterIdentity adapter, INamedTypeSymbol projection)
+    {
+        public List<EventDocumentOperation> Operations { get; } = [];
+
+        public HashSet<INamedTypeSymbol> TeardownTypes { get; } = new(SymbolEqualityComparer.Default);
+
+        public void CollectConventionalOperations(SyntaxTree tree, SemanticModel semanticModel)
+        {
+            foreach (var declaration in tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>())
+            {
+                if (semanticModel.GetDeclaredSymbol(declaration) is not IMethodSymbol method ||
+                    !IsProjectionMethod(method) ||
+                    method.Name is not ("Create" or "Transform"))
+                {
+                    continue;
+                }
+
+                var eventType = EventTypeFrom(method);
+                var documentType = DocumentReturnTypeFrom(method);
+                if (eventType is null || documentType is null)
+                {
+                    continue;
+                }
+
+                Operations.Add(new(
+                    eventType,
+                    documentType,
+                    RelationshipKind.Stores,
+                    CritterStackSource.EvidenceFor(method, adapter, project, EvidenceStrength.Exact, $"Marten EventProjection {method.Name} returns the '{documentType.Name}' document for '{eventType.Name}'")));
+            }
+        }
+
+        public void CollectInvocationOperations(SyntaxTree tree, SemanticModel semanticModel)
+        {
+            foreach (var invocation in tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>())
+            {
+                if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method)
+                {
+                    continue;
+                }
+
+                var enclosingSymbol = semanticModel.GetEnclosingSymbol(invocation.SpanStart);
+                if (enclosingSymbol is IMethodSymbol teardownMethod &&
+                    IsProjectionMethod(teardownMethod) &&
+                    TryGetTeardownType(method, out var teardownType))
+                {
+                    TeardownTypes.Add(teardownType);
+                    continue;
+                }
+
+                if (IsDocumentOperation(method) && enclosingSymbol is IMethodSymbol containingMethod && IsProjectionMethod(containingMethod))
+                {
+                    CollectDocumentOperation(invocation, method, containingMethod, semanticModel);
+                }
+            }
+        }
+
+        void CollectDocumentOperation(
+            InvocationExpressionSyntax invocation,
+            IMethodSymbol method,
+            IMethodSymbol containingMethod,
+            SemanticModel semanticModel)
+        {
+            var eventType = EventTypeFor(invocation, containingMethod, semanticModel);
+            var documentType = DocumentTypeFrom(method);
+            var relationshipKind = RelationshipKindFor(method.Name);
+            if (eventType is null || documentType is null || relationshipKind is null)
+            {
+                return;
+            }
+
+            Operations.Add(new(
+                eventType,
+                documentType,
+                relationshipKind.Value,
+                new Evidence
+                {
+                    Adapter = adapter,
+                    Strength = EvidenceStrength.Exact,
+                    Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
+                    Explanation = $"Marten EventProjection '{eventType.Name}' operation uses IDocumentOperations.{method.Name} for '{documentType.Name}'"
+                }));
+        }
+
+        bool IsProjectionMethod(IMethodSymbol method) => SymbolEqualityComparer.Default.Equals(method.ContainingType, projection);
+    }
 }

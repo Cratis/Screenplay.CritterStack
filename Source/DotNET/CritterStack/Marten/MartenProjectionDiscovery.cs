@@ -55,53 +55,69 @@ static class MartenProjectionDiscovery
             var semanticModel = project.Compilation.GetSemanticModel(tree);
             foreach (var invocation in tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
-                if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
-                    !IsMarten(method, invocation, semanticModel))
+                if (RegistrationFrom(invocation, semanticModel, project, adapter) is { } registration)
                 {
-                    continue;
-                }
-
-                var type = ProjectionTypeFrom(method, invocation, semanticModel);
-                if (type is null)
-                {
-                    continue;
-                }
-
-                var evidence = new Evidence
-                {
-                    Adapter = adapter,
-                    Strength = EvidenceStrength.Configured,
-                    Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
-                    Explanation = $"Marten projection registration through {method.Name}"
-                };
-
-                switch (method.Name)
-                {
-                    case "Snapshot":
-                    case "LiveStreamAggregation":
-                        registrations.Add(new(type, null, ProjectionKind.Snapshot, evidence)
-                        {
-                            Lifecycle = string.Equals(method.Name, "LiveStreamAggregation", StringComparison.Ordinal)
-                                ? "Live"
-                                : LifecycleFrom(invocation, semanticModel)
-                        });
-                        break;
-                    case "Add":
-                    case "AddProjectionWithServices":
-                        var shape = ShapeOf(type) ?? CustomShapeOf(type);
-                        if (shape is not null)
-                        {
-                            registrations.Add(shape with
-                            {
-                                Evidence = evidence,
-                                Lifecycle = LifecycleFrom(invocation, semanticModel)
-                            });
-                        }
-                        break;
+                    registrations.Add(registration);
                 }
             }
         }
 
+        AddConventionalRegistrations(registrations, project, adapter);
+        return
+        [
+            .. registrations
+                .OrderBy(_ => DotNetSubjectIds.MetadataName(_.Model), StringComparer.Ordinal)
+                .ThenBy(_ => _.Projection is null ? string.Empty : DotNetSubjectIds.MetadataName(_.Projection), StringComparer.Ordinal)
+                .ThenBy(_ => _.Kind)
+        ];
+    }
+
+    static ProjectionRegistration? RegistrationFrom(
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel,
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter)
+    {
+        if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
+            !IsMarten(method, invocation, semanticModel) ||
+            ProjectionTypeFrom(method, invocation, semanticModel) is not { } type)
+        {
+            return null;
+        }
+
+        var evidence = new Evidence
+        {
+            Adapter = adapter,
+            Strength = EvidenceStrength.Configured,
+            Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
+            Explanation = $"Marten projection registration through {method.Name}"
+        };
+
+        switch (method.Name)
+        {
+            case "Snapshot":
+            case "LiveStreamAggregation":
+                return new(type, null, ProjectionKind.Snapshot, evidence)
+                {
+                    Lifecycle = string.Equals(method.Name, "LiveStreamAggregation", StringComparison.Ordinal)
+                        ? "Live"
+                        : LifecycleFrom(invocation, semanticModel)
+                };
+            case "Add":
+            case "AddProjectionWithServices":
+                return (ShapeOf(type) ?? CustomShapeOf(type)) is { } shape
+                    ? shape with { Evidence = evidence, Lifecycle = LifecycleFrom(invocation, semanticModel) }
+                    : null;
+            default:
+                return null;
+        }
+    }
+
+    static void AddConventionalRegistrations(
+        List<ProjectionRegistration> registrations,
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter)
+    {
         var catalog = new DotNetArtifactCatalog(project.Compilation);
         foreach (var projection in catalog.Types.Select(ShapeOf).Where(_ => _ is not null).Cast<ProjectionRegistration>())
         {
@@ -120,14 +136,6 @@ static class MartenProjectionDiscovery
                     "The type derives from a Marten projection base")
             });
         }
-
-        return
-        [
-            .. registrations
-                .OrderBy(_ => DotNetSubjectIds.MetadataName(_.Model), StringComparer.Ordinal)
-                .ThenBy(_ => _.Projection is null ? string.Empty : DotNetSubjectIds.MetadataName(_.Projection), StringComparer.Ordinal)
-                .ThenBy(_ => _.Kind)
-        ];
     }
 
     public static ProjectionRegistration? ShapeOf(INamedTypeSymbol projection)
@@ -179,29 +187,33 @@ static class MartenProjectionDiscovery
     {
         foreach (var argument in invocation.ArgumentList.Arguments)
         {
-            if (semanticModel.GetSymbolInfo(argument.Expression).Symbol is IFieldSymbol field &&
-                _projectionLifecycleTypes.Contains(DotNetSubjectIds.MetadataName(field.ContainingType)))
+            if (LifecycleName(argument.Expression, semanticModel) is { } name)
             {
-                return field.Name;
-            }
-
-            if (semanticModel.GetTypeInfo(argument.Expression).ConvertedType is not INamedTypeSymbol enumType ||
-                !_projectionLifecycleTypes.Contains(DotNetSubjectIds.MetadataName(enumType)) ||
-                semanticModel.GetConstantValue(argument.Expression) is not { HasValue: true, Value: not null } constant)
-            {
-                continue;
-            }
-
-            var member = enumType.GetMembers()
-                .OfType<IFieldSymbol>()
-                .FirstOrDefault(_ => _.HasConstantValue && Equals(_.ConstantValue, constant.Value));
-            if (member is not null)
-            {
-                return member.Name;
+                return name;
             }
         }
 
         return null;
+    }
+
+    static string? LifecycleName(ExpressionSyntax expression, SemanticModel semanticModel)
+    {
+        if (semanticModel.GetSymbolInfo(expression).Symbol is IFieldSymbol field &&
+            _projectionLifecycleTypes.Contains(DotNetSubjectIds.MetadataName(field.ContainingType)))
+        {
+            return field.Name;
+        }
+
+        if (semanticModel.GetTypeInfo(expression).ConvertedType is not INamedTypeSymbol enumType ||
+            !_projectionLifecycleTypes.Contains(DotNetSubjectIds.MetadataName(enumType)) ||
+            semanticModel.GetConstantValue(expression) is not { HasValue: true, Value: not null } constant)
+        {
+            return null;
+        }
+
+        return enumType.GetMembers()
+            .OfType<IFieldSymbol>()
+            .FirstOrDefault(_ => _.HasConstantValue && Equals(_.ConstantValue, constant.Value))?.Name;
     }
 
     static INamedTypeSymbol? BaseClosing(INamedTypeSymbol type, IEnumerable<string> metadataNames)
