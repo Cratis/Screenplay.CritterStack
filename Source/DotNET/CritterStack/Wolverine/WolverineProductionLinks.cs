@@ -43,54 +43,12 @@ static class WolverineProductionLinks
         IParameterSymbol? request,
         DotNetProjectCompilation project)
     {
-        var productions = new List<WolverineProduction>();
-        foreach (var (declaration, semanticModel) in WolverineMethodSyntax.Declarations(method, project))
-        {
-            foreach (var invocationSyntax in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
-            {
-                if (semanticModel.GetOperation(invocationSyntax) is not IInvocationOperation invocation ||
-                    !IsSessionAppend(invocation, project))
-                {
-                    continue;
-                }
-
-                var source = CritterStackSource.RangeForProject(invocationSyntax.GetLocation(), project);
-                var payloadArguments = invocation.Arguments
-                    .Where(_ => _.Parameter is not null && !IsStreamIdentityType(_.Parameter.Type) && !IsMetadataParameter(_.Parameter))
-                    .ToArray();
-                var eventTypes = new List<INamedTypeSymbol>();
-                var directPayloads = payloadArguments.Length > 0;
-                foreach (var argument in payloadArguments)
-                {
-                    if (!WolverineEventStreams.TryGetDirectPayloads(argument.Value, out var argumentEvents))
-                    {
-                        directPayloads = false;
-                        break;
-                    }
-
-                    eventTypes.AddRange(argumentEvents);
-                }
-
-                if (!directPayloads)
-                {
-                    productions.AddRange(UndirectedPayloadTypes(payloadArguments, project)
-                        .Select(_ => new WolverineProduction(_, null, "the appended payload is not a direct event creation", source)));
-                    continue;
-                }
-
-                var (identity, identityLoss) = StreamIdentity(invocation, request);
-                var conditional = IsConditional(invocationSyntax, declaration);
-                var lossReason = identityLoss ?? (conditional ? "the append only happens on some paths through the handler" : null);
-                var lossOutcome = identityLoss is null && conditional
-                    ? GenerationDiagnosticOutcome.Unsupported
-                    : GenerationDiagnosticOutcome.Unknown;
-                productions.AddRange(eventTypes
-                    .Where(_ => !WolverineSagaTypes.IsSagaState(_, project))
-                    .Select(_ => new WolverineProduction(_, lossReason is null ? identity : null, lossReason, source, lossOutcome)));
-            }
-        }
-
-        return productions;
+        return
+        [
+            .. WolverineMethodSyntax.Declarations(method, project)
+                .SelectMany(_ => _.Declaration.DescendantNodes().OfType<InvocationExpressionSyntax>()
+                    .SelectMany(invocationSyntax => AppendProductions(invocationSyntax, _.Declaration, _.SemanticModel, request, project)))
+        ];
     }
 
     /// <summary>
@@ -105,36 +63,14 @@ static class WolverineProductionLinks
         ISymbol? identity,
         DotNetProjectCompilation project)
     {
-        var productions = new List<WolverineProduction>();
-        foreach (var (declaration, semanticModel) in WolverineMethodSyntax.Declarations(method, project))
-        {
-            foreach (var yield in declaration.DescendantNodes()
-                         .OfType<YieldStatementSyntax>()
-                         .Where(_ => _.Expression is not null && IsInHandlerBody(_, declaration)))
-            {
-                var source = CritterStackSource.RangeForProject(yield.GetLocation(), project);
-                if (semanticModel.GetOperation(yield.Expression!) is not { } operation ||
-                    !WolverineEventStreams.TryGetDirectPayloads(operation, out var eventTypes))
-                {
-                    if (semanticModel.GetTypeInfo(yield.Expression!).Type is INamedTypeSymbol yieldedType &&
-                        IsEventType(yieldedType, project))
-                    {
-                        productions.Add(new(yieldedType, null, "the yielded value is not a direct event creation", source));
-                    }
-
-                    continue;
-                }
-
-                var conditional = IsConditional(yield, declaration);
-                var lossReason = YieldLossReason(conditional, identity);
-                var lossOutcome = conditional ? GenerationDiagnosticOutcome.Unsupported : GenerationDiagnosticOutcome.Unknown;
-                productions.AddRange(eventTypes
-                    .Where(_ => IsEventType(_, project))
-                    .Select(_ => new WolverineProduction(_, lossReason is null ? identity : null, lossReason, source, lossOutcome)));
-            }
-        }
-
-        return productions;
+        return
+        [
+            .. WolverineMethodSyntax.Declarations(method, project)
+                .SelectMany(_ => _.Declaration.DescendantNodes()
+                    .OfType<YieldStatementSyntax>()
+                    .Where(yield => yield.Expression is not null && IsInHandlerBody(yield, _.Declaration))
+                    .SelectMany(yield => YieldProductions(yield, _.Declaration, _.SemanticModel, identity, project)))
+        ];
     }
 
     /// <summary>
@@ -156,6 +92,85 @@ static class WolverineProductionLinks
         var @namespace = target.ContainingNamespace.ToDisplayString();
         return @namespace.StartsWith("Marten", StringComparison.Ordinal) ||
                @namespace.StartsWith("JasperFx.Events", StringComparison.Ordinal);
+    }
+
+    static IEnumerable<WolverineProduction> AppendProductions(
+        InvocationExpressionSyntax invocationSyntax,
+        MethodDeclarationSyntax declaration,
+        SemanticModel semanticModel,
+        IParameterSymbol? request,
+        DotNetProjectCompilation project)
+    {
+        if (semanticModel.GetOperation(invocationSyntax) is not IInvocationOperation invocation ||
+            !IsSessionAppend(invocation, project))
+        {
+            return [];
+        }
+
+        var source = CritterStackSource.RangeForProject(invocationSyntax.GetLocation(), project);
+        var payloadArguments = invocation.Arguments
+            .Where(_ => _.Parameter is not null && !IsStreamIdentityType(_.Parameter.Type) && !IsMetadataParameter(_.Parameter))
+            .ToArray();
+        if (!TryDirectEventTypes(payloadArguments, out var eventTypes))
+        {
+            return UndirectedPayloadTypes(payloadArguments, project)
+                .Select(_ => new WolverineProduction(_, null, "the appended payload is not a direct event creation", source));
+        }
+
+        var (identity, identityLoss) = StreamIdentity(invocation, request);
+        var conditional = IsConditional(invocationSyntax, declaration);
+        var lossReason = identityLoss ?? (conditional ? "the append only happens on some paths through the handler" : null);
+        var lossOutcome = identityLoss is null && conditional
+            ? GenerationDiagnosticOutcome.Unsupported
+            : GenerationDiagnosticOutcome.Unknown;
+        return eventTypes
+            .Where(_ => !WolverineSagaTypes.IsSagaState(_, project))
+            .Select(_ => new WolverineProduction(_, lossReason is null ? identity : null, lossReason, source, lossOutcome));
+    }
+
+    static bool TryDirectEventTypes(IArgumentOperation[] payloadArguments, out List<INamedTypeSymbol> eventTypes)
+    {
+        eventTypes = [];
+        if (payloadArguments.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (var argument in payloadArguments)
+        {
+            if (!WolverineEventStreams.TryGetDirectPayloads(argument.Value, out var argumentEvents))
+            {
+                return false;
+            }
+
+            eventTypes.AddRange(argumentEvents);
+        }
+
+        return true;
+    }
+
+    static IEnumerable<WolverineProduction> YieldProductions(
+        YieldStatementSyntax yield,
+        MethodDeclarationSyntax declaration,
+        SemanticModel semanticModel,
+        ISymbol? identity,
+        DotNetProjectCompilation project)
+    {
+        var source = CritterStackSource.RangeForProject(yield.GetLocation(), project);
+        if (semanticModel.GetOperation(yield.Expression!) is not { } operation ||
+            !WolverineEventStreams.TryGetDirectPayloads(operation, out var eventTypes))
+        {
+            return semanticModel.GetTypeInfo(yield.Expression!).Type is INamedTypeSymbol yieldedType && IsEventType(yieldedType, project)
+                ? [new(yieldedType, null, "the yielded value is not a direct event creation", source)]
+                : [];
+        }
+
+        var conditional = IsConditional(yield, declaration);
+        var lossReason = YieldLossReason(conditional, identity);
+        var lossOutcome = conditional ? GenerationDiagnosticOutcome.Unsupported : GenerationDiagnosticOutcome.Unknown;
+        return eventTypes
+            .Where(_ => IsEventType(_, project))
+            .Select(_ => new WolverineProduction(_, lossReason is null ? identity : null, lossReason, source, lossOutcome));
     }
 
     static string? YieldLossReason(bool conditional, ISymbol? identity)

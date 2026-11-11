@@ -22,52 +22,8 @@ static class WolverineSlicePatterns
         var attribute = Declaration(method, project);
         var source = attribute?.ApplicationSyntaxReference?.GetSyntax().GetLocation();
         var range = source is null ? null : CritterStackSource.RangeForProject(source, project);
-        GenerationSliceKind? declared = null;
-        if (attribute is not null)
-        {
-            var enumType = project.Compilation.GetTypeByMetadataName(WellKnownTypes.JasperFxSlicePattern);
-            var argument = attribute.ConstructorArguments.FirstOrDefault();
-            var resolved = enumType is not null && WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(enumType, project) &&
-                attribute.AttributeConstructor?.Parameters is [{ Type: var parameterType }] &&
-                SymbolEqualityComparer.Default.Equals(parameterType, enumType) &&
-                argument.Kind == TypedConstantKind.Enum && SymbolEqualityComparer.Default.Equals(argument.Type, enumType);
-            var name = resolved
-                ? enumType!.GetMembers().OfType<IFieldSymbol>().FirstOrDefault(field => field.HasConstantValue && Equals(field.ConstantValue, argument.Value))?.Name
-                : null;
-            declared = name switch
-            {
-                "Command" => GenerationSliceKind.StateChange,
-                "View" => GenerationSliceKind.StateView,
-                "Automation" => GenerationSliceKind.Automation,
-                "Translation" => GenerationSliceKind.Translate,
-                _ => null
-            };
-            if (declared is null)
-            {
-                diagnostics.Add(new()
-                {
-                    Code = WolverineDiagnosticCodes.SlicePatternUnresolved,
-                    Severity = GenerationDiagnosticSeverity.Warning,
-                    Outcome = resolved ? GenerationDiagnosticOutcome.Unsupported : GenerationDiagnosticOutcome.Unknown,
-                    Message = $"The SlicePattern declaration on '{DotNetMethodIdentity.DisplayName(method)}' has an {(resolved ? "undefined" : "unresolved")} value; independently inferred classification is retained",
-                    Source = range,
-                    Subject = DotNetMethodIdentity.SubjectFor(project, method)
-                });
-            }
-        }
-
-        GenerationSliceKind? trigger = IsAuthoredTimeout(request, project) ? GenerationSliceKind.Automation : null;
-        if (endpoint is not null)
-        {
-            // HEAD and OPTIONS are safe verbs that are still analyzed for effects, so the verb
-            // proves neither a view nor a state change; a declaration may classify them.
-            trigger = endpoint switch
-            {
-                { IsQuery: true } => GenerationSliceKind.StateView,
-                { IsUnclassifiedSafeVerb: true } => null,
-                _ => GenerationSliceKind.StateChange
-            };
-        }
+        var declared = attribute is null ? null : Declared(attribute, method, project, range, diagnostics);
+        var trigger = Trigger(request, endpoint, project);
         if (declared is not null && trigger is not null && declared != trigger)
         {
             diagnostics.Add(new()
@@ -82,20 +38,12 @@ static class WolverineSlicePatterns
         }
 
         var kind = trigger ?? declared;
-        var explanation = trigger is not null
-            ? $"Proven {(endpoint is null ? "TimeoutMessage scheduler" : $"HTTP {endpoint.Verb}")} trigger classifies the slice as {trigger}"
-            : $"Exact Wolverine SlicePattern declaration classifies the slice as {declared}";
-        if (trigger is not null && declared is not null)
-        {
-            explanation += $"; declared SlicePattern={declared}";
-        }
-
         var evidence = kind is null ? null : new Evidence
         {
             Adapter = adapter,
             Strength = EvidenceStrength.Exact,
             Source = range ?? CritterStackSource.EvidenceFor(method, adapter, project, EvidenceStrength.Exact).Source,
-            Explanation = explanation
+            Explanation = Explanation(trigger, declared, endpoint)
         };
         return new(kind, evidence, declared is not null);
     }
@@ -135,6 +83,67 @@ static class WolverineSlicePatterns
                 SliceKindEvidence = decision.Evidence
             };
         }
+    }
+
+    static GenerationSliceKind? Declared(
+        AttributeData attribute,
+        IMethodSymbol method,
+        DotNetProjectCompilation project,
+        SourceRange? range,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        var enumType = project.Compilation.GetTypeByMetadataName(WellKnownTypes.JasperFxSlicePattern);
+        var argument = attribute.ConstructorArguments.FirstOrDefault();
+        var resolved = enumType is not null && WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(enumType, project) &&
+            attribute.AttributeConstructor?.Parameters is [{ Type: var parameterType }] &&
+            SymbolEqualityComparer.Default.Equals(parameterType, enumType) &&
+            argument.Kind == TypedConstantKind.Enum && SymbolEqualityComparer.Default.Equals(argument.Type, enumType);
+        var name = resolved
+            ? enumType!.GetMembers().OfType<IFieldSymbol>().FirstOrDefault(field => field.HasConstantValue && Equals(field.ConstantValue, argument.Value))?.Name
+            : null;
+        var declared = name switch
+        {
+            "Command" => GenerationSliceKind.StateChange,
+            "View" => GenerationSliceKind.StateView,
+            "Automation" => GenerationSliceKind.Automation,
+            "Translation" => GenerationSliceKind.Translate,
+            _ => (GenerationSliceKind?)null
+        };
+        if (declared is null)
+        {
+            diagnostics.Add(new()
+            {
+                Code = WolverineDiagnosticCodes.SlicePatternUnresolved,
+                Severity = GenerationDiagnosticSeverity.Warning,
+                Outcome = resolved ? GenerationDiagnosticOutcome.Unsupported : GenerationDiagnosticOutcome.Unknown,
+                Message = $"The SlicePattern declaration on '{DotNetMethodIdentity.DisplayName(method)}' has an {(resolved ? "undefined" : "unresolved")} value; independently inferred classification is retained",
+                Source = range,
+                Subject = DotNetMethodIdentity.SubjectFor(project, method)
+            });
+        }
+
+        return declared;
+    }
+
+    static GenerationSliceKind? Trigger(INamedTypeSymbol? request, HttpEndpoint? endpoint, DotNetProjectCompilation project) => endpoint switch
+    {
+        // HEAD and OPTIONS are safe verbs that are still analyzed for effects, so the verb
+        // proves neither a view nor a state change; a declaration may classify them.
+        null => IsAuthoredTimeout(request, project) ? GenerationSliceKind.Automation : null,
+        { IsQuery: true } => GenerationSliceKind.StateView,
+        { IsUnclassifiedSafeVerb: true } => null,
+        _ => GenerationSliceKind.StateChange
+    };
+
+    static string Explanation(GenerationSliceKind? trigger, GenerationSliceKind? declared, HttpEndpoint? endpoint)
+    {
+        if (trigger is null)
+        {
+            return $"Exact Wolverine SlicePattern declaration classifies the slice as {declared}";
+        }
+
+        var proven = $"Proven {(endpoint is null ? "TimeoutMessage scheduler" : $"HTTP {endpoint.Verb}")} trigger classifies the slice as {trigger}";
+        return declared is null ? proven : $"{proven}; declared SlicePattern={declared}";
     }
 
     static AttributeData? Declaration(IMethodSymbol method, DotNetProjectCompilation project)
