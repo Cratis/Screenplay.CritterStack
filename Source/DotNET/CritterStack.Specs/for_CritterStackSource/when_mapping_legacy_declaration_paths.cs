@@ -46,7 +46,7 @@ public class when_mapping_legacy_declaration_paths : given.a_critter_stack_sourc
     static void AssertRange(SourceRange? range, string path)
     {
         range.ShouldNotBeNull();
-        range!.Path.ShouldEqual(path);
+        range.Path.ShouldEqual(path);
         range.StartLine.ShouldEqual(3);
         range.StartColumn.ShouldEqual(1);
         range.EndLine.ShouldEqual(3);

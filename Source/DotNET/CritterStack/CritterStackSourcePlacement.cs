@@ -52,38 +52,14 @@ static class CritterStackSourcePlacement
         }
 
         var structures = snapshot.Structures.ToDictionary(_ => _.Subject);
-        var missingStructures = strongestIntents
-            .Where(intent => !structures.ContainsKey(EffectiveOwner(intent)))
-            .GroupBy(intent => $"{intent.Artifact.Subject.Value}\u001f{(int)intent.Artifact.Kind}\u001f{EffectiveOwner(intent).Value}", StringComparer.Ordinal)
-            .Select(_ => _.First())
-            .Select(MissingSourceMapping)
-            .OrderBy(_ => _.Code, StringComparer.Ordinal)
-            .ThenBy(_ => _.Subject?.Value, StringComparer.Ordinal)
-            .ThenBy(_ => _.Source?.Path, StringComparer.Ordinal)
-            .ThenBy(_ => _.Source?.StartLine)
-            .ThenBy(_ => _.Source?.StartColumn)
-            .ThenBy(_ => _.Message, StringComparer.Ordinal)
-            .ToArray();
+        var missingStructures = MissingStructureDiagnostics(strongestIntents, structures);
         if (missingStructures.Length > 0)
         {
             diagnostics.AddRange(missingStructures);
             return [];
         }
 
-        var requests = strongestIntents.Select(intent => new DotNetSourcePlacementRequest
-        {
-            Artifact = intent.Artifact,
-            Structure = structures[EffectiveOwner(intent)],
-            SourceOwner = intent.SourceOwner,
-            SliceKind = intent.CompatibilityPlacement.SliceKind,
-            Policy = options.SourceStructurePolicy,
-            CompatibilityPolicy = new DotNetSourcePlacementCompatibilityPolicy
-            {
-                Version = 1,
-                Placement = intent.CompatibilityPlacement
-            }
-        });
-        var placementSnapshot = DotNetSourcePlacementDerivation.Derive(requests);
+        var placementSnapshot = DotNetSourcePlacementDerivation.Derive(PlacementRequests(strongestIntents, structures, options));
         diagnostics.AddRange(placementSnapshot.Diagnostics);
         if (!placementSnapshot.IsSuccess)
         {
@@ -127,6 +103,40 @@ static class CritterStackSourcePlacement
             Slice = slice,
             SliceKind = sliceKind
         };
+
+    static GenerationDiagnostic[] MissingStructureDiagnostics(
+        IReadOnlyList<CritterStackPlacementIntent> intents,
+        Dictionary<SubjectId, DotNetSourceStructure> structures) =>
+    [
+        .. intents
+            .Where(intent => !structures.ContainsKey(EffectiveOwner(intent)))
+            .GroupBy(intent => $"{intent.Artifact.Subject.Value}\u001f{(int)intent.Artifact.Kind}\u001f{EffectiveOwner(intent).Value}", StringComparer.Ordinal)
+            .Select(_ => _.First())
+            .Select(MissingSourceMapping)
+            .OrderBy(_ => _.Code, StringComparer.Ordinal)
+            .ThenBy(_ => _.Subject?.Value, StringComparer.Ordinal)
+            .ThenBy(_ => _.Source?.Path, StringComparer.Ordinal)
+            .ThenBy(_ => _.Source?.StartLine)
+            .ThenBy(_ => _.Source?.StartColumn)
+            .ThenBy(_ => _.Message, StringComparer.Ordinal)
+    ];
+
+    static IEnumerable<DotNetSourcePlacementRequest> PlacementRequests(
+        IReadOnlyList<CritterStackPlacementIntent> intents,
+        Dictionary<SubjectId, DotNetSourceStructure> structures,
+        DotNetAdapterOptions options) => intents.Select(intent => new DotNetSourcePlacementRequest
+        {
+            Artifact = intent.Artifact,
+            Structure = structures[EffectiveOwner(intent)],
+            SourceOwner = intent.SourceOwner,
+            SliceKind = intent.CompatibilityPlacement.SliceKind,
+            Policy = options.SourceStructurePolicy,
+            CompatibilityPolicy = new DotNetSourcePlacementCompatibilityPolicy
+            {
+                Version = 1,
+                Placement = intent.CompatibilityPlacement
+            }
+        });
 
     static SubjectId EffectiveOwner(CritterStackPlacementIntent intent) => intent.SourceOwner ?? intent.Artifact.Subject;
 

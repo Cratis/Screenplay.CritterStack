@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
+
 using AdapterIdentity = Cratis.Screenplay.Generation.AdapterIdentity;
 using CompilationReference = Microsoft.CodeAnalysis.CompilationReference;
 using DotNetGeneratedSource = Cratis.Screenplay.Generation.DotNet.DotNetGeneratedSource;
@@ -104,9 +106,7 @@ static class CritterStackSource
 
     static SourceRange? LegacyRange(Location location, string? sourceRoot)
     {
-        if (!location.IsInSource ||
-            location.SourceTree is null ||
-            DotNetGeneratedSource.IsGenerated(location.SourceTree) ||
+        if (!IsHandWrittenSource(location) ||
             !TryGetSafeRelativePath(location, sourceRoot, out var relativePath))
         {
             return null;
@@ -123,16 +123,26 @@ static class CritterStackSource
         };
     }
 
+    static bool IsHandWrittenSource(Location location) =>
+        location.IsInSource &&
+        location.SourceTree is { } sourceTree &&
+        !DotNetGeneratedSource.IsGenerated(sourceTree);
+
+    static bool IsFullyQualifiedPath([NotNullWhen(true)] string? path) =>
+        !string.IsNullOrWhiteSpace(path) && Path.IsPathFullyQualified(path);
+
+    static bool IsOutsideRoot(string relativeCandidate) =>
+        string.IsNullOrWhiteSpace(relativeCandidate) ||
+        Path.IsPathFullyQualified(relativeCandidate) ||
+        string.Equals(relativeCandidate, ".", StringComparison.Ordinal) ||
+        string.Equals(relativeCandidate, "..", StringComparison.Ordinal) ||
+        relativeCandidate.StartsWith("../", StringComparison.Ordinal);
+
     static bool TryGetSafeRelativePath(Location location, string? sourceRoot, out string relativePath)
     {
         relativePath = string.Empty;
-        if (string.IsNullOrWhiteSpace(sourceRoot) || !Path.IsPathFullyQualified(sourceRoot))
-        {
-            return false;
-        }
-
         var physicalPath = location.GetLineSpan().Path;
-        if (string.IsNullOrWhiteSpace(physicalPath) || !Path.IsPathFullyQualified(physicalPath))
+        if (!IsFullyQualifiedPath(sourceRoot) || !IsFullyQualifiedPath(physicalPath))
         {
             return false;
         }
@@ -142,11 +152,7 @@ static class CritterStackSource
             var normalizedRoot = Path.GetFullPath(sourceRoot);
             var normalizedPath = Path.GetFullPath(physicalPath);
             var candidate = Path.GetRelativePath(normalizedRoot, normalizedPath).Replace('\\', '/');
-            if (string.IsNullOrWhiteSpace(candidate) ||
-                Path.IsPathFullyQualified(candidate) ||
-                string.Equals(candidate, ".", StringComparison.Ordinal) ||
-                string.Equals(candidate, "..", StringComparison.Ordinal) ||
-                candidate.StartsWith("../", StringComparison.Ordinal))
+            if (IsOutsideRoot(candidate))
             {
                 return false;
             }
