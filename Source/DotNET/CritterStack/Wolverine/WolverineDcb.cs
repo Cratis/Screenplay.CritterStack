@@ -32,7 +32,7 @@ sealed record WolverineDcbDiscovery(
     public string Discriminator => $"wolverine:dcb:{Parameter.Ordinal}:{Parameter.Name}";
 }
 
-static partial class WolverineDcb
+internal static partial class WolverineDcb
 {
     static readonly string[] _companionNames = ["Before", "BeforeAsync", "Load", "LoadAsync"];
 

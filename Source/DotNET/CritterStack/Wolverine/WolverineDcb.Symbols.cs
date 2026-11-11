@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.Operations;
 
 namespace Cratis.CritterStack.Screenplay.Wolverine;
 
-static partial class WolverineDcb
+internal static partial class WolverineDcb
 {
     static IParameterSymbol? ReceiverParameter(IOperation? receiver)
     {

@@ -83,58 +83,6 @@ static class WolverineEventStreams
         return bindings;
     }
 
-    static IEnumerable<WolverineStateBinding> BindingsForParameter(
-        BindingContext context,
-        IParameterSymbol parameter,
-        IReadOnlyList<INamedTypeSymbol> modelTypes)
-    {
-        var (method, requestType, project, handlerKey, loadedBindingCount) = context;
-        var attribute = WriteModelAttribute(parameter, project);
-        var source = SourceOf(attribute, parameter, project);
-        var identityName = attribute?.ConstructorArguments.FirstOrDefault().Value as string;
-        var versionName = NamedString(attribute, "VersionSource");
-        var loadStyle = NamedEnum(attribute, "LoadStyle") ?? "Optimistic";
-        var consistency = NamedBoolean(attribute, "AlwaysEnforceConsistency") ?? false;
-        foreach (var modelType in modelTypes)
-        {
-            var identityMember = attribute is null
-                ? null
-                : IdentityMember(method, requestType, modelType, identityName, project);
-            var versionMember = attribute is null
-                ? null
-                : VersionMember(method, requestType, versionName, loadedBindingCount, project);
-            var hasAmbiguousConventionalVersion = attribute is not null &&
-                string.IsNullOrWhiteSpace(versionName) &&
-                HasConventionalVersionMember(context);
-            yield return new(
-                handlerKey,
-                parameter,
-                modelType,
-                attribute is null
-                    ? WolverineStateBindingKind.DirectEventStream
-                    : WolverineStateBindingKind.LoadedEventStream,
-                new(identityName ?? identityMember?.Name, EvidenceSource(identityMember, source, project)),
-                new(versionName ?? versionMember?.Name, EvidenceSource(versionMember, source, project)),
-                new(loadStyle, source),
-                new(consistency, source),
-                identityMember,
-                versionMember,
-                hasAmbiguousConventionalVersion,
-                source);
-        }
-    }
-
-    static bool HasConventionalVersionMember(BindingContext context) =>
-        context.LoadedBindingCount > 1 &&
-        VersionMember(context.Method, context.RequestType, "Version", loadedBindingCount: 1, project: context.Project) is not null;
-
-    sealed record BindingContext(
-        IMethodSymbol Method,
-        INamedTypeSymbol? RequestType,
-        DotNetProjectCompilation Project,
-        string HandlerKey,
-        int LoadedBindingCount);
-
     public static WolverineEventStreamAppendDiscovery Appends(
         IMethodSymbol method,
         DotNetProjectCompilation project,
@@ -195,26 +143,6 @@ static class WolverineEventStreams
         IInvocationOperation invocation,
         out IReadOnlyList<INamedTypeSymbol> eventTypes) => TryGetPayloads(invocation, out eventTypes);
 
-    static IReadOnlyList<WolverineStateBinding> AppendTargets(
-        IOperation receiverOperation,
-        InvocationExpressionSyntax invocationSyntax,
-        INamedTypeSymbol invokedModel,
-        AppendScope scope)
-    {
-        var receiver = ReceiverParameter(receiverOperation);
-        var bindings = scope.Bindings;
-        var targets = receiver is null
-            ? WolverineFetchedEventStreams.Targets(receiverOperation, invocationSyntax, scope.Declaration, scope.SemanticModel, bindings, scope.Project)
-            : [.. bindings.Where(binding => SymbolEqualityComparer.Default.Equals(binding.Parameter, receiver))];
-        return [.. targets.Where(binding => SymbolEqualityComparer.Default.Equals(binding.ModelType, invokedModel))];
-    }
-
-    sealed record AppendScope(
-        MethodDeclarationSyntax Declaration,
-        SemanticModel SemanticModel,
-        DotNetProjectCompilation Project,
-        IReadOnlyList<WolverineStateBinding> Bindings);
-
     public static bool TryGetDirectPayloads(
         IOperation operation,
         out IReadOnlyList<INamedTypeSymbol> eventTypes,
@@ -235,6 +163,65 @@ static class WolverineEventStreams
 
     public static bool IsExactAppend(IInvocationOperation invocation, DotNetProjectCompilation project) =>
         TryGetAppendModel(invocation, project, out _);
+
+    static IEnumerable<WolverineStateBinding> BindingsForParameter(
+        BindingContext context,
+        IParameterSymbol parameter,
+        IReadOnlyList<INamedTypeSymbol> modelTypes)
+    {
+        var (method, requestType, project, handlerKey, loadedBindingCount) = context;
+        var attribute = WriteModelAttribute(parameter, project);
+        var source = SourceOf(attribute, parameter, project);
+        var identityName = attribute?.ConstructorArguments.FirstOrDefault().Value as string;
+        var versionName = NamedString(attribute, "VersionSource");
+        var loadStyle = NamedEnum(attribute, "LoadStyle") ?? "Optimistic";
+        var consistency = NamedBoolean(attribute, "AlwaysEnforceConsistency") ?? false;
+        foreach (var modelType in modelTypes)
+        {
+            var identityMember = attribute is null
+                ? null
+                : IdentityMember(method, requestType, modelType, identityName, project);
+            var versionMember = attribute is null
+                ? null
+                : VersionMember(method, requestType, versionName, loadedBindingCount, project);
+            var hasAmbiguousConventionalVersion = attribute is not null &&
+                string.IsNullOrWhiteSpace(versionName) &&
+                HasConventionalVersionMember(context);
+            yield return new(
+                handlerKey,
+                parameter,
+                modelType,
+                attribute is null
+                    ? WolverineStateBindingKind.DirectEventStream
+                    : WolverineStateBindingKind.LoadedEventStream,
+                new(identityName ?? identityMember?.Name, EvidenceSource(identityMember, source, project)),
+                new(versionName ?? versionMember?.Name, EvidenceSource(versionMember, source, project)),
+                new(loadStyle, source),
+                new(consistency, source),
+                identityMember,
+                versionMember,
+                hasAmbiguousConventionalVersion,
+                source);
+        }
+    }
+
+    static bool HasConventionalVersionMember(BindingContext context) =>
+        context.LoadedBindingCount > 1 &&
+        VersionMember(context.Method, context.RequestType, "Version", loadedBindingCount: 1, project: context.Project) is not null;
+
+    static IReadOnlyList<WolverineStateBinding> AppendTargets(
+        IOperation receiverOperation,
+        InvocationExpressionSyntax invocationSyntax,
+        INamedTypeSymbol invokedModel,
+        AppendScope scope)
+    {
+        var receiver = ReceiverParameter(receiverOperation);
+        var bindings = scope.Bindings;
+        var targets = receiver is null
+            ? WolverineFetchedEventStreams.Targets(receiverOperation, invocationSyntax, scope.Declaration, scope.SemanticModel, bindings, scope.Project)
+            : [.. bindings.Where(binding => SymbolEqualityComparer.Default.Equals(binding.Parameter, receiver))];
+        return [.. targets.Where(binding => SymbolEqualityComparer.Default.Equals(binding.ModelType, invokedModel))];
+    }
 
     static bool TryGetAppendModel(
         IInvocationOperation invocation,
@@ -683,4 +670,17 @@ static class WolverineEventStreams
         !invocation.Ancestors()
             .TakeWhile(_ => _ != handlerDeclaration)
             .Any(_ => _ is LocalFunctionStatementSyntax or AnonymousFunctionExpressionSyntax);
+
+    sealed record BindingContext(
+        IMethodSymbol Method,
+        INamedTypeSymbol? RequestType,
+        DotNetProjectCompilation Project,
+        string HandlerKey,
+        int LoadedBindingCount);
+
+    sealed record AppendScope(
+        MethodDeclarationSyntax Declaration,
+        SemanticModel SemanticModel,
+        DotNetProjectCompilation Project,
+        IReadOnlyList<WolverineStateBinding> Bindings);
 }

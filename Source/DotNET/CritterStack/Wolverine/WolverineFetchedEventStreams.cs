@@ -44,6 +44,48 @@ static class WolverineFetchedEventStreams
         return bindings;
     }
 
+    public static IReadOnlyList<WolverineStateBinding> Targets(
+        IOperation receiver,
+        InvocationExpressionSyntax append,
+        MethodDeclarationSyntax declaration,
+        SemanticModel semanticModel,
+        IReadOnlyList<WolverineStateBinding> bindings,
+        DotNetProjectCompilation project)
+    {
+        var fetched = bindings.Where(binding => binding.Fetched is { IsEmpty: false, IsProvenDistinct: true }).ToArray();
+        var indexed = IndexedTarget(Unwrap(receiver), fetched, declaration, semanticModel, project);
+        if (indexed is not null)
+        {
+            return [indexed];
+        }
+
+        if (Unwrap(receiver) is not ILocalReferenceOperation local || !IsStable(local.Local, declaration, semanticModel, project))
+        {
+            return [];
+        }
+
+        var initializer = local.Local.DeclaringSyntaxReferences.Select(reference => reference.GetSyntax())
+            .OfType<VariableDeclaratorSyntax>().SingleOrDefault()?.Initializer?.Value;
+        if (initializer is not null && IndexedTarget(Unwrap(semanticModel.GetOperation(initializer)), fetched, declaration, semanticModel, project) is { } fromIndex)
+        {
+            return [fromIndex];
+        }
+
+        foreach (var loop in append.Ancestors().TakeWhile(node => node != declaration).OfType<ForEachStatementSyntax>())
+        {
+            if (!SymbolEqualityComparer.Default.Equals(semanticModel.GetDeclaredSymbol(loop), local.Local) ||
+                Unwrap(semanticModel.GetOperation(loop.Expression)) is not ILocalReferenceOperation collection ||
+                !IsStable(collection.Local, declaration, semanticModel, project))
+            {
+                continue;
+            }
+
+            return [.. fetched.Where(binding => SymbolEqualityComparer.Default.Equals(binding.Fetched!.Local, collection.Local))];
+        }
+
+        return [];
+    }
+
     static FetchSite? FetchSiteOf(
         VariableDeclaratorSyntax variable,
         MethodDeclarationSyntax declaration,
@@ -113,50 +155,6 @@ static class WolverineFetchedEventStreams
         }
 
         return [Bind(input, null, isCollection: elements is null, isEmpty: elements is { Count: 0 })];
-    }
-
-    sealed record FetchSite(ILocalSymbol Local, IInvocationOperation Fetch, INamedTypeSymbol Model, IOperation Identities);
-
-    public static IReadOnlyList<WolverineStateBinding> Targets(
-        IOperation receiver,
-        InvocationExpressionSyntax append,
-        MethodDeclarationSyntax declaration,
-        SemanticModel semanticModel,
-        IReadOnlyList<WolverineStateBinding> bindings,
-        DotNetProjectCompilation project)
-    {
-        var fetched = bindings.Where(binding => binding.Fetched is { IsEmpty: false, IsProvenDistinct: true }).ToArray();
-        var indexed = IndexedTarget(Unwrap(receiver), fetched, declaration, semanticModel, project);
-        if (indexed is not null)
-        {
-            return [indexed];
-        }
-
-        if (Unwrap(receiver) is not ILocalReferenceOperation local || !IsStable(local.Local, declaration, semanticModel, project))
-        {
-            return [];
-        }
-
-        var initializer = local.Local.DeclaringSyntaxReferences.Select(reference => reference.GetSyntax())
-            .OfType<VariableDeclaratorSyntax>().SingleOrDefault()?.Initializer?.Value;
-        if (initializer is not null && IndexedTarget(Unwrap(semanticModel.GetOperation(initializer)), fetched, declaration, semanticModel, project) is { } fromIndex)
-        {
-            return [fromIndex];
-        }
-
-        foreach (var loop in append.Ancestors().TakeWhile(node => node != declaration).OfType<ForEachStatementSyntax>())
-        {
-            if (!SymbolEqualityComparer.Default.Equals(semanticModel.GetDeclaredSymbol(loop), local.Local) ||
-                Unwrap(semanticModel.GetOperation(loop.Expression)) is not ILocalReferenceOperation collection ||
-                !IsStable(collection.Local, declaration, semanticModel, project))
-            {
-                continue;
-            }
-
-            return [.. fetched.Where(binding => SymbolEqualityComparer.Default.Equals(binding.Fetched!.Local, collection.Local))];
-        }
-
-        return [];
     }
 
     static WolverineStateBinding? IndexedTarget(
@@ -390,4 +388,6 @@ static class WolverineFetchedEventStreams
         IParenthesizedOperation parenthesized => Unwrap(parenthesized.Operand),
         _ => operation
     };
+
+    sealed record FetchSite(ILocalSymbol Local, IInvocationOperation Fetch, INamedTypeSymbol Model, IOperation Identities);
 }

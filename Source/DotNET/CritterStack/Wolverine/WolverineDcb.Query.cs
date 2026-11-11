@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.Operations;
 
 namespace Cratis.CritterStack.Screenplay.Wolverine;
 
-static partial class WolverineDcb
+internal static partial class WolverineDcb
 {
     static readonly string[] _taskFactoryNames =
     [
@@ -57,10 +57,15 @@ static partial class WolverineDcb
         return parsed is null ? ParsedQuery.Unresolved(source) : parsed with { Source = source };
     }
 
-    static ExpressionSyntax? QueryExpression(MethodDeclarationSyntax declaration) =>
-        declaration.ExpressionBody is { } body
-            ? body.Expression
-            : declaration.Body is null ? null : BodyQueryExpression(declaration.Body);
+    static ExpressionSyntax? QueryExpression(MethodDeclarationSyntax declaration)
+    {
+        if (declaration.ExpressionBody is { } body)
+        {
+            return body.Expression;
+        }
+
+        return declaration.Body is { } block ? BodyQueryExpression(block) : null;
+    }
 
     static ExpressionSyntax? BodyQueryExpression(BlockSyntax body) => body.Statements switch
     {
@@ -117,7 +122,8 @@ static partial class WolverineDcb
     };
 
     static IOperation? TaskFromResultArgument(IInvocationOperation invocation) =>
-        invocation is { TargetMethod: { IsStatic: true, Name: "FromResult" } target, Arguments.Length: 1 } &&
+        invocation is { TargetMethod: { IsStatic: true } target, Arguments.Length: 1 } &&
+        string.Equals(target.Name, "FromResult", StringComparison.Ordinal) &&
         IsTaskFactoryType(target.ContainingType)
             ? invocation.Arguments[0].Value
             : null;

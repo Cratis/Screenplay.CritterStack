@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis.Operations;
 
 namespace Cratis.CritterStack.Screenplay.Wolverine;
 
-static partial class WolverineDcb
+internal static partial class WolverineDcb
 {
     static (IReadOnlyList<INamedTypeSymbol> Events, IReadOnlyList<INamedTypeSymbol> ImperativeEvents) DiscoverEvents(
         IMethodSymbol method,
@@ -106,7 +106,8 @@ static partial class WolverineDcb
     static bool IsExactBoundaryAppend(IInvocationOperation invocation, DotNetProjectCompilation project)
     {
         var method = invocation.TargetMethod;
-        return method.Name is "AppendOne" or "AppendMany" &&
+        return (string.Equals(method.Name, "AppendOne", StringComparison.Ordinal) ||
+                string.Equals(method.Name, "AppendMany", StringComparison.Ordinal)) &&
                CanonicalEventBoundary(project) is { } boundary &&
                SymbolEqualityComparer.Default.Equals(method.ContainingType.OriginalDefinition, boundary) &&
                IsDeclaredOn(method, boundary);
