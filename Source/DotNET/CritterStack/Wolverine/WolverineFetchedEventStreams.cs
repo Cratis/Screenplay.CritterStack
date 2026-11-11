@@ -93,8 +93,9 @@ static class WolverineFetchedEventStreams
         DotNetProjectCompilation project)
     {
         if (!IsDirect(variable, declaration) ||
+            variable.Initializer is null ||
             semanticModel.GetDeclaredSymbol(variable) is not ILocalSymbol local ||
-            AwaitedFetch(variable, semanticModel) is not { } fetch ||
+            AwaitedFetch(variable.Initializer, semanticModel) is not { } fetch ||
             !TryModel(fetch.TargetMethod, project, out var model) ||
             fetch.Arguments.FirstOrDefault(argument => argument.Parameter?.Ordinal == 0)?.Value is not { } identities)
         {
@@ -104,9 +105,8 @@ static class WolverineFetchedEventStreams
         return new(local, fetch, model, identities);
     }
 
-    static IInvocationOperation? AwaitedFetch(VariableDeclaratorSyntax variable, SemanticModel semanticModel) =>
-        variable.Initializer is not null &&
-        Unwrap(semanticModel.GetOperation(variable.Initializer.Value)) is IAwaitOperation awaited
+    static IInvocationOperation? AwaitedFetch(EqualsValueClauseSyntax initializer, SemanticModel semanticModel) =>
+        Unwrap(semanticModel.GetOperation(initializer.Value)) is IAwaitOperation awaited
             ? FetchInvocation(awaited.Operation)
             : null;
 
