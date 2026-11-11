@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace Cratis.CritterStack.Screenplay.Wolverine;
 
 /// <summary>
-/// The statically resolved options of a Wolverine <c>UseFluentValidation</c> call, or the reason they cannot be resolved.
+/// The statically resolved options of a Wolverine UseFluentValidation call, or the reason they cannot be resolved.
 /// </summary>
 sealed class WolverineFluentValidationOptions
 {
@@ -36,7 +36,7 @@ sealed class WolverineFluentValidationOptions
     public bool Resolved => Failure is null;
 
     /// <summary>
-    /// Resolves the options passed to a <c>UseFluentValidation</c> call.
+    /// Resolves the options passed to a UseFluentValidation call.
     /// </summary>
     /// <param name="invocation">The call to resolve.</param>
     /// <param name="semanticModel">The semantic model of the call.</param>
@@ -89,7 +89,7 @@ sealed class WolverineFluentValidationOptions
     {
         AssignmentExpressionSyntax assignment => [assignment],
         BlockSyntax block when block.Statements.All(_ => _ is ExpressionStatementSyntax { Expression: AssignmentExpressionSyntax }) =>
-            block.Statements.Cast<ExpressionStatementSyntax>().Select(_ => (AssignmentExpressionSyntax)_.Expression).ToArray(),
+            [.. block.Statements.Cast<ExpressionStatementSyntax>().Select(_ => (AssignmentExpressionSyntax)_.Expression)],
         _ => []
     };
 

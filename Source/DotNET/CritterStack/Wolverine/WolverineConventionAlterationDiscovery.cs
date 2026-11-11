@@ -81,7 +81,8 @@ static class WolverineConventionAlterationDiscovery
     }
 
     static bool IsMessageDiscoveryCustomization(SemanticModel semanticModel, InvocationExpressionSyntax invocation) =>
-        semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol { Name: "CustomizeMessageDiscovery" } method &&
+        semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol method &&
+        string.Equals(method.Name, "CustomizeMessageDiscovery", StringComparison.Ordinal) &&
         DotNetSubjectIds.MetadataName(method.ContainingType.OriginalDefinition) == WellKnownTypes.WolverineHandlerDiscovery;
 
     static bool AltersConventions(INamedTypeSymbol type) =>

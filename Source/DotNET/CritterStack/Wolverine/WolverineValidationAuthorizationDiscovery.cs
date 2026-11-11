@@ -147,7 +147,8 @@ static class WolverineValidationAuthorizationDiscovery
         SemanticModel semanticModel,
         InvocationExpressionSyntax invocation,
         IParameterSymbol callbackParameter) =>
-        semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol { Name: "RequireAuthorization" } invoked &&
+        semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol invoked &&
+        string.Equals(invoked.Name, "RequireAuthorization", StringComparison.Ordinal) &&
         DotNetSubjectIds.MetadataName((invoked.ReducedFrom ?? invoked).ContainingType.OriginalDefinition) == WellKnownTypes.AspNetAuthorizationEndpointExtensions &&
         invocation.Expression is MemberAccessExpressionSyntax memberAccess &&
         WolverineLambdaSyntax.IsRootedInParameter(memberAccess.Expression, callbackParameter, semanticModel);
