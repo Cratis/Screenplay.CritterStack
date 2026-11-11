@@ -29,25 +29,27 @@ enum ExpectationKind
 
 sealed record Expectation(ExpectationKind Kind, string Value)
 {
-    public bool IsMetBy(GeneratedScreenplayDefinition result) => Kind switch
+    static readonly Dictionary<ExpectationKind, Func<GeneratedScreenplayDefinition, string, bool>> _checks = new()
     {
-        ExpectationKind.Source => result.Source.Contains(Value, StringComparison.Ordinal),
-        ExpectationKind.NotSource => !result.Source.Contains(Value, StringComparison.Ordinal),
-        ExpectationKind.SourceHash => IsSourceHash(result, Value),
-        ExpectationKind.Diagnostic => result.Diagnostics.Any(_ => _.Code == Value),
-        ExpectationKind.DiagnosticMessage => IsDiagnosticMessageIn(result, Value),
-        ExpectationKind.Artifact => result.Graph.Artifacts.Any(_ => $"{_.Key.Kind}:{_.Variants[0].Definition.Name}" == Value),
-        ExpectationKind.ArtifactCount => IsArtifactCountIn(result, Value),
-        ExpectationKind.Evidence => IsEvidenceIn(result, Value),
-        ExpectationKind.EvidenceCount => IsEvidenceCountIn(result, Value),
-        ExpectationKind.Relationship => IsRelationshipIn(result, Value),
-        ExpectationKind.RelationshipCount => IsRelationshipCountIn(result, Value),
-        ExpectationKind.Identifier => IsIdentifierIn(result, Value),
-        ExpectationKind.NotIdentifier => !IsIdentifierIn(result, Value),
-        ExpectationKind.Grouping => IsGroupingIn(result, Value),
-        ExpectationKind.FanOut => IsFanOutIn(result, Value),
-        _ => false
+        [ExpectationKind.Source] = (result, value) => result.Source.Contains(value, StringComparison.Ordinal),
+        [ExpectationKind.NotSource] = (result, value) => !result.Source.Contains(value, StringComparison.Ordinal),
+        [ExpectationKind.SourceHash] = IsSourceHash,
+        [ExpectationKind.Diagnostic] = (result, value) => result.Diagnostics.Any(_ => _.Code == value),
+        [ExpectationKind.DiagnosticMessage] = IsDiagnosticMessageIn,
+        [ExpectationKind.Artifact] = (result, value) => result.Graph.Artifacts.Any(_ => $"{_.Key.Kind}:{_.Variants[0].Definition.Name}" == value),
+        [ExpectationKind.ArtifactCount] = IsArtifactCountIn,
+        [ExpectationKind.Evidence] = IsEvidenceIn,
+        [ExpectationKind.EvidenceCount] = IsEvidenceCountIn,
+        [ExpectationKind.Relationship] = IsRelationshipIn,
+        [ExpectationKind.RelationshipCount] = IsRelationshipCountIn,
+        [ExpectationKind.Identifier] = IsIdentifierIn,
+        [ExpectationKind.NotIdentifier] = (result, value) => !IsIdentifierIn(result, value),
+        [ExpectationKind.Grouping] = IsGroupingIn,
+        [ExpectationKind.FanOut] = IsFanOutIn
     };
+
+    public bool IsMetBy(GeneratedScreenplayDefinition result) =>
+        _checks.TryGetValue(Kind, out var check) && check(result, Value);
 
     public override string ToString() => $"{Kind}: {Value}";
 
@@ -180,19 +182,23 @@ sealed record Expectation(ExpectationKind Kind, string Value)
             return false;
         }
 
-        var parent = result.Graph.Artifacts
-            .FirstOrDefault(_ =>
-                _.Key.Kind == ArtifactKind.Event &&
-                _.Variants.Any(variant => variant.Definition.Name == parts[0]))?.Key.Subject.Value;
+        var parent = EventSubject(result, parts[0]);
         return parent is not null && result.Graph.Relationships.Any(relationship =>
             relationship.Key.Kind == RelationshipKind.Consumes &&
             ArtifactName(result, relationship.Key.Source, ArtifactKind.Reducer) is not null &&
             ArtifactName(result, relationship.Key.Target, ArtifactKind.Event) == parts[1] &&
-            relationship.Definitions.Any(definition =>
-                definition.Key.Discriminator?.StartsWith($"marten:fan-out-child:{parent}:{parts[3]}:", StringComparison.Ordinal) == true &&
-                definition.SourceMember == parts[2] &&
-                definition.IsCollection));
+            relationship.Definitions.Any(definition => IsFanOutChild(definition, parent, parts[2], parts[3])));
     }
+
+    static string? EventSubject(GeneratedScreenplayDefinition result, string name) => result.Graph.Artifacts
+        .FirstOrDefault(_ =>
+            _.Key.Kind == ArtifactKind.Event &&
+            _.Variants.Any(variant => variant.Definition.Name == name))?.Key.Subject.Value;
+
+    static bool IsFanOutChild(RelationshipDefinition definition, string parent, string member, string mode) =>
+        definition.Key.Discriminator?.StartsWith($"marten:fan-out-child:{parent}:{mode}:", StringComparison.Ordinal) == true &&
+        definition.SourceMember == member &&
+        definition.IsCollection;
 
     static string? ArtifactName(
         GeneratedScreenplayDefinition result,
@@ -206,6 +212,25 @@ sealed record Expectation(ExpectationKind Kind, string Value)
 
 static class Expectations
 {
+    static readonly Dictionary<string, ExpectationKind> _kinds = new()
+    {
+        ["source"] = ExpectationKind.Source,
+        ["not-source"] = ExpectationKind.NotSource,
+        ["source-sha256"] = ExpectationKind.SourceHash,
+        ["diagnostic"] = ExpectationKind.Diagnostic,
+        ["diagnostic-message"] = ExpectationKind.DiagnosticMessage,
+        ["artifact"] = ExpectationKind.Artifact,
+        ["artifact-count"] = ExpectationKind.ArtifactCount,
+        ["evidence"] = ExpectationKind.Evidence,
+        ["evidence-count"] = ExpectationKind.EvidenceCount,
+        ["relationship"] = ExpectationKind.Relationship,
+        ["relationship-count"] = ExpectationKind.RelationshipCount,
+        ["identifier"] = ExpectationKind.Identifier,
+        ["not-identifier"] = ExpectationKind.NotIdentifier,
+        ["grouping"] = ExpectationKind.Grouping,
+        ["fan-out"] = ExpectationKind.FanOut
+    };
+
     public static IReadOnlyList<Expectation> Read(string path) =>
     [
         .. File.ReadAllLines(path)
@@ -222,25 +247,11 @@ static class Expectations
             throw new InvalidExpectation(value);
         }
 
-        var kind = value[..separator] switch
+        if (!_kinds.TryGetValue(value[..separator], out var kind))
         {
-            "source" => ExpectationKind.Source,
-            "not-source" => ExpectationKind.NotSource,
-            "source-sha256" => ExpectationKind.SourceHash,
-            "diagnostic" => ExpectationKind.Diagnostic,
-            "diagnostic-message" => ExpectationKind.DiagnosticMessage,
-            "artifact" => ExpectationKind.Artifact,
-            "artifact-count" => ExpectationKind.ArtifactCount,
-            "evidence" => ExpectationKind.Evidence,
-            "evidence-count" => ExpectationKind.EvidenceCount,
-            "relationship" => ExpectationKind.Relationship,
-            "relationship-count" => ExpectationKind.RelationshipCount,
-            "identifier" => ExpectationKind.Identifier,
-            "not-identifier" => ExpectationKind.NotIdentifier,
-            "grouping" => ExpectationKind.Grouping,
-            "fan-out" => ExpectationKind.FanOut,
-            _ => throw new InvalidExpectation(value)
-        };
+            throw new InvalidExpectation(value);
+        }
+
         return new(kind, value[(separator + 1)..].Trim());
     }
 }
