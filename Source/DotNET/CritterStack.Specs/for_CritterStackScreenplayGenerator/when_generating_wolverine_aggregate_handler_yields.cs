@@ -12,10 +12,10 @@ public class when_generating_wolverine_aggregate_handler_yields : given.a_commun
         new CritterStackScreenplayOptions { Domain = "CommunityKitchen" });
 
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
-    [Fact] void should_link_an_unconditional_yield_declaratively() => Production(_result, "CloseBatch", "BatchClosed")!.Key.Discriminator.ShouldEqual("declarative");
-    [Fact] void should_record_the_aggregate_stream_identity() => Production(_result, "CloseBatch", "BatchClosed")!.Definitions.Single().SourceMember.ShouldEqual("id");
+    [Fact] void should_link_an_unconditional_yield_declaratively() => Production(_result, "CloseBatch", "BatchClosed").Key.Discriminator.ShouldEqual("declarative");
+    [Fact] void should_record_the_aggregate_stream_identity() => Production(_result, "CloseBatch", "BatchClosed").Definitions.Single().SourceMember.ShouldEqual("id");
     [Fact] void should_print_the_unconditional_production() => _result.Source.ShouldContain("produces BatchClosed");
-    [Fact] void should_keep_a_conditional_yield_as_a_handler_reference() => Production(_result, "ServeBatch", "BatchServed")!.Key.Discriminator.ShouldEqual("imperative");
+    [Fact] void should_keep_a_conditional_yield_as_a_handler_reference() => Production(_result, "ServeBatch", "BatchServed").Key.Discriminator.ShouldEqual("imperative");
     [Fact]
     void should_report_the_conditional_yield() => _result.Diagnostics.ShouldContain(_ =>
         _.Code == WolverineDiagnosticCodes.ProductionLinkOmitted &&

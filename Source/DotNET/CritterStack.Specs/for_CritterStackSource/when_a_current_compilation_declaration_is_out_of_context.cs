@@ -21,7 +21,7 @@ public class when_a_current_compilation_declaration_is_out_of_context : given.a_
             AuthoredSyntaxTrees = new HashSet<SyntaxTree>()
         };
 
-        _evidence = EvidenceFor(compilation.GetTypeByMetadataName("Application.OutOfContext")!, project);
+        _evidence = EvidenceFor(compilation.GetTypeByMetadataName("Application.OutOfContext"), project);
     }
 
     [Fact] void should_not_reclassify_the_declaration_as_authored_evidence() => _evidence.Source.ShouldBeNull();

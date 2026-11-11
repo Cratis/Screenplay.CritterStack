@@ -73,10 +73,10 @@ public class when_project_and_syntax_tree_order_is_reversed : given.a_shared_sou
             NamespaceSegmentsToSkip = 1
         };
         var secondaryProject = CreateSecondaryProject();
-        _primaryCommand = Project.SubjectForType(Project.Compilation.GetTypeByMetadataName("Application.Orders.Submit.SubmitOrder")!);
-        _primaryEvent = Project.SubjectForType(Project.Compilation.GetTypeByMetadataName("Application.Orders.Submit.OrderSubmitted")!);
-        _secondaryCommand = secondaryProject.SubjectForType(secondaryProject.Compilation.GetTypeByMetadataName("Payments.Billing.Capture.CapturePayment")!);
-        _secondaryEvent = secondaryProject.SubjectForType(secondaryProject.Compilation.GetTypeByMetadataName("Payments.Billing.Capture.PaymentCaptured")!);
+        _primaryCommand = Project.SubjectForType(Project.Compilation.GetTypeByMetadataName("Application.Orders.Submit.SubmitOrder"));
+        _primaryEvent = Project.SubjectForType(Project.Compilation.GetTypeByMetadataName("Application.Orders.Submit.OrderSubmitted"));
+        _secondaryCommand = secondaryProject.SubjectForType(secondaryProject.Compilation.GetTypeByMetadataName("Payments.Billing.Capture.CapturePayment"));
+        _secondaryEvent = secondaryProject.SubjectForType(secondaryProject.Compilation.GetTypeByMetadataName("Payments.Billing.Capture.PaymentCaptured"));
         _baseline = Generate([Project, secondaryProject], options);
         _reversedProjects = Generate([secondaryProject, Project], options);
         _reversedProviders = Generate([Project, secondaryProject], options, reverseProviders: true);
@@ -218,7 +218,7 @@ public class when_project_and_syntax_tree_order_is_reversed : given.a_shared_sou
         public AdapterContribution Analyze(DotNetAnalysisContext context, DotNetAdapterOptions options)
         {
             var project = context.Projects.Single(_ => _.Name == "Payments");
-            var aggregateType = project.Compilation.GetTypeByMetadataName("Payments.Billing.Capture.Payment")!;
+            var aggregateType = project.Compilation.GetTypeByMetadataName("Payments.Billing.Capture.Payment");
             var subject = project.SubjectForType(aggregateType);
             var evidence = DotNetSource.EvidenceFor(
                 aggregateType,

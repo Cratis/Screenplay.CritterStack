@@ -41,7 +41,7 @@ public class a_marten_adapter_context : Specification
         """;
     static readonly IReadOnlyList<MetadataReference> _references =
     [
-        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
             .Split(Path.PathSeparator)
             .Select(path => MetadataReference.CreateFromFile(path))
     ];

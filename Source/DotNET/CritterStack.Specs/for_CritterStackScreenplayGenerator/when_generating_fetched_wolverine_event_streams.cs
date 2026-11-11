@@ -14,7 +14,7 @@ public class when_generating_fetched_wolverine_event_streams : given.a_wolverine
     [Fact] void should_recognize_inherited_guid_fetch_with_named_cancellation_and_configure_await() => Relationships("Move", RelationshipKind.Reads).Select(relationship => relationship.Definitions.Single().SourceMember).ShouldContainOnly(["fromId", "toId"]);
     [Fact] void should_target_the_debit_slot() => Append("Move", "Debit").Definitions.Single().SourceMember.ShouldEqual("fromId");
     [Fact] void should_target_a_direct_indexed_local() => Append("Move", "Credit").Definitions.Single().SourceMember.ShouldEqual("toId");
-    [Fact] void should_retain_both_targets_for_one_event_type() => Relationships("Move", RelationshipKind.Appends).Count(relationship => relationship.Key.Discriminator!.Contains("Moved", StringComparison.Ordinal)).ShouldEqual(2);
+    [Fact] void should_retain_both_targets_for_one_event_type() => Relationships("Move", RelationshipKind.Appends).Count(relationship => relationship.Key.Discriminator.Contains("Moved", StringComparison.Ordinal)).ShouldEqual(2);
     [Fact] void should_produce_the_shared_event_only_once() => Relationships("Move", RelationshipKind.Produces).Count(relationship => relationship.Key.Target.Value.EndsWith(".Moved", StringComparison.Ordinal)).ShouldEqual(1);
     [Fact] void should_keep_ordinary_returns_as_cascades() => Relationships("Move", RelationshipKind.Cascades).Single().Key.Target.Value.ShouldContain("FollowUp");
     [Fact] void should_keep_ordinary_returns_out_of_events() => EventNames.ShouldNotContain("FollowUp");
@@ -44,5 +44,5 @@ public class when_generating_fetched_wolverine_event_streams : given.a_wolverine
     IReadOnlyList<ResolvedRelationship> Relationships(string command, RelationshipKind kind) =>
         [.. _result.Graph.Relationships.Where(relationship => relationship.Key.Kind == kind && relationship.Key.Source.Value.EndsWith($".{command}", StringComparison.Ordinal))];
 
-    ResolvedRelationship Append(string command, string eventName) => Relationships(command, RelationshipKind.Appends).Single(relationship => relationship.Key.Discriminator!.Contains($".{eventName}", StringComparison.Ordinal));
+    ResolvedRelationship Append(string command, string eventName) => Relationships(command, RelationshipKind.Appends).Single(relationship => relationship.Key.Discriminator.Contains($".{eventName}", StringComparison.Ordinal));
 }

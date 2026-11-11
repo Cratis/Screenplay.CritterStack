@@ -69,7 +69,7 @@ public class when_deriving_shared_source_placement : given.a_shared_source_place
         .Evidence
         .Explanation ?? string.Empty;
 
-    SubjectId SubjectFor(string metadataName) => Project.SubjectForType(Project.Compilation.GetTypeByMetadataName(metadataName)!);
+    SubjectId SubjectFor(string metadataName) => Project.SubjectForType(Project.Compilation.GetTypeByMetadataName(metadataName));
 
     ResolvedArtifact Artifact(ArtifactKind kind, string name) => _graph.Artifacts.Single(_ =>
         _.Key.Kind == kind &&

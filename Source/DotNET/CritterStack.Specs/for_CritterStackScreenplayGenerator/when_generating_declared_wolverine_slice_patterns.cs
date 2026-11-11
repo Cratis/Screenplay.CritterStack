@@ -37,6 +37,6 @@ public class when_generating_declared_wolverine_slice_patterns : given.a_wolveri
     [Fact] void should_keep_the_command() => _strict.Graph.Artifacts.Any(artifact => artifact.Key.Kind == ArtifactKind.Command).ShouldBeTrue();
     [Fact] void should_keep_the_produced_event() => _strict.Graph.Relationships.Count(relationship => relationship.Key.Kind == RelationshipKind.Produces).ShouldEqual(1);
     [Fact] void should_not_upgrade_folder_location_evidence() => _contribution.Facts.OfType<ArtifactPlacementFact>().All(fact => fact.Evidence.Strength == EvidenceStrength.Heuristic).ShouldBeTrue();
-    [Fact] void should_preserve_separate_exact_classification_evidence() => _contribution.Facts.OfType<ArtifactPlacementFact>().All(fact => fact.Evidence.Explanation!.Contains("sliceClassification(strength=Exact", StringComparison.Ordinal)).ShouldBeTrue();
-    [Fact] void should_preserve_strict_placement_provenance() => _contribution.Facts.OfType<ArtifactPlacementFact>().All(fact => fact.Evidence.Explanation!.Contains("Host-owned source structure", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_preserve_separate_exact_classification_evidence() => _contribution.Facts.OfType<ArtifactPlacementFact>().All(fact => fact.Evidence.Explanation.Contains("sliceClassification(strength=Exact", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_preserve_strict_placement_provenance() => _contribution.Facts.OfType<ArtifactPlacementFact>().All(fact => fact.Evidence.Explanation.Contains("Host-owned source structure", StringComparison.Ordinal)).ShouldBeTrue();
 }

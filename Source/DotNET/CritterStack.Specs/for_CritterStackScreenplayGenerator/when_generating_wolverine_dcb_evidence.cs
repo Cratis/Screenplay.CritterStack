@@ -33,9 +33,9 @@ public class when_generating_wolverine_dcb_evidence : given.a_wolverine_dcb_appl
     [Fact] void should_not_classify_responses_effects_sagas_or_wrapper_objects_as_events() => EventNames.Any(_ => new[] { "AccountResponse", "AccountEffect", "AccountSaga", "OutgoingMessages", "EventsToAppend" }.Contains(_, StringComparer.Ordinal)).ShouldBeFalse();
     [Fact] void should_establish_a_base_read_for_for_alone() => ReadsFrom("ForOnly").Count.ShouldEqual(1);
     [Fact] void should_preserve_the_for_alone_source_member_on_the_boundary_read() => ReadsFrom("ForOnly").Single().Definitions.Single().SourceMember.ShouldEqual("accountId");
-    [Fact] void should_not_fabricate_one_identity_for_a_multi_tag_boundary() => ReadsFrom("ChangeAccount").Single(_ => !_.Key.Discriminator!.Contains(":condition:", StringComparison.Ordinal)).Definitions.Single().SourceMember.ShouldBeNull();
+    [Fact] void should_not_fabricate_one_identity_for_a_multi_tag_boundary() => ReadsFrom("ChangeAccount").Single(_ => !_.Key.Discriminator.Contains(":condition:", StringComparison.Ordinal)).Definitions.Single().SourceMember.ShouldBeNull();
     [Fact] void should_not_turn_for_alone_into_a_condition() => ReadsFrom("ForOnly").Any(_ => _.Key.Discriminator?.Contains(":condition:", StringComparison.Ordinal) == true).ShouldBeFalse();
-    [Fact] void should_preserve_all_ordered_change_conditions() => ConditionReadsFrom("ChangeAccount").Select(_ => ConditionOrdinal(_.Key.Discriminator!)).ShouldContainOnly([0, 1, 2, 3, 4]);
+    [Fact] void should_preserve_all_ordered_change_conditions() => ConditionReadsFrom("ChangeAccount").Select(_ => ConditionOrdinal(_.Key.Discriminator)).ShouldContainOnly([0, 1, 2, 3, 4]);
     [Fact] void should_preserve_or_tag_only_condition() => ConditionRead("ChangeAccount", 0).Key.Discriminator.ShouldContain("event:any");
     [Fact] void should_preserve_explicit_or_event_type() => ConditionRead("ChangeAccount", 1).Key.Discriminator.ShouldContain(SubjectOf(ArtifactKind.Event, "AccountOpened").Value);
     [Fact] void should_preserve_and_event_types_after_the_current_tag() => new[] { ConditionRead("ChangeAccount", 2), ConditionRead("ChangeAccount", 3) }.All(_ => _.Key.Discriminator?.Contains("CustomerId", StringComparison.Ordinal) == true).ShouldBeTrue();
@@ -85,7 +85,7 @@ public class when_generating_wolverine_dcb_evidence : given.a_wolverine_dcb_appl
         [.. ReadsFrom(commandName).Where(_ => _.Key.Discriminator?.Contains(":condition:", StringComparison.Ordinal) == true)];
 
     ResolvedRelationship ConditionRead(string commandName, int ordinal) =>
-        ConditionReadsFrom(commandName).Single(_ => ConditionOrdinal(_.Key.Discriminator!) == ordinal);
+        ConditionReadsFrom(commandName).Single(_ => ConditionOrdinal(_.Key.Discriminator) == ordinal);
 
     static int ConditionOrdinal(string discriminator)
     {

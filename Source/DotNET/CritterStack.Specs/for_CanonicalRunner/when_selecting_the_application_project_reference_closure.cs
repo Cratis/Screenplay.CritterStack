@@ -7,7 +7,7 @@ namespace Cratis.CritterStack.Screenplay.for_CanonicalRunner;
 
 public class when_selecting_the_application_project_reference_closure : Specification
 {
-    static readonly string _workspaceRoot = Path.Combine(Path.GetPathRoot(Environment.CurrentDirectory)!, "canonical-workspace");
+    static readonly string _workspaceRoot = Path.Combine(Path.GetPathRoot(Environment.CurrentDirectory), "canonical-workspace");
     static readonly string[] _expectedSelection = ["TripBuildingService", "TripDomain", "TripDomain.Foundation"];
     string[] _selection = null!;
     string[] _permutedSelection = null!;
@@ -79,7 +79,7 @@ public class when_selecting_the_application_project_reference_closure : Specific
                 new ProjectReference(projectIds[reference.Dependency]));
         }
 
-        var rootProject = solution.GetProject(projectIds["TripBuildingService"])!;
+        var rootProject = solution.GetProject(projectIds["TripBuildingService"]);
         return
         [
             .. CanonicalRunner

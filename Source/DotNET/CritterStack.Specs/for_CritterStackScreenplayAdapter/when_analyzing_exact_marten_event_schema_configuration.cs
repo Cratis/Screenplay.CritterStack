@@ -92,8 +92,8 @@ public class when_analyzing_exact_marten_event_schema_configuration : given.a_ma
     [Fact] void should_not_originate_configuration_only_events() => EventNames.Intersect(_configurationOnlyTypes).ShouldBeEmpty();
     [Fact] void should_not_originate_behavioral_artifacts_for_configuration_only_types() => ArtifactNames.Intersect(_configurationOnlyTypes).ShouldBeEmpty();
     [Fact] void should_not_emit_behavioral_relationships_for_configuration_only_types() => Contribution.Facts.OfType<RelationshipFact>().Any(_ => IsConfigurationOnly(_.Definition.Key.Source) || IsConfigurationOnly(_.Definition.Key.Target)).ShouldBeFalse();
-    [Fact] void should_anchor_every_exact_declaration_at_its_authored_occurrence() => ExactConfiguration.All(_ => _.Source!.StartLine > 0 && _.Source.StartColumn > 0).ShouldBeTrue();
-    [Fact] void should_preserve_each_exact_authored_occurrence() => ExactConfiguration.Select(_ => (_.Source!.StartLine, _.Source.StartColumn)).Distinct().Count().ShouldEqual(ExactConfiguration.Count);
+    [Fact] void should_anchor_every_exact_declaration_at_its_authored_occurrence() => ExactConfiguration.All(_ => _.Source.StartLine > 0 && _.Source.StartColumn > 0).ShouldBeTrue();
+    [Fact] void should_preserve_each_exact_authored_occurrence() => ExactConfiguration.Select(_ => (_.Source.StartLine, _.Source.StartColumn)).Distinct().Count().ShouldEqual(ExactConfiguration.Count);
 
     IReadOnlyList<GenerationDiagnostic> EventConfiguration => [.. Contribution.Diagnostics.Where(_ => _.Code == MartenDiagnosticCodes.EventTypeConfigurationOmitted)];
     IReadOnlyList<GenerationDiagnostic> UpcastConfiguration => [.. Contribution.Diagnostics.Where(_ => _.Code == MartenDiagnosticCodes.EventUpcastConfigurationOmitted)];

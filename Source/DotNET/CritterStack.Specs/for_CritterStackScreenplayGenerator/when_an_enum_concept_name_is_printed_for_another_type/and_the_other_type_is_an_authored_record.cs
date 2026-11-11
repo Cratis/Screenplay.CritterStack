@@ -55,8 +55,8 @@ public class and_the_other_type_is_an_authored_record : given.an_application_pri
     [Fact] void should_keep_the_command_using_the_authored_enum() => _result.Source.ShouldContain("command Bill");
     [Fact] void should_keep_the_command_using_the_record() => _result.Source.ShouldContain("command Ship");
     [Fact] void should_keep_both_commands_for_direct_adapter_consumers() => (_direct.Source.Contains("command Bill") && _direct.Source.Contains("command Ship")).ShouldBeTrue();
-    [Fact] void should_report_only_the_dropped_enum() => Conflicts(_result).Single().Subject!.Value.ShouldContain("Billing");
-    [Fact] void should_report_only_the_dropped_enum_for_direct_adapter_consumers() => Conflicts(_direct).Single().Subject!.Value.ShouldContain("Billing");
+    [Fact] void should_report_only_the_dropped_enum() => Conflicts(_result).Single().Subject.Value.ShouldContain("Billing");
+    [Fact] void should_report_only_the_dropped_enum_for_direct_adapter_consumers() => Conflicts(_direct).Single().Subject.Value.ShouldContain("Billing");
     [Fact] void should_locate_the_conflict() => Conflicts(_result).All(diagnostic => diagnostic.Source?.Path == "Ordering/Application.cs" && diagnostic.Source.StartLine > 0).ShouldBeTrue();
     [Fact] void should_explain_that_a_different_type_uses_the_name() => Conflicts(_result).All(diagnostic => diagnostic.Message.Contains("a different type", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_not_report_name_collisions_or_missing_concepts() => _result.Diagnostics.Concat(_direct.Diagnostics).Where(diagnostic => string.Equals(diagnostic.Code, "GEN0015", StringComparison.Ordinal) || string.Equals(diagnostic.Code, "GEN0016", StringComparison.Ordinal)).ShouldBeEmpty();

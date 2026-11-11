@@ -35,7 +35,7 @@ public class when_external_adapter_contributions_conflict : given.a_composed_vog
         public AdapterContribution Analyze(DotNetAnalysisContext context, DotNetAdapterOptions options)
         {
             _ = options;
-            var type = context.Projects.Single().Compilation.GetTypeByMetadataName("Ordering.PlaceOrder.PlaceOrder.CustomerCode")!;
+            var type = context.Projects.Single().Compilation.GetTypeByMetadataName("Ordering.PlaceOrder.PlaceOrder.CustomerCode");
             var subject = context.Projects.Single().SubjectForType(type);
             return new()
             {

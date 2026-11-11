@@ -244,7 +244,7 @@ public class a_wolverine_fetch_many_application : Specification
             }
             """,
             path: "/workspace/Batches/Unlisted.cs");
-        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path));
+        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path));
         Project = new DotNetProjectCompilation
         {
             Name = "Batches",

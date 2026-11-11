@@ -9,7 +9,7 @@ public class when_formatting_canonical_source_policy_and_operational_diagnostics
 {
     const string PhysicalRoot = "/physical/checkout";
     static readonly Type _canonicalRunner = Assembly.Load("Cratis.CritterStack.Screenplay.Canonical")
-        .GetType("Cratis.CritterStack.Screenplay.Canonical.CanonicalRunner", throwOnError: true)!;
+        .GetType("Cratis.CritterStack.Screenplay.Canonical.CanonicalRunner", throwOnError: true);
     string _policyLine = null!;
     string _operationalMessage = null!;
 

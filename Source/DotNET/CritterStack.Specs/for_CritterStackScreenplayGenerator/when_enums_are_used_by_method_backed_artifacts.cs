@@ -69,7 +69,7 @@ public class when_enums_are_used_by_method_backed_artifacts : Specification
             Name = "Methods",
             ProjectPath = "/workspace/Methods/Methods.csproj",
             SourceRoot = "/workspace",
-            Compilation = CSharpCompilation.Create("Methods", [tree], ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path)), new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)),
+            Compilation = CSharpCompilation.Create("Methods", [tree], ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path)), new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)),
             AuthoredSyntaxTrees = new HashSet<SyntaxTree> { tree }
         };
     }
@@ -79,13 +79,13 @@ public class when_enums_are_used_by_method_backed_artifacts : Specification
     [Fact] void should_compile_the_input() => _project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_generate_a_valid_candidate() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_discover_every_referenced_enum() => _result.Graph.Artifacts.Where(artifact => artifact.Key.Kind == ArtifactKind.Concept).Select(artifact => artifact.Variants[0].Definition.Name).ShouldContainOnly(["RouteChoice", "QueryChoice", "PlanChoice", "ReturnChoice"]);
-    [Fact] void should_bind_the_route_parameter() => Property("Choose", "choice").Type.Subject!.Value.ShouldContain(".RouteChoice");
+    [Fact] void should_bind_the_route_parameter() => Property("Choose", "choice").Type.Subject.Value.ShouldContain(".RouteChoice");
     [Fact] void should_not_invent_an_enum_command() => _result.Graph.Artifacts.Where(artifact => artifact.Key.Kind == ArtifactKind.Command).Select(artifact => artifact.Variants[0].Definition.Name).ShouldContainOnly(["Choose"]);
-    [Fact] void should_bind_the_nullable_query_parameter() => Property("Search", "choice").Type.Subject!.Value.ShouldContain(".QueryChoice");
+    [Fact] void should_bind_the_nullable_query_parameter() => Property("Search", "choice").Type.Subject.Value.ShouldContain(".QueryChoice");
     [Fact] void should_preserve_parameter_optionality() => Property("Search", "choice").Type.IsOptional.ShouldBeTrue();
-    [Fact] void should_bind_the_collection_query_parameter() => Property("Search", "choices").Type.Subject!.Value.ShouldContain(".QueryChoice");
+    [Fact] void should_bind_the_collection_query_parameter() => Property("Search", "choices").Type.Subject.Value.ShouldContain(".QueryChoice");
     [Fact] void should_preserve_parameter_collection_shape() => Property("Search", "choices").Type.IsCollection.ShouldBeTrue();
-    [Fact] void should_bind_compiled_plan_fields() => Property("Execute", "selection").Type.Subject!.Value.ShouldContain(".PlanChoice");
+    [Fact] void should_bind_compiled_plan_fields() => Property("Execute", "selection").Type.Subject.Value.ShouldContain(".PlanChoice");
     [Fact] void should_not_leave_undeclared_field_types() => new global::Cratis.Screenplay.ScreenplayCompiler().Compile(_result.Source).Diagnostics.Any(diagnostic => diagnostic.Code == "PLAY0165").ShouldBeFalse();
 
     PropertyDefinition Property(string artifactName, string propertyName) => _result.Graph.Artifacts.Single(artifact => artifact.Variants[0].Definition.Name == artifactName).Variants[0].Definition.Properties.Single(property => property.Name == propertyName);

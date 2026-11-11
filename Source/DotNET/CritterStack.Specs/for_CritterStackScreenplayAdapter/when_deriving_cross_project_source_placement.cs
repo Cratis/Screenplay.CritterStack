@@ -198,7 +198,7 @@ public class when_deriving_cross_project_source_placement : given.a_cross_projec
     }
 
     static SubjectId SubjectFor(DotNetProjectCompilation project, string metadataName) =>
-        project.SubjectForType(project.Compilation.GetTypeByMetadataName(metadataName)!);
+        project.SubjectForType(project.Compilation.GetTypeByMetadataName(metadataName));
 
     static DotNetAnalysisContext AmbiguousContext(ProjectPair projects, bool reverse)
     {

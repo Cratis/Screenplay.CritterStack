@@ -89,8 +89,8 @@ public class when_source_placement_conflicts : given.a_shared_source_placement_a
         var query = baseline.Facts
             .OfType<ArtifactFact>()
             .Single(_ => _.Definition.Key.Kind == ArtifactKind.Query && _.Definition.Name == "GetOrder");
-        var modelOwner = Project.SubjectForType(Project.Compilation.GetTypeByMetadataName("Application.Orders.Summary.OrderSummary")!);
-        var endpointOwner = Project.SubjectForType(Project.Compilation.GetTypeByMetadataName("Application.Orders.Summary.OrderEndpoints")!);
+        var modelOwner = Project.SubjectForType(Project.Compilation.GetTypeByMetadataName("Application.Orders.Summary.OrderSummary"));
+        var endpointOwner = Project.SubjectForType(Project.Compilation.GetTypeByMetadataName("Application.Orders.Summary.OrderEndpoints"));
         var queryCompatibilityPlacement = CritterStackSourcePlacement.CompatibilityPlacement(
             Project,
             AdapterOptions,

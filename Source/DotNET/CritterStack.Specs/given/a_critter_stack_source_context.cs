@@ -6,10 +6,10 @@ namespace Cratis.CritterStack.Screenplay.given;
 public class a_critter_stack_source_context : Specification
 {
     static readonly Type _critterStackSource = typeof(CritterStackScreenplayAdapter).Assembly
-        .GetType("Cratis.CritterStack.Screenplay.CritterStackSource", throwOnError: true)!;
+        .GetType("Cratis.CritterStack.Screenplay.CritterStackSource", throwOnError: true);
     static readonly IReadOnlyList<MetadataReference> _references =
     [
-        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
             .Split(Path.PathSeparator)
             .Select(_ => MetadataReference.CreateFromFile(_))
     ];
@@ -55,7 +55,7 @@ public class a_critter_stack_source_context : Specification
 
     protected static SourceRange? RangeForProject(Location location, DotNetProjectCompilation project) =>
         (SourceRange?)_critterStackSource
-            .GetMethod("RangeForProject")!
+            .GetMethod("RangeForProject")
             .Invoke(null, [location, project]);
 
     protected static Evidence EvidenceFor(ISymbol symbol, DotNetProjectCompilation project) =>

@@ -23,5 +23,5 @@ public class when_a_referenced_symbol_has_multiple_declarations : given.a_critte
 
     [Fact]
     void should_select_the_first_safe_display_path_in_ordinal_order() =>
-        _evidence.Source!.Path.ShouldEqual("Referenced/A.cs");
+        _evidence.Source.Path.ShouldEqual("Referenced/A.cs");
 }

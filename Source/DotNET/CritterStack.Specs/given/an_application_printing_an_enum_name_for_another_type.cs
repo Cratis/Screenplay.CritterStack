@@ -28,7 +28,7 @@ public class an_application_printing_an_enum_name_for_another_type : Specificati
             Name = "Ordering",
             ProjectPath = "/workspace/Ordering/Ordering.csproj",
             SourceRoot = "/workspace",
-            Compilation = CSharpCompilation.Create("Ordering", trees, ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path)), new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)),
+            Compilation = CSharpCompilation.Create("Ordering", trees, ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path)), new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)),
             AuthoredSyntaxTrees = new HashSet<SyntaxTree>(trees)
         };
     }

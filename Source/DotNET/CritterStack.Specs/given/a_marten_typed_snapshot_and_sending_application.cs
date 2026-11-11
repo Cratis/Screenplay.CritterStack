@@ -87,7 +87,7 @@ public class a_marten_typed_snapshot_and_sending_application : Specification
     {
         var framework = CSharpSyntaxTree.ParseText(FrameworkSource, path: "/workspace/Framework.cs");
         var application = CSharpSyntaxTree.ParseText(ApplicationSource, path: "/workspace/NewConventions/Projections.cs");
-        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path));
+        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path));
         Project = new DotNetProjectCompilation
         {
             Name = "NewConventions",

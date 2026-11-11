@@ -22,8 +22,8 @@ public class when_using_compatibility_placement_with_exact_cross_project_subject
             NamespaceSegmentsToSkip = 1
         };
         var generator = new CritterStackScreenplayGenerator();
-        _domainCommand = projects.Domain.SubjectForType(projects.Domain.Compilation.GetTypeByMetadataName("Domain.Orders.SubmitOrder")!);
-        _legacyProjectSubject = projects.Application.SubjectForType(projects.Application.Compilation.GetTypeByMetadataName("Domain.Orders.SubmitOrder")!);
+        _domainCommand = projects.Domain.SubjectForType(projects.Domain.Compilation.GetTypeByMetadataName("Domain.Orders.SubmitOrder"));
+        _legacyProjectSubject = projects.Application.SubjectForType(projects.Application.Compilation.GetTypeByMetadataName("Domain.Orders.SubmitOrder"));
         _strictProjectFacade = generator.Generate([projects.Application, projects.Domain], options);
         _contextCompatibility = generator.GenerateCompatibility([projects.Application, projects.Domain], options);
 

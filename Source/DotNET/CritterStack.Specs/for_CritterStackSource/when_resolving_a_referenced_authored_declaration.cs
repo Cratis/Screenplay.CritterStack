@@ -20,7 +20,7 @@ public class when_resolving_a_referenced_authored_declaration : given.a_critter_
 
     [Fact]
     void should_supply_the_legacy_workspace_relative_display_range() =>
-        _evidence.Source!.Path.ShouldEqual("Referenced/SharedType.cs");
+        _evidence.Source.Path.ShouldEqual("Referenced/SharedType.cs");
 
-    [Fact] void should_not_invent_a_source_file_identity() => _evidence.Source!.FileIdentity.ShouldBeNull();
+    [Fact] void should_not_invent_a_source_file_identity() => _evidence.Source.FileIdentity.ShouldBeNull();
 }

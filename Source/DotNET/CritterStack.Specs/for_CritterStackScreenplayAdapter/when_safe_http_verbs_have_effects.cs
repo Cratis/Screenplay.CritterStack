@@ -39,8 +39,8 @@ public class when_safe_http_verbs_have_effects : given.a_wolverine_slice_pattern
     [Fact] void should_compile_the_input() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_keep_the_void_head_command() => Command("Ping").ShouldNotBeNull();
     [Fact] void should_keep_the_result_options_command() => Command("Probe").ShouldNotBeNull();
-    [Fact] void should_keep_the_void_head_append() => Appends(Command("Ping")!).ShouldBeTrue();
-    [Fact] void should_keep_the_result_options_append() => Appends(Command("Probe")!).ShouldBeTrue();
+    [Fact] void should_keep_the_void_head_append() => Appends(Command("Ping")).ShouldBeTrue();
+    [Fact] void should_keep_the_result_options_append() => Appends(Command("Probe")).ShouldBeTrue();
     [Fact] void should_keep_the_appended_events() => _result.Facts.OfType<ArtifactFact>().Where(fact => fact.Definition.Key.Kind == ArtifactKind.Event).Select(fact => fact.Definition.Name).ShouldContainOnly(["Pinged", "Probed"]);
     [Fact] void should_not_claim_a_slice_kind_from_the_verb() => _result.Facts.OfType<ArtifactPlacementFact>().All(fact => fact.Placement.SliceKind == GenerationSliceKind.StateChange && fact.Evidence.Explanation?.Contains("sliceClassification", StringComparison.Ordinal) != true).ShouldBeTrue();
 

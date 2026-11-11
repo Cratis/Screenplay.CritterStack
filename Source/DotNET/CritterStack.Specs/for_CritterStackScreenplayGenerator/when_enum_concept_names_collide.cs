@@ -75,7 +75,7 @@ public class when_enum_concept_names_collide : Specification
             Name = "Ordering",
             ProjectPath = "/workspace/Ordering/Ordering.csproj",
             SourceRoot = "/workspace",
-            Compilation = CSharpCompilation.Create("Ordering", [tree], ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path)), new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)),
+            Compilation = CSharpCompilation.Create("Ordering", [tree], ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path)), new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)),
             AuthoredSyntaxTrees = new HashSet<SyntaxTree> { tree }
         };
     }
@@ -100,7 +100,7 @@ public class when_enum_concept_names_collide : Specification
     [Fact] void should_not_declare_the_colliding_nested_enums() => _result.Source.ShouldNotContain("concept Status");
     [Fact] void should_not_declare_the_colliding_namespaced_enums() => _result.Source.ShouldNotContain("concept Stage");
     [Fact] void should_keep_the_unique_enum_concept() => _result.Source.ShouldContain("concept Priority : Enum");
-    [Fact] void should_report_each_colliding_enum() => Collisions.Select(diagnostic => diagnostic.Subject!.Value).Distinct().Count().ShouldEqual(4);
+    [Fact] void should_report_each_colliding_enum() => Collisions.Select(diagnostic => diagnostic.Subject.Value).Distinct().Count().ShouldEqual(4);
     [Fact] void should_locate_each_collision() => Collisions.All(diagnostic => diagnostic.Source?.Path == "Ordering/Application.cs" && diagnostic.Source.StartLine > 0).ShouldBeTrue();
     [Fact] void should_report_collisions_as_conflicts() => Collisions.All(diagnostic => diagnostic.Outcome == GenerationDiagnosticOutcome.Conflict && diagnostic.Severity == GenerationDiagnosticSeverity.Warning).ShouldBeTrue();
 

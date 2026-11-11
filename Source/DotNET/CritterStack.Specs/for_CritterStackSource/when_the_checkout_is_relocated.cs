@@ -15,7 +15,7 @@ public class when_the_checkout_is_relocated : given.a_critter_stack_source_conte
     }
 
     [Fact] void should_keep_the_same_legacy_display_range() => _secondRange.ShouldEqual(_firstRange);
-    [Fact] void should_not_retain_either_physical_checkout_root() => _firstRange!.Path.ShouldEqual("Referenced/SharedType.cs");
+    [Fact] void should_not_retain_either_physical_checkout_root() => _firstRange.Path.ShouldEqual("Referenced/SharedType.cs");
 
     static SourceRange? RangeAt(string checkoutRoot)
     {

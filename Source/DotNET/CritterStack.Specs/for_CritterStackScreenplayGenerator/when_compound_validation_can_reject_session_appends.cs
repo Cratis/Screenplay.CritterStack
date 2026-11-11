@@ -44,8 +44,8 @@ public class when_compound_validation_can_reject_session_appends : given.a_commu
         new CritterStackScreenplayOptions { Domain = "CommunityKitchen" });
 
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
-    [Fact] void should_keep_the_append_as_a_handler_reference() => Production(_result, "PreparePortions", "PortionsPrepared")!.Key.Discriminator.ShouldEqual("imperative");
-    [Fact] void should_keep_the_started_stream_as_a_handler_reference() => Production(_result, "PlanBatch", "BatchPlanned")!.Key.Discriminator.ShouldEqual("imperative");
+    [Fact] void should_keep_the_append_as_a_handler_reference() => Production(_result, "PreparePortions", "PortionsPrepared").Key.Discriminator.ShouldEqual("imperative");
+    [Fact] void should_keep_the_started_stream_as_a_handler_reference() => Production(_result, "PlanBatch", "BatchPlanned").Key.Discriminator.ShouldEqual("imperative");
     [Fact] void should_not_claim_an_unconditional_append() => _result.Source.ShouldNotContain("produces PortionsPrepared");
     [Fact] void should_not_claim_an_unconditional_stream_start() => _result.Source.ShouldNotContain("produces BatchPlanned");
     [Fact]
@@ -54,11 +54,11 @@ public class when_compound_validation_can_reject_session_appends : given.a_commu
         _.Severity == GenerationDiagnosticSeverity.Warning &&
         _.Subject == ArtifactNamed(_result, ArtifactKind.Command, "PreparePortions").Key.Subject &&
         _.Message.Contains("compound validation decides whether it is produced", StringComparison.Ordinal) &&
-        _.Source!.Path == "Application/Kitchen/Preparation/PreparePortions.cs");
+        _.Source.Path == "Application/Kitchen/Preparation/PreparePortions.cs");
     [Fact]
     void should_report_the_stream_start_validation_blocker() => _result.Diagnostics.ShouldContain(_ =>
         _.Code == WolverineDiagnosticCodes.ProductionLinkOmitted &&
         _.Subject == ArtifactNamed(_result, ArtifactKind.Command, "PlanBatch").Key.Subject &&
         _.Message.Contains("compound validation decides whether it is produced", StringComparison.Ordinal) &&
-        _.Source!.Path == "Application/Kitchen/Planning/PlanBatch.cs");
+        _.Source.Path == "Application/Kitchen/Planning/PlanBatch.cs");
 }

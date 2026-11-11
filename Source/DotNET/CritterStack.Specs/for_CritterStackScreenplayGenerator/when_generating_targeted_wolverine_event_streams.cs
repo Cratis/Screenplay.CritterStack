@@ -73,8 +73,8 @@ public class when_generating_targeted_wolverine_event_streams : given.a_wolverin
     [Fact] void should_not_guess_object_dynamic_variable_or_helper_payloads() => EventNames.Any(_ => new[] { "OpaqueObjectEvent", "DynamicEvent", "VariableEvent", "HelperEvent", "NestedContainerEvent" }.Contains(_, StringComparer.Ordinal)).ShouldBeFalse();
     [Fact] void should_report_each_unresolved_exact_append_once() => Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).Count.ShouldEqual(9);
     [Fact] void should_locate_each_unresolved_append_in_authored_source() => Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).All(_ => _.Source?.Path == "Transfers/Handlers.cs").ShouldBeTrue();
-    [Fact] void should_anchor_each_unresolved_append_at_its_authored_occurrence() => Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).All(_ => _.Source!.StartLine > 0 && _.Source.StartColumn > 0).ShouldBeTrue();
-    [Fact] void should_preserve_each_unresolved_append_occurrence_without_collapsing_locations() => Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).Select(_ => (_.Source!.StartLine, _.Source.StartColumn)).Distinct().Count().ShouldEqual(9);
+    [Fact] void should_anchor_each_unresolved_append_at_its_authored_occurrence() => Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).All(_ => _.Source.StartLine > 0 && _.Source.StartColumn > 0).ShouldBeTrue();
+    [Fact] void should_preserve_each_unresolved_append_occurrence_without_collapsing_locations() => Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).Select(_ => (_.Source.StartLine, _.Source.StartColumn)).Distinct().Count().ShouldEqual(9);
     [Fact] void should_report_unresolved_appends_in_authored_declaration_order() => UnresolvedAppendStartLines.SequenceEqual(UnresolvedAppendStartLines.Order()).ShouldBeTrue();
     [Fact] void should_not_promote_a_member_receiver_append_to_an_event() => EventNames.ShouldNotContain("MemberReceiverEvent");
     [Fact] void should_not_promote_an_object_round_trip_receiver_append_to_an_event() => EventNames.ShouldNotContain("ObjectRoundTripEvent");
@@ -147,6 +147,6 @@ public class when_generating_targeted_wolverine_event_streams : given.a_wolverin
 
     IReadOnlyList<int> UnresolvedAppendStartLines =>
     [
-        .. Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).Select(_ => _.Source!.StartLine)
+        .. Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).Select(_ => _.Source.StartLine)
     ];
 }

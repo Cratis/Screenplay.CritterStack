@@ -62,7 +62,7 @@ public class a_generated_source_only_wolverine_saga_application : Specification
 
     static readonly IReadOnlyList<MetadataReference> _references =
     [
-        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
             .Split(Path.PathSeparator)
             .Select(_ => MetadataReference.CreateFromFile(_))
     ];
