@@ -20,11 +20,13 @@ public class when_several_source_owners_are_missing : given.a_shared_source_plac
         _ownersAgainstArtifactOrder = MissingOwnerSignatures(context, command, commandPlacement, "missing:z", query, queryPlacement, "missing:a");
     }
 
-    [Fact] void should_report_the_missing_owners_ordered_by_owner_subject_when_it_agrees_with_artifact_order() => _ownersInArtifactOrder.ShouldEqual(
+    [Fact]
+    void should_report_the_missing_owners_ordered_by_owner_subject_when_it_agrees_with_artifact_order() => _ownersInArtifactOrder.ShouldEqual(
         "DOTNETSP0010|Error|Unsupported|missing:a|Application/Source/Orders/Submit/Submit.cs|10|5|Source owner 'missing:a' for artifact 'dotnet://Application/Application/Application.Orders.Submit.SubmitOrder' has no host-supplied source structure",
         "DOTNETSP0010|Error|Unsupported|missing:z|Application/Source/Orders/Summary/OrderEndpoints.cs|5|5|Source owner 'missing:z' for artifact 'dotnet://Application/Application/Application.Orders.Summary.OrderEndpoints#method:M%3AApplication.Orders.Summary.OrderEndpoints.GetOrder%28System.Guid%29:query' has no host-supplied source structure");
 
-    [Fact] void should_report_the_missing_owners_ordered_by_owner_subject_when_it_disagrees_with_artifact_order() => _ownersAgainstArtifactOrder.ShouldEqual(
+    [Fact]
+    void should_report_the_missing_owners_ordered_by_owner_subject_when_it_disagrees_with_artifact_order() => _ownersAgainstArtifactOrder.ShouldEqual(
         "DOTNETSP0010|Error|Unsupported|missing:a|Application/Source/Orders/Summary/OrderEndpoints.cs|5|5|Source owner 'missing:a' for artifact 'dotnet://Application/Application/Application.Orders.Summary.OrderEndpoints#method:M%3AApplication.Orders.Summary.OrderEndpoints.GetOrder%28System.Guid%29:query' has no host-supplied source structure",
         "DOTNETSP0010|Error|Unsupported|missing:z|Application/Source/Orders/Submit/Submit.cs|10|5|Source owner 'missing:z' for artifact 'dotnet://Application/Application/Application.Orders.Submit.SubmitOrder' has no host-supplied source structure");
 
