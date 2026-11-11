@@ -575,7 +575,8 @@ sealed class MartenEventSchemaConfigurationDiscovery(
     void DiscoverNameSuffix(InvocationExpressionSyntax invocation, IMethodSymbol method, INamedTypeSymbol eventType)
     {
         var suffix = ConstantString(ArgumentForParameter(invocation, method, "suffix")?.Expression, semanticModel);
-        if (suffix is null || !TryOptionalBaseAlias(invocation, method, out var baseAlias))
+        var hasBaseAlias = TryOptionalBaseAlias(invocation, method, out var baseAlias);
+        if (suffix is null || !hasBaseAlias)
         {
             diagnostics.Add(UnresolvedEventConfiguration(invocation.GetLocation(), eventType));
             return;
@@ -587,7 +588,8 @@ sealed class MartenEventSchemaConfigurationDiscovery(
     void DiscoverSchemaVersion(InvocationExpressionSyntax invocation, IMethodSymbol method, INamedTypeSymbol eventType)
     {
         var version = ConstantUnsigned(ArgumentForParameter(invocation, method, "schemaVersion")?.Expression, semanticModel);
-        if (version is null || !TryOptionalBaseAlias(invocation, method, out var baseAlias))
+        var hasBaseAlias = TryOptionalBaseAlias(invocation, method, out var baseAlias);
+        if (version is null || !hasBaseAlias)
         {
             diagnostics.Add(UnresolvedEventConfiguration(invocation.GetLocation(), eventType));
             return;
@@ -735,7 +737,8 @@ sealed class MartenEventSchemaConfigurationDiscovery(
     {
         var oldEvent = NamedType(method.TypeArguments[0]);
         var newEvent = NamedType(method.TypeArguments[1]);
-        if (oldEvent is null || newEvent is null || !TryOptionalBaseAlias(invocation, method, out var alias))
+        var hasAlias = TryOptionalBaseAlias(invocation, method, out var alias);
+        if (oldEvent is null || newEvent is null || !hasAlias)
         {
             diagnostics.Add(UnresolvedUpcastConfiguration(invocation.GetLocation(), newEvent));
             return;
@@ -755,15 +758,16 @@ sealed class MartenEventSchemaConfigurationDiscovery(
             return;
         }
 
+        var version = ConstantUnsigned(ArgumentForParameter(invocation, method, "schemaVersion")?.Expression, semanticModel);
         if (TrySchemaVersionRawJsonUpcast(method, out var targetFromGeneric))
         {
-            DiscoverSchemaVersionRawJsonUpcast(invocation, method, targetFromGeneric);
+            DiscoverSchemaVersionRawJsonUpcast(invocation, method, targetFromGeneric, version);
             return;
         }
 
         if (TryTypedUpcast(method, out var isAsync))
         {
-            DiscoverSchemaVersionTypedUpcast(invocation, method, isAsync);
+            DiscoverSchemaVersionTypedUpcast(invocation, method, isAsync, version);
         }
     }
 
@@ -782,9 +786,8 @@ sealed class MartenEventSchemaConfigurationDiscovery(
             invocation.GetLocation()));
     }
 
-    void DiscoverSchemaVersionRawJsonUpcast(InvocationExpressionSyntax invocation, IMethodSymbol method, bool targetFromGeneric)
+    void DiscoverSchemaVersionRawJsonUpcast(InvocationExpressionSyntax invocation, IMethodSymbol method, bool targetFromGeneric, uint? version)
     {
-        var version = ConstantUnsigned(ArgumentForParameter(invocation, method, "schemaVersion")?.Expression, semanticModel);
         var target = RawJsonTarget(invocation, method, targetFromGeneric);
         if (target is null || version is null)
         {
@@ -798,9 +801,8 @@ sealed class MartenEventSchemaConfigurationDiscovery(
             invocation.GetLocation()));
     }
 
-    void DiscoverSchemaVersionTypedUpcast(InvocationExpressionSyntax invocation, IMethodSymbol method, bool isAsync)
+    void DiscoverSchemaVersionTypedUpcast(InvocationExpressionSyntax invocation, IMethodSymbol method, bool isAsync, uint? version)
     {
-        var version = ConstantUnsigned(ArgumentForParameter(invocation, method, "schemaVersion")?.Expression, semanticModel);
         var oldEvent = NamedType(method.TypeArguments[0]);
         var newEvent = NamedType(method.TypeArguments[1]);
         if (oldEvent is null || newEvent is null || version is null)
