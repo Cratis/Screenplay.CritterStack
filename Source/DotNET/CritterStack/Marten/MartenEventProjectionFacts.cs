@@ -387,7 +387,7 @@ static class MartenEventProjectionFacts
     {
         public List<EventDocumentOperation> Operations { get; } = [];
 
-        public HashSet<INamedTypeSymbol> TeardownTypes { get; } = new(SymbolEqualityComparer.Default);
+        public HashSet<INamedTypeSymbol> TeardownTypes { get; } = [with(SymbolEqualityComparer.Default)];
 
         public void CollectConventionalOperations(SyntaxTree tree, SemanticModel semanticModel)
         {

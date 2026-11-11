@@ -72,6 +72,29 @@ static class MartenProjectionDiscovery
         ];
     }
 
+    public static ProjectionRegistration? ShapeOf(INamedTypeSymbol projection)
+    {
+        var singleStream = BaseClosing(projection, _singleStreamProjectionTypes);
+        if (singleStream?.TypeArguments[0] is INamedTypeSymbol singleStreamModel)
+        {
+            return new(singleStreamModel, projection, ProjectionKind.SingleStream, null!);
+        }
+
+        var multiStream = BaseClosing(projection, [WellKnownTypes.MartenMultiStreamProjection]);
+        if (multiStream?.TypeArguments[0] is INamedTypeSymbol multiStreamModel)
+        {
+            return new(multiStreamModel, projection, ProjectionKind.MultiStream, null!);
+        }
+
+        if (DotNetSubjectIds.MetadataName(projection) != WellKnownTypes.MartenEventProjection &&
+            DotNetSymbols.IsOrInheritsFrom(projection, WellKnownTypes.MartenEventProjection))
+        {
+            return new(projection, projection, ProjectionKind.Event, null!);
+        }
+
+        return null;
+    }
+
     static ProjectionRegistration? RegistrationFrom(
         InvocationExpressionSyntax invocation,
         SemanticModel semanticModel,
@@ -136,29 +159,6 @@ static class MartenProjectionDiscovery
                     "The type derives from a Marten projection base")
             });
         }
-    }
-
-    public static ProjectionRegistration? ShapeOf(INamedTypeSymbol projection)
-    {
-        var singleStream = BaseClosing(projection, _singleStreamProjectionTypes);
-        if (singleStream?.TypeArguments[0] is INamedTypeSymbol singleStreamModel)
-        {
-            return new(singleStreamModel, projection, ProjectionKind.SingleStream, null!);
-        }
-
-        var multiStream = BaseClosing(projection, [WellKnownTypes.MartenMultiStreamProjection]);
-        if (multiStream?.TypeArguments[0] is INamedTypeSymbol multiStreamModel)
-        {
-            return new(multiStreamModel, projection, ProjectionKind.MultiStream, null!);
-        }
-
-        if (DotNetSubjectIds.MetadataName(projection) != WellKnownTypes.MartenEventProjection &&
-            DotNetSymbols.IsOrInheritsFrom(projection, WellKnownTypes.MartenEventProjection))
-        {
-            return new(projection, projection, ProjectionKind.Event, null!);
-        }
-
-        return null;
     }
 
     static ProjectionRegistration? CustomShapeOf(INamedTypeSymbol projection) =>

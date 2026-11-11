@@ -40,7 +40,7 @@ public static class contribution_transcript
     static string DefinitionOf(GenerationFact fact) => fact switch
     {
         ArtifactFact artifact =>
-            $"artifact {artifact.Definition.Key.Kind} {artifact.Definition.Name} file={artifact.Definition.File} properties=[{string.Join(",", artifact.Definition.Properties.Select(_ => _.Name))}]",
+            $"artifact {artifact.Definition.Key.Kind} {artifact.Definition.Name} file={artifact.Definition.File} properties=[{string.Join(',', artifact.Definition.Properties.Select(_ => _.Name))}]",
         RelationshipFact relationship =>
             $"relationship {relationship.Definition.Key.Kind} {relationship.Definition.Key.Source.Value} -> {relationship.Definition.Key.Target.Value} discriminator={relationship.Definition.Key.Discriminator}",
         _ => fact.GetType().Name

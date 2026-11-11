@@ -92,7 +92,7 @@ static class MartenProjectionSideEffects
         SubjectId projectionSubject,
         bool sideEffectsEnabled)
     {
-        readonly HashSet<string> _messageArtifactIds = new(StringComparer.Ordinal);
+        readonly HashSet<string> _messageArtifactIds = [with(StringComparer.Ordinal)];
 
         public List<GenerationFact> Facts { get; } = [];
 
