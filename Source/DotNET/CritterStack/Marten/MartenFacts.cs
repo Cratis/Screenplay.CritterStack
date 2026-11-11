@@ -45,7 +45,7 @@ static class MartenFacts
         collected.Diagnostics.AddRange(configuration.Diagnostics);
         collected.Diagnostics.AddRange(MartenEventSchemaConfigurationDiscovery.Discover(project, subjects));
         collected.Diagnostics.AddRange(MartenTenancyConfigurationDiscovery.Discover(project, subjects));
-        var sideEffectProjections = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        HashSet<INamedTypeSymbol> sideEffectProjections = [with(SymbolEqualityComparer.Default)];
 
         foreach (var registration in registrations)
         {
