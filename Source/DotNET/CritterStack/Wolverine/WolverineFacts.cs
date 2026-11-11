@@ -214,15 +214,13 @@ internal static partial class WolverineFacts
     {
         var request = RequestParameter(method, scope.Project);
         var slicePattern = WolverineSlicePatterns.Resolve(
+            scope,
             method,
             request is not null ? MessageElementType(request.Type) : null,
-            endpoint,
-            scope.Project,
-            scope.Adapter,
-            scope.Diagnostics);
+            endpoint);
         var firstPlacement = scope.Placements.Count;
         analyze();
-        WolverineSlicePatterns.Apply(slicePattern, method, scope.Project, scope.Placements, firstPlacement, scope.Diagnostics);
+        WolverineSlicePatterns.Apply(slicePattern, scope, method, firstPlacement);
     }
 }
 

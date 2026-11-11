@@ -31,11 +31,7 @@ static class EnumConceptFacts
 
         foreach (var candidate in candidates)
         {
-            var declaration = DotNetSource.AuthoredDeclarationsOf(candidate.Type, candidate.Project.AuthoredSyntaxTrees)
-                .Where(_ => !DotNetGeneratedSource.IsGenerated(_.SyntaxTree))
-                .Select(_ => _.GetSyntax())
-                .OfType<EnumDeclarationSyntax>()
-                .SingleOrDefault();
+            var declaration = AuthoredDeclaration(candidate.Type, candidate.Project);
             if (declaration is null)
             {
                 continue;
@@ -48,65 +44,19 @@ static class EnumConceptFacts
                 candidate.Project,
                 EvidenceStrength.Exact,
                 $"Authored enum '{candidate.Type.Name}' declares its named values");
-            if (DotNetSymbols.HasAttribute(candidate.Type, "System.FlagsAttribute"))
-            {
-                diagnostics.Add(new GenerationDiagnostic
-                {
-                    Code = CritterStackDiagnosticCodes.FlagsEnumOmitted,
-                    Severity = GenerationDiagnosticSeverity.Warning,
-                    Outcome = GenerationDiagnosticOutcome.Unsupported,
-                    Subject = subject,
-                    Source = evidence.Source,
-                    Message = $"Flags enum '{candidate.Type.Name}' permits combinations that cannot be represented by an enumeration concept; it is not declared as a concept and its uses keep the plain type name without a concept reference"
-                });
-                continue;
-            }
-
             var values = declaration.Members.Select(_ => _.Identifier.ValueText).ToArray();
-            if (!CanLower(values))
+            if (OmissionOf(candidate.Type, subject, evidence, values) is { } omission)
             {
-                diagnostics.Add(new GenerationDiagnostic
-                {
-                    Code = CritterStackDiagnosticCodes.EnumValuesUnsupported,
-                    Severity = GenerationDiagnosticSeverity.Warning,
-                    Outcome = GenerationDiagnosticOutcome.Unsupported,
-                    Subject = subject,
-                    Source = evidence.Source,
-                    Message = values.Length == 0
-                        ? $"Enum '{candidate.Type.Name}' declares no named values, which an enumeration concept cannot represent; it is not declared as a concept and its uses keep the plain type name without a concept reference"
-                        : $"Enum '{candidate.Type.Name}' has values that collide or are not valid Screenplay identifiers after Screenplay naming; it is not declared as a concept and its uses keep the plain type name without a concept reference"
-                });
+                diagnostics.Add(omission);
                 continue;
             }
 
             if (concepts.Add(subject))
             {
-                facts.Add(new ArtifactFact
-                {
-                    Id = new FactId { Value = ConceptFactId(contribution.Adapter, subject) },
-                    Subject = subject,
-                    Evidence = evidence,
-                    Definition = new ArtifactDefinition
-                    {
-                        Key = new ArtifactKey { Subject = subject, Kind = ArtifactKind.Concept },
-                        Name = candidate.Type.Name,
-                        File = evidence.Source?.Path
-                    }
-                });
+                facts.Add(ConceptFact(contribution.Adapter, subject, candidate.Type.Name, evidence));
             }
 
-            facts.Add(new ConceptRepresentationFact
-            {
-                Id = new FactId { Value = RepresentationFactId(contribution.Adapter, subject) },
-                Subject = subject,
-                Evidence = evidence,
-                Definition = new ConceptRepresentationDefinition
-                {
-                    Concept = subject,
-                    Kind = ConceptRepresentationKind.Enumeration,
-                    EnumerationValues = [.. values]
-                }
-            });
+            facts.Add(RepresentationFact(contribution.Adapter, subject, evidence, values));
         }
 
         // Bind before resolving captured names, so uses of each enum carry its subject and only other types print its
@@ -270,6 +220,74 @@ static class EnumConceptFacts
             })
         ];
     }
+
+    static GenerationDiagnostic? OmissionOf(INamedTypeSymbol type, SubjectId subject, Evidence evidence, string[] values)
+    {
+        if (DotNetSymbols.HasAttribute(type, "System.FlagsAttribute"))
+        {
+            return OmittedEnum(
+                CritterStackDiagnosticCodes.FlagsEnumOmitted,
+                subject,
+                evidence,
+                $"Flags enum '{type.Name}' permits combinations that cannot be represented by an enumeration concept; it is not declared as a concept and its uses keep the plain type name without a concept reference");
+        }
+
+        if (CanLower(values))
+        {
+            return null;
+        }
+
+        return OmittedEnum(
+            CritterStackDiagnosticCodes.EnumValuesUnsupported,
+            subject,
+            evidence,
+            values.Length == 0
+                ? $"Enum '{type.Name}' declares no named values, which an enumeration concept cannot represent; it is not declared as a concept and its uses keep the plain type name without a concept reference"
+                : $"Enum '{type.Name}' has values that collide or are not valid Screenplay identifiers after Screenplay naming; it is not declared as a concept and its uses keep the plain type name without a concept reference");
+    }
+
+    static ArtifactFact ConceptFact(AdapterIdentity adapter, SubjectId subject, string name, Evidence evidence) => new()
+    {
+        Id = new FactId { Value = ConceptFactId(adapter, subject) },
+        Subject = subject,
+        Evidence = evidence,
+        Definition = new ArtifactDefinition
+        {
+            Key = new ArtifactKey { Subject = subject, Kind = ArtifactKind.Concept },
+            Name = name,
+            File = evidence.Source?.Path
+        }
+    };
+
+    static ConceptRepresentationFact RepresentationFact(AdapterIdentity adapter, SubjectId subject, Evidence evidence, string[] values) => new()
+    {
+        Id = new FactId { Value = RepresentationFactId(adapter, subject) },
+        Subject = subject,
+        Evidence = evidence,
+        Definition = new ConceptRepresentationDefinition
+        {
+            Concept = subject,
+            Kind = ConceptRepresentationKind.Enumeration,
+            EnumerationValues = [.. values]
+        }
+    };
+
+    static EnumDeclarationSyntax? AuthoredDeclaration(INamedTypeSymbol type, DotNetProjectCompilation project) =>
+        DotNetSource.AuthoredDeclarationsOf(type, project.AuthoredSyntaxTrees)
+            .Where(_ => !DotNetGeneratedSource.IsGenerated(_.SyntaxTree))
+            .Select(_ => _.GetSyntax())
+            .OfType<EnumDeclarationSyntax>()
+            .SingleOrDefault();
+
+    static GenerationDiagnostic OmittedEnum(string code, SubjectId subject, Evidence evidence, string message) => new()
+    {
+        Code = code,
+        Severity = GenerationDiagnosticSeverity.Warning,
+        Outcome = GenerationDiagnosticOutcome.Unsupported,
+        Subject = subject,
+        Source = evidence.Source,
+        Message = message
+    };
 
     static GenerationDiagnostic ConflictDiagnostic(ArtifactFact concept, string message) => new()
     {

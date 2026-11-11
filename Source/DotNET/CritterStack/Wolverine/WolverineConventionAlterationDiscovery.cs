@@ -14,50 +14,9 @@ static class WolverineConventionAlterationDiscovery
         DotNetProjectCompilation project,
         CritterStackSubjectResolver subjects)
     {
-        var diagnostics = new List<GenerationDiagnostic>();
-        var catalog = new DotNetArtifactCatalog(project.Compilation);
-        foreach (var type in catalog.Types.Where(_ => IsAuthoredConcreteType(_, project) && AltersConventions(_)))
-        {
-            var location = type.Locations.First(_ => IsAuthoredLocation(_, project));
-            diagnostics.Add(new()
-            {
-                Code = WolverineDiagnosticCodes.ConventionAlterationOmitted,
-                Severity = GenerationDiagnosticSeverity.Warning,
-                Outcome = GenerationDiagnosticOutcome.Unsupported,
-                Message = $"Authored Wolverine convention-alteration type '{type.Name}' may change handler discovery or chain behavior at runtime; the model reflects default conventions only",
-                Source = CritterStackSource.RangeForProject(location, project),
-                Subject = subjects.SubjectForType(project, type)
-            });
-        }
-
-        foreach (var tree in project.Compilation.SyntaxTrees
-                     .Where(_ => project.AuthoredSyntaxTrees.Contains(_) && !DotNetGeneratedSource.IsGenerated(_))
-                     .OrderBy(_ => _.FilePath, StringComparer.Ordinal))
-        {
-            var semanticModel = project.Compilation.GetSemanticModel(tree);
-            foreach (var invocation in tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>().OrderBy(_ => _.SpanStart))
-            {
-                if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
-                    !string.Equals(method.Name, "CustomizeMessageDiscovery", StringComparison.Ordinal) ||
-                    DotNetSubjectIds.MetadataName(method.ContainingType.OriginalDefinition) != WellKnownTypes.WolverineHandlerDiscovery)
-                {
-                    continue;
-                }
-
-                var containingType = semanticModel.GetEnclosingSymbol(invocation.SpanStart)?.ContainingType;
-                diagnostics.Add(new()
-                {
-                    Code = WolverineDiagnosticCodes.ConventionAlterationOmitted,
-                    Severity = GenerationDiagnosticSeverity.Warning,
-                    Outcome = GenerationDiagnosticOutcome.Unsupported,
-                    Message = "Authored Wolverine message discovery customization may change which types are treated as messages at runtime; the model reflects default conventions only",
-                    Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
-                    Subject = containingType is null
-                        ? new SubjectId { Value = $"dotnet://{project.Name}/#wolverine-message-discovery" }
-                        : subjects.SubjectForType(project, containingType)
-                });
-            }
-        }
+        List<GenerationDiagnostic> diagnostics = [];
+        diagnostics.AddRange(AlterationTypeDiagnostics(project, subjects));
+        diagnostics.AddRange(MessageDiscoveryCustomizationDiagnostics(project, subjects));
 
         return
         [
@@ -69,18 +28,74 @@ static class WolverineConventionAlterationDiscovery
         ];
     }
 
-    static bool AltersConventions(INamedTypeSymbol type)
+    static IEnumerable<GenerationDiagnostic> AlterationTypeDiagnostics(
+        DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects)
     {
-        if (DotNetSymbols.Implements(type, WellKnownTypes.WolverineHandlerPolicy) ||
-            DotNetSymbols.Implements(type, WellKnownTypes.WolverinePolicy) ||
-            DotNetSymbols.Implements(type, WellKnownTypes.WolverineExtension))
+        var catalog = new DotNetArtifactCatalog(project.Compilation);
+        foreach (var type in catalog.Types.Where(_ => IsAuthoredConcreteType(_, project) && AltersConventions(_)))
         {
-            return true;
+            var location = type.Locations.First(_ => IsAuthoredLocation(_, project));
+            yield return new()
+            {
+                Code = WolverineDiagnosticCodes.ConventionAlterationOmitted,
+                Severity = GenerationDiagnosticSeverity.Warning,
+                Outcome = GenerationDiagnosticOutcome.Unsupported,
+                Message = $"Authored Wolverine convention-alteration type '{type.Name}' may change handler discovery or chain behavior at runtime; the model reflects default conventions only",
+                Source = CritterStackSource.RangeForProject(location, project),
+                Subject = subjects.SubjectForType(project, type)
+            };
         }
-
-        return DotNetSubjectIds.MetadataName(type.OriginalDefinition) != WellKnownTypes.WolverineModifyHandlerChainAttribute &&
-               DotNetSymbols.IsOrInheritsFrom(type, WellKnownTypes.WolverineModifyHandlerChainAttribute);
     }
+
+    static IEnumerable<GenerationDiagnostic> MessageDiscoveryCustomizationDiagnostics(
+        DotNetProjectCompilation project,
+        CritterStackSubjectResolver subjects)
+    {
+        foreach (var tree in project.Compilation.SyntaxTrees
+                     .Where(_ => project.AuthoredSyntaxTrees.Contains(_) && !DotNetGeneratedSource.IsGenerated(_))
+                     .OrderBy(_ => _.FilePath, StringComparer.Ordinal))
+        {
+            var semanticModel = project.Compilation.GetSemanticModel(tree);
+            foreach (var invocation in tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>().OrderBy(_ => _.SpanStart))
+            {
+                if (!IsMessageDiscoveryCustomization(semanticModel, invocation))
+                {
+                    continue;
+                }
+
+                var containingType = semanticModel.GetEnclosingSymbol(invocation.SpanStart)?.ContainingType;
+                yield return new()
+                {
+                    Code = WolverineDiagnosticCodes.ConventionAlterationOmitted,
+                    Severity = GenerationDiagnosticSeverity.Warning,
+                    Outcome = GenerationDiagnosticOutcome.Unsupported,
+                    Message = "Authored Wolverine message discovery customization may change which types are treated as messages at runtime; the model reflects default conventions only",
+                    Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
+                    Subject = containingType is null
+                        ? new SubjectId { Value = $"dotnet://{project.Name}/#wolverine-message-discovery" }
+                        : subjects.SubjectForType(project, containingType)
+                };
+            }
+        }
+    }
+
+    static bool IsMessageDiscoveryCustomization(SemanticModel semanticModel, InvocationExpressionSyntax invocation) =>
+        semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol method &&
+        string.Equals(method.Name, "CustomizeMessageDiscovery", StringComparison.Ordinal) &&
+        DotNetSubjectIds.MetadataName(method.ContainingType.OriginalDefinition) == WellKnownTypes.WolverineHandlerDiscovery;
+
+    static bool AltersConventions(INamedTypeSymbol type) =>
+        ImplementsConventionPolicy(type) || IsDerivedChainAttribute(type);
+
+    static bool ImplementsConventionPolicy(INamedTypeSymbol type) =>
+        DotNetSymbols.Implements(type, WellKnownTypes.WolverineHandlerPolicy) ||
+        DotNetSymbols.Implements(type, WellKnownTypes.WolverinePolicy) ||
+        DotNetSymbols.Implements(type, WellKnownTypes.WolverineExtension);
+
+    static bool IsDerivedChainAttribute(INamedTypeSymbol type) =>
+        DotNetSubjectIds.MetadataName(type.OriginalDefinition) != WellKnownTypes.WolverineModifyHandlerChainAttribute &&
+        DotNetSymbols.IsOrInheritsFrom(type, WellKnownTypes.WolverineModifyHandlerChainAttribute);
 
     static bool IsAuthoredConcreteType(INamedTypeSymbol type, DotNetProjectCompilation project) =>
         type.TypeKind == TypeKind.Class &&

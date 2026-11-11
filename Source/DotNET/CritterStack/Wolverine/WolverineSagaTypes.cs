@@ -45,6 +45,11 @@ static class WolverineSagaTypes
             return type.BaseType is not null && IsAuthoredOrMetadataAssignableTo(type.BaseType, target, project, visited);
         }
 
+        return DeclaredBaseTypes(type, project).Any(candidate => IsAuthoredOrMetadataAssignableTo(candidate, target, project, visited));
+    }
+
+    static IEnumerable<INamedTypeSymbol> DeclaredBaseTypes(INamedTypeSymbol type, DotNetProjectCompilation project)
+    {
         foreach (var syntaxReference in type.DeclaringSyntaxReferences)
         {
             if (syntaxReference.GetSyntax() is not TypeDeclarationSyntax { BaseList: not null } declaration ||
@@ -57,14 +62,11 @@ static class WolverineSagaTypes
             var semanticModel = project.Compilation.GetSemanticModel(declaration.SyntaxTree);
             foreach (var baseType in declaration.BaseList.Types)
             {
-                if (semanticModel.GetTypeInfo(baseType.Type).Type is INamedTypeSymbol candidate &&
-                    IsAuthoredOrMetadataAssignableTo(candidate, target, project, visited))
+                if (semanticModel.GetTypeInfo(baseType.Type).Type is INamedTypeSymbol candidate)
                 {
-                    return true;
+                    yield return candidate;
                 }
             }
         }
-
-        return false;
     }
 }

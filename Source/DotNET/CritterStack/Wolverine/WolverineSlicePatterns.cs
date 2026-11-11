@@ -12,102 +12,36 @@ sealed record WolverineSlicePattern(GenerationSliceKind? Kind, Evidence? Evidenc
 static class WolverineSlicePatterns
 {
     public static WolverineSlicePattern Resolve(
+        WolverineFactScope scope,
         IMethodSymbol method,
         INamedTypeSymbol? request,
-        HttpEndpoint? endpoint,
-        DotNetProjectCompilation project,
-        AdapterIdentity adapter,
-        List<GenerationDiagnostic> diagnostics)
+        HttpEndpoint? endpoint)
     {
+        var project = scope.Project;
         var attribute = Declaration(method, project);
         var source = attribute?.ApplicationSyntaxReference?.GetSyntax().GetLocation();
         var range = source is null ? null : CritterStackSource.RangeForProject(source, project);
-        GenerationSliceKind? declared = null;
-        if (attribute is not null)
+        var declared = attribute is null ? null : Declared(attribute, scope, method, range);
+        var trigger = Trigger(request, endpoint, project);
+        if (IsConflict(declared, trigger))
         {
-            var enumType = project.Compilation.GetTypeByMetadataName(WellKnownTypes.JasperFxSlicePattern);
-            var argument = attribute.ConstructorArguments.FirstOrDefault();
-            var resolved = enumType is not null && WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(enumType, project) &&
-                attribute.AttributeConstructor?.Parameters is [{ Type: var parameterType }] &&
-                SymbolEqualityComparer.Default.Equals(parameterType, enumType) &&
-                argument.Kind == TypedConstantKind.Enum && SymbolEqualityComparer.Default.Equals(argument.Type, enumType);
-            var name = resolved
-                ? enumType!.GetMembers().OfType<IFieldSymbol>().FirstOrDefault(field => field.HasConstantValue && Equals(field.ConstantValue, argument.Value))?.Name
-                : null;
-            declared = name switch
-            {
-                "Command" => GenerationSliceKind.StateChange,
-                "View" => GenerationSliceKind.StateView,
-                "Automation" => GenerationSliceKind.Automation,
-                "Translation" => GenerationSliceKind.Translate,
-                _ => null
-            };
-            if (declared is null)
-            {
-                diagnostics.Add(new()
-                {
-                    Code = WolverineDiagnosticCodes.SlicePatternUnresolved,
-                    Severity = GenerationDiagnosticSeverity.Warning,
-                    Outcome = resolved ? GenerationDiagnosticOutcome.Unsupported : GenerationDiagnosticOutcome.Unknown,
-                    Message = $"The SlicePattern declaration on '{DotNetMethodIdentity.DisplayName(method)}' has an {(resolved ? "undefined" : "unresolved")} value; independently inferred classification is retained",
-                    Source = range,
-                    Subject = DotNetMethodIdentity.SubjectFor(project, method)
-                });
-            }
-        }
-
-        GenerationSliceKind? trigger = IsAuthoredTimeout(request, project) ? GenerationSliceKind.Automation : null;
-        if (endpoint is not null)
-        {
-            // HEAD and OPTIONS are safe verbs that are still analyzed for effects, so the verb
-            // proves neither a view nor a state change; a declaration may classify them.
-            trigger = endpoint switch
-            {
-                { IsQuery: true } => GenerationSliceKind.StateView,
-                { IsUnclassifiedSafeVerb: true } => null,
-                _ => GenerationSliceKind.StateChange
-            };
-        }
-        if (declared is not null && trigger is not null && declared != trigger)
-        {
-            diagnostics.Add(new()
-            {
-                Code = WolverineDiagnosticCodes.SlicePatternConflict,
-                Severity = GenerationDiagnosticSeverity.Warning,
-                Outcome = GenerationDiagnosticOutcome.Conflict,
-                Message = $"The SlicePattern declaration '{declared}' conflicts with the proven {(endpoint is null ? "TimeoutMessage" : "HTTP")} trigger '{trigger}' on '{DotNetMethodIdentity.DisplayName(method)}'; the trigger takes precedence",
-                Source = range,
-                Subject = DotNetMethodIdentity.SubjectFor(project, method)
-            });
+            scope.Diagnostics.Add(ConflictDiagnostic(scope, method, endpoint, (declared, trigger), range));
         }
 
         var kind = trigger ?? declared;
-        var explanation = trigger is not null
-            ? $"Proven {(endpoint is null ? "TimeoutMessage scheduler" : $"HTTP {endpoint.Verb}")} trigger classifies the slice as {trigger}"
-            : $"Exact Wolverine SlicePattern declaration classifies the slice as {declared}";
-        if (trigger is not null && declared is not null)
-        {
-            explanation += $"; declared SlicePattern={declared}";
-        }
-
-        var evidence = kind is null ? null : new Evidence
-        {
-            Adapter = adapter,
-            Strength = EvidenceStrength.Exact,
-            Source = range ?? CritterStackSource.EvidenceFor(method, adapter, project, EvidenceStrength.Exact).Source,
-            Explanation = explanation
-        };
+        var evidence = kind is null ? null : SliceEvidence(scope, method, endpoint, (trigger, declared), range);
         return new(kind, evidence, declared is not null);
     }
 
     public static void Apply(
         WolverineSlicePattern decision,
+        WolverineFactScope scope,
         IMethodSymbol method,
-        DotNetProjectCompilation project,
-        List<CritterStackPlacementIntent> placements,
-        int firstPlacement,
-        List<GenerationDiagnostic> diagnostics)
+        int firstPlacement)
     {
+        var project = scope.Project;
+        var diagnostics = scope.Diagnostics;
+        var placements = scope.Placements;
         if (decision.HasDeclaration && placements.Count == firstPlacement)
         {
             diagnostics.Add(new()
@@ -137,25 +71,127 @@ static class WolverineSlicePatterns
         }
     }
 
-    static AttributeData? Declaration(IMethodSymbol method, DotNetProjectCompilation project)
+    static GenerationSliceKind? Declared(
+        AttributeData attribute,
+        WolverineFactScope scope,
+        IMethodSymbol method,
+        SourceRange? range)
+    {
+        var (resolved, name) = DeclaredName(attribute, scope.Project);
+        var declared = KindFor(name);
+        if (declared is null)
+        {
+            scope.Diagnostics.Add(UnresolvedDiagnostic(scope, method, resolved, range));
+        }
+
+        return declared;
+    }
+
+    static GenerationSliceKind? KindFor(string? name) => name switch
+    {
+        "Command" => GenerationSliceKind.StateChange,
+        "View" => GenerationSliceKind.StateView,
+        "Automation" => GenerationSliceKind.Automation,
+        "Translation" => GenerationSliceKind.Translate,
+        _ => null
+    };
+
+    static GenerationDiagnostic UnresolvedDiagnostic(WolverineFactScope scope, IMethodSymbol method, bool resolved, SourceRange? range) => new()
+    {
+        Code = WolverineDiagnosticCodes.SlicePatternUnresolved,
+        Severity = GenerationDiagnosticSeverity.Warning,
+        Outcome = resolved ? GenerationDiagnosticOutcome.Unsupported : GenerationDiagnosticOutcome.Unknown,
+        Message = $"The SlicePattern declaration on '{DotNetMethodIdentity.DisplayName(method)}' has an {(resolved ? "undefined" : "unresolved")} value; independently inferred classification is retained",
+        Source = range,
+        Subject = DotNetMethodIdentity.SubjectFor(scope.Project, method)
+    };
+
+    static bool IsConflict(GenerationSliceKind? declared, GenerationSliceKind? trigger) =>
+        declared is not null && trigger is not null && declared != trigger;
+
+    static GenerationDiagnostic ConflictDiagnostic(
+        WolverineFactScope scope,
+        IMethodSymbol method,
+        HttpEndpoint? endpoint,
+        (GenerationSliceKind? Declared, GenerationSliceKind? Trigger) kinds,
+        SourceRange? range) => new()
+        {
+            Code = WolverineDiagnosticCodes.SlicePatternConflict,
+            Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = GenerationDiagnosticOutcome.Conflict,
+            Message = $"The SlicePattern declaration '{kinds.Declared}' conflicts with the proven {(endpoint is null ? "TimeoutMessage" : "HTTP")} trigger '{kinds.Trigger}' on '{DotNetMethodIdentity.DisplayName(method)}'; the trigger takes precedence",
+            Source = range,
+            Subject = DotNetMethodIdentity.SubjectFor(scope.Project, method)
+        };
+
+    static Evidence SliceEvidence(
+        WolverineFactScope scope,
+        IMethodSymbol method,
+        HttpEndpoint? endpoint,
+        (GenerationSliceKind? Trigger, GenerationSliceKind? Declared) kinds,
+        SourceRange? range) => new()
+        {
+            Adapter = scope.Adapter,
+            Strength = EvidenceStrength.Exact,
+            Source = range ?? CritterStackSource.EvidenceFor(method, scope.Adapter, scope.Project, EvidenceStrength.Exact).Source,
+            Explanation = Explanation(kinds.Trigger, kinds.Declared, endpoint)
+        };
+
+    static (bool Resolved, string? Name) DeclaredName(AttributeData attribute, DotNetProjectCompilation project)
+    {
+        var enumType = project.Compilation.GetTypeByMetadataName(WellKnownTypes.JasperFxSlicePattern);
+        var argument = attribute.ConstructorArguments.FirstOrDefault();
+        if (!IsSlicePatternArgument(attribute, argument, enumType, project))
+        {
+            return (false, null);
+        }
+
+        var name = enumType!.GetMembers().OfType<IFieldSymbol>()
+            .FirstOrDefault(field => field.HasConstantValue && Equals(field.ConstantValue, argument.Value))?.Name;
+        return (true, name);
+    }
+
+    static bool IsSlicePatternArgument(AttributeData attribute, TypedConstant argument, INamedTypeSymbol? enumType, DotNetProjectCompilation project) =>
+        enumType is not null && WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(enumType, project) &&
+        attribute.AttributeConstructor?.Parameters is [{ Type: var parameterType }] &&
+        SymbolEqualityComparer.Default.Equals(parameterType, enumType) &&
+        argument.Kind == TypedConstantKind.Enum && SymbolEqualityComparer.Default.Equals(argument.Type, enumType);
+
+    static GenerationSliceKind? Trigger(INamedTypeSymbol? request, HttpEndpoint? endpoint, DotNetProjectCompilation project) => endpoint switch
+    {
+        // HEAD and OPTIONS are safe verbs that are still analyzed for effects, so the verb
+        // proves neither a view nor a state change; a declaration may classify them.
+        null => IsAuthoredTimeout(request, project) ? GenerationSliceKind.Automation : null,
+        { IsQuery: true } => GenerationSliceKind.StateView,
+        { IsUnclassifiedSafeVerb: true } => null,
+        _ => GenerationSliceKind.StateChange
+    };
+
+    static string Explanation(GenerationSliceKind? trigger, GenerationSliceKind? declared, HttpEndpoint? endpoint)
+    {
+        if (trigger is null)
+        {
+            return $"Exact Wolverine SlicePattern declaration classifies the slice as {declared}";
+        }
+
+        var proven = $"Proven {(endpoint is null ? "TimeoutMessage scheduler" : $"HTTP {endpoint.Verb}")} trigger classifies the slice as {trigger}";
+        return declared is null ? proven : $"{proven}; declared SlicePattern={declared}";
+    }
+
+    static AttributeData? Declaration(IMethodSymbol method, DotNetProjectCompilation project) =>
+        DeclarationSites(method).Select(site => AttributeOn(site, project)).FirstOrDefault(attribute => attribute is not null);
+
+    static IEnumerable<ISymbol> DeclarationSites(IMethodSymbol method)
     {
         for (var current = method; current is not null; current = current.OverriddenMethod)
         {
-            if (AttributeOn(current, project) is { } attribute)
-            {
-                return attribute;
-            }
+            yield return current;
         }
 
         for (var current = method.ContainingType; current is not null; current = current.BaseType)
         {
-            if (AttributeOn(current, project) is { } attribute)
-            {
-                return attribute;
-            }
+            yield return current;
         }
-
-        return null;
     }
 
     static AttributeData? AttributeOn(ISymbol symbol, DotNetProjectCompilation project)

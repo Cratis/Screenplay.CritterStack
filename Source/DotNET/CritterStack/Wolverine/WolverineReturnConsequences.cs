@@ -25,6 +25,13 @@ sealed record WolverineReturnConsequence(
     WolverineReturnConsequenceKind Kind,
     ITypeSymbol? EntityType = null);
 
+sealed record WolverineReturnContext(
+    DotNetProjectCompilation Project,
+    bool IsHttpEndpoint,
+    bool AggregateWorkflow,
+    bool HasEventStream,
+    bool EmptyResponse);
+
 static class WolverineReturnConsequences
 {
     static readonly HashSet<string> _persistenceOperations =
@@ -49,85 +56,101 @@ static class WolverineReturnConsequences
         bool aggregateWorkflow,
         bool hasEventStream)
     {
-        var emptyResponse = DotNetSymbols.HasAttribute(method, WellKnownTypes.WolverineEmptyResponseAttribute);
-        return
-        [
-            .. WolverineReturnTypes.CreatedValues(method)
-                .Select((type, slot) => Classify(type, slot, project, isHttpEndpoint, aggregateWorkflow, hasEventStream, emptyResponse))
-        ];
+        var context = new WolverineReturnContext(
+            project,
+            isHttpEndpoint,
+            aggregateWorkflow,
+            hasEventStream,
+            DotNetSymbols.HasAttribute(method, WellKnownTypes.WolverineEmptyResponseAttribute));
+        return [.. WolverineReturnTypes.CreatedValues(method).Select((type, slot) => Classify(type, slot, context))];
     }
 
     public static bool IsTimeoutMessage(INamedTypeSymbol type) =>
         IsAssignableTo(type, WellKnownTypes.WolverineTimeoutMessage);
 
-    static WolverineReturnConsequence Classify(
-        ITypeSymbol type,
-        int slot,
-        DotNetProjectCompilation project,
-        bool isHttpEndpoint,
-        bool aggregateWorkflow,
-        bool hasEventStream,
-        bool emptyResponse)
+    static WolverineReturnConsequence Classify(ITypeSymbol type, int slot, WolverineReturnContext context)
     {
-        WolverineReturnConsequence Consequence(
-            WolverineReturnConsequenceKind kind,
-            ITypeSymbol? entityType = null) => new(slot, type, kind, entityType);
-
         if (type is not INamedTypeSymbol named)
         {
-            return Consequence(WolverineReturnConsequenceKind.Unknown);
+            return new(slot, type, WolverineReturnConsequenceKind.Unknown);
         }
 
-        var metadataName = DotNetSubjectIds.MetadataName(named.OriginalDefinition);
-        if (IsSagaState(named, project))
+        if (MessagingKind(named, context.Project) is { } messaging)
         {
-            return Consequence(WolverineReturnConsequenceKind.SagaState);
-        }
-
-        if (IsTimeoutMessage(named))
-        {
-            return Consequence(WolverineReturnConsequenceKind.Cascade);
-        }
-
-        if (metadataName == WellKnownTypes.WolverineOutgoingMessages)
-        {
-            return Consequence(WolverineReturnConsequenceKind.OutgoingMessages);
-        }
-
-        if (IsAssignableTo(named, WellKnownTypes.WolverineSideEffect))
-        {
-            return Consequence(WolverineReturnConsequenceKind.SideEffect);
+            return new(slot, type, messaging);
         }
 
         if (StorageActionEntityType(named) is { } entityType)
         {
-            return Consequence(WolverineReturnConsequenceKind.StorageAction, entityType);
+            return new(slot, type, WolverineReturnConsequenceKind.StorageAction, entityType);
         }
 
-        if (_persistenceOperations.Contains(metadataName))
+        return new(slot, type, ResponseKind(named, slot, context));
+    }
+
+    /// <summary>
+    /// The kinds decided before a storage action: saga state, timeouts, outgoing messages and side effects, in that order.
+    /// </summary>
+    /// <param name="named">The returned type.</param>
+    /// <param name="project">The project compilation.</param>
+    /// <returns>The kind, or <see langword="null"/> when a later stage decides.</returns>
+    static WolverineReturnConsequenceKind? MessagingKind(INamedTypeSymbol named, DotNetProjectCompilation project)
+    {
+        if (IsSagaState(named, project))
         {
-            return Consequence(WolverineReturnConsequenceKind.PersistenceOperation);
+            return WolverineReturnConsequenceKind.SagaState;
+        }
+
+        if (IsTimeoutMessage(named))
+        {
+            return WolverineReturnConsequenceKind.Cascade;
+        }
+
+        if (DotNetSubjectIds.MetadataName(named.OriginalDefinition) == WellKnownTypes.WolverineOutgoingMessages)
+        {
+            return WolverineReturnConsequenceKind.OutgoingMessages;
+        }
+
+        return IsAssignableTo(named, WellKnownTypes.WolverineSideEffect) ? WolverineReturnConsequenceKind.SideEffect : null;
+    }
+
+    /// <summary>
+    /// The kinds decided after a storage action: persistence operations, responses, aggregate events, the HTTP body and cascades.
+    /// </summary>
+    /// <param name="named">The returned type.</param>
+    /// <param name="slot">The position of the value among the created values.</param>
+    /// <param name="context">The classification context.</param>
+    /// <returns>The kind.</returns>
+    static WolverineReturnConsequenceKind ResponseKind(INamedTypeSymbol named, int slot, WolverineReturnContext context)
+    {
+        if (_persistenceOperations.Contains(DotNetSubjectIds.MetadataName(named.OriginalDefinition)))
+        {
+            return WolverineReturnConsequenceKind.PersistenceOperation;
         }
 
         if (IsResponse(named))
         {
-            return Consequence(WolverineReturnConsequenceKind.HttpResponse);
+            return WolverineReturnConsequenceKind.HttpResponse;
         }
 
-        if (aggregateWorkflow && !hasEventStream && IsPayload(named))
+        if (IsAggregateEvent(named, context))
         {
-            return Consequence(WolverineReturnConsequenceKind.PersistedEvent);
+            return WolverineReturnConsequenceKind.PersistedEvent;
         }
 
-        if (isHttpEndpoint && slot == 0 && !emptyResponse)
+        if (IsHttpBody(slot, context))
         {
-            return Consequence(WolverineReturnConsequenceKind.HttpResponse);
+            return WolverineReturnConsequenceKind.HttpResponse;
         }
 
-        return IsPayload(named)
-            ? Consequence(WolverineReturnConsequenceKind.Cascade)
-            : Consequence(WolverineReturnConsequenceKind.Unknown);
+        return IsPayload(named) ? WolverineReturnConsequenceKind.Cascade : WolverineReturnConsequenceKind.Unknown;
     }
+
+    static bool IsAggregateEvent(INamedTypeSymbol named, WolverineReturnContext context) =>
+        context.AggregateWorkflow && !context.HasEventStream && IsPayload(named);
+
+    static bool IsHttpBody(int slot, WolverineReturnContext context) =>
+        context.IsHttpEndpoint && slot == 0 && !context.EmptyResponse;
 
     static ITypeSymbol? StorageActionEntityType(INamedTypeSymbol type)
     {
