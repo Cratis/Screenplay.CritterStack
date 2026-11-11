@@ -11,6 +11,8 @@ namespace Cratis.CritterStack.Screenplay.given;
 /// </summary>
 public class a_canonical_kitchen_result : a_community_kitchen_application
 {
+    readonly Dictionary<(ExpectationKind, string), bool> _met = [];
+
     /// <summary>
     /// The fixed source text of the result.
     /// </summary>
@@ -41,10 +43,22 @@ public class a_canonical_kitchen_result : a_community_kitchen_application
     }
 
     /// <summary>
-    /// Checks one expectation against the result.
+    /// Evaluates expectations against the result, so assertions only read captured outcomes.
+    /// </summary>
+    /// <param name="cases">The expectation kinds and values to evaluate.</param>
+    private protected void Evaluate(params (ExpectationKind Kind, string Value)[] cases)
+    {
+        foreach (var (kind, value) in cases)
+        {
+            _met[(kind, value)] = new Expectation(kind, value).IsMetBy(Result);
+        }
+    }
+
+    /// <summary>
+    /// Gets the captured outcome of one expectation evaluated by <see cref="Evaluate"/>.
     /// </summary>
     /// <param name="kind">The expectation kind.</param>
     /// <param name="value">The expectation value.</param>
-    /// <returns><see langword="true"/> when the expectation is met.</returns>
-    private protected bool Met(ExpectationKind kind, string value) => new Expectation(kind, value).IsMetBy(Result);
+    /// <returns><see langword="true"/> when the expectation was met.</returns>
+    private protected bool Met(ExpectationKind kind, string value) => _met[(kind, value)];
 }

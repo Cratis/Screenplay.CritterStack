@@ -78,6 +78,7 @@ public class when_reading_expectations : Specification
     [Fact] void should_name_the_line_without_a_separator_in_the_message() => _missingSeparator.Message.ShouldEqual("Invalid canonical expectation 'source'");
     [Fact] void should_reject_a_line_that_starts_with_the_separator() => _leadingSeparator.ShouldBeOfExactType<InvalidExpectation>();
     [Fact] void should_name_the_line_that_starts_with_the_separator_in_the_message() => _leadingSeparator.Message.ShouldEqual("Invalid canonical expectation ':x'");
+    [Fact] void should_report_the_first_invalid_line_with_the_invalid_expectation_exception() => _firstOfSeveral.ShouldBeOfExactType<InvalidExpectation>();
     [Fact] void should_report_the_first_invalid_line_when_several_are_invalid() => _firstOfSeveral.Message.ShouldEqual("Invalid canonical expectation 'wrong: first'");
 
     IReadOnlyList<string> Read(params string[] lines)

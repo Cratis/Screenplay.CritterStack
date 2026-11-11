@@ -7,6 +7,26 @@ namespace Cratis.CritterStack.Screenplay.for_Expectations;
 
 public class when_checking_relationship_expectations : given.a_canonical_kitchen_result
 {
+    void Because() => Evaluate(
+        (ExpectationKind.Relationship, "Produces"),
+        (ExpectationKind.Relationship, "Bogus"),
+        (ExpectationKind.Relationship, "Produce"),
+        (ExpectationKind.Relationship, "Produces Command:PlanBatch -> Event:BatchPlanned"),
+        (ExpectationKind.Relationship, "Produces Command:PlanBatch -> Event:BatchServed"),
+        (ExpectationKind.Relationship, "Produces Event:BatchPlanned -> Command:PlanBatch"),
+        (ExpectationKind.Relationship, "Consumes Command:PlanBatch -> Event:BatchPlanned"),
+        (ExpectationKind.Relationship, "Bogus Command:PlanBatch -> Event:BatchPlanned"),
+        (ExpectationKind.Relationship, "Produces Command:PlanBatch"),
+        (ExpectationKind.Relationship, "Produces Command:PlanBatch -> BatchPlanned"),
+        (ExpectationKind.RelationshipCount, "Produces|Command:PlanBatch|Event:BatchPlanned|1"),
+        (ExpectationKind.RelationshipCount, "Produces|Command:PlanBatch|Event:BatchServed|0"),
+        (ExpectationKind.RelationshipCount, "Reads|Command:ServeBatch|ReadModel:SoupBatch|1"),
+        (ExpectationKind.RelationshipCount, "Produces|Command:PlanBatch|Event:BatchPlanned|2"),
+        (ExpectationKind.RelationshipCount, "Produces|Command:PlanBatch|Event:BatchPlanned|0"),
+        (ExpectationKind.RelationshipCount, "Bogus|Command:PlanBatch|Event:BatchPlanned|1"),
+        (ExpectationKind.RelationshipCount, "Produces|Command:PlanBatch|Event:BatchPlanned|one"),
+        (ExpectationKind.RelationshipCount, "Produces|Command:PlanBatch|Event:BatchPlanned"));
+
     [Fact] void should_meet_a_relationship_kind_that_exists() => Met(ExpectationKind.Relationship, "Produces").ShouldBeTrue();
     [Fact] void should_not_meet_a_relationship_kind_that_does_not_exist() => Met(ExpectationKind.Relationship, "Bogus").ShouldBeFalse();
     [Fact] void should_not_meet_a_relationship_kind_that_is_only_a_prefix() => Met(ExpectationKind.Relationship, "Produce").ShouldBeFalse();

@@ -11,6 +11,39 @@ public class when_checking_artifact_expectations : given.a_canonical_kitchen_res
     const string PlanPath = "Application/Kitchen/Planning/PlanBatch.cs";
     const string CardPath = "Application/Kitchen/Cards/BatchCard.cs";
 
+    void Because() => Evaluate(
+        (ExpectationKind.Artifact, "Command:PlanBatch"),
+        (ExpectationKind.Artifact, "Event:PlanBatch"),
+        (ExpectationKind.Artifact, "Command:Plan"),
+        (ExpectationKind.Artifact, "PlanBatch"),
+        (ExpectationKind.ArtifactCount, "Command|6"),
+        (ExpectationKind.ArtifactCount, "Event|6"),
+        (ExpectationKind.ArtifactCount, "Command|5"),
+        (ExpectationKind.ArtifactCount, "Bogus|1"),
+        (ExpectationKind.ArtifactCount, "Command|six"),
+        (ExpectationKind.ArtifactCount, "Command"),
+        (ExpectationKind.ArtifactCount, "Command|6|x"),
+        (ExpectationKind.Evidence, $"Event:BatchPlanned|{AdapterId}|{PlanPath}"),
+        (ExpectationKind.Evidence, $"Event:BatchPlanned|{AdapterId}|{CardPath}"),
+        (ExpectationKind.Evidence, $"Event:BatchPlanned|other.adapter|{PlanPath}"),
+        (ExpectationKind.Evidence, $"Event:BatchPlanned|{AdapterId}|Application/Kitchen"),
+        (ExpectationKind.Evidence, $"Event:Missing|{AdapterId}|{PlanPath}"),
+        (ExpectationKind.Evidence, $"Event:BatchPlanned|{AdapterId}"),
+        (ExpectationKind.EvidenceCount, "Event:BatchPlanned|2"),
+        (ExpectationKind.EvidenceCount, "Event:BatchPlanned|1"),
+        (ExpectationKind.EvidenceCount, "Event:BatchPlanned|two"),
+        (ExpectationKind.EvidenceCount, "Event:Missing|1"),
+        (ExpectationKind.EvidenceCount, "Event:BatchPlanned"),
+        (ExpectationKind.Identifier, "Command:PlanBatch:id"),
+        (ExpectationKind.Identifier, "Document:BatchCard:id"),
+        (ExpectationKind.Identifier, "Command:PlanBatch:recipe"),
+        (ExpectationKind.Identifier, "Command:PlanBatch:missing"),
+        (ExpectationKind.Identifier, "ReadModel:BatchCard:id"),
+        (ExpectationKind.Identifier, "Command:PlanBatch"),
+        (ExpectationKind.NotIdentifier, "Command:PlanBatch:recipe"),
+        (ExpectationKind.NotIdentifier, "Command:PlanBatch:id"),
+        (ExpectationKind.NotIdentifier, "Command:PlanBatch"));
+
     [Fact] void should_meet_an_artifact_with_that_kind_and_name() => Met(ExpectationKind.Artifact, "Command:PlanBatch").ShouldBeTrue();
     [Fact] void should_not_meet_an_artifact_with_another_kind() => Met(ExpectationKind.Artifact, "Event:PlanBatch").ShouldBeFalse();
     [Fact] void should_not_meet_an_artifact_that_is_only_a_name_prefix() => Met(ExpectationKind.Artifact, "Command:Plan").ShouldBeFalse();

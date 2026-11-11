@@ -7,6 +7,24 @@ namespace Cratis.CritterStack.Screenplay.for_Expectations;
 
 public class when_checking_grouping_and_fan_out_expectations : given.a_canonical_multi_stream_result
 {
+    void Because() => Evaluate(
+        (ExpectationKind.Grouping, "CustomerOrdersProjection|CustomerAssigned|customerId|false"),
+        (ExpectationKind.Grouping, "CustomerOrdersProjection|CustomersShared|customerIds|true"),
+        (ExpectationKind.Grouping, "CustomerOrdersProjection|CustomerAssigned|customerId|true"),
+        (ExpectationKind.Grouping, "CustomerOrdersProjection|CustomerAssigned|customerIds|false"),
+        (ExpectationKind.Grouping, "UnsafeSelectorsProjection|CustomerAssigned|customerId|false"),
+        (ExpectationKind.Grouping, "CustomerOrdersProjection|LineImported|customerId|false"),
+        (ExpectationKind.Grouping, "CustomerOrdersProjection|CustomerAssigned|customerId|maybe"),
+        (ExpectationKind.Grouping, "CustomerOrdersProjection|CustomerAssigned|customerId"),
+        (ExpectationKind.FanOut, "OrderImported|LineImported|lines|after-grouping"),
+        (ExpectationKind.FanOut, "RouteImported|StopImported|stops|before-grouping"),
+        (ExpectationKind.FanOut, "RouteImported|StopImported|stops|after-grouping"),
+        (ExpectationKind.FanOut, "OrderImported|LineImported|items|after-grouping"),
+        (ExpectationKind.FanOut, "OrderImported|StopImported|lines|after-grouping"),
+        (ExpectationKind.FanOut, "Missing|LineImported|lines|after-grouping"),
+        (ExpectationKind.FanOut, "OrderImported|LineImported|lines"),
+        (ExpectationKind.DiagnosticMessage, "MARTEN0001|Multi-stream projection 'TenantGroupingProjection' groups by tenant through RollUpByTenant"));
+
     [Fact] void should_meet_a_single_identity_grouping() => Met(ExpectationKind.Grouping, "CustomerOrdersProjection|CustomerAssigned|customerId|false").ShouldBeTrue();
     [Fact] void should_meet_a_one_to_many_identity_grouping() => Met(ExpectationKind.Grouping, "CustomerOrdersProjection|CustomersShared|customerIds|true").ShouldBeTrue();
     [Fact] void should_not_meet_a_grouping_with_the_wrong_cardinality() => Met(ExpectationKind.Grouping, "CustomerOrdersProjection|CustomerAssigned|customerId|true").ShouldBeFalse();
