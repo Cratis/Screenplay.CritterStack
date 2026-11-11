@@ -23,8 +23,8 @@ public static class contribution_transcript
         var actual = Render(contribution);
         if (Environment.GetEnvironmentVariable("CRATIS_REGENERATE_GOLDEN") == "1")
         {
-            var sourceGolden = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(callerFilePath))!, "Golden", name + ".txt");
-            Directory.CreateDirectory(Path.GetDirectoryName(sourceGolden)!);
+            var sourceGolden = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(callerFilePath)), "Golden", name + ".txt");
+            Directory.CreateDirectory(Path.GetDirectoryName(sourceGolden));
             File.WriteAllText(sourceGolden, actual);
         }
 
