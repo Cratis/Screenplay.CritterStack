@@ -14,7 +14,7 @@ static class WolverineConventionAlterationDiscovery
         DotNetProjectCompilation project,
         CritterStackSubjectResolver subjects)
     {
-        var diagnostics = new List<GenerationDiagnostic>();
+        List<GenerationDiagnostic> diagnostics = [];
         diagnostics.AddRange(AlterationTypeDiagnostics(project, subjects));
         diagnostics.AddRange(MessageDiscoveryCustomizationDiagnostics(project, subjects));
 

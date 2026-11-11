@@ -14,7 +14,7 @@ static class WolverineHandlerDiscovery
         DotNetProjectCompilation project,
         CritterStackSubjectResolver subjects)
     {
-        var calls = ConfigurationCalls(project).ToArray();
+        ConfigurationCall[] calls = [.. ConfigurationCalls(project)];
         var state = new DiscoveryState(project, subjects);
         state.Diagnostics.AddRange(WolverineConventionAlterationDiscovery.Discover(project, subjects));
 
@@ -23,7 +23,7 @@ static class WolverineHandlerDiscovery
             ApplyCall(state, call);
         }
 
-        var distinctDisableValues = state.DisableValues.Distinct().ToArray();
+        bool[] distinctDisableValues = [.. state.DisableValues.Distinct()];
         if (distinctDisableValues.Length > 1)
         {
             state.ConventionalDiscoveryResolvable = false;
