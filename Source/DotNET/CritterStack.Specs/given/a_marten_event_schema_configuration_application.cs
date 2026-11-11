@@ -5,7 +5,7 @@ namespace Cratis.CritterStack.Screenplay.given;
 
 public class a_marten_event_schema_configuration_application : Specification
 {
-    const string FrameworkSource =
+    protected const string FrameworkSource =
         """
         namespace JasperFx.Events
         {
@@ -325,7 +325,7 @@ public class a_marten_event_schema_configuration_application : Specification
         }
         """;
 
-    static readonly IReadOnlyList<MetadataReference> _references =
+    protected static readonly IReadOnlyList<MetadataReference> _references =
     [
         .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
             .Split(Path.PathSeparator)
