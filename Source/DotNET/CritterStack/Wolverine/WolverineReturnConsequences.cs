@@ -126,18 +126,24 @@ static class WolverineReturnConsequences
             return WolverineReturnConsequenceKind.HttpResponse;
         }
 
-        if (context.AggregateWorkflow && !context.HasEventStream && IsPayload(named))
+        if (IsAggregateEvent(named, context))
         {
             return WolverineReturnConsequenceKind.PersistedEvent;
         }
 
-        if (context.IsHttpEndpoint && slot == 0 && !context.EmptyResponse)
+        if (IsHttpBody(slot, context))
         {
             return WolverineReturnConsequenceKind.HttpResponse;
         }
 
         return IsPayload(named) ? WolverineReturnConsequenceKind.Cascade : WolverineReturnConsequenceKind.Unknown;
     }
+
+    static bool IsAggregateEvent(INamedTypeSymbol named, WolverineReturnContext context) =>
+        context.AggregateWorkflow && !context.HasEventStream && IsPayload(named);
+
+    static bool IsHttpBody(int slot, WolverineReturnContext context) =>
+        context.IsHttpEndpoint && slot == 0 && !context.EmptyResponse;
 
     static ITypeSymbol? StorageActionEntityType(INamedTypeSymbol type)
     {

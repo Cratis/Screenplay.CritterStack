@@ -25,6 +25,17 @@ sealed record WolverineProduction(
     GenerationDiagnosticOutcome LossOutcome = GenerationDiagnosticOutcome.Unknown);
 
 /// <summary>
+/// The handler declaration, its semantic model and the project a production is read from.
+/// </summary>
+/// <param name="Declaration">The handler method declaration.</param>
+/// <param name="SemanticModel">The semantic model of the declaration's tree.</param>
+/// <param name="Project">The project compilation.</param>
+sealed record WolverineProductionScope(
+    MethodDeclarationSyntax Declaration,
+    SemanticModel SemanticModel,
+    DotNetProjectCompilation Project);
+
+/// <summary>
 /// Reads the events a Wolverine handler produces through direct Marten session appends and aggregate-handler yields.
 /// </summary>
 static class WolverineProductionLinks
@@ -47,7 +58,7 @@ static class WolverineProductionLinks
         [
             .. WolverineMethodSyntax.Declarations(method, project)
                 .SelectMany(_ => _.Declaration.DescendantNodes().OfType<InvocationExpressionSyntax>()
-                    .SelectMany(invocationSyntax => AppendProductions(invocationSyntax, _.Declaration, _.SemanticModel, request, project)))
+                    .SelectMany(invocationSyntax => AppendProductions(invocationSyntax, new(_.Declaration, _.SemanticModel, project), request)))
         ];
     }
 
@@ -69,7 +80,7 @@ static class WolverineProductionLinks
                 .SelectMany(_ => _.Declaration.DescendantNodes()
                     .OfType<YieldStatementSyntax>()
                     .Where(yield => yield.Expression is not null && IsInHandlerBody(yield, _.Declaration))
-                    .SelectMany(yield => YieldProductions(yield, _.Declaration, _.SemanticModel, identity, project)))
+                    .SelectMany(yield => YieldProductions(yield, new(_.Declaration, _.SemanticModel, project), identity)))
         ];
     }
 
@@ -96,21 +107,18 @@ static class WolverineProductionLinks
 
     static IEnumerable<WolverineProduction> AppendProductions(
         InvocationExpressionSyntax invocationSyntax,
-        MethodDeclarationSyntax declaration,
-        SemanticModel semanticModel,
-        IParameterSymbol? request,
-        DotNetProjectCompilation project)
+        WolverineProductionScope scope,
+        IParameterSymbol? request)
     {
-        if (semanticModel.GetOperation(invocationSyntax) is not IInvocationOperation invocation ||
+        var project = scope.Project;
+        if (scope.SemanticModel.GetOperation(invocationSyntax) is not IInvocationOperation invocation ||
             !IsSessionAppend(invocation, project))
         {
             return [];
         }
 
         var source = CritterStackSource.RangeForProject(invocationSyntax.GetLocation(), project);
-        var payloadArguments = invocation.Arguments
-            .Where(_ => _.Parameter is not null && !IsStreamIdentityType(_.Parameter.Type) && !IsMetadataParameter(_.Parameter))
-            .ToArray();
+        var payloadArguments = PayloadArguments(invocation);
         if (!TryDirectEventTypes(payloadArguments, out var eventTypes))
         {
             return UndirectedPayloadTypes(payloadArguments, project)
@@ -118,15 +126,26 @@ static class WolverineProductionLinks
         }
 
         var (identity, identityLoss) = StreamIdentity(invocation, request);
-        var conditional = IsConditional(invocationSyntax, declaration);
-        var lossReason = identityLoss ?? (conditional ? "the append only happens on some paths through the handler" : null);
-        var lossOutcome = identityLoss is null && conditional
-            ? GenerationDiagnosticOutcome.Unsupported
-            : GenerationDiagnosticOutcome.Unknown;
+        var (lossReason, lossOutcome) = AppendLoss(identityLoss, IsConditional(invocationSyntax, scope.Declaration));
         return eventTypes
             .Where(_ => !WolverineSagaTypes.IsSagaState(_, project))
             .Select(_ => new WolverineProduction(_, lossReason is null ? identity : null, lossReason, source, lossOutcome));
     }
+
+    static (string? Reason, GenerationDiagnosticOutcome Outcome) AppendLoss(string? identityLoss, bool conditional)
+    {
+        if (identityLoss is not null)
+        {
+            return (identityLoss, GenerationDiagnosticOutcome.Unknown);
+        }
+
+        return conditional
+            ? ("the append only happens on some paths through the handler", GenerationDiagnosticOutcome.Unsupported)
+            : (null, GenerationDiagnosticOutcome.Unknown);
+    }
+
+    static IArgumentOperation[] PayloadArguments(IInvocationOperation invocation) =>
+        [.. invocation.Arguments.Where(_ => _.Parameter is not null && !IsStreamIdentityType(_.Parameter.Type) && !IsMetadataParameter(_.Parameter))];
 
     static bool TryDirectEventTypes(IArgumentOperation[] payloadArguments, out List<INamedTypeSymbol> eventTypes)
     {
@@ -151,11 +170,10 @@ static class WolverineProductionLinks
 
     static IEnumerable<WolverineProduction> YieldProductions(
         YieldStatementSyntax yield,
-        MethodDeclarationSyntax declaration,
-        SemanticModel semanticModel,
-        ISymbol? identity,
-        DotNetProjectCompilation project)
+        WolverineProductionScope scope,
+        ISymbol? identity)
     {
+        var (declaration, semanticModel, project) = scope;
         var source = CritterStackSource.RangeForProject(yield.GetLocation(), project);
         if (semanticModel.GetOperation(yield.Expression!) is not { } operation ||
             !WolverineEventStreams.TryGetDirectPayloads(operation, out var eventTypes))
