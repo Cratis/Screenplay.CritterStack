@@ -129,7 +129,7 @@ public static class WolverineDiagnosticCodes
     public const string SlicePatternOmitted = "WOLVERINE0024";
 
     /// <summary>
-    /// A command's produced event could not be linked with <c>produces</c>, so the model references the handler instead.
+    /// A command's produced event could not be linked with produces, so the model references the handler instead.
     /// </summary>
     public const string ProductionLinkOmitted = "WOLVERINE0025";
 }

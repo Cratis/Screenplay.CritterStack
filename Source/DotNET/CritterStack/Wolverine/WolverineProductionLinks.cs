@@ -14,7 +14,7 @@ namespace Cratis.CritterStack.Screenplay.Wolverine;
 /// </summary>
 /// <param name="EventType">The produced event type.</param>
 /// <param name="StreamIdentity">The command member that identifies the target stream, when read from source.</param>
-/// <param name="LossReason">Why the production cannot be represented as a <c>produces</c> link, or <see langword="null"/>.</param>
+/// <param name="LossReason">Why the production cannot be represented as a produces link, or <see langword="null"/>.</param>
 /// <param name="Source">The source range of the producing expression.</param>
 /// <param name="LossOutcome">Whether a loss is unknown input or a recognized but unrepresentable behavior.</param>
 sealed record WolverineProduction(
@@ -32,7 +32,7 @@ static class WolverineProductionLinks
     static readonly HashSet<string> _sessionAppendMethods = ["Append", "StartStream"];
 
     /// <summary>
-    /// Discovers <c>session.Events.Append(id, ...)</c> and <c>session.Events.StartStream(id, ...)</c> productions.
+    /// Discovers session.Events.Append(id, ...) and session.Events.StartStream(id, ...) productions.
     /// </summary>
     /// <param name="method">The handler method.</param>
     /// <param name="request">The command parameter.</param>
@@ -94,7 +94,7 @@ static class WolverineProductionLinks
     }
 
     /// <summary>
-    /// Discovers events an aggregate handler yields through <c>yield return</c>.
+    /// Discovers events an aggregate handler yields through yield return.
     /// </summary>
     /// <param name="method">The aggregate handler method.</param>
     /// <param name="identity">The command member identifying the aggregate stream, if known.</param>
