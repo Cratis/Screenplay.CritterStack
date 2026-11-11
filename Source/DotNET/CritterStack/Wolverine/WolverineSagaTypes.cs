@@ -21,7 +21,7 @@ static class WolverineSagaTypes
             type,
             sagaType,
             project,
-            new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default));
+            [with(SymbolEqualityComparer.Default)]);
     }
 
     static bool IsAuthoredOrMetadataAssignableTo(

@@ -11,7 +11,7 @@ sealed record CritterStackSubjectResolutionCheckpoint(int UnresolvedUseCount);
 
 sealed class CritterStackSubjectResolver(DotNetAnalysisContext? context, DotNetAnalysisContext? typeContext = null)
 {
-    readonly SortedDictionary<string, GenerationDiagnostic> _diagnostics = new(StringComparer.Ordinal);
+    readonly SortedDictionary<string, GenerationDiagnostic> _diagnostics = [with(StringComparer.Ordinal)];
     int _unresolvedUseCount;
 
     public IReadOnlyList<GenerationDiagnostic> Diagnostics => [.. _diagnostics.Values];

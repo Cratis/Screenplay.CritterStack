@@ -461,6 +461,6 @@ internal static partial class WolverineFacts
 
         public HashSet<SubjectId> ProducedEvents { get; } = [];
 
-        public HashSet<string> AppendRelationships { get; } = new(StringComparer.Ordinal);
+        public HashSet<string> AppendRelationships { get; } = [with(StringComparer.Ordinal)];
     }
 }
