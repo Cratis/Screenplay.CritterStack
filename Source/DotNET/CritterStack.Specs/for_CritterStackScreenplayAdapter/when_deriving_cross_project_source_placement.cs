@@ -64,8 +64,8 @@ public class when_deriving_cross_project_source_placement : given.a_cross_projec
         var ambiguousDiagnosticCheckpoint = ambiguousDiagnosticSubjects.Checkpoint();
         _ = WolverineConventionAlterationDiscovery.Discover(diagnosticScanner, ambiguousDiagnosticSubjects);
         _diagnosticOnlyWolverineAmbiguityBlocked = ambiguousDiagnosticSubjects.HasBlockingDiagnosticsSince(ambiguousDiagnosticCheckpoint);
-        var marten = Marten.MartenFacts.Discover(projects.Application, AdapterOptions, Adapter.Identity, subjects);
-        var wolverine = Wolverine.WolverineFacts.Discover(projects.Application, AdapterOptions, Adapter.Identity, subjects);
+        var marten = MartenFacts.Discover(projects.Application, AdapterOptions, Adapter.Identity, subjects);
+        var wolverine = WolverineFacts.Discover(projects.Application, AdapterOptions, Adapter.Identity, subjects);
         _placementIntents = [.. marten.Placements ?? [], .. wolverine.Placements ?? []];
         _contribution = Adapter.Analyze(context, AdapterOptions);
         _contextCompatibility = Adapter.AnalyzeCompatibility(context, AdapterOptions);
@@ -109,15 +109,18 @@ public class when_deriving_cross_project_source_placement : given.a_cross_projec
     [Fact] void should_emit_no_placements_when_only_an_unrelated_same_name_assembly_is_present() => _missingOwnerWithUnrelatedCollision.Facts.OfType<ArtifactPlacementFact>().ShouldBeEmpty();
     [Fact] void should_keep_same_name_collision_results_deterministic_when_project_order_is_reversed() => FactSignatures(_withUnrelatedCollisionReversed).SequenceEqual(FactSignatures(_withUnrelatedCollision)).ShouldBeTrue();
     [Fact] void should_keep_same_name_collision_diagnostics_deterministic_when_project_order_is_reversed() => DiagnosticSignatures(_withUnrelatedCollisionReversed).SequenceEqual(DiagnosticSignatures(_withUnrelatedCollision)).ShouldBeTrue();
-    [Fact] void should_use_exact_cross_project_relationship_subjects() => Relationships.ShouldContain(_ =>
+    [Fact]
+    void should_use_exact_cross_project_relationship_subjects() => Relationships.ShouldContain(_ =>
         _.Kind == RelationshipKind.Produces &&
         _.Source == _domainRequest &&
         _.Target == _domainEvent);
-    [Fact] void should_use_the_exact_domain_target_for_the_root_projection_relationship() => Relationships.ShouldContain(_ =>
+    [Fact]
+    void should_use_the_exact_domain_target_for_the_root_projection_relationship() => Relationships.ShouldContain(_ =>
         _.Kind == RelationshipKind.Builds &&
         _.Source.Value == $"{_projection.Value}#reducer" &&
         _.Target == _domainModel);
-    [Fact] void should_keep_type_backed_placement_requests_self_owned() => new[]
+    [Fact]
+    void should_keep_type_backed_placement_requests_self_owned() => new[]
     {
         PlacementIntents(ArtifactKind.Command, _domainRequest),
         PlacementIntents(ArtifactKind.ReadModel, _domainModel)
@@ -195,7 +198,7 @@ public class when_deriving_cross_project_source_placement : given.a_cross_projec
     }
 
     static SubjectId SubjectFor(DotNetProjectCompilation project, string metadataName) =>
-        project.SubjectForType(project.Compilation.GetTypeByMetadataName(metadataName)!);
+        project.SubjectForType(project.Compilation.GetTypeByMetadataName(metadataName));
 
     static DotNetAnalysisContext AmbiguousContext(ProjectPair projects, bool reverse)
     {

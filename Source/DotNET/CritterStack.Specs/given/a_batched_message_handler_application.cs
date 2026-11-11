@@ -28,7 +28,7 @@ public class a_batched_message_handler_application : Specification
 
     static readonly IReadOnlyList<MetadataReference> _references =
     [
-        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
             .Split(Path.PathSeparator)
             .Select(_ => MetadataReference.CreateFromFile(_))
     ];

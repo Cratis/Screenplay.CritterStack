@@ -23,115 +23,22 @@ static class MartenDocumentFacts
         IReadOnlyList<MartenDocumentUsage> projectedDocuments,
         bool includeIntegrationApis = true)
     {
-        var facts = new List<GenerationFact>();
-        var diagnostics = new List<GenerationDiagnostic>();
-        var documents = projectedDocuments
-            .GroupBy(_ => subjects.SubjectForType(project, _.Type))
-            .ToDictionary(
-                _ => _.Key,
-                _ => new DocumentObservation(_.First().Type, _.First().Evidence));
+        var state = new DiscoveryState(project, adapter, subjects, projectedDocuments);
         foreach (var tree in project.AuthoredSyntaxTrees.Where(_ => !DotNetGeneratedSource.IsGenerated(_)))
         {
             var semanticModel = project.Compilation.GetSemanticModel(tree);
             foreach (var invocation in DotNetSource.AuthoredInvocationsIn(tree.GetRoot(), project))
             {
-                if (DotNetInvocations.MethodFor(invocation, semanticModel) is not { } method || !IsMarten(method, includeIntegrationApis))
-                {
-                    continue;
-                }
-
-                if (IsIdentityConfiguration(method))
-                {
-                    ObserveIdentityConfiguration(project, adapter, subjects, invocation, method, semanticModel, documents, diagnostics);
-                    continue;
-                }
-
-                if (MartenCompiledQueryDiscovery.IsCompiledQueryExecution(method))
-                {
-                    if (MartenCompiledQueryDiscovery.TryResolve(invocation, semanticModel, out var plan))
-                    {
-                        var compiledEvidence = UsageEvidence(project, adapter, invocation, method.Name);
-                        documents.TryAdd(subjects.SubjectForType(project, plan.DocumentType), new(plan.DocumentType, compiledEvidence));
-                    }
-                    continue;
-                }
-
-                var kind = RelationshipKindFor(method.Name);
-                if (((kind is RelationshipKind.Stores or RelationshipKind.Updates or RelationshipKind.Deletes) &&
-                     IsInEventProjection(invocation, semanticModel)) ||
-                    (kind is not null && IsInUnresolvedCustomProcessor(invocation, semanticModel)))
-                {
-                    continue;
-                }
-
-                if (kind is null && !_configurationMethods.Contains(method.Name))
-                {
-                    continue;
-                }
-
-                var documentType = DocumentTypeFrom(method, invocation, semanticModel);
-                if (documentType is null || !IsSourceType(documentType))
-                {
-                    continue;
-                }
-
-                var evidence = UsageEvidence(project, adapter, invocation, method.Name);
-                var documentSubject = subjects.SubjectForType(project, documentType);
-                documents.TryAdd(documentSubject, new(documentType, evidence));
-                if (kind is not null && semanticModel.GetEnclosingSymbol(invocation.SpanStart) is IMethodSymbol containingMethod)
-                {
-                    var methodSubject = DotNetMethodIdentity.SubjectFor(project, containingMethod);
-                    facts.Add(Artifact(
-                        $"marten:handler:{methodSubject.Value}",
-                        methodSubject,
-                        ArtifactKind.Handler,
-                        DotNetMethodIdentity.DisplayName(containingMethod),
-                        SourceFileOf(containingMethod, project),
-                        [],
-                        evidence));
-                    facts.Add(Relationship(
-                        $"marten:{kind}:{methodSubject.Value}:{documentSubject.Value}:{invocation.SpanStart}",
-                        methodSubject,
-                        kind.Value,
-                        documentSubject,
-                        evidence));
-                }
+                ObserveInvocation(state, invocation, semanticModel, includeIntegrationApis);
             }
         }
 
-        foreach (var (subject, observed) in documents.OrderBy(_ => _.Key.Value, StringComparer.Ordinal))
+        foreach (var (subject, observed) in state.Documents.OrderBy(_ => _.Key.Value, StringComparer.Ordinal))
         {
-            var identityMember = observed.IdentityConfigurationUnresolved
-                ? null
-                : observed.IdentityMember ?? ConventionalIdentityMember(observed.Type);
-            var properties = DocumentPropertiesOf(observed.Type);
-            var identityProperty = identityMember is null
-                ? null
-                : properties.SingleOrDefault(_ => SymbolEqualityComparer.Default.Equals(_.Member, identityMember));
-            if (identityMember is not null && identityProperty is null)
-            {
-                diagnostics.Add(new GenerationDiagnostic
-                {
-                    Code = MartenDiagnosticCodes.DocumentIdentityUnresolved,
-                    Severity = GenerationDiagnosticSeverity.Warning,
-                    Outcome = GenerationDiagnosticOutcome.Unsupported,
-                    Message = $"Marten identity member '{identityMember.ContainingType?.Name}.{identityMember.Name}' cannot be represented uniquely in the emitted '{observed.Type.Name}' document property shape",
-                    Source = observed.IdentityEvidence?.Source ?? observed.RegistrationEvidence.Source,
-                    Subject = subject
-                });
-            }
-
-            facts.Add(Artifact(
-                $"marten:document:{subject.Value}",
-                subject,
-                ArtifactKind.Document,
-                observed.Type.Name,
-                SourceFileOf(observed.Type, project),
-                [.. properties.Select(_ => _.Definition with { IsIdentifier = _ == identityProperty })],
-                observed.RegistrationEvidence));
+            AddDocumentFacts(state, subject, observed);
         }
 
-        diagnostics.AddRange(documents
+        state.Diagnostics.AddRange(state.Documents
             .OrderBy(_ => _.Key.Value, StringComparer.Ordinal)
             .Select(_ => new GenerationDiagnostic
             {
@@ -143,18 +50,144 @@ static class MartenDocumentFacts
                 Subject = _.Key
             }));
 
-        return new(facts, diagnostics, []);
+        return new(state.Facts, state.Diagnostics, []);
+    }
+
+    static void ObserveInvocation(
+        DiscoveryState state,
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel,
+        bool includeIntegrationApis)
+    {
+        if (DotNetInvocations.MethodFor(invocation, semanticModel) is not { } method || !IsMarten(method, includeIntegrationApis))
+        {
+            return;
+        }
+
+        if (IsIdentityConfiguration(method))
+        {
+            ObserveIdentityConfiguration(state, invocation, method, semanticModel);
+        }
+        else if (MartenCompiledQueryDiscovery.IsCompiledQueryExecution(method))
+        {
+            ObserveCompiledQueryExecution(state, invocation, method, semanticModel);
+        }
+        else
+        {
+            ObserveDocumentUsage(state, invocation, method, semanticModel);
+        }
+    }
+
+    static void ObserveCompiledQueryExecution(
+        DiscoveryState state,
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol method,
+        SemanticModel semanticModel)
+    {
+        if (!MartenCompiledQueryDiscovery.TryResolve(invocation, semanticModel, out var plan))
+        {
+            return;
+        }
+
+        var compiledEvidence = UsageEvidence(state.Project, state.Adapter, invocation, method.Name);
+        state.Documents.TryAdd(state.Subjects.SubjectForType(state.Project, plan.DocumentType), new(plan.DocumentType, compiledEvidence));
+    }
+
+    static void ObserveDocumentUsage(
+        DiscoveryState state,
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol method,
+        SemanticModel semanticModel)
+    {
+        var kind = RelationshipKindFor(method.Name);
+        if (IsIgnoredUsage(kind, invocation, semanticModel) ||
+            (kind is null && !_configurationMethods.Contains(method.Name)))
+        {
+            return;
+        }
+
+        var documentType = DocumentTypeFrom(method, invocation, semanticModel);
+        if (documentType is null || !IsSourceType(documentType))
+        {
+            return;
+        }
+
+        var evidence = UsageEvidence(state.Project, state.Adapter, invocation, method.Name);
+        var documentSubject = state.Subjects.SubjectForType(state.Project, documentType);
+        state.Documents.TryAdd(documentSubject, new(documentType, evidence));
+        if (kind is not null && semanticModel.GetEnclosingSymbol(invocation.SpanStart) is IMethodSymbol containingMethod)
+        {
+            AddHandlerFacts(state, invocation, kind.Value, containingMethod, documentSubject, evidence);
+        }
+    }
+
+    static bool IsIgnoredUsage(RelationshipKind? kind, InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>
+        (kind is RelationshipKind.Stores or RelationshipKind.Updates or RelationshipKind.Deletes &&
+         IsInEventProjection(invocation, semanticModel)) ||
+        (kind is not null && IsInUnresolvedCustomProcessor(invocation, semanticModel));
+
+    static void AddHandlerFacts(
+        DiscoveryState state,
+        InvocationExpressionSyntax invocation,
+        RelationshipKind kind,
+        IMethodSymbol containingMethod,
+        SubjectId documentSubject,
+        Evidence evidence)
+    {
+        var methodSubject = DotNetMethodIdentity.SubjectFor(state.Project, containingMethod);
+        state.Facts.Add(Artifact(
+            $"marten:handler:{methodSubject.Value}",
+            methodSubject,
+            ArtifactKind.Handler,
+            DotNetMethodIdentity.DisplayName(containingMethod),
+            SourceFileOf(containingMethod, state.Project),
+            [],
+            evidence));
+        state.Facts.Add(Relationship(
+            $"marten:{kind}:{methodSubject.Value}:{documentSubject.Value}:{invocation.SpanStart}",
+            methodSubject,
+            kind,
+            documentSubject,
+            evidence));
+    }
+
+    static void AddDocumentFacts(DiscoveryState state, SubjectId subject, DocumentObservation observed)
+    {
+        var identityMember = observed.IdentityConfigurationUnresolved
+            ? null
+            : observed.IdentityMember ?? ConventionalIdentityMember(observed.Type);
+        var properties = DocumentPropertiesOf(observed.Type);
+        var identityProperty = identityMember is null
+            ? null
+            : properties.SingleOrDefault(_ => SymbolEqualityComparer.Default.Equals(_.Member, identityMember));
+        if (identityMember is not null && identityProperty is null)
+        {
+            state.Diagnostics.Add(new GenerationDiagnostic
+            {
+                Code = MartenDiagnosticCodes.DocumentIdentityUnresolved,
+                Severity = GenerationDiagnosticSeverity.Warning,
+                Outcome = GenerationDiagnosticOutcome.Unsupported,
+                Message = $"Marten identity member '{identityMember.ContainingType?.Name}.{identityMember.Name}' cannot be represented uniquely in the emitted '{observed.Type.Name}' document property shape",
+                Source = observed.IdentityEvidence?.Source ?? observed.RegistrationEvidence.Source,
+                Subject = subject
+            });
+        }
+
+        state.Facts.Add(Artifact(
+            $"marten:document:{subject.Value}",
+            subject,
+            ArtifactKind.Document,
+            observed.Type.Name,
+            SourceFileOf(observed.Type, state.Project),
+            [.. properties.Select(_ => _.Definition with { IsIdentifier = _ == identityProperty })],
+            observed.RegistrationEvidence));
     }
 
     static void ObserveIdentityConfiguration(
-        DotNetProjectCompilation project,
-        AdapterIdentity adapter,
-        CritterStackSubjectResolver subjects,
+        DiscoveryState state,
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
-        SemanticModel semanticModel,
-        Dictionary<SubjectId, DocumentObservation> documents,
-        List<GenerationDiagnostic> diagnostics)
+        SemanticModel semanticModel)
     {
         var candidate = method.ReducedFrom ?? method;
         if (candidate.ContainingType.TypeArguments.FirstOrDefault() is not INamedTypeSymbol documentType ||
@@ -165,25 +198,24 @@ static class MartenDocumentFacts
 
         var evidence = new Evidence
         {
-            Adapter = adapter,
+            Adapter = state.Adapter,
             Strength = EvidenceStrength.Configured,
-            Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
+            Source = CritterStackSource.RangeForProject(invocation.GetLocation(), state.Project),
             Explanation = $"Marten document identity configured through Schema.For<{documentType.Name}>().Identity(...)"
         };
-        var subject = subjects.SubjectForType(project, documentType);
-        documents.TryAdd(subject, new(documentType, evidence));
+        var subject = state.Subjects.SubjectForType(state.Project, documentType);
+        state.Documents.TryAdd(subject, new(documentType, evidence));
         var identityMember = ResolveIdentityMember(invocation, semanticModel, documentType);
+        state.Documents[subject] = state.Documents[subject] with
+        {
+            RegistrationEvidence = evidence,
+            IdentityMember = identityMember,
+            IdentityEvidence = evidence,
+            IdentityConfigurationUnresolved = identityMember is null
+        };
         if (identityMember is null)
         {
-            var unresolved = documents[subject];
-            documents[subject] = unresolved with
-            {
-                RegistrationEvidence = evidence,
-                IdentityMember = null,
-                IdentityEvidence = evidence,
-                IdentityConfigurationUnresolved = true
-            };
-            diagnostics.Add(new GenerationDiagnostic
+            state.Diagnostics.Add(new GenerationDiagnostic
             {
                 Code = MartenDiagnosticCodes.DocumentIdentityUnresolved,
                 Severity = GenerationDiagnosticSeverity.Warning,
@@ -192,17 +224,7 @@ static class MartenDocumentFacts
                 Source = evidence.Source,
                 Subject = subject
             });
-            return;
         }
-
-        var observed = documents[subject];
-        documents[subject] = observed with
-        {
-            RegistrationEvidence = evidence,
-            IdentityMember = identityMember,
-            IdentityEvidence = evidence,
-            IdentityConfigurationUnresolved = false
-        };
     }
 
     static ISymbol? ResolveIdentityMember(
@@ -438,6 +460,29 @@ static class MartenDocumentFacts
     static string LowerFirst(string value) => value.Length == 0
         ? value
         : $"{char.ToLowerInvariant(value[0])}{value[1..]}";
+
+    sealed class DiscoveryState(
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
+        IReadOnlyList<MartenDocumentUsage> projectedDocuments)
+    {
+        public DotNetProjectCompilation Project { get; } = project;
+
+        public AdapterIdentity Adapter { get; } = adapter;
+
+        public CritterStackSubjectResolver Subjects { get; } = subjects;
+
+        public List<GenerationFact> Facts { get; } = [];
+
+        public List<GenerationDiagnostic> Diagnostics { get; } = [];
+
+        public Dictionary<SubjectId, DocumentObservation> Documents { get; } = projectedDocuments
+            .GroupBy(_ => subjects.SubjectForType(project, _.Type))
+            .ToDictionary(
+                _ => _.Key,
+                _ => new DocumentObservation(_.First().Type, _.First().Evidence));
+    }
 
     sealed record DocumentProperty(IPropertySymbol Member, PropertyDefinition Definition);
 

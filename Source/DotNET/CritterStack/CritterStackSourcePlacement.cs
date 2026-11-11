@@ -181,6 +181,7 @@ static class CritterStackSourcePlacement
     /// An event that is also consumed by a projection carries a self-owned request from that projection; the producing
     /// command still wins, because an event belongs to the state change that appends it rather than to a state view.
     /// </remarks>
+    /// <param name="intents">The placement intents to collapse.</param>
     static IReadOnlyList<CritterStackPlacementIntent> CollapseProducedEvents(IReadOnlyList<CritterStackPlacementIntent> intents) =>
     [
         .. intents

@@ -23,8 +23,8 @@ public class when_analyzing_exact_marten_tenancy_configuration : given.a_marten_
     [Fact] void should_retain_the_global_multi_tenancy_policy_occurrences() => PolicyDiagnostics.Count(_ => _.Message.Contains("'AllDocumentsAreMultiTenanted'", StringComparison.Ordinal)).ShouldEqual(2);
     [Fact] void should_retain_both_partitioning_policy_overloads() => PolicyDiagnostics.Count(_ => _.Message.Contains("'AllDocumentsAreMultiTenantedWithPartitioning'", StringComparison.Ordinal)).ShouldEqual(2);
     [Fact] void should_keep_policy_evidence_project_scoped() => PolicyDiagnostics.All(_ => _.Subject.Value == "dotnet:project/Orders").ShouldBeTrue();
-    [Fact] void should_anchor_every_declaration_at_its_authored_occurrence() => TenancyDiagnostics.All(_ => _.Source!.StartLine > 0 && _.Source.StartColumn > 0).ShouldBeTrue();
-    [Fact] void should_preserve_each_authored_occurrence_without_collapsing_locations() => TenancyDiagnostics.Select(_ => (_.Source!.Path, _.Source.StartLine, _.Source.StartColumn)).Distinct().Count().ShouldEqual(TenancyDiagnostics.Count);
+    [Fact] void should_anchor_every_declaration_at_its_authored_occurrence() => TenancyDiagnostics.All(_ => _.Source.StartLine > 0 && _.Source.StartColumn > 0).ShouldBeTrue();
+    [Fact] void should_preserve_each_authored_occurrence_without_collapsing_locations() => TenancyDiagnostics.Select(_ => (_.Source.Path, _.Source.StartLine, _.Source.StartColumn)).Distinct().Count().ShouldEqual(TenancyDiagnostics.Count);
     [Fact] void should_only_originate_documents_from_independent_schema_for_registrations() => DocumentNames.Count.ShouldEqual(4);
     [Fact] void should_originate_each_independently_registered_document() => DocumentNames.ToHashSet().SetEquals(["ConflictingDocument", "MultiDocument", "PartitionedDocument", "SingleDocument"]).ShouldBeTrue();
     [Fact] void should_not_originate_attribute_only_documents() => DocumentNames.Intersect(_attributedOnlyTypes).ShouldBeEmpty();

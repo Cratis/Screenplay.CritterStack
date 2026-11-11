@@ -38,7 +38,7 @@ public class when_the_enum_is_owned_by_another_analyzed_project : given.an_enum_
         _reversed = adapter.Analyze(new([_contracts, Project]), new());
     }
 
-    [Fact] void should_resolve_the_concept_to_its_exact_owner() => Representation(_forward).Subject.ShouldEqual(_contracts.SubjectForType(_contracts.Compilation.GetTypeByMetadataName("Ordering.Priority")!));
+    [Fact] void should_resolve_the_concept_to_its_exact_owner() => Representation(_forward).Subject.ShouldEqual(_contracts.SubjectForType(_contracts.Compilation.GetTypeByMetadataName("Ordering.Priority")));
     [Fact] void should_locate_the_owning_project_declaration() => Representation(_forward).Evidence.Source.FileIdentity.ShouldEqual(new SourceFileIdentity { Project = "Contracts/Contracts", Path = "Priority.cs" });
     [Fact] void should_keep_fact_identity_stable_across_project_order() => Representation(_reversed).Id.ShouldEqual(Representation(_forward).Id);
     [Fact] void should_keep_member_order_stable_across_project_order() => Representation(_reversed).Definition.EnumerationValues.SequenceEqual(Representation(_forward).Definition.EnumerationValues).ShouldBeTrue();

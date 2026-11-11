@@ -23,7 +23,7 @@ public class when_fetched_wolverine_event_stream_targets_are_unresolved : given.
     [Fact] void should_not_claim_valid_handles_for_repeated_identities() => HasEvent("RepeatAppended").ShouldBeFalse();
     [Fact] void should_explain_repeated_identity_runtime_rejection() => _result.Diagnostics.Any(diagnostic => diagnostic.Message.Contains("repeated authored identity expressions are not proven distinct", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_report_each_unsupported_exact_append_once() => Unresolved.Count.ShouldEqual(11);
-    [Fact] void should_locate_each_unsupported_occurrence() => Unresolved.Select(diagnostic => (diagnostic.Source!.Path, diagnostic.Source.StartLine, diagnostic.Source.StartColumn)).Distinct().Count().ShouldEqual(11);
+    [Fact] void should_locate_each_unsupported_occurrence() => Unresolved.Select(diagnostic => (diagnostic.Source.Path, diagnostic.Source.StartLine, diagnostic.Source.StartColumn)).Distinct().Count().ShouldEqual(11);
     [Fact] void should_exclude_nested_callback_and_generated_occurrences() => Unresolved.All(diagnostic => diagnostic.Source?.Path == "Batches/Handlers.cs").ShouldBeTrue();
 
     IReadOnlyList<GenerationDiagnostic> Unresolved => [.. _result.Diagnostics.Where(diagnostic => diagnostic.Code == WolverineDiagnosticCodes.EventWriteTargetUnresolved)];

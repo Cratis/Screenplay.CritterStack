@@ -75,7 +75,7 @@ public class when_an_enum_concept_name_matches_a_rejected_enum : Specification
             Name = "Ordering",
             ProjectPath = "/workspace/Ordering/Ordering.csproj",
             SourceRoot = "/workspace",
-            Compilation = CSharpCompilation.Create("Ordering", [tree], ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path)), new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)),
+            Compilation = CSharpCompilation.Create("Ordering", [tree], ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path)), new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)),
             AuthoredSyntaxTrees = new HashSet<SyntaxTree> { tree }
         };
     }
@@ -99,7 +99,7 @@ public class when_an_enum_concept_name_matches_a_rejected_enum : Specification
     [Fact] void should_keep_the_command_using_the_unsupported_enum() => _result.Source.ShouldContain("command SendInvoice");
     [Fact] void should_report_the_flags_enum() => _result.Diagnostics.Any(diagnostic => diagnostic.Code == CritterStackDiagnosticCodes.FlagsEnumOmitted).ShouldBeTrue();
     [Fact] void should_report_the_unsupported_enum() => _result.Diagnostics.Any(diagnostic => diagnostic.Code == CritterStackDiagnosticCodes.EnumValuesUnsupported).ShouldBeTrue();
-    [Fact] void should_report_each_dropped_enum_as_a_conflict() => Conflicts.Select(diagnostic => diagnostic.Subject!.Value).Distinct().Count().ShouldEqual(2);
+    [Fact] void should_report_each_dropped_enum_as_a_conflict() => Conflicts.Select(diagnostic => diagnostic.Subject.Value).Distinct().Count().ShouldEqual(2);
     [Fact] void should_locate_each_conflict() => Conflicts.All(diagnostic => diagnostic.Source?.Path == "Ordering/Application.cs" && diagnostic.Source.StartLine > 0).ShouldBeTrue();
     [Fact] void should_not_report_missing_concepts() => _result.Diagnostics.Where(diagnostic => diagnostic.Code == "GEN0016").ShouldBeEmpty();
 

@@ -34,59 +34,9 @@ static class WolverineFetchedEventStreams
         {
             foreach (var variable in declaration.DescendantNodes().OfType<VariableDeclaratorSyntax>())
             {
-                if (!IsDirect(variable, declaration) ||
-                    variable.Initializer is null ||
-                    semanticModel.GetDeclaredSymbol(variable) is not ILocalSymbol local ||
-                    Unwrap(semanticModel.GetOperation(variable.Initializer.Value)) is not IAwaitOperation awaited ||
-                    FetchInvocation(awaited.Operation) is not { } fetch ||
-                    !TryModel(fetch.TargetMethod, project, out var model) ||
-                    fetch.Arguments.FirstOrDefault(argument => argument.Parameter?.Ordinal == 0)?.Value is not { } identities)
+                if (FetchSiteOf(variable, declaration, semanticModel, project) is { } fetchSite)
                 {
-                    continue;
-                }
-
-                var source = CritterStackSource.RangeForProject(fetch.Syntax.GetLocation(), project);
-                var site = $"{DotNetMethodIdentity.SubjectFor(project, method).Value}:{source?.Path}:{fetch.Syntax.SpanStart.ToString(CultureInfo.InvariantCulture)}";
-                var input = Unwrap(identities)!;
-                var elements = Elements(input);
-
-                // A fixed batch of two or more identities only proves distinct streams when every identity is keyed
-                // semantically; an identity that is not (an invocation or another arbitrary expression) may repeat
-                // another, and the framework rejects duplicate IDs at runtime.
-                var keys = elements is { Count: > 1 } ? elements.Select(IdentityKey).ToArray() : [];
-                var uncomparable = keys.Any(key => key is null);
-                var repeated = !uncomparable && keys.Distinct(StringComparer.Ordinal).Count() != keys.Length;
-                if (elements is { Count: > 0 })
-                {
-                    for (var index = 0; index < elements.Count; index++)
-                    {
-                        Add(elements[index], index, isCollection: false, isEmpty: false);
-                    }
-                }
-                else
-                {
-                    Add(input, null, isCollection: elements is null, isEmpty: elements is { Count: 0 });
-                }
-
-                void Add(IOperation identity, int? index, bool isCollection, bool isEmpty)
-                {
-                    var member = IdentityMember(identity, method, request, project);
-                    bindings.Add(new WolverineStateBinding(
-                        DotNetMethodIdentity.SubjectFor(project, method).Value,
-                        null,
-                        model,
-                        WolverineStateBindingKind.FetchedEventStream,
-                        new(member?.Name, source),
-                        new(null, source),
-                        new("Optimistic", source),
-                        new(false, source),
-                        member,
-                        null,
-                        false,
-                        source)
-                    {
-                        Fetched = new(local, site, index, isCollection, isEmpty, repeated, uncomparable, identity.Syntax.ToString())
-                    });
+                    bindings.AddRange(BindingsFor(fetchSite, method, request, project));
                 }
             }
         }
@@ -136,6 +86,77 @@ static class WolverineFetchedEventStreams
         return [];
     }
 
+    static FetchSite? FetchSiteOf(
+        VariableDeclaratorSyntax variable,
+        MethodDeclarationSyntax declaration,
+        SemanticModel semanticModel,
+        DotNetProjectCompilation project)
+    {
+        if (!IsDirect(variable, declaration) ||
+            variable.Initializer is null ||
+            semanticModel.GetDeclaredSymbol(variable) is not ILocalSymbol local ||
+            AwaitedFetch(variable.Initializer, semanticModel) is not { } fetch ||
+            !TryModel(fetch.TargetMethod, project, out var model) ||
+            fetch.Arguments.FirstOrDefault(argument => argument.Parameter?.Ordinal == 0)?.Value is not { } identities)
+        {
+            return null;
+        }
+
+        return new(local, fetch, model, identities);
+    }
+
+    static IInvocationOperation? AwaitedFetch(EqualsValueClauseSyntax initializer, SemanticModel semanticModel) =>
+        Unwrap(semanticModel.GetOperation(initializer.Value)) is IAwaitOperation awaited
+            ? FetchInvocation(awaited.Operation)
+            : null;
+
+    static IEnumerable<WolverineStateBinding> BindingsFor(
+        FetchSite fetchSite,
+        IMethodSymbol method,
+        IParameterSymbol? request,
+        DotNetProjectCompilation project)
+    {
+        var fetch = fetchSite.Fetch;
+        var source = CritterStackSource.RangeForProject(fetch.Syntax.GetLocation(), project);
+        var site = $"{DotNetMethodIdentity.SubjectFor(project, method).Value}:{source?.Path}:{fetch.Syntax.SpanStart.ToString(CultureInfo.InvariantCulture)}";
+        var input = Unwrap(fetchSite.Identities)!;
+        var elements = Elements(input);
+
+        // A fixed batch of two or more identities only proves distinct streams when every identity is keyed
+        // semantically; an identity that is not (an invocation or another arbitrary expression) may repeat
+        // another, and the framework rejects duplicate IDs at runtime.
+        var keys = elements is { Count: > 1 } ? elements.Select(IdentityKey).ToArray() : [];
+        var uncomparable = keys.Any(key => key is null);
+        var repeated = !uncomparable && keys.Distinct(StringComparer.Ordinal).Count() != keys.Length;
+        WolverineStateBinding Bind(IOperation identity, int? index, bool isCollection, bool isEmpty)
+        {
+            var member = IdentityMember(identity, method, request, project);
+            return new WolverineStateBinding(
+                DotNetMethodIdentity.SubjectFor(project, method).Value,
+                null,
+                fetchSite.Model,
+                WolverineStateBindingKind.FetchedEventStream,
+                new(member?.Name, source),
+                new(null, source),
+                new("Optimistic", source),
+                new(false, source),
+                member,
+                null,
+                false,
+                source)
+            {
+                Fetched = new(fetchSite.Local, site, index, isCollection, isEmpty, repeated, uncomparable, identity.Syntax.ToString())
+            };
+        }
+
+        if (elements is { Count: > 0 })
+        {
+            return [.. elements.Select((element, index) => Bind(element, index, isCollection: false, isEmpty: false))];
+        }
+
+        return [Bind(input, null, isCollection: elements is null, isEmpty: elements is { Count: 0 })];
+    }
+
     static WolverineStateBinding? IndexedTarget(
         IOperation? operation,
         IReadOnlyList<WolverineStateBinding> bindings,
@@ -143,17 +164,22 @@ static class WolverineFetchedEventStreams
         SemanticModel semanticModel,
         DotNetProjectCompilation project)
     {
-        if (operation is not IPropertyReferenceOperation { Property.IsIndexer: true, Arguments.Length: 1 } indexer ||
-            Unwrap(indexer.Instance) is not ILocalReferenceOperation collection ||
-            indexer.Arguments[0].Value.ConstantValue is not { HasValue: true, Value: int index } ||
-            !IsStable(collection.Local, declaration, semanticModel, project))
+        if (ConstantIndexedLocal(operation) is not var (collection, index) ||
+            !IsStable(collection, declaration, semanticModel, project))
         {
             return null;
         }
 
         return bindings.FirstOrDefault(binding => binding.Fetched is { IsCollection: false } fetched &&
-            fetched.Index == index && SymbolEqualityComparer.Default.Equals(fetched.Local, collection.Local));
+            fetched.Index == index && SymbolEqualityComparer.Default.Equals(fetched.Local, collection));
     }
+
+    static (ILocalSymbol Local, int Index)? ConstantIndexedLocal(IOperation? operation) =>
+        operation is IPropertyReferenceOperation { Property.IsIndexer: true, Arguments.Length: 1 } indexer &&
+        Unwrap(indexer.Instance) is ILocalReferenceOperation collection &&
+        indexer.Arguments[0].Value.ConstantValue is { HasValue: true, Value: int index }
+            ? (collection.Local, index)
+            : null;
 
     static IInvocationOperation? FetchInvocation(IOperation operation)
     {
@@ -172,25 +198,12 @@ static class WolverineFetchedEventStreams
     static bool TryModel(IMethodSymbol method, DotNetProjectCompilation project, out INamedTypeSymbol model)
     {
         model = null!;
-        if (method.Name != "FetchManyForWriting" || method.IsStatic || method.ReducedFrom is not null ||
-            method.Arity != 1 || method.TypeArguments[0] is not INamedTypeSymbol modelType || modelType.TypeKind == TypeKind.Error ||
-            project.Compilation.GetTypeByMetadataName(WellKnownTypes.JasperFxEventStoreOperations) is not { } contract ||
-            !WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(contract, project) ||
-            !WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(method.OriginalDefinition, project) ||
-            !SymbolEqualityComparer.Default.Equals(method.ContainingType, contract) ||
-            method.Parameters is not [{ Type: INamedTypeSymbol ids }, { Type: INamedTypeSymbol cancellation }] ||
-            DotNetSubjectIds.MetadataName(ids.OriginalDefinition) != "System.Collections.Generic.IReadOnlyList`1" ||
-            ids.TypeArguments[0] is not INamedTypeSymbol id ||
-            (id.SpecialType != SpecialType.System_String && DotNetSubjectIds.MetadataName(id) != "System.Guid") ||
-            DotNetSubjectIds.MetadataName(cancellation) != "System.Threading.CancellationToken" ||
-            method.ReturnType is not INamedTypeSymbol task ||
-            DotNetSubjectIds.MetadataName(task.OriginalDefinition) != "System.Threading.Tasks.Task`1" ||
-            task.TypeArguments[0] is not INamedTypeSymbol list ||
-            DotNetSubjectIds.MetadataName(list.OriginalDefinition) != "System.Collections.Generic.IReadOnlyList`1" ||
-            list.TypeArguments[0] is not INamedTypeSymbol stream ||
-            DotNetSubjectIds.MetadataName(stream.OriginalDefinition) != WellKnownTypes.JasperFxEventStream ||
-            !WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(stream.OriginalDefinition, project) ||
-            !SymbolEqualityComparer.Default.Equals(stream.TypeArguments[0], modelType))
+        if (!IsFetchManyShape(method) ||
+            method.TypeArguments[0] is not INamedTypeSymbol modelType ||
+            modelType.TypeKind == TypeKind.Error ||
+            !IsDeclaredOnEventStoreOperations(method, project) ||
+            !IsIdentityListFetch(method) ||
+            !ReturnsEventStreamsOf(method.ReturnType, modelType, project))
         {
             return false;
         }
@@ -198,6 +211,32 @@ static class WolverineFetchedEventStreams
         model = modelType;
         return true;
     }
+
+    static bool IsFetchManyShape(IMethodSymbol method) =>
+        method.Name == "FetchManyForWriting" && !method.IsStatic && method.ReducedFrom is null && method.Arity == 1;
+
+    static bool IsDeclaredOnEventStoreOperations(IMethodSymbol method, DotNetProjectCompilation project) =>
+        project.Compilation.GetTypeByMetadataName(WellKnownTypes.JasperFxEventStoreOperations) is { } contract &&
+        WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(contract, project) &&
+        WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(method.OriginalDefinition, project) &&
+        SymbolEqualityComparer.Default.Equals(method.ContainingType, contract);
+
+    static bool IsIdentityListFetch(IMethodSymbol method) =>
+        method.Parameters is [{ Type: INamedTypeSymbol ids }, { Type: INamedTypeSymbol cancellation }] &&
+        DotNetSubjectIds.MetadataName(ids.OriginalDefinition) == "System.Collections.Generic.IReadOnlyList`1" &&
+        ids.TypeArguments[0] is INamedTypeSymbol id &&
+        (id.SpecialType == SpecialType.System_String || DotNetSubjectIds.MetadataName(id) == "System.Guid") &&
+        DotNetSubjectIds.MetadataName(cancellation) == "System.Threading.CancellationToken";
+
+    static bool ReturnsEventStreamsOf(ITypeSymbol returnType, INamedTypeSymbol modelType, DotNetProjectCompilation project) =>
+        returnType is INamedTypeSymbol task &&
+        DotNetSubjectIds.MetadataName(task.OriginalDefinition) == "System.Threading.Tasks.Task`1" &&
+        task.TypeArguments[0] is INamedTypeSymbol list &&
+        DotNetSubjectIds.MetadataName(list.OriginalDefinition) == "System.Collections.Generic.IReadOnlyList`1" &&
+        list.TypeArguments[0] is INamedTypeSymbol stream &&
+        DotNetSubjectIds.MetadataName(stream.OriginalDefinition) == WellKnownTypes.JasperFxEventStream &&
+        WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(stream.OriginalDefinition, project) &&
+        SymbolEqualityComparer.Default.Equals(stream.TypeArguments[0], modelType);
 
     static IReadOnlyList<IOperation>? Elements(IOperation input) => input switch
     {
@@ -236,8 +275,7 @@ static class WolverineFetchedEventStreams
             // `DestinationIds.Id` look the same.
             IFieldReferenceOperation field =>
                 Join($"field:{MemberKey(field.Field)}", ReceiverKey(field.Instance, field.Field.IsStatic)),
-            IPropertyReferenceOperation property =>
-                Join($"property:{MemberKey(property.Property)}", ReceiverKey(property.Instance, property.Property.IsStatic), ArgumentsKey(property.Arguments.Select(argument => argument.Value))),
+            IPropertyReferenceOperation property => PropertyKey(property),
             IArrayElementReferenceOperation element =>
                 Join("element:", ReceiverKey(element.ArrayReference, isStatic: false), ArgumentsKey(element.Indices)),
             IParameterReferenceOperation parameter =>
@@ -247,6 +285,12 @@ static class WolverineFetchedEventStreams
             _ => null
         };
     }
+
+    static string? PropertyKey(IPropertyReferenceOperation property) =>
+        Join(
+            $"property:{MemberKey(property.Property)}",
+            ReceiverKey(property.Instance, property.Property.IsStatic),
+            ArgumentsKey(property.Arguments.Select(argument => argument.Value)));
 
     static string? Join(params string?[] parts) => parts.Any(part => part is null) ? null : string.Concat(parts);
 
@@ -298,10 +342,7 @@ static class WolverineFetchedEventStreams
         if (operation.Parent is IPropertyReferenceOperation { Property.IsIndexer: true, Arguments: [{ Value.ConstantValue: { HasValue: true, Value: int } }] } indexer &&
             indexer.Instance == operation)
         {
-            var slot = Outermost(indexer);
-            return IsDirectAppendReceiver(slot, project) ||
-                (slot.Parent is IVariableInitializerOperation { Parent: IVariableDeclaratorOperation variable } &&
-                 variable.Symbol.RefKind == RefKind.None && IsStable(variable.Symbol, declaration, model, project));
+            return IsSupportedIndexedSlotUse(Outermost(indexer), declaration, model, project);
         }
 
         if (operation.Parent is IForEachLoopOperation loop && loop.Collection == operation &&
@@ -314,6 +355,11 @@ static class WolverineFetchedEventStreams
         // receivers, arguments, captures and non-append member access are not safe uses.
         return false;
     }
+
+    static bool IsSupportedIndexedSlotUse(IOperation slot, MethodDeclarationSyntax declaration, SemanticModel model, DotNetProjectCompilation project) =>
+        IsDirectAppendReceiver(slot, project) ||
+        (slot.Parent is IVariableInitializerOperation { Parent: IVariableDeclaratorOperation variable } &&
+         variable.Symbol.RefKind == RefKind.None && IsStable(variable.Symbol, declaration, model, project));
 
     static bool IsDirectAppendReceiver(IOperation operation, DotNetProjectCompilation project) =>
         operation.Parent is IInvocationOperation invocation && invocation.Instance == operation &&
@@ -342,4 +388,6 @@ static class WolverineFetchedEventStreams
         IParenthesizedOperation parenthesized => Unwrap(parenthesized.Operand),
         _ => operation
     };
+
+    sealed record FetchSite(ILocalSymbol Local, IInvocationOperation Fetch, INamedTypeSymbol Model, IOperation Identities);
 }

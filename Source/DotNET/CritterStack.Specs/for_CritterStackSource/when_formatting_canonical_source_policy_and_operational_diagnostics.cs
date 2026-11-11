@@ -9,7 +9,7 @@ public class when_formatting_canonical_source_policy_and_operational_diagnostics
 {
     const string PhysicalRoot = "/physical/checkout";
     static readonly Type _canonicalRunner = Assembly.Load("Cratis.CritterStack.Screenplay.Canonical")
-        .GetType("Cratis.CritterStack.Screenplay.Canonical.CanonicalRunner", throwOnError: true)!;
+        .GetType("Cratis.CritterStack.Screenplay.Canonical.CanonicalRunner", throwOnError: true);
     string _policyLine = null!;
     string _operationalMessage = null!;
 
@@ -42,13 +42,16 @@ public class when_formatting_canonical_source_policy_and_operational_diagnostics
             PhysicalRoot);
     }
 
-    [Fact] void should_not_include_the_physical_root_in_the_source_policy_line() =>
+    [Fact]
+    void should_not_include_the_physical_root_in_the_source_policy_line() =>
         _policyLine.ShouldNotContain(PhysicalRoot);
 
-    [Fact] void should_report_only_logical_source_policy_values() =>
+    [Fact]
+    void should_report_only_logical_source_policy_values() =>
         _policyLine.ShouldContain("project=Application/Application");
 
-    [Fact] void should_sanitize_the_workspace_root_in_operational_messages() =>
+    [Fact]
+    void should_sanitize_the_workspace_root_in_operational_messages() =>
         _operationalMessage.ShouldEqual("Failed to load <workspace>/Application/Application.csproj");
 
     static object Invoke(string method, params object[] arguments) =>

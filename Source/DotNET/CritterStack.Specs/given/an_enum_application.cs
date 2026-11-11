@@ -64,7 +64,7 @@ public class an_enum_application : Specification
         var compilation = CSharpCompilation.Create(
             "Ordering",
             [framework, enumeration, application],
-            ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path)),
+            ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path)),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
         compilation.GetDiagnostics().Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
         SyntaxTree[] authored = authoredEnum ? [framework, enumeration, application] : [framework, application];
@@ -74,7 +74,7 @@ public class an_enum_application : Specification
             Name = "Ordering",
             Compilation = compilation,
             SourceRoot = "/workspace",
-            AuthoredSyntaxTrees = authored.ToHashSet<SyntaxTree>(),
+            AuthoredSyntaxTrees = authored.ToHashSet(),
             SourceContext = DotNetSourcePaths.Create(
                 "Ordering/Ordering",
                 new DotNetSourcePathPolicy { DisplayRoot = DotNetSourceDisplayRoot.Workspace, CasePolicy = DotNetSourcePathCasePolicy.Ordinal },

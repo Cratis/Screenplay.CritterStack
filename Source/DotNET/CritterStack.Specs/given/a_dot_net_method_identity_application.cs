@@ -65,7 +65,7 @@ public class a_dot_net_method_identity_application : Specification
 
     static readonly IReadOnlyList<MetadataReference> _references =
     [
-        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
             .Split(Path.PathSeparator)
             .Select(_ => MetadataReference.CreateFromFile(_))
     ];
@@ -90,6 +90,6 @@ public class a_dot_net_method_identity_application : Specification
             Compilation = compilation,
             AuthoredSyntaxTrees = new HashSet<SyntaxTree> { authoredTree }
         };
-        HandlerType = compilation.GetTypeByMetadataName("IdentitySamples.Handler")!;
+        HandlerType = compilation.GetTypeByMetadataName("IdentitySamples.Handler");
     }
 }

@@ -21,7 +21,7 @@ public class when_analyzing_typed_snapshots_and_custom_sending : given.a_marten_
     [Fact] void should_ignore_an_unrelated_sending_interface() => Names(ArtifactKind.Message).ShouldContain("Impostor");
     [Fact] void should_not_publish_the_custom_delivery_wrapper() => Names(ArtifactKind.Message).ShouldNotContain("Delivery");
     [Fact] void should_diagnose_custom_sending_as_unsupported() => CustomSending.Outcome.ShouldEqual(GenerationDiagnosticOutcome.Unsupported);
-    [Fact] void should_locate_custom_sending_loss() => CustomSending.Source!.Path.ShouldEqual("NewConventions/Projections.cs");
+    [Fact] void should_locate_custom_sending_loss() => CustomSending.Source.Path.ShouldEqual("NewConventions/Projections.cs");
     [Fact] void should_explain_the_apply_async_boundary() => CustomSending.Message.ShouldContain("ApplyAsync sending behavior is not interpreted");
 
     GenerationDiagnostic CustomSending => _result.Diagnostics.Single(diagnostic => diagnostic.Code == MartenDiagnosticCodes.ProjectionSideEffectUnresolved);

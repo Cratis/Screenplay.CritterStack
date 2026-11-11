@@ -75,6 +75,6 @@ public class when_fetched_identities_cannot_be_compared_semantically : given.a_w
     [Fact] void should_report_the_uncomparable_loss_for_the_computed_identity() => LossesContaining("authored identity expressions that cannot be compared semantically are not proven distinct").ShouldContainOnly(["Computed"]);
     [Fact] void should_locate_each_loss() => _result.Diagnostics.Where(diagnostic => diagnostic.Code == WolverineDiagnosticCodes.MultipleStreamMetadataOmitted && diagnostic.Message.Contains("not proven distinct", StringComparison.Ordinal)).All(diagnostic => diagnostic.Source?.Path == "Batches/Handlers.cs" && diagnostic.Source.StartLine > 0).ShouldBeTrue();
 
-    IEnumerable<string> LossesContaining(string text) => _result.Diagnostics.Where(diagnostic => diagnostic.Code == WolverineDiagnosticCodes.MultipleStreamMetadataOmitted && diagnostic.Message.Contains(text, StringComparison.Ordinal)).Select(diagnostic => diagnostic.Subject!.Value.Split('.')[^1]).Distinct();
+    IEnumerable<string> LossesContaining(string text) => _result.Diagnostics.Where(diagnostic => diagnostic.Code == WolverineDiagnosticCodes.MultipleStreamMetadataOmitted && diagnostic.Message.Contains(text, StringComparison.Ordinal)).Select(diagnostic => diagnostic.Subject.Value.Split('.')[^1]).Distinct();
     IReadOnlyList<ResolvedRelationship> Relationships(string command, RelationshipKind kind) => [.. _result.Graph.Relationships.Where(relationship => relationship.Key.Kind == kind && relationship.Key.Source.Value.EndsWith($".{command}", StringComparison.Ordinal))];
 }

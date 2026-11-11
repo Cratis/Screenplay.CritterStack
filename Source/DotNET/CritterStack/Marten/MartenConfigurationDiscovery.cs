@@ -60,6 +60,7 @@ static class MartenConfigurationDiscovery
         var diagnostics = MartenConventionAlterationDiscovery.Discover(project, subjects)
             .Concat(MartenSessionListenerDiscovery.Discover(project, subjects))
             .ToList();
+        var scope = new ProjectScope(project, adapter, subjects, facts, diagnostics);
         var sideEffectsEnabled = false;
         var projections = registrations
             .Where(_ => _.Projection is not null)
@@ -69,95 +70,97 @@ static class MartenConfigurationDiscovery
 
         foreach (var projection in projections)
         {
-            DiscoverProjectionMetadata(project, subjects, projection, diagnostics);
+            DiscoverProjectionMetadata(scope, projection);
             if (IsRawProjection(projection))
             {
-                AddCustomProcessingDiagnostics(project, subjects, projection, diagnostics, "custom projection");
+                AddCustomProcessingDiagnostics(scope, projection, "custom projection");
             }
         }
 
         foreach (var tree in project.Compilation.SyntaxTrees.Where(project.AuthoredSyntaxTrees.Contains))
         {
-            var semanticModel = project.Compilation.GetSemanticModel(tree);
-            var root = tree.GetRoot();
-            foreach (var invocation in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
-            {
-                if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method)
-                {
-                    continue;
-                }
-
-                DiscoverRegisteredValueType(project, adapter, subjects, invocation, method, semanticModel, facts);
-                DiscoverDaemonConfiguration(project, invocation, method, semanticModel, diagnostics);
-                DiscoverProjectionRegistrationMetadata(project, subjects, invocation, method, semanticModel, diagnostics);
-                DiscoverUnresolvedLifecycle(project, subjects, invocation, method, semanticModel, diagnostics);
-                DiscoverSubscriptionRegistration(project, subjects, invocation, method, semanticModel, diagnostics);
-            }
-
-            foreach (var assignment in root.DescendantNodes().OfType<AssignmentExpressionSyntax>())
-            {
-                sideEffectsEnabled |= EnablesInlineProjectionSideEffects(assignment, semanticModel);
-                DiscoverDaemonAssignment(project, assignment, semanticModel, diagnostics);
-            }
+            sideEffectsEnabled |= DiscoverTree(scope, tree);
         }
 
-        return new(
-            facts,
-            [
-                .. diagnostics
-                    .GroupBy(_ => new DiagnosticKey(_.Code, _.Message, _.Source?.Path, _.Source?.StartLine, _.Source?.StartColumn, _.Subject))
-                    .Select(_ => _.First())
-                    .OrderBy(_ => _.Source?.Path, StringComparer.Ordinal)
-                    .ThenBy(_ => _.Source?.StartLine)
-                    .ThenBy(_ => _.Source?.StartColumn)
-                    .ThenBy(_ => _.Code, StringComparer.Ordinal)
-                    .ThenBy(_ => _.Message, StringComparer.Ordinal)
-            ],
-            sideEffectsEnabled);
+        return new(facts, OrderedUnique(diagnostics), sideEffectsEnabled);
     }
 
     public static bool IsUnresolvedProcessorType(INamedTypeSymbol type) =>
         IsSubscription(type) || IsRawProjection(type);
 
-    static void DiscoverRegisteredValueType(
-        DotNetProjectCompilation project,
-        AdapterIdentity adapter,
-        CritterStackSubjectResolver subjects,
-        InvocationExpressionSyntax invocation,
-        IMethodSymbol method,
-        SemanticModel semanticModel,
-        List<GenerationFact> facts)
+    static bool DiscoverTree(ProjectScope scope, SyntaxTree tree)
     {
-        var candidate = method.OriginalDefinition;
+        var semanticModel = scope.Project.Compilation.GetSemanticModel(tree);
+        var root = tree.GetRoot();
+        foreach (var invocation in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
+        {
+            if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method)
+            {
+                continue;
+            }
+
+            var site = new InvocationSite(invocation, method, semanticModel);
+            DiscoverRegisteredValueType(scope, site);
+            DiscoverDaemonConfiguration(scope, site);
+            DiscoverProjectionRegistrationMetadata(scope, site);
+            DiscoverUnresolvedLifecycle(scope, site);
+            DiscoverSubscriptionRegistration(scope, site);
+        }
+
+        var sideEffectsEnabled = false;
+        foreach (var assignment in root.DescendantNodes().OfType<AssignmentExpressionSyntax>())
+        {
+            sideEffectsEnabled |= EnablesInlineProjectionSideEffects(assignment, semanticModel);
+            DiscoverDaemonAssignment(scope, assignment, semanticModel);
+        }
+
+        return sideEffectsEnabled;
+    }
+
+    static IReadOnlyList<GenerationDiagnostic> OrderedUnique(List<GenerationDiagnostic> diagnostics) =>
+    [
+        .. diagnostics
+            .GroupBy(_ => new DiagnosticKey(_.Code, _.Message, _.Source?.Path, _.Source?.StartLine, _.Source?.StartColumn, _.Subject))
+            .Select(_ => _.First())
+            .OrderBy(_ => _.Source?.Path, StringComparer.Ordinal)
+            .ThenBy(_ => _.Source?.StartLine)
+            .ThenBy(_ => _.Source?.StartColumn)
+            .ThenBy(_ => _.Code, StringComparer.Ordinal)
+            .ThenBy(_ => _.Message, StringComparer.Ordinal)
+    ];
+
+    static void DiscoverRegisteredValueType(ProjectScope scope, InvocationSite site)
+    {
+        var candidate = site.Method.OriginalDefinition;
         if (!string.Equals(candidate.Name, "RegisterValueType", StringComparison.Ordinal) ||
             DotNetSubjectIds.MetadataName(candidate.ContainingType.OriginalDefinition) != WellKnownTypes.MartenStoreOptions)
         {
             return;
         }
 
-        var type = method.TypeArguments.Length == 1
-            ? method.TypeArguments[0] as INamedTypeSymbol
-            : TypeFromTypeOfArgument(invocation, semanticModel);
+        var type = site.Method.TypeArguments.Length == 1
+            ? site.Method.TypeArguments[0] as INamedTypeSymbol
+            : TypeFromTypeOfArgument(site.Invocation, site.SemanticModel);
         if (type is null || type.TypeKind == TypeKind.Error)
         {
             return;
         }
 
-        var subject = subjects.SubjectForType(project, type);
+        var subject = scope.Subjects.SubjectForType(scope.Project, type);
         var factId = $"marten:registered-value-type:{subject.Value}";
-        if (facts.OfType<ArtifactFact>().Any(_ => _.Id.Value == factId))
+        if (scope.Facts.OfType<ArtifactFact>().Any(_ => _.Id.Value == factId))
         {
             return;
         }
 
         var evidence = new Evidence
         {
-            Adapter = adapter,
+            Adapter = scope.Adapter,
             Strength = EvidenceStrength.Configured,
-            Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
+            Source = CritterStackSource.RangeForProject(site.Invocation.GetLocation(), scope.Project),
             Explanation = $"Marten registers '{type.Name}' as a value type"
         };
-        facts.Add(new ArtifactFact
+        scope.Facts.Add(new ArtifactFact
         {
             Id = new FactId { Value = factId },
             Subject = subject,
@@ -165,7 +168,7 @@ static class MartenConfigurationDiscovery
             {
                 Key = new ArtifactKey { Subject = subject, Kind = ArtifactKind.Concept },
                 Name = type.Name,
-                File = CritterStackSource.EvidenceFor(type, adapter, project, EvidenceStrength.Exact).Source?.Path
+                File = CritterStackSource.EvidenceFor(type, scope.Adapter, scope.Project, EvidenceStrength.Exact).Source?.Path
             },
             Evidence = evidence
         });
@@ -179,88 +182,51 @@ static class MartenConfigurationDiscovery
         DotNetSubjectIds.MetadataName(property.ContainingType.OriginalDefinition) == WellKnownTypes.MartenEventStoreOptions &&
         semanticModel.GetConstantValue(assignment.Right) is { HasValue: true, Value: true };
 
-    static void DiscoverProjectionMetadata(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        INamedTypeSymbol projection,
-        List<GenerationDiagnostic> diagnostics)
+    static void DiscoverProjectionMetadata(ProjectScope scope, INamedTypeSymbol projection)
     {
-        var constructors = projection.DeclaringSyntaxReferences
-            .Select(_ => _.GetSyntax())
-            .OfType<TypeDeclarationSyntax>()
-            .SelectMany(_ => _.Members.OfType<ConstructorDeclarationSyntax>())
-            .ToArray();
-        foreach (var constructor in constructors.Where(_ => project.AuthoredSyntaxTrees.Contains(_.SyntaxTree)))
+        var constructors = DeclaredConstructors(projection);
+        foreach (var constructor in constructors.Where(_ => scope.Project.AuthoredSyntaxTrees.Contains(_.SyntaxTree)))
         {
-            var semanticModel = project.Compilation.GetSemanticModel(constructor.SyntaxTree);
+            var semanticModel = scope.Project.Compilation.GetSemanticModel(constructor.SyntaxTree);
             foreach (var assignment in constructor.DescendantNodes().OfType<AssignmentExpressionSyntax>())
             {
-                if (semanticModel.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol property ||
-                    !IsProjectionMetadataProperty(property))
+                if (ProjectionMetadataProperty(assignment, semanticModel) is not { } property)
                 {
                     continue;
                 }
 
                 var direct = constructors.Length == 1 && IsDirectConstructorStatement(assignment, constructor);
-                var value = property.Name switch
-                {
-                    "Name" or "ProjectionName" => ConstantString(assignment.Right, semanticModel),
-                    "Version" => ConstantUnsigned(assignment.Right, semanticModel)?.ToString(),
-                    _ => null
-                };
-                var message = direct && value is not null
-                    ? $"Projection '{projection.Name}' configures projection {MetadataLabel(property.Name)} '{value}', which is not expressible in the current Screenplay contracts"
-                    : $"Projection '{projection.Name}' configures projection {MetadataLabel(property.Name)} with a conditional, computed, or otherwise non-constant value that could not be resolved safely";
-                diagnostics.Add(Loss(
-                    project,
-                    subjects,
+                var value = ProjectionMetadataValue(property, assignment, semanticModel);
+                scope.Report(
                     projection,
                     MartenDiagnosticCodes.ProjectionMetadataOmitted,
-                    message,
-                    assignment.GetLocation(),
-                    direct && value is not null
-                        ? GenerationDiagnosticOutcome.Unsupported
-                        : GenerationDiagnosticOutcome.Unknown));
+                    ExactOrUnknown(
+                        direct && value is not null,
+                        $"Projection '{projection.Name}' configures projection {MetadataLabel(property.Name)} '{value}', which is not expressible in the current Screenplay contracts",
+                        $"Projection '{projection.Name}' configures projection {MetadataLabel(property.Name)} with a conditional, computed, or otherwise non-constant value that could not be resolved safely"),
+                    assignment.GetLocation());
             }
         }
     }
 
-    static void DiscoverDaemonConfiguration(
-        DotNetProjectCompilation project,
-        InvocationExpressionSyntax invocation,
-        IMethodSymbol method,
-        SemanticModel semanticModel,
-        List<GenerationDiagnostic> diagnostics)
+    static void DiscoverDaemonConfiguration(ProjectScope scope, InvocationSite site)
     {
-        var candidate = method.ReducedFrom ?? method;
+        var candidate = site.Method.ReducedFrom ?? site.Method;
         if (candidate.Name != "AddAsyncDaemon" || !IsMartenServiceExpression(candidate.ContainingType))
         {
             return;
         }
 
-        var mode = invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is { } expression
-            ? EnumMember(expression, semanticModel, _daemonModeTypes)
+        var mode = site.Invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is { } expression
+            ? EnumMember(expression, site.SemanticModel, _daemonModeTypes)
             : null;
-        diagnostics.Add(new GenerationDiagnostic
-        {
-            Code = MartenDiagnosticCodes.DaemonConfigurationOmitted,
-            Severity = GenerationDiagnosticSeverity.Warning,
-            Outcome = mode is null
-                ? GenerationDiagnosticOutcome.Unknown
-                : GenerationDiagnosticOutcome.Unsupported,
-            Message = mode is null
-                ? "Marten async daemon mode is computed or otherwise non-constant and could not be resolved safely"
-                : $"Marten async daemon mode '{mode}' is configured; daemon hosting and shard execution configuration are not expressible in the current Screenplay contracts",
-            Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
-            Subject = ProjectSubject(project)
-        });
+        ReportDaemonMode(scope, mode, "async daemon mode", site.Invocation.GetLocation());
     }
 
     static void DiscoverDaemonAssignment(
-        DotNetProjectCompilation project,
+        ProjectScope scope,
         AssignmentExpressionSyntax assignment,
-        SemanticModel semanticModel,
-        List<GenerationDiagnostic> diagnostics)
+        SemanticModel semanticModel)
     {
         if (semanticModel.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol { Name: "AsyncMode" } property ||
             !_daemonSettingTypes.Contains(DotNetSubjectIds.MetadataName(property.ContainingType)))
@@ -269,272 +235,260 @@ static class MartenConfigurationDiscovery
         }
 
         var mode = EnumMember(assignment.Right, semanticModel, _daemonModeTypes);
-        diagnostics.Add(new GenerationDiagnostic
-        {
-            Code = MartenDiagnosticCodes.DaemonConfigurationOmitted,
-            Severity = GenerationDiagnosticSeverity.Warning,
-            Outcome = mode is null
-                ? GenerationDiagnosticOutcome.Unknown
-                : GenerationDiagnosticOutcome.Unsupported,
-            Message = mode is null
-                ? "Marten projection daemon AsyncMode is computed or otherwise non-constant and could not be resolved safely"
-                : $"Marten projection daemon AsyncMode '{mode}' is configured; daemon hosting and shard execution configuration are not expressible in the current Screenplay contracts",
-            Source = CritterStackSource.RangeForProject(assignment.GetLocation(), project),
-            Subject = ProjectSubject(project)
-        });
+        ReportDaemonMode(scope, mode, "projection daemon AsyncMode", assignment.GetLocation());
     }
 
-    static void DiscoverProjectionRegistrationMetadata(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        InvocationExpressionSyntax invocation,
-        IMethodSymbol method,
-        SemanticModel semanticModel,
-        List<GenerationDiagnostic> diagnostics)
+    static void ReportDaemonMode(ProjectScope scope, string? mode, string label, Location location) =>
+        scope.ReportOnProject(
+            MartenDiagnosticCodes.DaemonConfigurationOmitted,
+            mode is null
+                ? Finding.Unknown($"Marten {label} is computed or otherwise non-constant and could not be resolved safely")
+                : Finding.Unsupported($"Marten {label} '{mode}' is configured; daemon hosting and shard execution configuration are not expressible in the current Screenplay contracts"),
+            location);
+
+    static void DiscoverProjectionRegistrationMetadata(ProjectScope scope, InvocationSite site)
     {
-        if (!IsProjectionRegistration(method, invocation, semanticModel) ||
-            ProjectionTypeFrom(method, invocation, semanticModel) is not { } projection)
+        if (!IsProjectionRegistration(site.Method, site.Invocation, site.SemanticModel) ||
+            ProjectionTypeFrom(site.Method, site.Invocation, site.SemanticModel) is not { } projection)
         {
             return;
         }
 
-        if (ArgumentForParameter(invocation, method, "projectionName") is { } nameArgument)
+        DiscoverRegisteredProjectionName(scope, site, projection);
+        DiscoverRegistrationMetadataAssignments(scope, site, projection);
+    }
+
+    static void DiscoverRegisteredProjectionName(ProjectScope scope, InvocationSite site, INamedTypeSymbol projection)
+    {
+        if (ArgumentForParameter(site.Invocation, site.Method, "projectionName") is not { } nameArgument)
         {
-            var value = ConstantString(nameArgument.Expression, semanticModel);
-            diagnostics.Add(Loss(
-                project,
-                subjects,
-                projection,
-                MartenDiagnosticCodes.ProjectionMetadataOmitted,
-                value is null
-                    ? $"Projection '{projection.Name}' registers a computed or otherwise non-constant projection name that could not be resolved safely"
-                    : $"Projection '{projection.Name}' registers projection name '{value}', which is not expressible in the current Screenplay contracts",
-                nameArgument.GetLocation(),
-                value is null
-                    ? GenerationDiagnosticOutcome.Unknown
-                    : GenerationDiagnosticOutcome.Unsupported));
+            return;
         }
 
-        foreach (var lambda in invocation.ArgumentList.Arguments.Select(_ => _.Expression).OfType<LambdaExpressionSyntax>())
+        var value = ConstantString(nameArgument.Expression, site.SemanticModel);
+        scope.Report(
+            projection,
+            MartenDiagnosticCodes.ProjectionMetadataOmitted,
+            ExactOrUnknown(
+                value is not null,
+                $"Projection '{projection.Name}' registers projection name '{value}', which is not expressible in the current Screenplay contracts",
+                $"Projection '{projection.Name}' registers a computed or otherwise non-constant projection name that could not be resolved safely"),
+            nameArgument.GetLocation());
+    }
+
+    static void DiscoverRegistrationMetadataAssignments(ProjectScope scope, InvocationSite site, INamedTypeSymbol projection)
+    {
+        foreach (var lambda in LambdaArguments(site.Invocation))
         {
             foreach (var assignment in lambda.DescendantNodes().OfType<AssignmentExpressionSyntax>())
             {
-                if (semanticModel.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol property ||
-                    !IsProjectionMetadataProperty(property))
+                if (ProjectionMetadataProperty(assignment, site.SemanticModel) is not { } property)
                 {
                     continue;
                 }
 
-                var value = property.Name switch
-                {
-                    "Name" or "ProjectionName" => ConstantString(assignment.Right, semanticModel),
-                    "Version" => ConstantUnsigned(assignment.Right, semanticModel)?.ToString(),
-                    _ => null
-                };
-                diagnostics.Add(Loss(
-                    project,
-                    subjects,
+                var value = ProjectionMetadataValue(property, assignment, site.SemanticModel);
+                scope.Report(
                     projection,
                     MartenDiagnosticCodes.ProjectionMetadataOmitted,
-                    IsDirectScopeStatement(assignment, lambda) && value is not null
-                        ? $"Projection '{projection.Name}' registers projection {MetadataLabel(property.Name)} '{value}', which is not expressible in the current Screenplay contracts"
-                        : $"Projection '{projection.Name}' registers projection {MetadataLabel(property.Name)} conditionally or with a non-constant value that could not be resolved safely",
-                    assignment.GetLocation(),
-                    IsDirectScopeStatement(assignment, lambda) && value is not null
-                        ? GenerationDiagnosticOutcome.Unsupported
-                        : GenerationDiagnosticOutcome.Unknown));
+                    ExactOrUnknown(
+                        IsDirectScopeStatement(assignment, lambda) && value is not null,
+                        $"Projection '{projection.Name}' registers projection {MetadataLabel(property.Name)} '{value}', which is not expressible in the current Screenplay contracts",
+                        $"Projection '{projection.Name}' registers projection {MetadataLabel(property.Name)} conditionally or with a non-constant value that could not be resolved safely"),
+                    assignment.GetLocation());
             }
         }
     }
 
-    static void DiscoverUnresolvedLifecycle(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        InvocationExpressionSyntax invocation,
-        IMethodSymbol method,
-        SemanticModel semanticModel,
-        List<GenerationDiagnostic> diagnostics)
+    static IPropertySymbol? ProjectionMetadataProperty(AssignmentExpressionSyntax assignment, SemanticModel semanticModel) =>
+        semanticModel.GetSymbolInfo(assignment.Left).Symbol is IPropertySymbol property &&
+        IsProjectionMetadataProperty(property)
+            ? property
+            : null;
+
+    static string? ProjectionMetadataValue(
+        IPropertySymbol property,
+        AssignmentExpressionSyntax assignment,
+        SemanticModel semanticModel) => property.Name switch
+        {
+            "Name" or "ProjectionName" => ConstantString(assignment.Right, semanticModel),
+            "Version" => ConstantUnsigned(assignment.Right, semanticModel)?.ToString(),
+            _ => null
+        };
+
+    static IEnumerable<LambdaExpressionSyntax> LambdaArguments(InvocationExpressionSyntax invocation) =>
+        invocation.ArgumentList.Arguments.Select(_ => _.Expression).OfType<LambdaExpressionSyntax>();
+
+    static void DiscoverUnresolvedLifecycle(ProjectScope scope, InvocationSite site)
     {
-        if (!IsProjectionRegistration(method, invocation, semanticModel) ||
-            !method.Parameters.Any(_ => _.Name == "lifecycle"))
+        if (!IsProjectionRegistration(site.Method, site.Invocation, site.SemanticModel) ||
+            !site.Method.Parameters.Any(_ => _.Name == "lifecycle"))
         {
             return;
         }
 
-        var lifecycleArgument = ArgumentForParameter(invocation, method, "lifecycle");
+        var lifecycleArgument = ArgumentForParameter(site.Invocation, site.Method, "lifecycle");
         if (lifecycleArgument is null ||
-            EnumMember(lifecycleArgument.Expression, semanticModel, MartenProjectionDiscovery.ProjectionLifecycleTypes) is not null)
+            EnumMember(lifecycleArgument.Expression, site.SemanticModel, MartenProjectionDiscovery.ProjectionLifecycleTypes) is not null)
         {
             return;
         }
 
-        var projection = ProjectionTypeFrom(method, invocation, semanticModel);
-        diagnostics.Add(new GenerationDiagnostic
-        {
-            Code = MartenDiagnosticCodes.ProjectionLifecycleOmitted,
-            Severity = GenerationDiagnosticSeverity.Warning,
-            Outcome = GenerationDiagnosticOutcome.Unknown,
-            Message = projection is null
-                ? "Marten projection lifecycle is computed or otherwise non-constant and could not be resolved safely"
-                : $"Projection '{projection.Name}' uses a computed or otherwise non-constant lifecycle that could not be resolved safely",
-            Source = CritterStackSource.RangeForProject(lifecycleArgument.GetLocation(), project),
-            Subject = projection is null ? ProjectSubject(project) : subjects.SubjectForType(project, projection)
-        });
+        var projection = ProjectionTypeFrom(site.Method, site.Invocation, site.SemanticModel);
+        scope.Add(
+            projection is null ? scope.ProjectSubject : scope.Subjects.SubjectForType(scope.Project, projection),
+            MartenDiagnosticCodes.ProjectionLifecycleOmitted,
+            Finding.Unknown(
+                projection is null
+                    ? "Marten projection lifecycle is computed or otherwise non-constant and could not be resolved safely"
+                    : $"Projection '{projection.Name}' uses a computed or otherwise non-constant lifecycle that could not be resolved safely"),
+            lifecycleArgument.GetLocation());
     }
 
-    static void DiscoverSubscriptionRegistration(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        InvocationExpressionSyntax invocation,
-        IMethodSymbol method,
-        SemanticModel semanticModel,
-        List<GenerationDiagnostic> diagnostics)
+    static void DiscoverSubscriptionRegistration(ProjectScope scope, InvocationSite site)
     {
-        if (!IsSubscriptionRegistration(method) ||
-            SubscriptionTypeFrom(method, invocation, semanticModel) is not { } subscription)
+        if (!IsSubscriptionRegistration(site.Method) ||
+            SubscriptionTypeFrom(site.Method, site.Invocation, site.SemanticModel) is not { } subscription)
         {
             return;
         }
 
-        diagnostics.Add(Loss(
-            project,
-            subjects,
+        scope.Report(
             subscription,
             MartenDiagnosticCodes.SubscriptionConfigurationOmitted,
-            $"Marten subscription '{subscription.Name}' is registered, but the current Screenplay contracts have no neutral subscription artifact",
-            invocation.GetLocation()));
+            Finding.Unsupported($"Marten subscription '{subscription.Name}' is registered, but the current Screenplay contracts have no neutral subscription artifact"),
+            site.Invocation.GetLocation());
 
-        DiscoverSubscriptionConstructorConfiguration(project, subjects, subscription, diagnostics);
-        foreach (var lambda in invocation.ArgumentList.Arguments.Select(_ => _.Expression).OfType<LambdaExpressionSyntax>())
+        DiscoverSubscriptionConstructorConfiguration(scope, subscription);
+        foreach (var lambda in LambdaArguments(site.Invocation))
         {
-            DiscoverSubscriptionScopeConfiguration(project, subjects, subscription, lambda, semanticModel, diagnostics);
+            DiscoverSubscriptionScopeConfiguration(new SubscriptionScope(scope, subscription, lambda, site.SemanticModel, AllowExact: true));
         }
 
-        AddCustomProcessingDiagnostics(project, subjects, subscription, diagnostics, "subscription");
+        AddCustomProcessingDiagnostics(scope, subscription, "subscription");
     }
 
-    static void DiscoverSubscriptionConstructorConfiguration(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        INamedTypeSymbol subscription,
-        List<GenerationDiagnostic> diagnostics)
+    static void DiscoverSubscriptionConstructorConfiguration(ProjectScope scope, INamedTypeSymbol subscription)
     {
-        var constructors = subscription.DeclaringSyntaxReferences
-            .Select(_ => _.GetSyntax())
-            .OfType<TypeDeclarationSyntax>()
-            .SelectMany(_ => _.Members.OfType<ConstructorDeclarationSyntax>())
-            .ToArray();
-        foreach (var constructor in constructors.Where(_ => project.AuthoredSyntaxTrees.Contains(_.SyntaxTree)))
+        var constructors = DeclaredConstructors(subscription);
+        foreach (var constructor in constructors.Where(_ => scope.Project.AuthoredSyntaxTrees.Contains(_.SyntaxTree)))
         {
-            var semanticModel = project.Compilation.GetSemanticModel(constructor.SyntaxTree);
+            var semanticModel = scope.Project.Compilation.GetSemanticModel(constructor.SyntaxTree);
             DiscoverSubscriptionScopeConfiguration(
-                project,
-                subjects,
-                subscription,
-                constructor,
-                semanticModel,
-                diagnostics,
-                constructors.Length == 1);
+                new SubscriptionScope(scope, subscription, constructor, semanticModel, constructors.Length == 1));
         }
     }
 
-    static void DiscoverSubscriptionScopeConfiguration(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        INamedTypeSymbol subscription,
-        SyntaxNode scope,
-        SemanticModel semanticModel,
-        List<GenerationDiagnostic> diagnostics,
-        bool allowExact = true)
+    static ConstructorDeclarationSyntax[] DeclaredConstructors(INamedTypeSymbol type) =>
+        [
+            .. type.DeclaringSyntaxReferences
+                .Select(_ => _.GetSyntax())
+                .OfType<TypeDeclarationSyntax>()
+                .SelectMany(_ => _.Members.OfType<ConstructorDeclarationSyntax>())
+        ];
+
+    static void DiscoverSubscriptionScopeConfiguration(SubscriptionScope scope)
     {
-        foreach (var assignment in scope.DescendantNodes().OfType<AssignmentExpressionSyntax>())
+        DiscoverSubscriptionOptionAssignments(scope);
+        DiscoverSubscriptionOptionInvocations(scope);
+    }
+
+    static void DiscoverSubscriptionOptionAssignments(SubscriptionScope scope)
+    {
+        foreach (var assignment in scope.Node.DescendantNodes().OfType<AssignmentExpressionSyntax>())
         {
-            if (semanticModel.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol property ||
+            if (scope.SemanticModel.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol property ||
                 !IsSubscriptionOptionProperty(property))
             {
                 continue;
             }
 
-            var direct = allowExact && IsDirectScopeStatement(assignment, scope);
-            var value = property.Name switch
-            {
-                "Name" or "SubscriptionName" => ConstantString(assignment.Right, semanticModel),
-                "Version" or "SubscriptionVersion" => ConstantUnsigned(assignment.Right, semanticModel)?.ToString(),
-                "IncludeArchivedEvents" => ConstantBoolean(assignment.Right, semanticModel)?.ToString().ToLowerInvariant(),
-                _ => null
-            };
-            diagnostics.Add(Loss(
-                project,
-                subjects,
-                subscription,
+            var direct = scope.AllowExact && IsDirectScopeStatement(assignment, scope.Node);
+            var value = SubscriptionOptionValue(property, assignment, scope.SemanticModel);
+            scope.Project.Report(
+                scope.Subscription,
                 MartenDiagnosticCodes.SubscriptionConfigurationOmitted,
-                direct && value is not null
-                    ? $"Marten subscription '{subscription.Name}' configures {SubscriptionLabel(property.Name)} '{value}', which is not expressible in the current Screenplay contracts"
-                    : $"Marten subscription '{subscription.Name}' configures {SubscriptionLabel(property.Name)} conditionally or with a non-constant value that could not be resolved safely",
-                assignment.GetLocation(),
-                direct && value is not null
-                    ? GenerationDiagnosticOutcome.Unsupported
-                    : GenerationDiagnosticOutcome.Unknown));
+                ExactOrUnknown(
+                    direct && value is not null,
+                    $"Marten subscription '{scope.Subscription.Name}' configures {SubscriptionLabel(property.Name)} '{value}', which is not expressible in the current Screenplay contracts",
+                    $"Marten subscription '{scope.Subscription.Name}' configures {SubscriptionLabel(property.Name)} conditionally or with a non-constant value that could not be resolved safely"),
+                assignment.GetLocation());
         }
+    }
 
-        foreach (var invocation in scope.DescendantNodes().OfType<InvocationExpressionSyntax>())
+    static string? SubscriptionOptionValue(
+        IPropertySymbol property,
+        AssignmentExpressionSyntax assignment,
+        SemanticModel semanticModel) => property.Name switch
         {
-            if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
+            "Name" or "SubscriptionName" => ConstantString(assignment.Right, semanticModel),
+            "Version" or "SubscriptionVersion" => ConstantUnsigned(assignment.Right, semanticModel)?.ToString(),
+            "IncludeArchivedEvents" => ConstantBoolean(assignment.Right, semanticModel)?.ToString().ToLowerInvariant(),
+            _ => null
+        };
+
+    static void DiscoverSubscriptionOptionInvocations(SubscriptionScope scope)
+    {
+        foreach (var invocation in scope.Node.DescendantNodes().OfType<InvocationExpressionSyntax>())
+        {
+            if (scope.SemanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
                 !IsSubscriptionOptionMethod(method))
             {
                 continue;
             }
 
-            var direct = allowExact && IsDirectScopeStatement(invocation, scope);
-            var value = direct ? SubscriptionMethodValue(invocation, method, semanticModel) : null;
-            diagnostics.Add(Loss(
-                project,
-                subjects,
-                subscription,
+            var direct = scope.AllowExact && IsDirectScopeStatement(invocation, scope.Node);
+            var value = direct ? SubscriptionMethodValue(invocation, method, scope.SemanticModel) : null;
+            scope.Project.Report(
+                scope.Subscription,
                 MartenDiagnosticCodes.SubscriptionConfigurationOmitted,
-                value is not null
-                    ? $"Marten subscription '{subscription.Name}' configures {value}, which is not expressible in the current Screenplay contracts"
-                    : $"Marten subscription '{subscription.Name}' uses {method.Name} conditionally or with arguments that could not be resolved exactly",
-                invocation.GetLocation(),
-                value is not null
-                    ? GenerationDiagnosticOutcome.Unsupported
-                    : GenerationDiagnosticOutcome.Unknown));
+                ExactOrUnknown(
+                    value is not null,
+                    $"Marten subscription '{scope.Subscription.Name}' configures {value}, which is not expressible in the current Screenplay contracts",
+                    $"Marten subscription '{scope.Subscription.Name}' uses {method.Name} conditionally or with arguments that could not be resolved exactly"),
+                invocation.GetLocation());
         }
     }
 
     static string? SubscriptionMethodValue(
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
-        SemanticModel semanticModel)
-    {
-        switch (method.Name)
+        SemanticModel semanticModel) => method.Name switch
         {
-            case "IncludeType":
-                var eventType = method.TypeArguments.FirstOrDefault() as INamedTypeSymbol ??
-                                TypeFromTypeOfArgument(invocation, semanticModel);
-                return eventType is not null ? $"an event-type filter for '{eventType.Name}'" : null;
-            case "FilterIncomingEventsOnStreamType":
-                return invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is TypeOfExpressionSyntax typeOf &&
-                       semanticModel.GetTypeInfo(typeOf.Type).Type is INamedTypeSymbol streamType
-                    ? $"a stream-type filter for '{streamType.Name}'"
-                    : null;
-            case "SubscribeFromPresent":
-                return DatabaseSuffix(invocation, semanticModel) is { } presentDatabase
-                    ? $"starting position 'present'{presentDatabase}"
-                    : null;
-            case "SubscribeFromSequence":
-                if (invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is not { } sequenceExpression ||
-                    ConstantLong(sequenceExpression, semanticModel) is not { } sequence ||
-                    DatabaseSuffix(invocation, semanticModel) is not { } sequenceDatabase)
-                {
-                    return null;
-                }
-                return $"starting sequence '{sequence}'{sequenceDatabase}";
-            case "SubscribeFromTime" or "SubscribeAsInlineToAsync":
-                return null;
-            default:
-                return null;
+            "IncludeType" => EventTypeFilter(invocation, method, semanticModel),
+            "FilterIncomingEventsOnStreamType" => StreamTypeFilter(invocation, semanticModel),
+            "SubscribeFromPresent" => PresentStartingPosition(invocation, semanticModel),
+            "SubscribeFromSequence" => SequenceStartingPosition(invocation, semanticModel),
+            _ => null
+        };
+
+    static string? EventTypeFilter(InvocationExpressionSyntax invocation, IMethodSymbol method, SemanticModel semanticModel)
+    {
+        var eventType = method.TypeArguments.FirstOrDefault() as INamedTypeSymbol ??
+                        TypeFromTypeOfArgument(invocation, semanticModel);
+        return eventType is not null ? $"an event-type filter for '{eventType.Name}'" : null;
+    }
+
+    static string? StreamTypeFilter(InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>
+        TypeFromTypeOfArgument(invocation, semanticModel) is { } streamType
+            ? $"a stream-type filter for '{streamType.Name}'"
+            : null;
+
+    static string? PresentStartingPosition(InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>
+        DatabaseSuffix(invocation, semanticModel) is { } presentDatabase
+            ? $"starting position 'present'{presentDatabase}"
+            : null;
+
+    static string? SequenceStartingPosition(InvocationExpressionSyntax invocation, SemanticModel semanticModel)
+    {
+        if (invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is not { } sequenceExpression ||
+            ConstantLong(sequenceExpression, semanticModel) is not { } sequence ||
+            DatabaseSuffix(invocation, semanticModel) is not { } sequenceDatabase)
+        {
+            return null;
         }
+
+        return $"starting sequence '{sequence}'{sequenceDatabase}";
     }
 
     static INamedTypeSymbol? TypeFromTypeOfArgument(
@@ -561,30 +515,21 @@ static class MartenConfigurationDiscovery
         return database is null ? null : $" for database '{database}'";
     }
 
-    static void AddCustomProcessingDiagnostics(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        INamedTypeSymbol type,
-        List<GenerationDiagnostic> diagnostics,
-        string kind)
+    static void AddCustomProcessingDiagnostics(ProjectScope scope, INamedTypeSymbol type, string kind)
     {
         foreach (var method in type.GetMembers().OfType<IMethodSymbol>()
                      .Where(_ => !_.IsImplicitlyDeclared && _customProcessingMethods.Contains(_.Name)))
         {
-            if (method.Locations.FirstOrDefault(_ => IsAuthoredSourceLocation(_, project.AuthoredSyntaxTrees)) is not { } location)
+            if (method.Locations.FirstOrDefault(_ => IsAuthoredSourceLocation(_, scope.Project.AuthoredSyntaxTrees)) is not { } location)
             {
                 continue;
             }
 
-            diagnostics.Add(new GenerationDiagnostic
-            {
-                Code = MartenDiagnosticCodes.CustomProcessingOmitted,
-                Severity = GenerationDiagnosticSeverity.Warning,
-                Outcome = GenerationDiagnosticOutcome.Unsupported,
-                Message = $"Marten {kind} '{type.Name}' has arbitrary {method.Name} consequences; no State View, Automation, Translation, document operation, message, or event consequence was inferred",
-                Source = CritterStackSource.RangeForProject(location, project),
-                Subject = subjects.SubjectForType(project, type)
-            });
+            scope.Report(
+                type,
+                MartenDiagnosticCodes.CustomProcessingOmitted,
+                Finding.Unsupported($"Marten {kind} '{type.Name}' has arbitrary {method.Name} consequences; no State View, Automation, Translation, document operation, message, or event consequence was inferred"),
+                location);
         }
     }
 
@@ -750,6 +695,14 @@ static class MartenConfigurationDiscovery
             return field.Name;
         }
 
+        return ConstantEnumMemberName(expression, semanticModel, declaringTypes);
+    }
+
+    static string? ConstantEnumMemberName(
+        ExpressionSyntax expression,
+        SemanticModel semanticModel,
+        IReadOnlySet<string> declaringTypes)
+    {
         if (semanticModel.GetTypeInfo(expression).ConvertedType is not INamedTypeSymbol enumType ||
             !declaringTypes.Contains(DotNetSubjectIds.MetadataName(enumType)) ||
             semanticModel.GetConstantValue(expression) is not { HasValue: true, Value: not null } constant)
@@ -799,27 +752,8 @@ static class MartenConfigurationDiscovery
             }
             : null;
 
-    static GenerationDiagnostic Loss(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        INamedTypeSymbol subject,
-        string code,
-        string message,
-        Location location,
-        GenerationDiagnosticOutcome outcome = GenerationDiagnosticOutcome.Unsupported) => new()
-        {
-            Code = code,
-            Severity = GenerationDiagnosticSeverity.Warning,
-            Outcome = outcome,
-            Message = message,
-            Source = CritterStackSource.RangeForProject(location, project),
-            Subject = subjects.SubjectForType(project, subject)
-        };
-
-    static SubjectId ProjectSubject(DotNetProjectCompilation project) => new()
-    {
-        Value = $"dotnet:project/{project.Name}"
-    };
+    static Finding ExactOrUnknown(bool exact, string exactMessage, string unresolvedMessage) =>
+        exact ? Finding.Unsupported(exactMessage) : Finding.Unknown(unresolvedMessage);
 
     static string MetadataLabel(string propertyName) => propertyName == "Version" ? "version" : "name";
 
@@ -831,6 +765,13 @@ static class MartenConfigurationDiscovery
         _ => propertyName
     };
 
+    readonly record struct Finding(string Message, GenerationDiagnosticOutcome Outcome)
+    {
+        public static Finding Unsupported(string message) => new(message, GenerationDiagnosticOutcome.Unsupported);
+
+        public static Finding Unknown(string message) => new(message, GenerationDiagnosticOutcome.Unknown);
+    }
+
     sealed record DiagnosticKey(
         string Code,
         string Message,
@@ -838,4 +779,51 @@ static class MartenConfigurationDiscovery
         int? Line,
         int? Column,
         SubjectId? Subject);
+
+    sealed record InvocationSite(
+        InvocationExpressionSyntax Invocation,
+        IMethodSymbol Method,
+        SemanticModel SemanticModel);
+
+    sealed record SubscriptionScope(
+        ProjectScope Project,
+        INamedTypeSymbol Subscription,
+        SyntaxNode Node,
+        SemanticModel SemanticModel,
+        bool AllowExact);
+
+    sealed class ProjectScope(
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects,
+        List<GenerationFact> facts,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        public DotNetProjectCompilation Project { get; } = project;
+
+        public AdapterIdentity Adapter { get; } = adapter;
+
+        public CritterStackSubjectResolver Subjects { get; } = subjects;
+
+        public List<GenerationFact> Facts { get; } = facts;
+
+        public SubjectId ProjectSubject { get; } = new() { Value = $"dotnet:project/{project.Name}" };
+
+        public void Report(INamedTypeSymbol subject, string code, Finding finding, Location location) =>
+            Add(Subjects.SubjectForType(Project, subject), code, finding, location);
+
+        public void ReportOnProject(string code, Finding finding, Location location) =>
+            Add(ProjectSubject, code, finding, location);
+
+        public void Add(SubjectId subject, string code, Finding finding, Location location) =>
+            diagnostics.Add(new()
+            {
+                Code = code,
+                Severity = GenerationDiagnosticSeverity.Warning,
+                Outcome = finding.Outcome,
+                Message = finding.Message,
+                Source = CritterStackSource.RangeForProject(location, Project),
+                Subject = subject
+            });
+    }
 }

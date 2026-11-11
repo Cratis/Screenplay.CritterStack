@@ -278,11 +278,11 @@ public class a_marten_tenancy_configuration_application : Specification
         string path,
         Compilation compilation,
         params SyntaxTree[] authoredSyntaxTrees) => new()
-    {
-        Name = name,
-        ProjectPath = path,
-        SourceRoot = "/workspace",
-        Compilation = compilation,
-        AuthoredSyntaxTrees = authoredSyntaxTrees.ToHashSet()
-    };
+        {
+            Name = name,
+            ProjectPath = path,
+            SourceRoot = "/workspace",
+            Compilation = compilation,
+            AuthoredSyntaxTrees = authoredSyntaxTrees.ToHashSet()
+        };
 }

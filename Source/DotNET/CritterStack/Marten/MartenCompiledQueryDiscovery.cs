@@ -59,32 +59,14 @@ static class MartenCompiledQueryDiscovery
                     continue;
                 }
 
-                if (!IsInProvenEndpointFlow(invocation, declaration, semanticModel))
+                if (IsInProvenEndpointFlow(invocation, declaration, semanticModel))
                 {
-                    diagnostics.Add(new GenerationDiagnostic
-                    {
-                        Code = MartenDiagnosticCodes.CompiledQueryFlowUnresolved,
-                        Severity = GenerationDiagnosticSeverity.Warning,
-                        Outcome = GenerationDiagnosticOutcome.Unknown,
-                        Message = $"Marten compiled query '{plan.PlanType.Name}' is inside a nested executable scope whose invocation from endpoint '{entryPoint.ContainingType.Name}.{entryPoint.Name}' could not be proven",
-                        Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
-                        Subject = entryPointSubject
-                    });
-                    continue;
+                    links.Add(LinkFor(plan, invocation, entryPoint, project, adapter, subjects));
                 }
-
-                links.Add(new(
-                    plan.PlanType,
-                    plan.DocumentType,
-                    plan.OutputType,
-                    ParametersOf(plan.PlanType, subjects),
-                    new Evidence
-                    {
-                        Adapter = adapter,
-                        Strength = EvidenceStrength.Exact,
-                        Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
-                        Explanation = $"Marten compiled query '{plan.PlanType.Name}' is executed by application query entry point '{entryPoint.ContainingType.Name}.{entryPoint.Name}'"
-                    }));
+                else
+                {
+                    diagnostics.Add(UnprovenFlowDiagnostic(plan, invocation, entryPoint, entryPointSubject, project));
+                }
             }
         }
 
@@ -114,10 +96,10 @@ static class MartenCompiledQueryDiscovery
         var compiledInterface = selectedCompiledInterface is null
             ? null
             : CompiledInterfaceOf(planType, selectedCompiledInterface);
-        if (compiledInterface is null || !HasAuthoredQueryPlan(planType, compiledInterface) ||
+        if (compiledInterface is null ||
+            !HasAuthoredQueryPlan(planType, compiledInterface) ||
             compiledInterface.TypeArguments[0] is not INamedTypeSymbol documentType ||
-            documentType.TypeKind == TypeKind.Error ||
-            !documentType.Locations.Any(_ => _.IsInSource))
+            !IsSourceDocumentType(documentType))
         {
             return false;
         }
@@ -132,6 +114,43 @@ static class MartenCompiledQueryDiscovery
 
     public static bool IsCompiledQueryExecution(IMethodSymbol method) =>
         IsCompiledQueryExecution(method, out _);
+
+    static GenerationDiagnostic UnprovenFlowDiagnostic(
+        MartenCompiledQueryPlan plan,
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol entryPoint,
+        SubjectId entryPointSubject,
+        DotNetProjectCompilation project) => new()
+        {
+            Code = MartenDiagnosticCodes.CompiledQueryFlowUnresolved,
+            Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = GenerationDiagnosticOutcome.Unknown,
+            Message = $"Marten compiled query '{plan.PlanType.Name}' is inside a nested executable scope whose invocation from endpoint '{entryPoint.ContainingType.Name}.{entryPoint.Name}' could not be proven",
+            Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
+            Subject = entryPointSubject
+        };
+
+    static MartenCompiledQueryLink LinkFor(
+        MartenCompiledQueryPlan plan,
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol entryPoint,
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects) => new(
+            plan.PlanType,
+            plan.DocumentType,
+            plan.OutputType,
+            ParametersOf(plan.PlanType, subjects),
+            new Evidence
+            {
+                Adapter = adapter,
+                Strength = EvidenceStrength.Exact,
+                Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
+                Explanation = $"Marten compiled query '{plan.PlanType.Name}' is executed by application query entry point '{entryPoint.ContainingType.Name}.{entryPoint.Name}'"
+            });
+
+    static bool IsSourceDocumentType(INamedTypeSymbol documentType) =>
+        documentType.TypeKind != TypeKind.Error && documentType.Locations.Any(_ => _.IsInSource);
 
     static bool IsCompiledQueryExecution(IMethodSymbol method, out IParameterSymbol compiledParameter)
     {

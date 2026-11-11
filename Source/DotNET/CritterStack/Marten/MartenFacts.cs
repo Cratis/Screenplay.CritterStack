@@ -38,16 +38,13 @@ static class MartenFacts
             return new([], [], []);
         }
 
-        var facts = new List<GenerationFact>();
-        var diagnostics = new List<GenerationDiagnostic>();
-        var documents = new List<MartenDocumentUsage>();
-        var placements = new List<CritterStackPlacementIntent>();
+        var collected = new CollectedFacts(project, options, adapter, subjects);
         var registrations = MartenProjectionDiscovery.Discover(project, adapter);
         var configuration = MartenConfigurationDiscovery.Discover(project, adapter, subjects, registrations);
-        facts.AddRange(configuration.Facts);
-        diagnostics.AddRange(configuration.Diagnostics);
-        diagnostics.AddRange(MartenEventSchemaConfigurationDiscovery.Discover(project, subjects));
-        diagnostics.AddRange(MartenTenancyConfigurationDiscovery.Discover(project, subjects));
+        collected.Facts.AddRange(configuration.Facts);
+        collected.Diagnostics.AddRange(configuration.Diagnostics);
+        collected.Diagnostics.AddRange(MartenEventSchemaConfigurationDiscovery.Discover(project, subjects));
+        collected.Diagnostics.AddRange(MartenTenancyConfigurationDiscovery.Discover(project, subjects));
         var sideEffectProjections = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
 
         foreach (var registration in registrations)
@@ -61,44 +58,50 @@ static class MartenFacts
                     subjects,
                     registration,
                     configuration.SideEffectsEnabled);
-                facts.AddRange(sideEffects.Facts);
-                diagnostics.AddRange(sideEffects.Diagnostics);
+                collected.Facts.AddRange(sideEffects.Facts);
+                collected.Diagnostics.AddRange(sideEffects.Diagnostics);
             }
 
             if (string.Equals(registration.Lifecycle, "Async", StringComparison.Ordinal) ||
                 string.Equals(registration.Lifecycle, "Live", StringComparison.Ordinal))
             {
-                diagnostics.Add(ProjectionLifecycleDiagnostic(project, subjects, registration));
+                collected.Diagnostics.Add(ProjectionLifecycleDiagnostic(project, subjects, registration));
             }
 
-            var multiStreamConfiguration = MartenMultiStreamConfiguration.Empty;
-            switch (registration.Kind)
-            {
-                case ProjectionKind.Event:
-                    var eventProjection = MartenEventProjectionFacts.Discover(project, adapter, subjects, registration);
-                    facts.AddRange(eventProjection.Facts);
-                    diagnostics.AddRange(eventProjection.Diagnostics);
-                    documents.AddRange(eventProjection.Documents);
-                    continue;
-                case ProjectionKind.MultiStream:
-                    diagnostics.Add(MultiStreamDiagnostic(project, subjects, registration));
-                    multiStreamConfiguration = MartenMultiStreamConfigurationDiscovery.Discover(
-                        project,
-                        adapter,
-                        subjects,
-                        registration.Projection!);
-                    diagnostics.AddRange(multiStreamConfiguration.Diagnostics);
-                    break;
-                case ProjectionKind.Custom:
-                    AddCustomProjectionFacts(project, subjects, registration, facts);
-                    diagnostics.Add(CustomProjectionDiagnostic(project, subjects, registration));
-                    continue;
-            }
-
-            AddAggregateProjectionFacts(project, options, adapter, subjects, registration, multiStreamConfiguration, facts, placements);
+            AddRegistrationFacts(collected, registration);
         }
 
-        return new(facts, diagnostics, documents, placements);
+        return new(collected.Facts, collected.Diagnostics, collected.Documents, collected.Placements);
+    }
+
+    static void AddRegistrationFacts(CollectedFacts collected, ProjectionRegistration registration)
+    {
+        var (project, options, adapter, subjects) = (collected.Project, collected.Options, collected.Adapter, collected.Subjects);
+        var multiStreamConfiguration = MartenMultiStreamConfiguration.Empty;
+        switch (registration.Kind)
+        {
+            case ProjectionKind.Event:
+                var eventProjection = MartenEventProjectionFacts.Discover(project, adapter, subjects, registration);
+                collected.Facts.AddRange(eventProjection.Facts);
+                collected.Diagnostics.AddRange(eventProjection.Diagnostics);
+                collected.Documents.AddRange(eventProjection.Documents);
+                return;
+            case ProjectionKind.MultiStream:
+                collected.Diagnostics.Add(MultiStreamDiagnostic(project, subjects, registration));
+                multiStreamConfiguration = MartenMultiStreamConfigurationDiscovery.Discover(
+                    project,
+                    adapter,
+                    subjects,
+                    registration.Projection!);
+                collected.Diagnostics.AddRange(multiStreamConfiguration.Diagnostics);
+                break;
+            case ProjectionKind.Custom:
+                AddCustomProjectionFacts(project, subjects, registration, collected.Facts);
+                collected.Diagnostics.Add(CustomProjectionDiagnostic(project, subjects, registration));
+                return;
+        }
+
+        AddAggregateProjectionFacts(project, options, adapter, subjects, registration, multiStreamConfiguration, collected.Facts, collected.Placements);
     }
 
     static void AddCustomProjectionFacts(
@@ -436,39 +439,64 @@ static class MartenFacts
     static GenerationDiagnostic MultiStreamDiagnostic(
         DotNetProjectCompilation project,
         CritterStackSubjectResolver subjects,
-        ProjectionRegistration registration) => new()
-        {
-            Code = MartenDiagnosticCodes.MultiStreamGroupingOmitted,
-            Severity = GenerationDiagnosticSeverity.Warning,
-            Outcome = GenerationDiagnosticOutcome.Unsupported,
-            Message = $"Multi-stream projection '{registration.Projection!.Name}' is represented as an event reducer; exact authored grouping and fan-out declarations are retained as neutral evidence, but those semantics are not expressible in the current Screenplay language",
-            Source = registration.Evidence.Source,
-            Subject = subjects.SubjectForType(project, registration.Projection)
-        };
+        ProjectionRegistration registration) => OmittedProjectionDiagnostic(
+            MartenDiagnosticCodes.MultiStreamGroupingOmitted,
+            $"Multi-stream projection '{registration.Projection!.Name}' is represented as an event reducer; exact authored grouping and fan-out declarations are retained as neutral evidence, but those semantics are not expressible in the current Screenplay language",
+            registration,
+            subjects.SubjectForType(project, registration.Projection));
 
     static GenerationDiagnostic ProjectionLifecycleDiagnostic(
         DotNetProjectCompilation project,
         CritterStackSubjectResolver subjects,
-        ProjectionRegistration registration) => new()
-        {
-            Code = MartenDiagnosticCodes.ProjectionLifecycleOmitted,
-            Severity = GenerationDiagnosticSeverity.Warning,
-            Outcome = GenerationDiagnosticOutcome.Unsupported,
-            Message = $"Projection '{(registration.Projection ?? registration.Model).Name}' uses the {registration.Lifecycle} lifecycle, which is not expressible in the current Screenplay language",
-            Source = registration.Evidence.Source,
-            Subject = subjects.SubjectForType(project, registration.Projection ?? registration.Model)
-        };
+        ProjectionRegistration registration) => OmittedProjectionDiagnostic(
+            MartenDiagnosticCodes.ProjectionLifecycleOmitted,
+            $"Projection '{(registration.Projection ?? registration.Model).Name}' uses the {registration.Lifecycle} lifecycle, which is not expressible in the current Screenplay language",
+            registration,
+            subjects.SubjectForType(project, registration.Projection ?? registration.Model));
 
     static GenerationDiagnostic CustomProjectionDiagnostic(
         DotNetProjectCompilation project,
         CritterStackSubjectResolver subjects,
-        ProjectionRegistration registration) => new()
+        ProjectionRegistration registration) => OmittedProjectionDiagnostic(
+            MartenDiagnosticCodes.CustomProcessingOmitted,
+            $"Custom Marten projection '{registration.Projection!.Name}' is preserved as a neutral projection artifact, but its arbitrary processing consequences were not inferred",
+            registration,
+            subjects.SubjectForType(project, registration.Projection));
+
+    static GenerationDiagnostic OmittedProjectionDiagnostic(
+        string code,
+        string message,
+        ProjectionRegistration registration,
+        SubjectId subject) => new()
         {
-            Code = MartenDiagnosticCodes.CustomProcessingOmitted,
+            Code = code,
             Severity = GenerationDiagnosticSeverity.Warning,
             Outcome = GenerationDiagnosticOutcome.Unsupported,
-            Message = $"Custom Marten projection '{registration.Projection!.Name}' is preserved as a neutral projection artifact, but its arbitrary processing consequences were not inferred",
+            Message = message,
             Source = registration.Evidence.Source,
-            Subject = subjects.SubjectForType(project, registration.Projection)
+            Subject = subject
         };
+
+    sealed class CollectedFacts(
+        DotNetProjectCompilation project,
+        DotNetAdapterOptions options,
+        AdapterIdentity adapter,
+        CritterStackSubjectResolver subjects)
+    {
+        public DotNetProjectCompilation Project { get; } = project;
+
+        public DotNetAdapterOptions Options { get; } = options;
+
+        public AdapterIdentity Adapter { get; } = adapter;
+
+        public CritterStackSubjectResolver Subjects { get; } = subjects;
+
+        public List<GenerationFact> Facts { get; } = [];
+
+        public List<GenerationDiagnostic> Diagnostics { get; } = [];
+
+        public List<MartenDocumentUsage> Documents { get; } = [];
+
+        public List<CritterStackPlacementIntent> Placements { get; } = [];
+    }
 }

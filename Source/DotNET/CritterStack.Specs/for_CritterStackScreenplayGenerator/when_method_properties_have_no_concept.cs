@@ -72,7 +72,7 @@ public class when_method_properties_have_no_concept : Specification
             Name = "Methods",
             ProjectPath = "/workspace/Methods/Methods.csproj",
             SourceRoot = "/workspace",
-            Compilation = CSharpCompilation.Create("Methods", [tree, generated], ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path)), new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)),
+            Compilation = CSharpCompilation.Create("Methods", [tree, generated], ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path)), new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)),
             AuthoredSyntaxTrees = new HashSet<SyntaxTree> { tree }
         };
     }
@@ -95,7 +95,7 @@ public class when_method_properties_have_no_concept : Specification
     [Fact] void should_not_bind_any_property_to_a_missing_concept() => _result.Graph.Artifacts.SelectMany(artifact => artifact.Variants).SelectMany(variant => variant.Definition.Properties).Select(property => property.Type.Subject).OfType<SubjectId>().ShouldBeEmpty();
     [Fact] void should_preserve_collection_shape() => Property("Records", "records").Type.IsCollection.ShouldBeTrue();
     [Fact] void should_preserve_optionality() => Property("Structs", "value").Type.IsOptional.ShouldBeTrue();
-    [Fact] void should_report_located_flags_loss() => _result.Diagnostics.Single(diagnostic => diagnostic.Code == CritterStackDiagnosticCodes.FlagsEnumOmitted).Source!.Path.ShouldEqual("Methods/Endpoints.cs");
+    [Fact] void should_report_located_flags_loss() => _result.Diagnostics.Single(diagnostic => diagnostic.Code == CritterStackDiagnosticCodes.FlagsEnumOmitted).Source.Path.ShouldEqual("Methods/Endpoints.cs");
 
     PropertyDefinition Property(string artifactName, string name) => _result.Graph.Artifacts.Single(artifact => artifact.Variants[0].Definition.Name == artifactName).Variants[0].Definition.Properties.Single(property => property.Name == name);
 }

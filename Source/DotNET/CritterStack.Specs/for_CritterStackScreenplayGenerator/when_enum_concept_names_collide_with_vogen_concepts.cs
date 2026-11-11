@@ -52,7 +52,7 @@ public class when_enum_concept_names_collide_with_vogen_concepts : Specification
             Name = "Ordering",
             ProjectPath = "/workspace/Ordering/Ordering.csproj",
             SourceRoot = "/workspace",
-            Compilation = CSharpCompilation.Create("Ordering", [tree], ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path)), new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)),
+            Compilation = CSharpCompilation.Create("Ordering", [tree], ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path)), new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)),
             AuthoredSyntaxTrees = new HashSet<SyntaxTree> { tree }
         };
     }
@@ -67,6 +67,6 @@ public class when_enum_concept_names_collide_with_vogen_concepts : Specification
     [Fact] void should_keep_the_command_using_the_vogen_concept() => _result.Source.ShouldContain("command Track");
     [Fact] void should_not_report_conflicting_concept_names() => _result.Diagnostics.Where(diagnostic => diagnostic.Code == GenerationDiagnosticCodes.ConflictingConceptName).ShouldBeEmpty();
     [Fact] void should_not_report_missing_concepts() => _result.Diagnostics.Where(diagnostic => diagnostic.Code == "GEN0016").ShouldBeEmpty();
-    [Fact] void should_report_the_enum_as_the_dropped_side() => _result.Diagnostics.Single(diagnostic => diagnostic.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict).Subject!.Value.ShouldNotContain("Tracking");
+    [Fact] void should_report_the_enum_as_the_dropped_side() => _result.Diagnostics.Single(diagnostic => diagnostic.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict).Subject.Value.ShouldNotContain("Tracking");
     [Fact] void should_keep_vogen_provenance_for_the_concept() => _result.Graph.Artifacts.Single(artifact => artifact.Key.Kind == ArtifactKind.Concept && artifact.Variants[0].Definition.Name == "Status").Variants.Single().Evidence.Single().Adapter.Id.ShouldEqual("vogen");
 }

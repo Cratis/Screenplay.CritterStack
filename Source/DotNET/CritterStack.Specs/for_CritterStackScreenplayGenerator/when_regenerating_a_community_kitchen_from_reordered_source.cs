@@ -20,7 +20,8 @@ public class when_regenerating_a_community_kitchen_from_reordered_source : given
     }
 
     [Fact] void should_print_byte_identical_source() => _second.Source.ShouldEqual(_first.Source);
-    [Fact] void should_report_the_same_diagnostics() =>
+    [Fact]
+    void should_report_the_same_diagnostics() =>
         _second.Diagnostics.Select(_ => $"{_.Code}|{_.Message}").ShouldEqual(_first.Diagnostics.Select(_ => $"{_.Code}|{_.Message}"));
     [Fact] void should_print_byte_identical_source_for_a_flat_namespace() => _flatSecond.Source.ShouldEqual(_flatFirst.Source);
 }

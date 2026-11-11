@@ -10,7 +10,7 @@ namespace Cratis.CritterStack.Screenplay.Wolverine;
 /// Whether one produced event is linked declaratively to its command, and through which stream identity.
 /// </summary>
 /// <param name="EventType">The produced event type.</param>
-/// <param name="Declarative">Whether the production is a declarative <c>produces</c> link rather than a handler reference.</param>
+/// <param name="Declarative">Whether the production is a declarative produces link rather than a handler reference.</param>
 /// <param name="StreamIdentity">The command member that identifies the target stream, when known.</param>
 sealed record WolverineProductionDecision(INamedTypeSymbol EventType, bool Declarative, ISymbol? StreamIdentity);
 
@@ -26,7 +26,7 @@ sealed record WolverineProductionDecision(INamedTypeSymbol EventType, bool Decla
 /// <param name="SessionAppends">Direct Marten session appends.</param>
 /// <param name="Yields">Events yielded by an aggregate handler.</param>
 /// <param name="ImperativeDcbEvents">Events appended imperatively through a dynamic consistency boundary.</param>
-/// <param name="EventStreamAppendEvents">Events appended through an <c>IEventStream&lt;T&gt;</c> handler parameter.</param>
+/// <param name="EventStreamAppendEvents">Events appended through an IEventStream&lt;T&gt; handler parameter.</param>
 /// <param name="HasCompoundValidation">Whether compound validation decides whether events are produced.</param>
 sealed record WolverineProductionSources(
     string CommandName,
@@ -42,7 +42,7 @@ sealed record WolverineProductionSources(
     bool HasCompoundValidation);
 
 /// <summary>
-/// Decides which produced events a command links with <c>produces</c>, and reports every production that falls back to a handler reference.
+/// Decides which produced events a command links with produces, and reports every production that falls back to a handler reference.
 /// </summary>
 static class WolverineProductionPlan
 {

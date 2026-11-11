@@ -182,7 +182,7 @@ public class a_wolverine_slice_pattern_application : Specification
         var application = CSharpSyntaxTree.ParseText(ApplicationSource, path: "/workspace/Patterns/Handlers.cs");
         var generated = CSharpSyntaxTree.ParseText("[Wolverine.Persistence.EventSourcing.SlicePattern(JasperFx.Events.EventModeling.SlicePattern.Automation)] public static partial class GeneratedMetadataHandler;", path: "/workspace/Patterns/Generated.cs");
         generated = CSharpSyntaxTree.ParseText("namespace Patterns; " + generated.GetText(), path: generated.FilePath);
-        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path));
+        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path));
         Project = new DotNetProjectCompilation
         {
             Name = "Patterns",

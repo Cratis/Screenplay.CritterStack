@@ -135,7 +135,7 @@ public class a_cross_project_source_placement_application : Specification
 
     static readonly IReadOnlyList<MetadataReference> _references =
     [
-        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
             .Split(Path.PathSeparator)
             .Select(_ => MetadataReference.CreateFromFile(_))
     ];
@@ -196,7 +196,7 @@ public class a_cross_project_source_placement_application : Specification
                     "Domain/Source/Orders/Domain/Domain.cs")
                 : null,
             Compilation = domainCompilation,
-            AuthoredSyntaxTrees = new[] { domainTree }.ToHashSet<SyntaxTree>()
+            AuthoredSyntaxTrees = new[] { domainTree }.ToHashSet()
         };
         var applicationProject = new DotNetProjectCompilation
         {
@@ -214,7 +214,7 @@ public class a_cross_project_source_placement_application : Specification
                     ])
                 : null,
             Compilation = applicationCompilation,
-            AuthoredSyntaxTrees = new[] { projectionTree, handlerTree, endpointTree }.ToHashSet<SyntaxTree>()
+            AuthoredSyntaxTrees = new[] { projectionTree, handlerTree, endpointTree }.ToHashSet()
         };
 
         return new(applicationProject, domainProject);
@@ -243,7 +243,7 @@ public class a_cross_project_source_placement_application : Specification
                 "Source/Orders/Domain/Domain.cs",
                 "UnrelatedDomain/Source/Orders/Domain/Domain.cs"),
             Compilation = compilation,
-            AuthoredSyntaxTrees = new[] { tree }.ToHashSet<SyntaxTree>()
+            AuthoredSyntaxTrees = new[] { tree }.ToHashSet()
         };
     }
 
@@ -285,7 +285,7 @@ public class a_cross_project_source_placement_application : Specification
                 "Source/Billing/Capture.cs",
                 "Payments/Source/Billing/Capture.cs"),
             Compilation = compilation,
-            AuthoredSyntaxTrees = new[] { tree }.ToHashSet<SyntaxTree>()
+            AuthoredSyntaxTrees = new[] { tree }.ToHashSet()
         };
     }
 

@@ -1,0 +1,54 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+namespace Cratis.CritterStack.Screenplay.for_CritterStackScreenplayAdapter;
+
+public class when_characterizing_marten_multi_stream_variants : given.a_marten_multi_stream_variants_application
+{
+    (string Expected, string Actual) _transcript;
+
+    const string ExpectedDiagnostics =
+        """
+        MARTEN0001|Warning|Unsupported|dotnet://Orders/Orders/Orders.CompetingProjection|Orders/Earlier.cs:3:1-17:2|Multi-stream projection 'CompetingProjection' is represented as an event reducer; exact authored grouping and fan-out declarations are retained as neutral evidence, but those semantics are not expressible in the current Screenplay language
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.CompetingProjection|Orders/Earlier.cs:11:9-11:48|Marten Identity configuration in 'CompetingProjection' is not a simple member-selector lambda and no identity mapping was inferred
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.CompetingProjection|Orders/Earlier.cs:25:13-25:49|Marten Identity configuration in 'CompetingProjection' is conditional or nested and cannot be resolved safely
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.CompetingProjection|Orders/Earlier.cs:26:13-26:29|Marten RollUpByTenant configuration in 'CompetingProjection' is conditional or nested and cannot be resolved safely
+        MARTEN0001|Warning|Unsupported|dotnet://Orders/Orders/Orders.CompetingProjection|Orders/Earlier.cs:27:13-27:88|Multi-stream projection 'CompetingProjection' configures tenancy-dependent grouping and no identity mapping was inferred from that assignment
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.CompetingProjection|Orders/Earlier.cs:32:13-32:49|Marten FanOut configuration in 'CompetingProjection' is conditional or nested and cannot be resolved safely
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.CompetingProjection|Orders/Earlier.cs:36:45-36:81|Marten Identity configuration in 'CompetingProjection' is conditional or nested and cannot be resolved safely
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.CompetingProjection|Orders/Earlier.cs:40:13-40:42|Marten CustomGrouping configuration in 'CompetingProjection' is conditional or nested and cannot be resolved safely
+        MARTEN0001|Warning|Unsupported|dotnet://Orders/Orders/Orders.CompetingProjection|Orders/Earlier.cs:47:9-47:84|Multi-stream projection 'CompetingProjection' configures tenancy-dependent grouping and no identity mapping was inferred from that assignment
+        MARTEN0001|Warning|Unsupported|dotnet://Orders/Orders/Orders.CompetingProjection|Orders/Earlier.cs:48:9-48:38|Multi-stream projection 'CompetingProjection' uses arbitrary custom grouping through CustomGrouping and no identity mapping was inferred
+        MARTEN0001|Warning|Unsupported|dotnet://Orders/Orders/Orders.CompetingProjection|Orders/Earlier.cs:49:9-49:25|Multi-stream projection 'CompetingProjection' groups by tenant through RollUpByTenant and no identity mapping was inferred
+        MARTEN0001|Warning|Unsupported|dotnet://Orders/Orders/Orders.ExpressionBodiedProjection|Orders/Later.cs:36:1-39:2|Multi-stream projection 'ExpressionBodiedProjection' is represented as an event reducer; exact authored grouping and fan-out declarations are retained as neutral evidence, but those semantics are not expressible in the current Screenplay language
+        MARTEN0001|Warning|Unsupported|dotnet://Orders/Orders/Orders.FanOutModesProjection|Orders/Later.cs:91:1-109:2|Multi-stream projection 'FanOutModesProjection' is represented as an event reducer; exact authored grouping and fan-out declarations are retained as neutral evidence, but those semantics are not expressible in the current Screenplay language
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.FanOutModesProjection|Orders/Later.cs:97:9-97:94|Marten FanOut configuration in 'FanOutModesProjection' is not an exact declaration with a simple member-selector lambda and no fan-out mapping was inferred
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.FanOutModesProjection|Orders/Later.cs:98:9-98:88|Marten FanOut configuration in 'FanOutModesProjection' is not an exact declaration with a simple member-selector lambda and no fan-out mapping was inferred
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.FanOutModesProjection|Orders/Later.cs:99:9-99:57|Marten FanOut configuration in 'FanOutModesProjection' is not an exact declaration with a simple member-selector lambda and no fan-out mapping was inferred
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.FanOutModesProjection|Orders/Later.cs:101:9-101:38|Marten FanOut configuration in 'FanOutModesProjection' is not an exact declaration with a simple member-selector lambda and no fan-out mapping was inferred
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.FanOutModesProjection|Orders/Later.cs:102:9-102:77|Marten FanOut configuration in 'FanOutModesProjection' is not an exact declaration with a simple member-selector lambda and no fan-out mapping was inferred
+        MARTEN0001|Warning|Unsupported|dotnet://Orders/Orders/Orders.IndirectProjection|Orders/Later.cs:19:1-25:2|Multi-stream projection 'IndirectProjection' is represented as an event reducer; exact authored grouping and fan-out declarations are retained as neutral evidence, but those semantics are not expressible in the current Screenplay language
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.IndirectProjection|Orders/Later.cs:19:1-25:2|Multi-stream projection 'IndirectProjection' does not directly derive from the exact Marten MultiStreamProjection<T,TId> base, so inherited grouping configuration was not interpreted
+        MARTEN0001|Warning|Unsupported|dotnet://Orders/Orders/Orders.IntermediateBase|Orders/Later.cs:17:1-17:110|Multi-stream projection 'IntermediateBase' is represented as an event reducer; exact authored grouping and fan-out declarations are retained as neutral evidence, but those semantics are not expressible in the current Screenplay language
+        MARTEN0001|Warning|Unsupported|dotnet://Orders/Orders/Orders.LambdaShapesProjection|Orders/Later.cs:41:1-65:2|Multi-stream projection 'LambdaShapesProjection' is represented as an event reducer; exact authored grouping and fan-out declarations are retained as neutral evidence, but those semantics are not expressible in the current Screenplay language
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.LambdaShapesProjection|Orders/Later.cs:53:9-53:90|Marten Identities configuration in 'LambdaShapesProjection' is not a simple member-selector lambda and no identity mapping was inferred
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.LambdaShapesProjection|Orders/Later.cs:55:9-55:33|Marten Identity configuration in 'LambdaShapesProjection' is not a simple member-selector lambda and no identity mapping was inferred
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.LambdaShapesProjection|Orders/Later.cs:56:9-56:41|Marten Identity configuration in 'LambdaShapesProjection' is not a simple member-selector lambda and no identity mapping was inferred
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.LambdaShapesProjection|Orders/Later.cs:57:9-57:105|Marten Identity configuration in 'LambdaShapesProjection' is not a simple member-selector lambda and no identity mapping was inferred
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.LambdaShapesProjection|Orders/Later.cs:58:9-58:44|Marten Identity configuration in 'LambdaShapesProjection' is not a simple member-selector lambda and no identity mapping was inferred
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.LambdaShapesProjection|Orders/Later.cs:59:9-59:39|Marten Identity configuration in 'LambdaShapesProjection' is not a simple member-selector lambda and no identity mapping was inferred
+        MARTEN0001|Warning|Unsupported|dotnet://Orders/Orders/Orders.LocalFunctionProjection|Orders/Earlier.cs:55:1-68:2|Multi-stream projection 'LocalFunctionProjection' is represented as an event reducer; exact authored grouping and fan-out declarations are retained as neutral evidence, but those semantics are not expressible in the current Screenplay language
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.LocalFunctionProjection|Orders/Earlier.cs:59:29-59:66|Marten Identity configuration in 'LocalFunctionProjection' is conditional or nested and cannot be resolved safely
+        MARTEN0001|Warning|Unknown|dotnet://Orders/Orders/Orders.LocalFunctionProjection|Orders/Earlier.cs:64:11-64:47|Marten Identity configuration in 'LocalFunctionProjection' is conditional or nested and cannot be resolved safely
+        MARTEN0001|Warning|Unsupported|dotnet://Orders/Orders/Orders.TenantPathProjection|Orders/Later.cs:67:1-75:2|Multi-stream projection 'TenantPathProjection' is represented as an event reducer; exact authored grouping and fan-out declarations are retained as neutral evidence, but those semantics are not expressible in the current Screenplay language
+        MARTEN0001|Warning|Unsupported|dotnet://Orders/Orders/Orders.TenantPathProjection|Orders/Later.cs:71:9-71:44|Marten Identity configuration in 'TenantPathProjection' depends on tenant identity and no identity mapping was inferred
+        MARTEN0001|Warning|Unsupported|dotnet://Orders/Orders/Orders.TenantPathProjection|Orders/Later.cs:73:9-73:43|Marten Identity configuration in 'TenantPathProjection' depends on tenant identity and no identity mapping was inferred
+        MARTEN0001|Warning|Unsupported|dotnet://Orders/Orders/Orders.WrapperProjection|Orders/Later.cs:79:1-89:2|Multi-stream projection 'WrapperProjection' is represented as an event reducer; exact authored grouping and fan-out declarations are retained as neutral evidence, but those semantics are not expressible in the current Screenplay language
+        MARTEN0001|Warning|Unsupported|dotnet://Orders/Orders/Orders.WrapperProjection|Orders/Later.cs:84:9-84:72|Marten Identity configuration in 'WrapperProjection' depends on tenant identity and no identity mapping was inferred
+        """;
+
+    void Because() => _transcript = given.contribution_transcript.Compare(VariantContribution, "marten-multi-stream-variants");
+
+    [Fact] void should_preserve_every_fact_and_diagnostic() => _transcript.Actual.ShouldEqual(_transcript.Expected);
+    [Fact] void should_preserve_full_diagnostic_source_ranges() => string.Join('\n', given.diagnostic_ranges.Of(VariantContribution)).ShouldEqual(ExpectedDiagnostics);
+}

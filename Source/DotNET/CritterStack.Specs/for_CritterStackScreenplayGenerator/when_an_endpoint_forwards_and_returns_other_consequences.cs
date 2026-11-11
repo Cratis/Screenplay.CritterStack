@@ -38,12 +38,15 @@ public class when_an_endpoint_forwards_and_returns_other_consequences : given.a_
         ])],
         new CritterStackScreenplayOptions { Domain = "CommunityKitchen" });
 
-    [Fact] void should_preserve_the_returned_message() => _result.Graph.Relationships.ShouldContain(_ =>
+    [Fact]
+    void should_preserve_the_returned_message() => _result.Graph.Relationships.ShouldContain(_ =>
         _.Key.Kind == RelationshipKind.Cascades &&
         _.Key.Target.Value.EndsWith("/Kitchen.Planning.KitchenNotification", StringComparison.Ordinal));
-    [Fact] void should_preserve_the_outgoing_message() => _result.Graph.Relationships.ShouldContain(_ =>
+    [Fact]
+    void should_preserve_the_outgoing_message() => _result.Graph.Relationships.ShouldContain(_ =>
         _.Key.Kind == RelationshipKind.Cascades &&
         _.Key.Target.Value.EndsWith("/Kitchen.Planning.KitchenAnnouncement", StringComparison.Ordinal));
-    [Fact] void should_not_classify_the_endpoint_as_a_forwarder() => _result.Diagnostics.ShouldNotContain(_ =>
+    [Fact]
+    void should_not_classify_the_endpoint_as_a_forwarder() => _result.Diagnostics.ShouldNotContain(_ =>
         _.Message.Contains("forwards 'PlanBatch' to its Wolverine handler", StringComparison.Ordinal));
 }

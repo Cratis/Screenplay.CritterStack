@@ -18,8 +18,8 @@ public class when_enum_values_cannot_be_lowered : given.an_enum_application
 
     [Fact] void should_succeed_for_the_empty_enum() => _empty.IsSuccess.ShouldBeTrue();
     [Fact] void should_succeed_for_colliding_values() => _colliding.IsSuccess.ShouldBeTrue();
-    [Fact] void should_report_the_empty_enum() => _empty.Diagnostics.Single(_ => _.Code == CritterStackDiagnosticCodes.EnumValuesUnsupported).Source!.Path.ShouldEqual("Ordering/Priority.cs");
-    [Fact] void should_report_values_colliding_after_screenplay_naming() => _colliding.Diagnostics.Single(_ => _.Code == CritterStackDiagnosticCodes.EnumValuesUnsupported).Source!.Path.ShouldEqual("Ordering/Priority.cs");
+    [Fact] void should_report_the_empty_enum() => _empty.Diagnostics.Single(_ => _.Code == CritterStackDiagnosticCodes.EnumValuesUnsupported).Source.Path.ShouldEqual("Ordering/Priority.cs");
+    [Fact] void should_report_values_colliding_after_screenplay_naming() => _colliding.Diagnostics.Single(_ => _.Code == CritterStackDiagnosticCodes.EnumValuesUnsupported).Source.Path.ShouldEqual("Ordering/Priority.cs");
     [Fact] void should_not_leave_the_empty_enum_to_the_shared_lowerer() => _empty.Diagnostics.Any(_ => _.Code == GenerationDiagnosticCodes.UnsupportedConceptRepresentation).ShouldBeFalse();
     [Fact] void should_not_leave_colliding_values_to_the_shared_lowerer() => _colliding.Diagnostics.Any(_ => _.Code == GenerationDiagnosticCodes.UnsupportedConceptRepresentation).ShouldBeFalse();
     [Fact] void should_not_print_an_empty_concept() => _empty.Source.ShouldNotContain("concept Priority");
@@ -33,7 +33,7 @@ public class when_enum_values_cannot_be_lowered : given.an_enum_application
     [Fact] void should_not_omit_artifacts_for_the_empty_enum() => _empty.Diagnostics.Any(_ => _.Code == "GEN0016").ShouldBeFalse();
     [Fact] void should_not_omit_artifacts_for_colliding_values() => _colliding.Diagnostics.Any(_ => _.Code == "GEN0016").ShouldBeFalse();
     [Fact] void should_succeed_for_values_the_compiler_cannot_parse() => _nonAscii.IsSuccess.ShouldBeTrue();
-    [Fact] void should_report_values_the_compiler_cannot_parse() => _nonAscii.Diagnostics.Single(_ => _.Code == CritterStackDiagnosticCodes.EnumValuesUnsupported).Source!.Path.ShouldEqual("Ordering/Priority.cs");
+    [Fact] void should_report_values_the_compiler_cannot_parse() => _nonAscii.Diagnostics.Single(_ => _.Code == CritterStackDiagnosticCodes.EnumValuesUnsupported).Source.Path.ShouldEqual("Ordering/Priority.cs");
     [Fact] void should_not_print_values_the_compiler_cannot_parse() => _nonAscii.Source.ShouldNotContain("concept Priority");
     [Fact] void should_keep_the_command_using_values_the_compiler_cannot_parse() => _nonAscii.Source.ShouldContain("command PlaceOrder");
 }

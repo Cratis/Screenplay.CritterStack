@@ -42,7 +42,8 @@ public class when_generating_targeted_wolverine_event_streams : given.a_wolverin
     [Fact] void should_retain_a_loaded_stream_without_a_direct_append() => ReadsFrom("InspectAccount").Single().Definitions.Single().SourceMember.ShouldEqual("accountId");
     [Fact] void should_retain_both_ambiguous_conventional_version_bindings() => ReadsFrom("ConventionalVersionCommand").Select(_ => _.Definitions.Single().SourceMember).ShouldContainOnly(["fromId", "toId"]);
     [Fact] void should_report_ambiguous_conventional_version_for_each_binding() => Diagnostics(WolverineDiagnosticCodes.StreamVersionOmitted).Count(_ => _.Message.Contains("ConventionalVersionCommand", StringComparison.Ordinal)).ShouldEqual(2);
-    [Fact] void should_make_conventional_version_diagnostics_parameter_specific() => Diagnostics(WolverineDiagnosticCodes.StreamVersionOmitted).Where(_ => _.Message.Contains("ConventionalVersionCommand", StringComparison.Ordinal)).Select(_ => _.Message).ShouldContainOnly([
+    [Fact]
+    void should_make_conventional_version_diagnostics_parameter_specific() => Diagnostics(WolverineDiagnosticCodes.StreamVersionOmitted).Where(_ => _.Message.Contains("ConventionalVersionCommand", StringComparison.Ordinal)).Select(_ => _.Message).ShouldContainOnly([
         "The conventional Version member for 'ConventionalVersionCommand' cannot be attributed safely to stream parameter 'source' because the handler loads multiple streams",
         "The conventional Version member for 'ConventionalVersionCommand' cannot be attributed safely to stream parameter 'destination' because the handler loads multiple streams"]);
     [Fact] void should_ignore_an_unrelated_identity_attribute() => ReadsFrom("FalseIdentityCommand").Single().Definitions.Single().SourceMember.ShouldBeNull();
@@ -72,8 +73,8 @@ public class when_generating_targeted_wolverine_event_streams : given.a_wolverin
     [Fact] void should_not_guess_object_dynamic_variable_or_helper_payloads() => EventNames.Any(_ => new[] { "OpaqueObjectEvent", "DynamicEvent", "VariableEvent", "HelperEvent", "NestedContainerEvent" }.Contains(_, StringComparer.Ordinal)).ShouldBeFalse();
     [Fact] void should_report_each_unresolved_exact_append_once() => Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).Count.ShouldEqual(9);
     [Fact] void should_locate_each_unresolved_append_in_authored_source() => Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).All(_ => _.Source?.Path == "Transfers/Handlers.cs").ShouldBeTrue();
-    [Fact] void should_anchor_each_unresolved_append_at_its_authored_occurrence() => Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).All(_ => _.Source!.StartLine > 0 && _.Source.StartColumn > 0).ShouldBeTrue();
-    [Fact] void should_preserve_each_unresolved_append_occurrence_without_collapsing_locations() => Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).Select(_ => (_.Source!.StartLine, _.Source.StartColumn)).Distinct().Count().ShouldEqual(9);
+    [Fact] void should_anchor_each_unresolved_append_at_its_authored_occurrence() => Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).All(_ => _.Source.StartLine > 0 && _.Source.StartColumn > 0).ShouldBeTrue();
+    [Fact] void should_preserve_each_unresolved_append_occurrence_without_collapsing_locations() => Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).Select(_ => (_.Source.StartLine, _.Source.StartColumn)).Distinct().Count().ShouldEqual(9);
     [Fact] void should_report_unresolved_appends_in_authored_declaration_order() => UnresolvedAppendStartLines.SequenceEqual(UnresolvedAppendStartLines.Order()).ShouldBeTrue();
     [Fact] void should_not_promote_a_member_receiver_append_to_an_event() => EventNames.ShouldNotContain("MemberReceiverEvent");
     [Fact] void should_not_promote_an_object_round_trip_receiver_append_to_an_event() => EventNames.ShouldNotContain("ObjectRoundTripEvent");
@@ -146,6 +147,6 @@ public class when_generating_targeted_wolverine_event_streams : given.a_wolverin
 
     IReadOnlyList<int> UnresolvedAppendStartLines =>
     [
-        .. Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).Select(_ => _.Source!.StartLine)
+        .. Diagnostics(WolverineDiagnosticCodes.EventWriteTargetUnresolved).Select(_ => _.Source.StartLine)
     ];
 }

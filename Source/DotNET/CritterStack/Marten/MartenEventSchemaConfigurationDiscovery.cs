@@ -8,8 +8,15 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.CritterStack.Screenplay.Marten;
 
-static class MartenEventSchemaConfigurationDiscovery
+sealed class MartenEventSchemaConfigurationDiscovery(
+    DotNetProjectCompilation project,
+    CritterStackSubjectResolver subjects,
+    SemanticModel semanticModel,
+    List<GenerationDiagnostic> diagnostics)
 {
+    const string EventConfigurationNote = ". This authored declaration is retained as diagnostic evidence only; it does not rename, version, originate, or duplicate a Screenplay Event artifact, and runtime execution or precedence is not asserted";
+    const string UpcastConfigurationNote = ". This authored declaration is retained as diagnostic evidence only; it does not originate Event or Upcast artifacts or infer behavioral relationships, and runtime execution, reachability, ordering, or precedence is not asserted";
+
     static readonly HashSet<string> _eventNamingStyles = ["ClassicTypeName", "SmarterTypeName", "FullTypeName"];
     static readonly HashSet<string> _eventAppendModes = ["Quick", "QuickWithServerTimestamps", "Rich"];
     static readonly HashSet<string> _streamIdentities = ["AsGuid", "AsString"];
@@ -43,6 +50,7 @@ static class MartenEventSchemaConfigurationDiscovery
                      !DotNetGeneratedSource.IsGenerated(_)))
         {
             var semanticModel = project.Compilation.GetSemanticModel(tree);
+            var scan = new MartenEventSchemaConfigurationDiscovery(project, subjects, semanticModel, diagnostics);
             var root = tree.GetRoot();
             foreach (var invocation in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
@@ -51,20 +59,20 @@ static class MartenEventSchemaConfigurationDiscovery
                     continue;
                 }
 
-                DiscoverBinarySerializerConfiguration(project, subjects, invocation, method, semanticModel, diagnostics);
-                DiscoverEventTypeConfiguration(project, subjects, invocation, method, semanticModel, diagnostics);
-                DiscoverUpcastConfiguration(project, subjects, invocation, method, semanticModel, diagnostics);
+                scan.DiscoverBinarySerializerConfiguration(invocation, method);
+                scan.DiscoverEventTypeConfiguration(invocation, method);
+                scan.DiscoverUpcastConfiguration(invocation, method);
             }
 
             foreach (var assignment in root.DescendantNodes().OfType<AssignmentExpressionSyntax>())
             {
-                DiscoverWireConfiguration(project, subjects, assignment, semanticModel, diagnostics);
-                DiscoverEventNamingStyle(project, subjects, assignment, semanticModel, diagnostics);
+                scan.DiscoverWireConfiguration(assignment);
+                scan.DiscoverEventNamingStyle(assignment);
             }
 
             foreach (var attribute in root.DescendantNodes().OfType<AttributeSyntax>())
             {
-                DiscoverEventAliasAttribute(project, subjects, attribute, semanticModel, diagnostics);
+                scan.DiscoverEventAliasAttribute(attribute);
             }
         }
 
@@ -79,431 +87,32 @@ static class MartenEventSchemaConfigurationDiscovery
         ];
     }
 
-    static void DiscoverBinarySerializerConfiguration(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        InvocationExpressionSyntax invocation,
-        IMethodSymbol method,
-        SemanticModel semanticModel,
-        List<GenerationDiagnostic> diagnostics)
+    static WireSetting? WireSettingFor(string propertyName) => propertyName switch
     {
-        var candidate = (method.ReducedFrom ?? method).OriginalDefinition;
-        if (!string.Equals(candidate.Name, "UseBinarySerializer", StringComparison.Ordinal) ||
-            candidate.TypeParameters.Length != 1 ||
-            !IsEventStoreOptions(candidate.ContainingType))
-        {
-            return;
-        }
+        "AppendMode" => new(WellKnownTypes.JasperFxEventAppendMode, _eventAppendModes, "event append-mode"),
+        "StreamIdentity" => new(WellKnownTypes.JasperFxStreamIdentity, _streamIdentities, "stream-identity"),
+        _ => null
+    };
 
-        var eventType = NamedType(method.TypeArguments.SingleOrDefault());
-        var serializerExpression = invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression;
-        var serializerType = NamedType(serializerExpression is null ? null : semanticModel.GetTypeInfo(serializerExpression).Type);
-        if (eventType is null || serializerType is null)
-        {
-            diagnostics.Add(EventConfiguration(
-                project,
-                subjects,
-                eventType,
-                "Marten has an authored per-event binary serializer declaration whose event or serializer type could not be resolved safely",
-                invocation.GetLocation(),
-                GenerationDiagnosticOutcome.Unknown));
-            return;
-        }
+    static string WireMessage(string label, string? value) => value is null
+        ? $"Marten has an authored {label} declaration with a computed or otherwise unresolved value; no effective setting was guessed"
+        : $"Marten has an authored {label} declaration '{value}'";
 
-        diagnostics.Add(EventConfiguration(
-            project,
-            subjects,
-            eventType,
-            $"Marten event type '{eventType.Name}' has an authored binary serializer declaration using '{serializerType.Name}'",
-            invocation.GetLocation()));
-    }
+    static string NameSuffixMessage(INamedTypeSymbol eventType, string suffix, string? baseAlias) => baseAlias is null
+        ? $"Marten event type '{eventType.Name}' has an authored name-suffix declaration with suffix '{DiagnosticValue(suffix)}'; its convention-derived effective storage alias was not inferred"
+        : $"Marten event type '{eventType.Name}' has an authored name-suffix declaration with base alias '{DiagnosticValue(baseAlias)}' and suffix '{DiagnosticValue(suffix)}', deriving storage alias '{DiagnosticValue(baseAlias)}_{DiagnosticValue(suffix)}'";
 
-    static void DiscoverWireConfiguration(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        AssignmentExpressionSyntax assignment,
-        SemanticModel semanticModel,
-        List<GenerationDiagnostic> diagnostics)
-    {
-        if (semanticModel.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol property ||
-            !IsEventStoreOptions(property.ContainingType))
-        {
-            return;
-        }
+    static string SchemaVersionMessage(INamedTypeSymbol eventType, uint version, string? baseAlias) => baseAlias is null
+        ? $"Marten event type '{eventType.Name}' has an authored schema-version declaration for version '{version}'; its convention-derived effective storage alias was not inferred"
+        : $"Marten event type '{eventType.Name}' has an authored schema-version declaration with base alias '{DiagnosticValue(baseAlias)}' and version '{version}', deriving storage alias '{DiagnosticValue(baseAlias)}_v{version}'";
 
-        var (enumType, admittedValues, label) = property.Name switch
-        {
-            "AppendMode" => (WellKnownTypes.JasperFxEventAppendMode, _eventAppendModes, "event append-mode"),
-            "StreamIdentity" => (WellKnownTypes.JasperFxStreamIdentity, _streamIdentities, "stream-identity"),
-            _ => (null, null, null)
-        };
-        if (enumType is null || admittedValues is null || label is null)
-        {
-            return;
-        }
+    static string TypedUpcastAliasMessage(INamedTypeSymbol oldEvent, INamedTypeSymbol newEvent, bool isAsync, string? alias) => alias is null
+        ? $"Marten has an authored {ShapeLabel(isAsync)} typed upcast declaration '{oldEvent.Name} -> {newEvent.Name}' using a convention-derived storage alias that was not inferred"
+        : $"Marten has an authored {ShapeLabel(isAsync)} typed upcast declaration '{oldEvent.Name} -> {newEvent.Name}' for storage alias '{DiagnosticValue(alias)}'";
 
-        var value = EnumMember(assignment.Right, semanticModel, enumType, admittedValues);
-        diagnostics.Add(EventConfiguration(
-            project,
-            subjects,
-            null,
-            value is null
-                ? $"Marten has an authored {label} declaration with a computed or otherwise unresolved value; no effective setting was guessed"
-                : $"Marten has an authored {label} declaration '{value}'",
-            assignment.GetLocation(),
-            value is null ? GenerationDiagnosticOutcome.Unknown : GenerationDiagnosticOutcome.Unsupported));
-    }
-
-    static void DiscoverEventTypeConfiguration(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        InvocationExpressionSyntax invocation,
-        IMethodSymbol method,
-        SemanticModel semanticModel,
-        List<GenerationDiagnostic> diagnostics)
-    {
-        if (IsDirectMapEventType(method))
-        {
-            DiscoverDirectEventTypeAlias(project, subjects, invocation, method, semanticModel, diagnostics);
-            return;
-        }
-
-        if (!IsEventTypeHelper(method))
-        {
-            return;
-        }
-
-        var eventType = NamedType(method.TypeArguments.SingleOrDefault());
-        if (eventType is null)
-        {
-            diagnostics.Add(UnresolvedEventConfiguration(project, subjects, invocation.GetLocation()));
-            return;
-        }
-
-        if (method.Name == "MapEventTypeWithNameSuffix")
-        {
-            var suffix = ConstantString(ArgumentForParameter(invocation, method, "suffix")?.Expression, semanticModel);
-            var baseAliasArgument = ArgumentForParameter(invocation, method, "eventTypeName");
-            var baseAlias = baseAliasArgument is null ? null : ConstantString(baseAliasArgument.Expression, semanticModel);
-            if (suffix is null || (baseAliasArgument is not null && baseAlias is null))
-            {
-                diagnostics.Add(UnresolvedEventConfiguration(project, subjects, invocation.GetLocation(), eventType));
-                return;
-            }
-
-            diagnostics.Add(EventConfiguration(
-                project,
-                subjects,
-                eventType,
-                baseAliasArgument is null
-                    ? $"Marten event type '{eventType.Name}' has an authored name-suffix declaration with suffix '{DiagnosticValue(suffix)}'; its convention-derived effective storage alias was not inferred"
-                    : $"Marten event type '{eventType.Name}' has an authored name-suffix declaration with base alias '{DiagnosticValue(baseAlias!)}' and suffix '{DiagnosticValue(suffix)}', deriving storage alias '{DiagnosticValue(baseAlias!)}_{DiagnosticValue(suffix)}'",
-                invocation.GetLocation()));
-            return;
-        }
-
-        var version = ConstantUnsigned(ArgumentForParameter(invocation, method, "schemaVersion")?.Expression, semanticModel);
-        var explicitBaseAliasArgument = ArgumentForParameter(invocation, method, "eventTypeName");
-        var explicitBaseAlias = explicitBaseAliasArgument is null
-            ? null
-            : ConstantString(explicitBaseAliasArgument.Expression, semanticModel);
-        if (version is null || (explicitBaseAliasArgument is not null && explicitBaseAlias is null))
-        {
-            diagnostics.Add(UnresolvedEventConfiguration(project, subjects, invocation.GetLocation(), eventType));
-            return;
-        }
-
-        diagnostics.Add(EventConfiguration(
-            project,
-            subjects,
-            eventType,
-            explicitBaseAliasArgument is null
-                ? $"Marten event type '{eventType.Name}' has an authored schema-version declaration for version '{version}'; its convention-derived effective storage alias was not inferred"
-                : $"Marten event type '{eventType.Name}' has an authored schema-version declaration with base alias '{DiagnosticValue(explicitBaseAlias!)}' and version '{version}', deriving storage alias '{DiagnosticValue(explicitBaseAlias!)}_v{version}'",
-            invocation.GetLocation()));
-    }
-
-    static void DiscoverDirectEventTypeAlias(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        InvocationExpressionSyntax invocation,
-        IMethodSymbol method,
-        SemanticModel semanticModel,
-        List<GenerationDiagnostic> diagnostics)
-    {
-        var eventType = method.TypeArguments.Length == 1
-            ? NamedType(method.TypeArguments[0])
-            : TypeFromTypeOf(ArgumentForParameter(invocation, method, "eventType")?.Expression, semanticModel);
-        var alias = ConstantString(ArgumentForParameter(invocation, method, "eventTypeName")?.Expression, semanticModel);
-        if (eventType is null || alias is null)
-        {
-            diagnostics.Add(UnresolvedEventConfiguration(project, subjects, invocation.GetLocation(), eventType));
-            return;
-        }
-
-        diagnostics.Add(EventConfiguration(
-            project,
-            subjects,
-            eventType,
-            $"Marten event type '{eventType.Name}' has authored storage alias '{DiagnosticValue(alias)}'",
-            invocation.GetLocation()));
-    }
-
-    static void DiscoverEventNamingStyle(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        AssignmentExpressionSyntax assignment,
-        SemanticModel semanticModel,
-        List<GenerationDiagnostic> diagnostics)
-    {
-        if (semanticModel.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol { Name: "EventNamingStyle" } property ||
-            DotNetSubjectIds.MetadataName(property.ContainingType.OriginalDefinition) != WellKnownTypes.MartenEventStoreOptions)
-        {
-            return;
-        }
-
-        var style = EnumMember(assignment.Right, semanticModel, WellKnownTypes.JasperFxEventNamingStyle, _eventNamingStyles);
-        diagnostics.Add(style is null
-            ? UnresolvedEventConfiguration(project, subjects, assignment.GetLocation())
-            : EventConfiguration(
-                project,
-                subjects,
-                null,
-                $"Marten has an authored global event naming-style declaration '{style}'; runtime precedence and effective aliases were not inferred",
-                assignment.GetLocation()));
-    }
-
-    static void DiscoverEventAliasAttribute(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        AttributeSyntax attribute,
-        SemanticModel semanticModel,
-        List<GenerationDiagnostic> diagnostics)
-    {
-        if (semanticModel.GetSymbolInfo(attribute).Symbol is not IMethodSymbol constructor ||
-            DotNetSubjectIds.MetadataName(constructor.ContainingType) != WellKnownTypes.MartenEventAttribute ||
-            attribute.ArgumentList?.Arguments.FirstOrDefault(_ => _.NameEquals?.Name.Identifier.ValueText == "Alias") is not { } aliasArgument ||
-            ConstantString(aliasArgument.Expression, semanticModel) is not { Length: > 0 } alias ||
-            attribute.FirstAncestorOrSelf<TypeDeclarationSyntax>() is not { } declaration ||
-            semanticModel.GetDeclaredSymbol(declaration) is not INamedTypeSymbol eventType)
-        {
-            return;
-        }
-
-        diagnostics.Add(EventConfiguration(
-            project,
-            subjects,
-            eventType,
-            $"Marten event type '{eventType.Name}' has authored MartenEvent alias '{DiagnosticValue(alias)}'; the alias only applies when Marten AutoRegister discovers the type",
-            attribute.GetLocation()));
-    }
-
-    static void DiscoverUpcastConfiguration(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        InvocationExpressionSyntax invocation,
-        IMethodSymbol method,
-        SemanticModel semanticModel,
-        List<GenerationDiagnostic> diagnostics)
-    {
-        if (IsDirectUpcast(method))
-        {
-            DiscoverDirectUpcast(project, subjects, invocation, method, semanticModel, diagnostics);
-            return;
-        }
-
-        if (IsExtensionUpcast(method))
-        {
-            DiscoverExtensionUpcast(project, subjects, invocation, method, semanticModel, diagnostics);
-        }
-    }
-
-    static void DiscoverDirectUpcast(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        InvocationExpressionSyntax invocation,
-        IMethodSymbol method,
-        SemanticModel semanticModel,
-        List<GenerationDiagnostic> diagnostics)
-    {
-        if (IsGenericUpcasterRegistration(method))
-        {
-            var upcasterType = NamedType(method.TypeArguments[0]);
-            if (upcasterType is null)
-            {
-                diagnostics.Add(UnresolvedUpcastConfiguration(project, subjects, invocation.GetLocation()));
-                return;
-            }
-
-            if (HasOnlyGeneratedSource(upcasterType, project))
-            {
-                diagnostics.Add(UnresolvedUpcastConfiguration(project, subjects, invocation.GetLocation()));
-                return;
-            }
-
-            if (UpcasterShapeOf(upcasterType, project) is { } shape)
-            {
-                diagnostics.Add(UpcastConfiguration(project, subjects, shape.Subject, ClassUpcastMessage(upcasterType, shape), invocation.GetLocation()));
-            }
-            return;
-        }
-
-        if (IsInlineUpcasterRegistration(method))
-        {
-            DiscoverInlineUpcasterRegistration(project, subjects, invocation, semanticModel, diagnostics);
-            return;
-        }
-
-        if (TryDirectRawJsonUpcast(method, out var targetFromGeneric))
-        {
-            var target = targetFromGeneric
-                ? NamedType(method.TypeArguments[0])
-                : TypeFromTypeOf(ArgumentForParameter(invocation, method, "eventType")?.Expression, semanticModel);
-            var rawAlias = ConstantString(ArgumentForParameter(invocation, method, "eventTypeName")?.Expression, semanticModel);
-            if (target is null || rawAlias is null)
-            {
-                diagnostics.Add(UnresolvedUpcastConfiguration(project, subjects, invocation.GetLocation(), target));
-                return;
-            }
-
-            diagnostics.Add(UpcastConfiguration(
-                project,
-                subjects,
-                target,
-                $"Marten has an authored raw JSON upcast declaration from unknown source schema alias '{DiagnosticValue(rawAlias)}' to '{target.Name}'",
-                invocation.GetLocation()));
-            return;
-        }
-
-        if (!TryTypedUpcast(method, out var isAsync))
-        {
-            return;
-        }
-
-        var oldEvent = NamedType(method.TypeArguments[0]);
-        var newEvent = NamedType(method.TypeArguments[1]);
-        var aliasArgument = ArgumentForParameter(invocation, method, "eventTypeName");
-        var alias = aliasArgument is null ? null : ConstantString(aliasArgument.Expression, semanticModel);
-        if (oldEvent is null || newEvent is null || (aliasArgument is not null && alias is null))
-        {
-            diagnostics.Add(UnresolvedUpcastConfiguration(project, subjects, invocation.GetLocation(), newEvent));
-            return;
-        }
-
-        diagnostics.Add(UpcastConfiguration(
-            project,
-            subjects,
-            newEvent,
-            aliasArgument is null
-                ? $"Marten has an authored {ShapeLabel(isAsync)} typed upcast declaration '{oldEvent.Name} -> {newEvent.Name}' using a convention-derived storage alias that was not inferred"
-                : $"Marten has an authored {ShapeLabel(isAsync)} typed upcast declaration '{oldEvent.Name} -> {newEvent.Name}' for storage alias '{DiagnosticValue(alias!)}'",
-            invocation.GetLocation()));
-    }
-
-    static void DiscoverExtensionUpcast(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        InvocationExpressionSyntax invocation,
-        IMethodSymbol method,
-        SemanticModel semanticModel,
-        List<GenerationDiagnostic> diagnostics)
-    {
-        if (TryConventionRawJsonUpcast(method, out var conventionTargetFromGeneric))
-        {
-            var conventionTarget = conventionTargetFromGeneric
-                ? NamedType(method.TypeArguments[0])
-                : TypeFromTypeOf(ArgumentForParameter(invocation, method, "eventType")?.Expression, semanticModel);
-            if (conventionTarget is null)
-            {
-                diagnostics.Add(UnresolvedUpcastConfiguration(project, subjects, invocation.GetLocation()));
-                return;
-            }
-
-            diagnostics.Add(UpcastConfiguration(
-                project,
-                subjects,
-                conventionTarget,
-                $"Marten has an authored raw JSON upcast declaration from an unknown source schema to '{conventionTarget.Name}' using a convention-derived storage alias that was not inferred",
-                invocation.GetLocation()));
-            return;
-        }
-
-        var version = ConstantUnsigned(ArgumentForParameter(invocation, method, "schemaVersion")?.Expression, semanticModel);
-        if (TrySchemaVersionRawJsonUpcast(method, out var targetFromGeneric))
-        {
-            var target = targetFromGeneric
-                ? NamedType(method.TypeArguments[0])
-                : TypeFromTypeOf(ArgumentForParameter(invocation, method, "eventType")?.Expression, semanticModel);
-            if (target is null || version is null)
-            {
-                diagnostics.Add(UnresolvedUpcastConfiguration(project, subjects, invocation.GetLocation(), target));
-                return;
-            }
-
-            diagnostics.Add(UpcastConfiguration(
-                project,
-                subjects,
-                target,
-                $"Marten has an authored raw JSON upcast declaration from unknown source schema version '{version}' to '{target.Name}'; its convention-derived effective storage alias was not inferred",
-                invocation.GetLocation()));
-            return;
-        }
-
-        if (!TryTypedUpcast(method, out var isAsync))
-        {
-            return;
-        }
-
-        var oldEvent = NamedType(method.TypeArguments[0]);
-        var newEvent = NamedType(method.TypeArguments[1]);
-        if (oldEvent is null || newEvent is null || version is null)
-        {
-            diagnostics.Add(UnresolvedUpcastConfiguration(project, subjects, invocation.GetLocation(), newEvent));
-            return;
-        }
-
-        diagnostics.Add(UpcastConfiguration(
-            project,
-            subjects,
-            newEvent,
-            $"Marten has an authored {ShapeLabel(isAsync)} typed upcast declaration '{oldEvent.Name} -> {newEvent.Name}' for source schema version '{version}'; its convention-derived effective storage alias was not inferred",
-            invocation.GetLocation()));
-    }
-
-    static void DiscoverInlineUpcasterRegistration(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        InvocationExpressionSyntax invocation,
-        SemanticModel semanticModel,
-        List<GenerationDiagnostic> diagnostics)
-    {
-        var registrations = new List<(ObjectCreationExpressionSyntax Creation, INamedTypeSymbol Type, UpcasterShape Shape)>();
-        foreach (var argument in invocation.ArgumentList.Arguments)
-        {
-            if (argument.Expression is not ObjectCreationExpressionSyntax creation ||
-                semanticModel.GetTypeInfo(creation).Type is not INamedTypeSymbol upcasterType ||
-                HasOnlyGeneratedSource(upcasterType, project) ||
-                UpcasterShapeOf(upcasterType, project) is not { } shape)
-            {
-                diagnostics.Add(UnresolvedUpcastConfiguration(project, subjects, invocation.GetLocation()));
-                return;
-            }
-
-            registrations.Add((creation, upcasterType, shape));
-        }
-
-        if (registrations.Count == 0)
-        {
-            return;
-        }
-
-        diagnostics.AddRange(registrations.Select(_ => UpcastConfiguration(
-            project,
-            subjects,
-            _.Shape.Subject,
-            ClassUpcastMessage(_.Type, _.Shape),
-            _.Creation.GetLocation())));
-    }
+    static string ClassUpcastMessage(INamedTypeSymbol upcasterType, UpcasterShape shape) => shape.IsRaw
+        ? $"Marten has an authored {ShapeLabel(shape.IsAsync)} class-upcaster registration '{upcasterType.Name}' from unknown JSON source schema to '{shape.Target.Name}'; EventTypeName overrides and effective aliases were not inspected"
+        : $"Marten has an authored {ShapeLabel(shape.IsAsync)} class-upcaster registration '{upcasterType.Name}' for '{shape.Source!.Name} -> {shape.Target.Name}'; EventTypeName overrides and effective aliases were not inspected";
 
     static bool IsDirectMapEventType(IMethodSymbol method)
     {
@@ -514,11 +123,10 @@ static class MartenEventSchemaConfigurationDiscovery
             return false;
         }
 
-        return candidate switch
+        return candidate.TypeParameters.Length switch
         {
-            { TypeParameters.Length: 1, Parameters.Length: 1 } => IsString(candidate.Parameters[0].Type),
-            { TypeParameters.Length: 0, Parameters.Length: 2 } =>
-                IsSystemType(candidate.Parameters[0].Type) && IsString(candidate.Parameters[1].Type),
+            1 => HasParameters(candidate, IsString),
+            0 => HasParameters(candidate, IsSystemType, IsString),
             _ => false
         };
     }
@@ -526,32 +134,24 @@ static class MartenEventSchemaConfigurationDiscovery
     static bool IsEventTypeHelper(IMethodSymbol method)
     {
         var candidate = (method.ReducedFrom ?? method).OriginalDefinition;
-        if (!candidate.IsExtensionMethod ||
-            DotNetSubjectIds.MetadataName(candidate.ContainingType.OriginalDefinition) != WellKnownTypes.MartenEventStoreOptionsExtensions ||
+        if (!IsEventStoreOptionsExtension(candidate) ||
             candidate.TypeParameters.Length != 1 ||
-            !HasEventStoreReceiver(candidate) ||
             method.TypeArguments.Length != 1)
         {
             return false;
         }
 
-        return candidate.Name switch
-        {
-            "MapEventTypeWithNameSuffix" => candidate.Parameters.Length switch
-            {
-                2 => IsString(candidate.Parameters[1].Type),
-                3 => IsString(candidate.Parameters[1].Type) && IsString(candidate.Parameters[2].Type),
-                _ => false
-            },
-            "MapEventTypeWithSchemaVersion" => candidate.Parameters.Length switch
-            {
-                2 => IsUnsigned(candidate.Parameters[1].Type),
-                3 => IsString(candidate.Parameters[1].Type) && IsUnsigned(candidate.Parameters[2].Type),
-                _ => false
-            },
-            _ => false
-        };
+        return HasEventTypeHelperParameters(candidate);
     }
+
+    static bool HasEventTypeHelperParameters(IMethodSymbol candidate) => candidate.Name switch
+    {
+        "MapEventTypeWithNameSuffix" =>
+            HasParameters(candidate, null, IsString) || HasParameters(candidate, null, IsString, IsString),
+        "MapEventTypeWithSchemaVersion" =>
+            HasParameters(candidate, null, IsUnsigned) || HasParameters(candidate, null, IsString, IsUnsigned),
+        _ => false
+    };
 
     static bool IsDirectUpcast(IMethodSymbol method)
     {
@@ -563,11 +163,13 @@ static class MartenEventSchemaConfigurationDiscovery
     static bool IsExtensionUpcast(IMethodSymbol method)
     {
         var candidate = (method.ReducedFrom ?? method).OriginalDefinition;
-        return candidate.IsExtensionMethod &&
-               string.Equals(candidate.Name, "Upcast", StringComparison.Ordinal) &&
-               DotNetSubjectIds.MetadataName(candidate.ContainingType.OriginalDefinition) == WellKnownTypes.MartenEventStoreOptionsExtensions &&
-               HasEventStoreReceiver(candidate);
+        return string.Equals(candidate.Name, "Upcast", StringComparison.Ordinal) && IsEventStoreOptionsExtension(candidate);
     }
+
+    static bool IsEventStoreOptionsExtension(IMethodSymbol candidate) =>
+        candidate.IsExtensionMethod &&
+        DotNetSubjectIds.MetadataName(candidate.ContainingType.OriginalDefinition) == WellKnownTypes.MartenEventStoreOptionsExtensions &&
+        HasEventStoreReceiver(candidate);
 
     static bool IsGenericUpcasterRegistration(IMethodSymbol method)
     {
@@ -585,50 +187,45 @@ static class MartenEventSchemaConfigurationDiscovery
                MetadataName(array.ElementType) == WellKnownTypes.MartenEventUpcasterInterface;
     }
 
-    static bool TryDirectRawJsonUpcast(IMethodSymbol method, out bool targetFromGeneric)
+    static bool TryDirectRawJsonUpcast(IMethodSymbol method, out bool targetFromGeneric) =>
+        TryRawJsonUpcast(
+            method.OriginalDefinition,
+            [IsString, IsJsonTransformation],
+            [IsSystemType, IsString, IsJsonTransformation],
+            out targetFromGeneric);
+
+    static bool TryConventionRawJsonUpcast(IMethodSymbol method, out bool targetFromGeneric) =>
+        TryRawJsonUpcast(
+            (method.ReducedFrom ?? method).OriginalDefinition,
+            [null, IsJsonTransformation],
+            [null, IsSystemType, IsJsonTransformation],
+            out targetFromGeneric);
+
+    static bool TrySchemaVersionRawJsonUpcast(IMethodSymbol method, out bool targetFromGeneric) =>
+        TryRawJsonUpcast(
+            (method.ReducedFrom ?? method).OriginalDefinition,
+            [null, IsUnsigned, IsJsonTransformation],
+            [null, IsSystemType, IsUnsigned, IsJsonTransformation],
+            out targetFromGeneric);
+
+    static bool TryRawJsonUpcast(
+        IMethodSymbol candidate,
+        Func<ITypeSymbol, bool>?[] genericParameters,
+        Func<ITypeSymbol, bool>?[] typeOfParameters,
+        out bool targetFromGeneric)
     {
-        var candidate = method.OriginalDefinition;
         targetFromGeneric = candidate.TypeParameters.Length == 1;
-        return candidate switch
+        return candidate.TypeParameters.Length switch
         {
-            { TypeParameters.Length: 1, Parameters.Length: 2 } =>
-                IsString(candidate.Parameters[0].Type) && IsJsonTransformation(candidate.Parameters[1].Type),
-            { TypeParameters.Length: 0, Parameters.Length: 3 } =>
-                IsSystemType(candidate.Parameters[0].Type) &&
-                IsString(candidate.Parameters[1].Type) &&
-                IsJsonTransformation(candidate.Parameters[2].Type),
+            1 => HasParameters(candidate, genericParameters),
+            0 => HasParameters(candidate, typeOfParameters),
             _ => false
         };
     }
 
-    static bool TryConventionRawJsonUpcast(IMethodSymbol method, out bool targetFromGeneric)
-    {
-        var candidate = (method.ReducedFrom ?? method).OriginalDefinition;
-        targetFromGeneric = candidate.TypeParameters.Length == 1;
-        return candidate switch
-        {
-            { TypeParameters.Length: 1, Parameters.Length: 2 } => IsJsonTransformation(candidate.Parameters[1].Type),
-            { TypeParameters.Length: 0, Parameters.Length: 3 } =>
-                IsSystemType(candidate.Parameters[1].Type) && IsJsonTransformation(candidate.Parameters[2].Type),
-            _ => false
-        };
-    }
-
-    static bool TrySchemaVersionRawJsonUpcast(IMethodSymbol method, out bool targetFromGeneric)
-    {
-        var candidate = (method.ReducedFrom ?? method).OriginalDefinition;
-        targetFromGeneric = candidate.TypeParameters.Length == 1;
-        return candidate switch
-        {
-            { TypeParameters.Length: 1, Parameters.Length: 3 } =>
-                IsUnsigned(candidate.Parameters[1].Type) && IsJsonTransformation(candidate.Parameters[2].Type),
-            { TypeParameters.Length: 0, Parameters.Length: 4 } =>
-                IsSystemType(candidate.Parameters[1].Type) &&
-                IsUnsigned(candidate.Parameters[2].Type) &&
-                IsJsonTransformation(candidate.Parameters[3].Type),
-            _ => false
-        };
-    }
+    static bool HasParameters(IMethodSymbol candidate, params Func<ITypeSymbol, bool>?[] expected) =>
+        candidate.Parameters.Length == expected.Length &&
+        expected.Select((check, index) => check is null || check(candidate.Parameters[index].Type)).All(_ => _);
 
     static bool TryTypedUpcast(IMethodSymbol method, out bool isAsync)
     {
@@ -645,6 +242,11 @@ static class MartenEventSchemaConfigurationDiscovery
             return false;
         }
 
+        return HasTypedUpcastConfigurationParameters(candidate);
+    }
+
+    static bool HasTypedUpcastConfigurationParameters(IMethodSymbol candidate)
+    {
         var configurationParameters = candidate.Parameters.Take(candidate.Parameters.Length - 1).ToArray();
         if (!candidate.IsExtensionMethod)
         {
@@ -672,33 +274,38 @@ static class MartenEventSchemaConfigurationDiscovery
             return false;
         }
 
-        if (DotNetSubjectIds.MetadataName(delegateType.OriginalDefinition) == "System.Func`2" &&
-            SymbolEqualityComparer.Default.Equals(delegateType.TypeArguments[0], typeParameters[0]) &&
-            SymbolEqualityComparer.Default.Equals(delegateType.TypeArguments[1], typeParameters[1]))
+        if (IsSyncUpcastDelegate(delegateType, typeParameters))
         {
             return true;
         }
 
-        if (DotNetSubjectIds.MetadataName(delegateType.OriginalDefinition) != "System.Func`3" ||
-            !SymbolEqualityComparer.Default.Equals(delegateType.TypeArguments[0], typeParameters[0]) ||
-            MetadataName(delegateType.TypeArguments[1]) != "System.Threading.CancellationToken" ||
-            delegateType.TypeArguments[2] is not INamedTypeSymbol taskType ||
-            DotNetSubjectIds.MetadataName(taskType.OriginalDefinition) != "System.Threading.Tasks.Task`1" ||
-            !SymbolEqualityComparer.Default.Equals(taskType.TypeArguments[0], typeParameters[1]))
-        {
-            return false;
-        }
-
-        isAsync = true;
-        return true;
+        isAsync = IsAsyncUpcastDelegate(delegateType, typeParameters);
+        return isAsync;
     }
+
+    static bool IsSyncUpcastDelegate(INamedTypeSymbol delegateType, IReadOnlyList<ITypeParameterSymbol> typeParameters) =>
+        MetadataName(delegateType) == "System.Func`2" &&
+        SameType(delegateType.TypeArguments[0], typeParameters[0]) &&
+        SameType(delegateType.TypeArguments[1], typeParameters[1]);
+
+    static bool IsAsyncUpcastDelegate(INamedTypeSymbol delegateType, IReadOnlyList<ITypeParameterSymbol> typeParameters) =>
+        MetadataName(delegateType) == "System.Func`3" &&
+        SameType(delegateType.TypeArguments[0], typeParameters[0]) &&
+        MetadataName(delegateType.TypeArguments[1]) == "System.Threading.CancellationToken" &&
+        delegateType.TypeArguments[2] is INamedTypeSymbol taskType &&
+        MetadataName(taskType) == "System.Threading.Tasks.Task`1" &&
+        SameType(taskType.TypeArguments[0], typeParameters[1]);
+
+    static bool SameType(ITypeSymbol left, ITypeSymbol right) => SymbolEqualityComparer.Default.Equals(left, right);
 
     static UpcasterShape? UpcasterShapeOf(INamedTypeSymbol upcasterType, DotNetProjectCompilation project)
     {
         for (var derived = upcasterType; derived.BaseType is { } current; derived = current)
         {
             var metadataName = DotNetSubjectIds.MetadataName(current.OriginalDefinition);
-            if (!_clrUpcasterBases.Contains(metadataName) && !_rawUpcasterBases.Contains(metadataName))
+            var isClr = _clrUpcasterBases.Contains(metadataName);
+            var isRaw = _rawUpcasterBases.Contains(metadataName);
+            if (!isClr && !isRaw)
             {
                 continue;
             }
@@ -708,81 +315,30 @@ static class MartenEventSchemaConfigurationDiscovery
                 return null;
             }
 
-            if (_clrUpcasterBases.Contains(metadataName) &&
-                current.TypeArguments is [INamedTypeSymbol oldEvent, INamedTypeSymbol newEvent])
+            var isAsync = _asyncUpcasterBases.Contains(metadataName);
+            if (isClr && ClrShape(current, isAsync) is { } clrShape)
             {
-                return new(oldEvent, newEvent, _asyncUpcasterBases.Contains(metadataName), false);
+                return clrShape;
             }
 
-            if (_rawUpcasterBases.Contains(metadataName) &&
-                current.TypeArguments is [INamedTypeSymbol target])
+            if (isRaw && RawShape(current, isAsync) is { } rawShape)
             {
-                return new(null, target, _asyncUpcasterBases.Contains(metadataName), true);
+                return rawShape;
             }
         }
 
         return null;
     }
 
-    static string ClassUpcastMessage(INamedTypeSymbol upcasterType, UpcasterShape shape) => shape.IsRaw
-        ? $"Marten has an authored {ShapeLabel(shape.IsAsync)} class-upcaster registration '{upcasterType.Name}' from unknown JSON source schema to '{shape.Target.Name}'; EventTypeName overrides and effective aliases were not inspected"
-        : $"Marten has an authored {ShapeLabel(shape.IsAsync)} class-upcaster registration '{upcasterType.Name}' for '{shape.Source!.Name} -> {shape.Target.Name}'; EventTypeName overrides and effective aliases were not inspected";
+    static UpcasterShape? ClrShape(INamedTypeSymbol upcasterBase, bool isAsync) =>
+        upcasterBase.TypeArguments is [INamedTypeSymbol oldEvent, INamedTypeSymbol newEvent]
+            ? new(oldEvent, newEvent, isAsync, false)
+            : null;
 
-    static GenerationDiagnostic EventConfiguration(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        INamedTypeSymbol? eventType,
-        string message,
-        Location location,
-        GenerationDiagnosticOutcome outcome = GenerationDiagnosticOutcome.Unsupported) => new()
-        {
-            Code = MartenDiagnosticCodes.EventTypeConfigurationOmitted,
-            Severity = GenerationDiagnosticSeverity.Warning,
-            Outcome = outcome,
-            Message = $"{message}. This authored declaration is retained as diagnostic evidence only; it does not rename, version, originate, or duplicate a Screenplay Event artifact, and runtime execution or precedence is not asserted",
-            Source = CritterStackSource.RangeForProject(location, project),
-            Subject = eventType is null ? ProjectSubject(project) : subjects.SubjectForType(project, eventType)
-        };
-
-    static GenerationDiagnostic UnresolvedEventConfiguration(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        Location location,
-        INamedTypeSymbol? eventType = null) => EventConfiguration(
-        project,
-        subjects,
-        eventType,
-        "Marten has an authored event alias, schema-version, or naming-style declaration with a computed or otherwise non-constant value that could not be resolved safely; no storage alias, suffix, version, naming style, or effective value was guessed",
-        location,
-        GenerationDiagnosticOutcome.Unknown);
-
-    static GenerationDiagnostic UpcastConfiguration(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        INamedTypeSymbol? target,
-        string message,
-        Location location,
-        GenerationDiagnosticOutcome outcome = GenerationDiagnosticOutcome.Unsupported) => new()
-        {
-            Code = MartenDiagnosticCodes.EventUpcastConfigurationOmitted,
-            Severity = GenerationDiagnosticSeverity.Warning,
-            Outcome = outcome,
-            Message = $"{message}. This authored declaration is retained as diagnostic evidence only; it does not originate Event or Upcast artifacts or infer behavioral relationships, and runtime execution, reachability, ordering, or precedence is not asserted",
-            Source = CritterStackSource.RangeForProject(location, project),
-            Subject = target is null ? ProjectSubject(project) : subjects.SubjectForType(project, target)
-        };
-
-    static GenerationDiagnostic UnresolvedUpcastConfiguration(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        Location location,
-        INamedTypeSymbol? target = null) => UpcastConfiguration(
-        project,
-        subjects,
-        target,
-        "Marten has an authored upcast declaration with a computed, indirect, mixed inline collection, or otherwise unresolved type, alias, or schema version; no source type, target type, alias, version, shape, ordering, or effective value was guessed",
-        location,
-        GenerationDiagnosticOutcome.Unknown);
+    static UpcasterShape? RawShape(INamedTypeSymbol upcasterBase, bool isAsync) =>
+        upcasterBase.TypeArguments is [INamedTypeSymbol target]
+            ? new(null, target, isAsync, true)
+            : null;
 
     static bool HasEventStoreReceiver(IMethodSymbol method) =>
         method.IsExtensionMethod &&
@@ -895,15 +451,27 @@ static class MartenEventSchemaConfigurationDiscovery
         ExpressionSyntax expression,
         SemanticModel semanticModel,
         string enumMetadataName,
+        HashSet<string> admittedMembers) =>
+        NamedEnumMember(expression, semanticModel, enumMetadataName, admittedMembers) ??
+        ConstantEnumMember(expression, semanticModel, enumMetadataName, admittedMembers);
+
+    static string? NamedEnumMember(
+        ExpressionSyntax expression,
+        SemanticModel semanticModel,
+        string enumMetadataName,
+        HashSet<string> admittedMembers) =>
+        semanticModel.GetSymbolInfo(expression).Symbol is IFieldSymbol field &&
+        DotNetSubjectIds.MetadataName(field.ContainingType) == enumMetadataName &&
+        admittedMembers.Contains(field.Name)
+            ? field.Name
+            : null;
+
+    static string? ConstantEnumMember(
+        ExpressionSyntax expression,
+        SemanticModel semanticModel,
+        string enumMetadataName,
         HashSet<string> admittedMembers)
     {
-        if (semanticModel.GetSymbolInfo(expression).Symbol is IFieldSymbol field &&
-            DotNetSubjectIds.MetadataName(field.ContainingType) == enumMetadataName &&
-            admittedMembers.Contains(field.Name))
-        {
-            return field.Name;
-        }
-
         if (semanticModel.GetTypeInfo(expression).ConvertedType is not INamedTypeSymbol enumType ||
             DotNetSubjectIds.MetadataName(enumType) != enumMetadataName ||
             semanticModel.GetConstantValue(expression) is not { HasValue: true, Value: not null } constant)
@@ -928,6 +496,418 @@ static class MartenEventSchemaConfigurationDiscovery
     {
         Value = $"dotnet:project/{project.Name}"
     };
+
+    void DiscoverBinarySerializerConfiguration(InvocationExpressionSyntax invocation, IMethodSymbol method)
+    {
+        var candidate = (method.ReducedFrom ?? method).OriginalDefinition;
+        if (!string.Equals(candidate.Name, "UseBinarySerializer", StringComparison.Ordinal) ||
+            candidate.TypeParameters.Length != 1 ||
+            !IsEventStoreOptions(candidate.ContainingType))
+        {
+            return;
+        }
+
+        var eventType = NamedType(method.TypeArguments.SingleOrDefault());
+        var serializerExpression = invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression;
+        var serializerType = NamedType(serializerExpression is null ? null : semanticModel.GetTypeInfo(serializerExpression).Type);
+        if (eventType is null || serializerType is null)
+        {
+            diagnostics.Add(EventConfiguration(
+                eventType,
+                "Marten has an authored per-event binary serializer declaration whose event or serializer type could not be resolved safely",
+                invocation.GetLocation(),
+                GenerationDiagnosticOutcome.Unknown));
+            return;
+        }
+
+        diagnostics.Add(EventConfiguration(
+            eventType,
+            $"Marten event type '{eventType.Name}' has an authored binary serializer declaration using '{serializerType.Name}'",
+            invocation.GetLocation()));
+    }
+
+    void DiscoverWireConfiguration(AssignmentExpressionSyntax assignment)
+    {
+        if (semanticModel.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol property ||
+            !IsEventStoreOptions(property.ContainingType) ||
+            WireSettingFor(property.Name) is not { } setting)
+        {
+            return;
+        }
+
+        var value = EnumMember(assignment.Right, semanticModel, setting.EnumType, setting.AdmittedValues);
+        diagnostics.Add(EventConfiguration(
+            null,
+            WireMessage(setting.Label, value),
+            assignment.GetLocation(),
+            value is null ? GenerationDiagnosticOutcome.Unknown : GenerationDiagnosticOutcome.Unsupported));
+    }
+
+    void DiscoverEventTypeConfiguration(InvocationExpressionSyntax invocation, IMethodSymbol method)
+    {
+        if (IsDirectMapEventType(method))
+        {
+            DiscoverDirectEventTypeAlias(invocation, method);
+            return;
+        }
+
+        if (!IsEventTypeHelper(method))
+        {
+            return;
+        }
+
+        var eventType = NamedType(method.TypeArguments.SingleOrDefault());
+        if (eventType is null)
+        {
+            diagnostics.Add(UnresolvedEventConfiguration(invocation.GetLocation()));
+            return;
+        }
+
+        if (method.Name == "MapEventTypeWithNameSuffix")
+        {
+            DiscoverNameSuffix(invocation, method, eventType);
+            return;
+        }
+
+        DiscoverSchemaVersion(invocation, method, eventType);
+    }
+
+    void DiscoverNameSuffix(InvocationExpressionSyntax invocation, IMethodSymbol method, INamedTypeSymbol eventType)
+    {
+        var suffix = ConstantString(ArgumentForParameter(invocation, method, "suffix")?.Expression, semanticModel);
+        var hasBaseAlias = TryOptionalBaseAlias(invocation, method, out var baseAlias);
+        if (suffix is null || !hasBaseAlias)
+        {
+            diagnostics.Add(UnresolvedEventConfiguration(invocation.GetLocation(), eventType));
+            return;
+        }
+
+        diagnostics.Add(EventConfiguration(eventType, NameSuffixMessage(eventType, suffix, baseAlias), invocation.GetLocation()));
+    }
+
+    void DiscoverSchemaVersion(InvocationExpressionSyntax invocation, IMethodSymbol method, INamedTypeSymbol eventType)
+    {
+        var version = ConstantUnsigned(ArgumentForParameter(invocation, method, "schemaVersion")?.Expression, semanticModel);
+        var hasBaseAlias = TryOptionalBaseAlias(invocation, method, out var baseAlias);
+        if (version is null || !hasBaseAlias)
+        {
+            diagnostics.Add(UnresolvedEventConfiguration(invocation.GetLocation(), eventType));
+            return;
+        }
+
+        diagnostics.Add(EventConfiguration(eventType, SchemaVersionMessage(eventType, version.Value, baseAlias), invocation.GetLocation()));
+    }
+
+    void DiscoverDirectEventTypeAlias(InvocationExpressionSyntax invocation, IMethodSymbol method)
+    {
+        var eventType = method.TypeArguments.Length == 1
+            ? NamedType(method.TypeArguments[0])
+            : TypeFromTypeOf(ArgumentForParameter(invocation, method, "eventType")?.Expression, semanticModel);
+        var alias = ConstantString(ArgumentForParameter(invocation, method, "eventTypeName")?.Expression, semanticModel);
+        if (eventType is null || alias is null)
+        {
+            diagnostics.Add(UnresolvedEventConfiguration(invocation.GetLocation(), eventType));
+            return;
+        }
+
+        diagnostics.Add(EventConfiguration(
+            eventType,
+            $"Marten event type '{eventType.Name}' has authored storage alias '{DiagnosticValue(alias)}'",
+            invocation.GetLocation()));
+    }
+
+    void DiscoverEventNamingStyle(AssignmentExpressionSyntax assignment)
+    {
+        if (semanticModel.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol { Name: "EventNamingStyle" } property ||
+            DotNetSubjectIds.MetadataName(property.ContainingType.OriginalDefinition) != WellKnownTypes.MartenEventStoreOptions)
+        {
+            return;
+        }
+
+        var style = EnumMember(assignment.Right, semanticModel, WellKnownTypes.JasperFxEventNamingStyle, _eventNamingStyles);
+        diagnostics.Add(style is null
+            ? UnresolvedEventConfiguration(assignment.GetLocation())
+            : EventConfiguration(
+                null,
+                $"Marten has an authored global event naming-style declaration '{style}'; runtime precedence and effective aliases were not inferred",
+                assignment.GetLocation()));
+    }
+
+    void DiscoverEventAliasAttribute(AttributeSyntax attribute)
+    {
+        if (!IsMartenEventAttribute(attribute) ||
+            AuthoredAlias(attribute) is not { Length: > 0 } alias ||
+            DeclaredEventType(attribute) is not { } eventType)
+        {
+            return;
+        }
+
+        diagnostics.Add(EventConfiguration(
+            eventType,
+            $"Marten event type '{eventType.Name}' has authored MartenEvent alias '{DiagnosticValue(alias)}'; the alias only applies when Marten AutoRegister discovers the type",
+            attribute.GetLocation()));
+    }
+
+    bool IsMartenEventAttribute(AttributeSyntax attribute) =>
+        semanticModel.GetSymbolInfo(attribute).Symbol is IMethodSymbol constructor &&
+        DotNetSubjectIds.MetadataName(constructor.ContainingType) == WellKnownTypes.MartenEventAttribute;
+
+    string? AuthoredAlias(AttributeSyntax attribute) =>
+        attribute.ArgumentList?.Arguments.FirstOrDefault(_ => _.NameEquals?.Name.Identifier.ValueText == "Alias") is { } aliasArgument
+            ? ConstantString(aliasArgument.Expression, semanticModel)
+            : null;
+
+    INamedTypeSymbol? DeclaredEventType(AttributeSyntax attribute) =>
+        attribute.FirstAncestorOrSelf<TypeDeclarationSyntax>() is { } declaration
+            ? semanticModel.GetDeclaredSymbol(declaration) as INamedTypeSymbol
+            : null;
+
+    void DiscoverUpcastConfiguration(InvocationExpressionSyntax invocation, IMethodSymbol method)
+    {
+        if (IsDirectUpcast(method))
+        {
+            DiscoverDirectUpcast(invocation, method);
+            return;
+        }
+
+        if (IsExtensionUpcast(method))
+        {
+            DiscoverExtensionUpcast(invocation, method);
+        }
+    }
+
+    void DiscoverDirectUpcast(InvocationExpressionSyntax invocation, IMethodSymbol method)
+    {
+        if (IsGenericUpcasterRegistration(method))
+        {
+            DiscoverGenericUpcasterRegistration(invocation, method);
+            return;
+        }
+
+        if (IsInlineUpcasterRegistration(method))
+        {
+            DiscoverInlineUpcasterRegistration(invocation);
+            return;
+        }
+
+        if (TryDirectRawJsonUpcast(method, out var targetFromGeneric))
+        {
+            DiscoverDirectRawJsonUpcast(invocation, method, targetFromGeneric);
+            return;
+        }
+
+        if (TryTypedUpcast(method, out var isAsync))
+        {
+            DiscoverDirectTypedUpcast(invocation, method, isAsync);
+        }
+    }
+
+    void DiscoverGenericUpcasterRegistration(InvocationExpressionSyntax invocation, IMethodSymbol method)
+    {
+        var upcasterType = NamedType(method.TypeArguments[0]);
+        if (upcasterType is null || HasOnlyGeneratedSource(upcasterType, project))
+        {
+            diagnostics.Add(UnresolvedUpcastConfiguration(invocation.GetLocation()));
+            return;
+        }
+
+        if (UpcasterShapeOf(upcasterType, project) is { } shape)
+        {
+            diagnostics.Add(UpcastConfiguration(shape.Subject, ClassUpcastMessage(upcasterType, shape), invocation.GetLocation()));
+        }
+    }
+
+    void DiscoverDirectRawJsonUpcast(InvocationExpressionSyntax invocation, IMethodSymbol method, bool targetFromGeneric)
+    {
+        var target = RawJsonTarget(invocation, method, targetFromGeneric);
+        var rawAlias = ConstantString(ArgumentForParameter(invocation, method, "eventTypeName")?.Expression, semanticModel);
+        if (target is null || rawAlias is null)
+        {
+            diagnostics.Add(UnresolvedUpcastConfiguration(invocation.GetLocation(), target));
+            return;
+        }
+
+        diagnostics.Add(UpcastConfiguration(
+            target,
+            $"Marten has an authored raw JSON upcast declaration from unknown source schema alias '{DiagnosticValue(rawAlias)}' to '{target.Name}'",
+            invocation.GetLocation()));
+    }
+
+    void DiscoverDirectTypedUpcast(InvocationExpressionSyntax invocation, IMethodSymbol method, bool isAsync)
+    {
+        var oldEvent = NamedType(method.TypeArguments[0]);
+        var newEvent = NamedType(method.TypeArguments[1]);
+        var hasAlias = TryOptionalBaseAlias(invocation, method, out var alias);
+        if (oldEvent is null || newEvent is null || !hasAlias)
+        {
+            diagnostics.Add(UnresolvedUpcastConfiguration(invocation.GetLocation(), newEvent));
+            return;
+        }
+
+        diagnostics.Add(UpcastConfiguration(
+            newEvent,
+            TypedUpcastAliasMessage(oldEvent, newEvent, isAsync, alias),
+            invocation.GetLocation()));
+    }
+
+    void DiscoverExtensionUpcast(InvocationExpressionSyntax invocation, IMethodSymbol method)
+    {
+        if (TryConventionRawJsonUpcast(method, out var conventionTargetFromGeneric))
+        {
+            DiscoverConventionRawJsonUpcast(invocation, method, conventionTargetFromGeneric);
+            return;
+        }
+
+        var version = ConstantUnsigned(ArgumentForParameter(invocation, method, "schemaVersion")?.Expression, semanticModel);
+        if (TrySchemaVersionRawJsonUpcast(method, out var targetFromGeneric))
+        {
+            DiscoverSchemaVersionRawJsonUpcast(invocation, method, targetFromGeneric, version);
+            return;
+        }
+
+        if (TryTypedUpcast(method, out var isAsync))
+        {
+            DiscoverSchemaVersionTypedUpcast(invocation, method, isAsync, version);
+        }
+    }
+
+    void DiscoverConventionRawJsonUpcast(InvocationExpressionSyntax invocation, IMethodSymbol method, bool targetFromGeneric)
+    {
+        var target = RawJsonTarget(invocation, method, targetFromGeneric);
+        if (target is null)
+        {
+            diagnostics.Add(UnresolvedUpcastConfiguration(invocation.GetLocation()));
+            return;
+        }
+
+        diagnostics.Add(UpcastConfiguration(
+            target,
+            $"Marten has an authored raw JSON upcast declaration from an unknown source schema to '{target.Name}' using a convention-derived storage alias that was not inferred",
+            invocation.GetLocation()));
+    }
+
+    void DiscoverSchemaVersionRawJsonUpcast(InvocationExpressionSyntax invocation, IMethodSymbol method, bool targetFromGeneric, uint? version)
+    {
+        var target = RawJsonTarget(invocation, method, targetFromGeneric);
+        if (target is null || version is null)
+        {
+            diagnostics.Add(UnresolvedUpcastConfiguration(invocation.GetLocation(), target));
+            return;
+        }
+
+        diagnostics.Add(UpcastConfiguration(
+            target,
+            $"Marten has an authored raw JSON upcast declaration from unknown source schema version '{version}' to '{target.Name}'; its convention-derived effective storage alias was not inferred",
+            invocation.GetLocation()));
+    }
+
+    void DiscoverSchemaVersionTypedUpcast(InvocationExpressionSyntax invocation, IMethodSymbol method, bool isAsync, uint? version)
+    {
+        var oldEvent = NamedType(method.TypeArguments[0]);
+        var newEvent = NamedType(method.TypeArguments[1]);
+        if (oldEvent is null || newEvent is null || version is null)
+        {
+            diagnostics.Add(UnresolvedUpcastConfiguration(invocation.GetLocation(), newEvent));
+            return;
+        }
+
+        diagnostics.Add(UpcastConfiguration(
+            newEvent,
+            $"Marten has an authored {ShapeLabel(isAsync)} typed upcast declaration '{oldEvent.Name} -> {newEvent.Name}' for source schema version '{version}'; its convention-derived effective storage alias was not inferred",
+            invocation.GetLocation()));
+    }
+
+    void DiscoverInlineUpcasterRegistration(InvocationExpressionSyntax invocation)
+    {
+        var registrations = new List<InlineRegistration>();
+        foreach (var argument in invocation.ArgumentList.Arguments)
+        {
+            if (InlineRegistrationOf(argument) is not { } registration)
+            {
+                diagnostics.Add(UnresolvedUpcastConfiguration(invocation.GetLocation()));
+                return;
+            }
+
+            registrations.Add(registration);
+        }
+
+        diagnostics.AddRange(registrations.Select(_ => UpcastConfiguration(
+            _.Shape.Subject,
+            ClassUpcastMessage(_.Type, _.Shape),
+            _.Creation.GetLocation())));
+    }
+
+    InlineRegistration? InlineRegistrationOf(ArgumentSyntax argument)
+    {
+        if (argument.Expression is not ObjectCreationExpressionSyntax creation ||
+            semanticModel.GetTypeInfo(creation).Type is not INamedTypeSymbol upcasterType ||
+            HasOnlyGeneratedSource(upcasterType, project))
+        {
+            return null;
+        }
+
+        return UpcasterShapeOf(upcasterType, project) is { } shape ? new(creation, upcasterType, shape) : null;
+    }
+
+    INamedTypeSymbol? RawJsonTarget(InvocationExpressionSyntax invocation, IMethodSymbol method, bool targetFromGeneric) =>
+        targetFromGeneric
+            ? NamedType(method.TypeArguments[0])
+            : TypeFromTypeOf(ArgumentForParameter(invocation, method, "eventType")?.Expression, semanticModel);
+
+    bool TryOptionalBaseAlias(InvocationExpressionSyntax invocation, IMethodSymbol method, out string? alias)
+    {
+        var argument = ArgumentForParameter(invocation, method, "eventTypeName");
+        alias = argument is null ? null : ConstantString(argument.Expression, semanticModel);
+        return argument is null || alias is not null;
+    }
+
+    GenerationDiagnostic EventConfiguration(
+        INamedTypeSymbol? eventType,
+        string message,
+        Location location,
+        GenerationDiagnosticOutcome outcome = GenerationDiagnosticOutcome.Unsupported) =>
+        Configuration(MartenDiagnosticCodes.EventTypeConfigurationOmitted, eventType, message + EventConfigurationNote, location, outcome);
+
+    GenerationDiagnostic UnresolvedEventConfiguration(Location location, INamedTypeSymbol? eventType = null) => EventConfiguration(
+        eventType,
+        "Marten has an authored event alias, schema-version, or naming-style declaration with a computed or otherwise non-constant value that could not be resolved safely; no storage alias, suffix, version, naming style, or effective value was guessed",
+        location,
+        GenerationDiagnosticOutcome.Unknown);
+
+    GenerationDiagnostic UpcastConfiguration(
+        INamedTypeSymbol? target,
+        string message,
+        Location location,
+        GenerationDiagnosticOutcome outcome = GenerationDiagnosticOutcome.Unsupported) =>
+        Configuration(MartenDiagnosticCodes.EventUpcastConfigurationOmitted, target, message + UpcastConfigurationNote, location, outcome);
+
+    GenerationDiagnostic UnresolvedUpcastConfiguration(Location location, INamedTypeSymbol? target = null) => UpcastConfiguration(
+        target,
+        "Marten has an authored upcast declaration with a computed, indirect, mixed inline collection, or otherwise unresolved type, alias, or schema version; no source type, target type, alias, version, shape, ordering, or effective value was guessed",
+        location,
+        GenerationDiagnosticOutcome.Unknown);
+
+    GenerationDiagnostic Configuration(
+        string code,
+        INamedTypeSymbol? subjectType,
+        string message,
+        Location location,
+        GenerationDiagnosticOutcome outcome) => new()
+        {
+            Code = code,
+            Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = outcome,
+            Message = message,
+            Source = CritterStackSource.RangeForProject(location, project),
+            Subject = subjectType is null ? ProjectSubject(project) : subjects.SubjectForType(project, subjectType)
+        };
+
+    sealed record WireSetting(string EnumType, HashSet<string> AdmittedValues, string Label);
+
+    sealed record InlineRegistration(
+        ObjectCreationExpressionSyntax Creation,
+        INamedTypeSymbol Type,
+        UpcasterShape Shape);
 
     sealed record UpcasterShape(
         INamedTypeSymbol? Source,

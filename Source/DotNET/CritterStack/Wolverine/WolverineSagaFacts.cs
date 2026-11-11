@@ -704,18 +704,18 @@ static class WolverineSagaFacts
         string? file,
         IReadOnlyList<PropertyDefinition> properties,
         Evidence evidence) => new()
-    {
-        Id = new FactId { Value = id },
-        Subject = subject,
-        Definition = new ArtifactDefinition
         {
-            Key = new ArtifactKey { Subject = subject, Kind = kind },
-            Name = name,
-            File = file,
-            Properties = properties
-        },
-        Evidence = evidence
-    };
+            Id = new FactId { Value = id },
+            Subject = subject,
+            Definition = new ArtifactDefinition
+            {
+                Key = new ArtifactKey { Subject = subject, Kind = kind },
+                Name = name,
+                File = file,
+                Properties = properties
+            },
+            Evidence = evidence
+        };
 
     static RelationshipFact Relationship(
         string id,
@@ -725,22 +725,22 @@ static class WolverineSagaFacts
         Evidence evidence,
         string? targetMember = null,
         string? discriminator = null) => new()
-    {
-        Id = new FactId { Value = id },
-        Subject = source,
-        Definition = new RelationshipDefinition
         {
-            Key = new RelationshipKey
+            Id = new FactId { Value = id },
+            Subject = source,
+            Definition = new RelationshipDefinition
             {
-                Kind = kind,
-                Source = source,
-                Target = target,
-                Discriminator = discriminator
+                Key = new RelationshipKey
+                {
+                    Kind = kind,
+                    Source = source,
+                    Target = target,
+                    Discriminator = discriminator
+                },
+                TargetMember = targetMember
             },
-            TargetMember = targetMember
-        },
-        Evidence = evidence
-    };
+            Evidence = evidence
+        };
 
     static string LowerFirst(string value) => value.Length == 0
         ? value

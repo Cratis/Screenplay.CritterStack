@@ -85,7 +85,8 @@ public class when_generating_wolverine_saga_evidence : given.a_wolverine_saga_ap
     [Fact] void should_preserve_ordinary_http_queries_beside_rejected_saga_queries() => ArtifactNames(ArtifactKind.ReadModel).ShouldContain("OrdinaryQueryModel");
     [Fact] void should_not_invent_side_effect_topology_to_saga_state() => _result.Graph.Relationships.Any(_ => _.Key.Kind == RelationshipKind.SideEffect && SagaSubjects.Contains(_.Key.Target)).ShouldBeFalse();
     [Fact] void should_preserve_explicit_document_operations() => new[] { RelationshipKind.Stores, RelationshipKind.Updates, RelationshipKind.Deletes }.All(kind => _result.Graph.Relationships.Any(_ => _.Key.Kind == kind && _.Key.Target == Artifact(ArtifactKind.Document, "AuditDocument").Key.Subject)).ShouldBeTrue();
-    [Fact] void should_migrate_non_saga_marten_handlers_to_signature_safe_subjects() => NeutralDocumentHandlerSubjects.ShouldContainOnly([
+    [Fact]
+    void should_migrate_non_saga_marten_handlers_to_signature_safe_subjects() => NeutralDocumentHandlerSubjects.ShouldContainOnly([
         "dotnet://Orders/Orders/Orders.NeutralDocumentOperations#method:M%3AOrders.NeutralDocumentOperations.Apply%28Orders.DocumentOperationMessage%2CMarten.IDocumentSession%29",
         "dotnet://Orders/Orders/Orders.NeutralDocumentOperations#method:M%3AOrders.NeutralDocumentOperations.Apply%28Orders.DocumentOperationMessage%2CSystem.String%2CMarten.IDocumentSession%29"]);
     [Fact] void should_keep_non_saga_marten_overloads_separate() => NeutralDocumentHandlerSubjects.Distinct(StringComparer.Ordinal).Count().ShouldEqual(2);
@@ -111,7 +112,8 @@ public class when_generating_wolverine_saga_evidence : given.a_wolverine_saga_ap
     [Fact] void should_admit_static_start_with_fallback_creation_when_a_public_constructor_exists() => ArtifactNames(ArtifactKind.Message).ShouldContain("StaticFallbackStartMessage");
     [Fact] void should_admit_existing_roles_without_requiring_saga_creation() => new[] { "ExistingOnlyMessage", "ExistingPrivateConstructorMessage" }.All(message => ArtifactNames(ArtifactKind.Message).Contains(message, StringComparer.Ordinal)).ShouldBeTrue();
     [Fact] void should_admit_exact_returned_saga_creation_without_a_public_constructor() => ArtifactNames(ArtifactKind.Message).ShouldContain("ReturnedCreationMessage");
-    [Fact] void should_require_authoritative_canonical_saga_source_before_saga_or_payload_classification() =>
+    [Fact]
+    void should_require_authoritative_canonical_saga_source_before_saga_or_payload_classification() =>
         (SagaNames.Contains("GeneratedBaseSaga", StringComparer.Ordinal) ||
          ArtifactNames(ArtifactKind.Message).Contains("GeneratedBaseMessage", StringComparer.Ordinal) ||
          ArtifactNames(_generatedOnlySagaResult, ArtifactKind.Saga).Count > 0 ||

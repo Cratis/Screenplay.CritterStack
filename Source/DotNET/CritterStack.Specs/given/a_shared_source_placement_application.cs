@@ -156,7 +156,7 @@ public class a_shared_source_placement_application : Specification
 
     static readonly IReadOnlyList<MetadataReference> _references =
     [
-        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
             .Split(Path.PathSeparator)
             .Select(_ => MetadataReference.CreateFromFile(_))
     ];
@@ -211,7 +211,7 @@ public class a_shared_source_placement_application : Specification
                     }
                 ]),
             Compilation = compilation,
-            AuthoredSyntaxTrees = new[] { authoredTree }.ToHashSet<SyntaxTree>()
+            AuthoredSyntaxTrees = new[] { authoredTree }.ToHashSet()
         };
     }
 
@@ -301,7 +301,7 @@ public class a_shared_source_placement_application : Specification
                 },
                 documents),
             Compilation = compilation,
-            AuthoredSyntaxTrees = authoredTrees.ToHashSet<SyntaxTree>()
+            AuthoredSyntaxTrees = authoredTrees.ToHashSet()
         };
     }
 }

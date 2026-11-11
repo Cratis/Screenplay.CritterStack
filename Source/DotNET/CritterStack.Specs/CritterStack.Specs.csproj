@@ -19,4 +19,8 @@
         <ProjectReference Include="../Canonical/Canonical.csproj" />
         <ProjectReference Include="../CritterStack/CritterStack.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+        <None Include="Golden/**/*.txt" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
 </Project>

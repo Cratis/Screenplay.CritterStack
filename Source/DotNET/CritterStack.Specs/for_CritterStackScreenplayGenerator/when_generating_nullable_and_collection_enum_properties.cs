@@ -16,7 +16,8 @@ public class when_generating_nullable_and_collection_enum_properties : given.an_
         _collection = Generate(CreateProject(propertyType: "System.Collections.Generic.IReadOnlyList<Priority>"));
     }
 
-    [Fact] void should_preserve_nullable_enum_fields()
+    [Fact]
+    void should_preserve_nullable_enum_fields()
     {
         _nullable.Source.ShouldContain("priority Priority optional");
         _nullable.Graph.Artifacts.Single(_ => _.Key.Kind == ArtifactKind.Command).Variants.Single().Definition.Properties.Single(_ => _.Name == "priority").Type.IsOptional.ShouldBeTrue();
@@ -26,7 +27,7 @@ public class when_generating_nullable_and_collection_enum_properties : given.an_
     [Fact] void should_preserve_collection_enum_fields() => _collection.Source.ShouldContain("priority Priority[]");
     [Fact] void should_emit_a_concept_for_each_supported_shape() => Results.All(_ => _.Source.Contains("concept Priority : Enum", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_succeed_for_each_supported_shape() => Results.All(_ => _.IsSuccess).ShouldBeTrue();
-    [Fact] void should_compile_without_undeclared_enum_field_types() => Results.All(result => !new global::Cratis.Screenplay.ScreenplayCompiler().Compile(result.Source).Diagnostics.Any(_ => _.Code == "PLAY0165")).ShouldBeTrue();
+    [Fact] void should_compile_without_undeclared_enum_field_types() => Results.All(result => !new Cratis.Screenplay.ScreenplayCompiler().Compile(result.Source).Diagnostics.Any(_ => _.Code == "PLAY0165")).ShouldBeTrue();
 
     IReadOnlyList<GeneratedScreenplayDefinition> Results => [_nullable, _array, _collection];
 }

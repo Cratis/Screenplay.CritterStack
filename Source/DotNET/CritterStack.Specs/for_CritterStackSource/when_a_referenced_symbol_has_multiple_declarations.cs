@@ -21,6 +21,7 @@ public class when_a_referenced_symbol_has_multiple_declarations : given.a_critte
         _evidence = EvidenceFor(ReferencedType(project, "Referenced.SharedType"), project);
     }
 
-    [Fact] void should_select_the_first_safe_display_path_in_ordinal_order() =>
-        _evidence.Source!.Path.ShouldEqual("Referenced/A.cs");
+    [Fact]
+    void should_select_the_first_safe_display_path_in_ordinal_order() =>
+        _evidence.Source.Path.ShouldEqual("Referenced/A.cs");
 }

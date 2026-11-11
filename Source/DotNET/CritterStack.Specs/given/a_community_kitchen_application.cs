@@ -255,7 +255,7 @@ public class a_community_kitchen_application : Specification
 
     static readonly IReadOnlyList<MetadataReference> _references =
     [
-        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
             .Split(Path.PathSeparator)
             .Select(_ => MetadataReference.CreateFromFile(_))
     ];
@@ -281,7 +281,7 @@ public class a_community_kitchen_application : Specification
     }
 
     /// <summary>
-    /// Creates the kitchen with every type in the one flat <c>Application.Kitchen</c> namespace and folder.
+    /// Creates the kitchen with every type in the one flat Application.Kitchen namespace and folder.
     /// </summary>
     /// <returns>The project compilation.</returns>
     protected static DotNetProjectCompilation CreateFlatProject() => CreateProject(
@@ -321,7 +321,7 @@ public class a_community_kitchen_application : Specification
     }
 
     /// <summary>
-    /// Describes where an artifact was placed as <c>Module/Features/Slice:Kind</c>.
+    /// Describes where an artifact was placed as Module/Features/Slice:Kind.
     /// </summary>
     /// <param name="result">The generation result.</param>
     /// <param name="kind">The artifact kind.</param>
@@ -387,7 +387,7 @@ public class a_community_kitchen_application : Specification
                     })
                 ]),
             Compilation = compilation,
-            AuthoredSyntaxTrees = authoredTrees.ToHashSet<SyntaxTree>()
+            AuthoredSyntaxTrees = authoredTrees.ToHashSet()
         };
     }
 }
