@@ -86,7 +86,7 @@ public class when_enums_are_used_by_method_backed_artifacts : Specification
     [Fact] void should_bind_the_collection_query_parameter() => Property("Search", "choices").Type.Subject.Value.ShouldContain(".QueryChoice");
     [Fact] void should_preserve_parameter_collection_shape() => Property("Search", "choices").Type.IsCollection.ShouldBeTrue();
     [Fact] void should_bind_compiled_plan_fields() => Property("Execute", "selection").Type.Subject.Value.ShouldContain(".PlanChoice");
-    [Fact] void should_not_leave_undeclared_field_types() => new global::Cratis.Screenplay.ScreenplayCompiler().Compile(_result.Source).Diagnostics.Any(diagnostic => diagnostic.Code == "PLAY0165").ShouldBeFalse();
+    [Fact] void should_not_leave_undeclared_field_types() => new Cratis.Screenplay.ScreenplayCompiler().Compile(_result.Source).Diagnostics.Any(diagnostic => diagnostic.Code == "PLAY0165").ShouldBeFalse();
 
     PropertyDefinition Property(string artifactName, string propertyName) => _result.Graph.Artifacts.Single(artifact => artifact.Variants[0].Definition.Name == artifactName).Variants[0].Definition.Properties.Single(property => property.Name == propertyName);
 }

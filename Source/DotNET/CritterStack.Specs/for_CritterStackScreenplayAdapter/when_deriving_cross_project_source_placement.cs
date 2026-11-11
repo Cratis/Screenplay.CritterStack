@@ -64,8 +64,8 @@ public class when_deriving_cross_project_source_placement : given.a_cross_projec
         var ambiguousDiagnosticCheckpoint = ambiguousDiagnosticSubjects.Checkpoint();
         _ = WolverineConventionAlterationDiscovery.Discover(diagnosticScanner, ambiguousDiagnosticSubjects);
         _diagnosticOnlyWolverineAmbiguityBlocked = ambiguousDiagnosticSubjects.HasBlockingDiagnosticsSince(ambiguousDiagnosticCheckpoint);
-        var marten = Marten.MartenFacts.Discover(projects.Application, AdapterOptions, Adapter.Identity, subjects);
-        var wolverine = Wolverine.WolverineFacts.Discover(projects.Application, AdapterOptions, Adapter.Identity, subjects);
+        var marten = MartenFacts.Discover(projects.Application, AdapterOptions, Adapter.Identity, subjects);
+        var wolverine = WolverineFacts.Discover(projects.Application, AdapterOptions, Adapter.Identity, subjects);
         _placementIntents = [.. marten.Placements ?? [], .. wolverine.Placements ?? []];
         _contribution = Adapter.Analyze(context, AdapterOptions);
         _contextCompatibility = Adapter.AnalyzeCompatibility(context, AdapterOptions);

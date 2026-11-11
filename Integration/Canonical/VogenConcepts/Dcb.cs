@@ -40,7 +40,7 @@ public static class ReviewOrderBoundaryHandler
     /// <param name="command">The review command.</param>
     /// <returns>The boundary query.</returns>
     public static EventTagQuery Before(ReviewOrderBoundary command) =>
-        EventTagQuery.For<OrderKey>(command.Order)
+        EventTagQuery.For(command.Order)
             .AndEventsOfType<OrderRegistered>();
 
     /// <summary>

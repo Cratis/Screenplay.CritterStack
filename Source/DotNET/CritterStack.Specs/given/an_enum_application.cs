@@ -74,7 +74,7 @@ public class an_enum_application : Specification
             Name = "Ordering",
             Compilation = compilation,
             SourceRoot = "/workspace",
-            AuthoredSyntaxTrees = authored.ToHashSet<SyntaxTree>(),
+            AuthoredSyntaxTrees = authored.ToHashSet(),
             SourceContext = DotNetSourcePaths.Create(
                 "Ordering/Ordering",
                 new DotNetSourcePathPolicy { DisplayRoot = DotNetSourceDisplayRoot.Workspace, CasePolicy = DotNetSourcePathCasePolicy.Ordinal },

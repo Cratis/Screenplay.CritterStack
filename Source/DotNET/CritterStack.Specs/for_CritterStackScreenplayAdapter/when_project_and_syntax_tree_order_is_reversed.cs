@@ -154,7 +154,7 @@ public class when_project_and_syntax_tree_order_is_reversed : given.a_shared_sou
                 },
                 documents),
             Compilation = compilation,
-            AuthoredSyntaxTrees = authoredTrees.ToHashSet<SyntaxTree>()
+            AuthoredSyntaxTrees = authoredTrees.ToHashSet()
         };
     }
 

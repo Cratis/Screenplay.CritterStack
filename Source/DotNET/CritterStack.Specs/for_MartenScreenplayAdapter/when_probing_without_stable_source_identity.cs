@@ -13,6 +13,6 @@ public class when_probing_without_stable_source_identity : given.a_marten_adapte
     void Because() => _result = Adapter.Probe(_context);
 
     [Fact] void should_block_instead_of_exposing_unstable_evidence() => _result.ShouldBeOfExactType<AdapterProbeBlocked>();
-    [Fact] void should_report_the_stable_diagnostic() => ((AdapterProbeBlocked)_result).Diagnostics.Single().Code.ShouldEqual(Marten.MartenDiagnosticCodes.UnsafeSourceMapping);
+    [Fact] void should_report_the_stable_diagnostic() => ((AdapterProbeBlocked)_result).Diagnostics.Single().Code.ShouldEqual(MartenDiagnosticCodes.UnsafeSourceMapping);
     [Fact] void should_not_make_the_legacy_bridge_applicable() => Adapter.CanAnalyze(_context).ShouldBeFalse();
 }

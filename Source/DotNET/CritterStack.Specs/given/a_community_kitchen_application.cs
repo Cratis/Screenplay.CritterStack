@@ -387,7 +387,7 @@ public class a_community_kitchen_application : Specification
                     })
                 ]),
             Compilation = compilation,
-            AuthoredSyntaxTrees = authoredTrees.ToHashSet<SyntaxTree>()
+            AuthoredSyntaxTrees = authoredTrees.ToHashSet()
         };
     }
 }
