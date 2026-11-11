@@ -30,8 +30,8 @@ static class WolverineSagaCorrelations
         IReadOnlyList<WolverineSagaRoleMethod> allRoles)
     {
         var scope = new WolverineSagaCorrelationScope(project, adapter, sagaType, messageType, [.. MessageMembers(messageType, project)]);
-        return Declared(scope, allRoles)
-            ?? Attributed(scope)
+        return Attributed(scope)
+            ?? Declared(scope, allRoles)
             ?? Conventional(scope)
             ?? new(null, null);
     }
