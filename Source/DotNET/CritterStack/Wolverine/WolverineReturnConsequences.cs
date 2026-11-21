@@ -82,7 +82,7 @@ static class WolverineReturnConsequences
             return null;
         }
 
-        var operation = SharedOperation(factories.OfType<IMethodSymbol>().Select(MartenOperation).ToArray());
+        var operation = SharedOperation([.. factories.OfType<IMethodSymbol>().Select(MartenOperation)]);
         return operation is null ? null : new(slot, type, WolverineReturnConsequenceKind.StorageAction, MartenOperation: operation);
     }
 
@@ -207,5 +207,4 @@ static class WolverineReturnConsequences
 
     static bool IsSagaState(INamedTypeSymbol type, DotNetProjectCompilation project) =>
         WolverineSagaTypes.IsSagaState(type, project);
-
 }

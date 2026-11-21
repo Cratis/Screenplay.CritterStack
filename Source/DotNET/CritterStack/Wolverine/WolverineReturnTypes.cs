@@ -220,8 +220,8 @@ static class WolverineReturnTypes
     static bool HasReassignedLocal(ExpressionSyntax expression, ILocalSymbol local, SemanticModel model)
     {
         var declaration = expression.FirstAncestorOrSelf<MethodDeclarationSyntax>();
-        return declaration is null || declaration.DescendantNodes().OfType<AssignmentExpressionSyntax>()
-            .Any(_ => SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(_.Left).Symbol, local)) ||
+        return declaration?.DescendantNodes().OfType<AssignmentExpressionSyntax>()
+            .Any(_ => SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(_.Left).Symbol, local)) != false ||
             declaration.DescendantNodes().OfType<ArgumentSyntax>()
                 .Any(_ => _.RefKindKeyword.RawKind != 0 && SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(_.Expression).Symbol, local));
     }

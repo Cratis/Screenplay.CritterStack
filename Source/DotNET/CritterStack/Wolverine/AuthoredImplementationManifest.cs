@@ -194,9 +194,9 @@ sealed class AuthoredImplementationManifest
     static IEnumerable<ExpressionSyntax> WrittenExpressions(MethodDeclarationSyntax declaration) =>
         declaration.DescendantNodes().OfType<AssignmentExpressionSyntax>().Select(assignment => assignment.Left)
             .Concat(declaration.DescendantNodes().OfType<PrefixUnaryExpressionSyntax>()
-                .Where(expression => (expression.OperatorToken.ValueText == "++" || expression.OperatorToken.ValueText == "--")).Select(expression => expression.Operand))
+                .Where(expression => expression.OperatorToken.ValueText == "++" || expression.OperatorToken.ValueText == "--").Select(expression => expression.Operand))
             .Concat(declaration.DescendantNodes().OfType<PostfixUnaryExpressionSyntax>()
-                .Where(expression => (expression.OperatorToken.ValueText == "++" || expression.OperatorToken.ValueText == "--")).Select(expression => expression.Operand));
+                .Where(expression => expression.OperatorToken.ValueText == "++" || expression.OperatorToken.ValueText == "--").Select(expression => expression.Operand));
 
     static bool IsConditionallyReached(Call call) =>
         WolverineProductionLinks.IsConditional(call.Syntax, call.Declaration) ||
