@@ -209,9 +209,8 @@ internal static partial class WolverineFacts
         EndpointCommand command,
         IReadOnlyList<WolverineProductionDecision> productions)
     {
-        var shape = command.Shape;
         return command.CommandType is not null
-            ? CommandProperties(command.CommandType, shape.AggregateType, shape.ParameterBindings, shape.FetchedBindings.Count > 0, LinkedStreamIdentity(productions))
+            ? CommandProperties(command.CommandType, command.Shape, productions)
             : QueryProperties(command.Endpoint.Method, scope.Subjects);
     }
 

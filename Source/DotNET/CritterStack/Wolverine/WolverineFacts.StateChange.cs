@@ -281,27 +281,16 @@ internal static partial class WolverineFacts
 
     static IReadOnlyList<PropertyDefinition> CommandProperties(
         INamedTypeSymbol commandType,
-        INamedTypeSymbol? aggregateType,
-        IReadOnlyList<WolverineStateBinding> parameterBindings,
-        bool hasFetchedStreams,
-        IPropertySymbol? linkedStreamIdentity = null)
-    {
-        var identity = linkedStreamIdentity ?? parameterBindings.Count switch
-        {
-            0 when aggregateType is null && hasFetchedStreams => null,
-            0 => IdentityProperty(commandType, aggregateType),
-            1 when parameterBindings[0].LoadsModel => parameterBindings[0].IdentityMember as IPropertySymbol,
-            _ => null
-        };
-        return
-        [
-            .. DotNetTypeShapes.PropertiesOf(commandType)
-                .Select(_ => _ with
-                {
-                    IsIdentifier = identity is not null && string.Equals(_.Name, LowerFirst(identity.Name), StringComparison.Ordinal)
-                })
-        ];
-    }
+        StateChangeShape shape,
+        IReadOnlyList<WolverineProductionDecision> productions) =>
+        WolverineCommandMembers.Materialize(
+            WolverineCommandMembers.Describe(commandType),
+            WolverineCommandMembers.SelectIdentifier(new WolverineCommandIdentityInput(
+                commandType,
+                shape.AggregateType,
+                shape.ParameterBindings,
+                shape.FetchedBindings.Count > 0,
+                LinkedStreamIdentity(productions))));
 
     static IReadOnlyList<PropertyDefinition> QueryProperties(
         IMethodSymbol method,
@@ -423,7 +412,7 @@ internal static partial class WolverineFacts
         return identity is null ? null : LowerFirst(identity.Name);
     }
 
-    static IPropertySymbol? IdentityProperty(INamedTypeSymbol command, INamedTypeSymbol? aggregate)
+    internal static IPropertySymbol? IdentityProperty(INamedTypeSymbol command, INamedTypeSymbol? aggregate)
     {
         var properties = command.GetMembers().OfType<IPropertySymbol>().ToArray();
         var attributed = properties.FirstOrDefault(_ => _.GetAttributes().Any(attribute =>
