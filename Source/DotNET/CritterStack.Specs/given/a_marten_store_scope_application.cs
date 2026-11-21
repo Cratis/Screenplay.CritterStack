@@ -68,6 +68,21 @@ public class a_marten_store_scope_application : Specification
             Name = "StoreScope",
             ProjectPath = "/workspace/StoreScope/StoreScope.csproj",
             SourceRoot = "/workspace",
+            SourceContext = DotNetSourcePaths.Create(
+                "StoreScope/StoreScope",
+                new DotNetSourcePathPolicy
+                {
+                    DisplayRoot = DotNetSourceDisplayRoot.Workspace,
+                    CasePolicy = DotNetSourcePathCasePolicy.Ordinal
+                },
+                [
+                    new DotNetSourceDocument
+                    {
+                        SyntaxTree = application,
+                        ProjectRelativePath = "Configuration.cs",
+                        WorkspaceRelativePath = "StoreScope/Configuration.cs"
+                    }
+                ]),
             Compilation = CSharpCompilation.Create("StoreScope", [framework, application], references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable)),
             AuthoredSyntaxTrees = new HashSet<SyntaxTree> { application }
         };
