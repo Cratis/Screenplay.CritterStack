@@ -3,6 +3,7 @@
 
 using System.Reflection;
 
+using Cratis.CritterStack.Screenplay.Wolverine;
 using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
 
@@ -73,7 +74,7 @@ public sealed class CritterStackScreenplayAdapter : IDotNetScreenplayAdapter
             projectFacts.AddRange(documents.Facts);
             projectDiagnostics.AddRange(documents.Diagnostics);
 
-            var wolverine = Wolverine.WolverineFacts.Discover(project, options, Identity, subjects, implementations);
+            var wolverine = WolverineFacts.Discover(project, options, Identity, subjects, implementations);
             projectFacts.AddRange(wolverine.Facts);
             projectDiagnostics.AddRange(wolverine.Diagnostics);
             projectPlacements.AddRange(wolverine.Placements ?? []);

@@ -68,23 +68,6 @@ static class EnumConceptFacts
         return WithoutCapturedNames(bound)[0];
     }
 
-    static IEnumerable<GenerationDiagnostic> NumberingDiagnostics(
-        INamedTypeSymbol type,
-        EnumDeclarationSyntax declaration,
-        SubjectId subject,
-        Evidence evidence)
-    {
-        var numbers = new EnumMemberNumbers([.. declaration.Members.Select(member => type
-            .GetMembers(member.Identifier.ValueText)
-            .OfType<IFieldSymbol>()
-            .Single()
-            .ConstantValue)]);
-        if (!numbers.IsPositional)
-        {
-            yield return NumberingDiagnostic(type, subject, evidence);
-        }
-    }
-
     /// <summary>
     /// Removes enum concepts whose concept name is also required by another source subject.
     /// </summary>
@@ -150,6 +133,23 @@ static class EnumConceptFacts
                 _ => $"Enum '{_.OrderBy(fact => fact.Definition.Name, StringComparer.Ordinal).First().Definition.Name}' shares its Screenplay type name with a different type used without a concept reference, which would resolve to this enumeration; it is not declared as a concept and its uses keep the plain type name without a concept reference");
 
         return Drop(contributions, captured);
+    }
+
+    static IEnumerable<GenerationDiagnostic> NumberingDiagnostics(
+        INamedTypeSymbol type,
+        EnumDeclarationSyntax declaration,
+        SubjectId subject,
+        Evidence evidence)
+    {
+        var numbers = new EnumMemberNumbers([.. declaration.Members.Select(member => type
+            .GetMembers(member.Identifier.ValueText)
+            .OfType<IFieldSymbol>()
+            .Single()
+            .ConstantValue)]);
+        if (!numbers.IsPositional)
+        {
+            yield return NumberingDiagnostic(type, subject, evidence);
+        }
     }
 
     // Mirrors ScreenplayLowerer.TypeName (Screenplay.Generation 0.18): only a concept-targeted subject with a contributed
@@ -222,14 +222,14 @@ static class EnumConceptFacts
         ];
     }
 
-    static bool KeepFact(GenerationFact fact, IReadOnlyDictionary<SubjectId, string> dropped) => fact switch
+    static bool KeepFact(GenerationFact fact, Dictionary<SubjectId, string> dropped) => fact switch
     {
         ArtifactFact artifact => artifact.Definition.Key.Kind != ArtifactKind.Concept || !dropped.ContainsKey(artifact.Subject),
         ConceptRepresentationFact representation => !dropped.ContainsKey(representation.Definition.Concept) || !IsEnumRepresentation(representation),
         _ => true
     };
 
-    static GenerationFact WithoutDroppedReferences(GenerationFact fact, IReadOnlyDictionary<SubjectId, string> dropped)
+    static GenerationFact WithoutDroppedReferences(GenerationFact fact, Dictionary<SubjectId, string> dropped)
     {
         bool IsDropped(PropertyDefinition property) => property.Type.Subject is { } subject && dropped.ContainsKey(subject);
 
@@ -358,13 +358,6 @@ static class EnumConceptFacts
             lowered.Distinct(StringComparer.Ordinal).Count() == lowered.Length;
     }
 
-    internal sealed record EnumMemberNumbers(IReadOnlyList<object?> Values)
-    {
-        public bool IsPositional => Values
-            .Select((value, index) => value is not null && Convert.ToDecimal(value, CultureInfo.InvariantCulture) == index)
-            .All(_ => _);
-    }
-
     static string ScreenplayEnumValue(string value) => value.Length == 0
         ? value
         : $"{char.ToLowerInvariant(value[0])}{value[1..]}";
@@ -375,4 +368,11 @@ static class EnumConceptFacts
         value.Skip(1).All(_ => _ == '_' || char.IsLetterOrDigit(_)) &&
         !string.Equals(value, "file", StringComparison.Ordinal) &&
         !string.Equals(value, "validate", StringComparison.Ordinal);
+
+    internal sealed record EnumMemberNumbers(IReadOnlyList<object?> Values)
+    {
+        public bool IsPositional => Values
+            .Select((value, index) => value is not null && Convert.ToDecimal(value, CultureInfo.InvariantCulture) == index)
+            .All(_ => _);
+    }
 }

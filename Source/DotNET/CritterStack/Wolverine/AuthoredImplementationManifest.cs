@@ -17,11 +17,12 @@ sealed class AuthoredImplementationManifest
     const int MaximumDepth = 8;
     const int MaximumCalls = 128;
 
+    static readonly string[] _frameworkNamespaces = ["System", "Microsoft", "Marten", "Wolverine", "JasperFx"];
+
     readonly IReadOnlyList<DotNetProjectCompilation> _projects;
     readonly Dictionary<string, List<Implementation>> _methods = [with(StringComparer.Ordinal)];
     readonly Dictionary<string, List<Dispatch>> _dispatch = [with(StringComparer.Ordinal)];
     readonly HashSet<AssemblyIdentity> _incompleteAssemblies;
-    internal static readonly string[] sourceArray = new[] { "System", "Microsoft", "Marten", "Wolverine", "JasperFx" };
 
     public AuthoredImplementationManifest(DotNetAnalysisContext context)
     {
@@ -279,8 +280,9 @@ sealed class AuthoredImplementationManifest
         return [.. implementations.OrderBy(implementation => DotNetSubjectIds.MetadataName(implementation.Method.ContainingType.OriginalDefinition), StringComparer.Ordinal)
             .ThenBy(
                 implementation => implementation.Method.Locations.Where(location => location.IsInSource)
-                .Select(location => CritterStackSource.RangeForProject(location, implementation.Project)?.Path)
-                .Order(StringComparer.Ordinal).FirstOrDefault(), StringComparer.Ordinal)
+                    .Select(location => CritterStackSource.RangeForProject(location, implementation.Project)?.Path)
+                    .Order(StringComparer.Ordinal).FirstOrDefault(),
+                StringComparer.Ordinal)
             .ThenBy(implementation => implementation.Type, StringComparer.Ordinal)];
     }
 
@@ -370,7 +372,7 @@ sealed class AuthoredImplementationManifest
     static bool IsApplicationCall(IMethodSymbol method)
     {
         var name = method.ContainingNamespace.ToDisplayString();
-        return !sourceArray.Any(prefix => name == prefix || name.StartsWith($"{prefix}.", StringComparison.Ordinal));
+        return !_frameworkNamespaces.Any(prefix => name == prefix || name.StartsWith($"{prefix}.", StringComparison.Ordinal));
     }
 
     static Argument Bind(IOperation operation, IReadOnlyDictionary<string, Argument> arguments)
