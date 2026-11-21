@@ -16,9 +16,11 @@ internal static partial class WolverineFacts
         WolverineValidationAuthorizationDiscoveryResult validationAuthorization,
         HashSet<SubjectId> handledCommands)
     {
+        var stageRequestType = RequestParameter(endpoint.Method, scope.Project)?.Type ?? endpoint.Method.ContainingType;
+        var stages = WolverineCompoundStages.StagesFor(endpoint.Method, stageRequestType, scope.Project, isHttpEndpoint: true);
         if (endpoint.IsQuery)
         {
-            AnalyzeQuery(scope, endpoint, validationAuthorization);
+            AnalyzeQuery(scope, endpoint, validationAuthorization, stages);
             return;
         }
 
@@ -30,11 +32,12 @@ internal static partial class WolverineFacts
                 command.CommandName,
                 command.CommandSubject,
                 command.Evidence.Source,
-                validationAuthorization.HasCompoundValidation(endpoint.Method)),
+                validationAuthorization.HasCompoundValidation(endpoint.Method) || HasShortCircuitingStage(stages)),
             productionDiagnostics);
         if (IsForwardedCommand(scope, command, productions, handledCommands))
         {
             AddForwarderDiagnostics(scope, command, validationAuthorization);
+            AddResolvedCompoundStageConsequences(scope, command.CommandSubject, endpoint.Method, stages);
             return;
         }
 
@@ -58,6 +61,7 @@ internal static partial class WolverineFacts
         var eventOwner = commandSourceOwner ?? command.CommandSubject;
         AddProductionFacts(scope, command.CommandSubject, eventOwner, productions, shape, compatibilityPlacement, command.Evidence);
         AddEffectFacts(scope, command.CommandSubject, shape, command.Evidence);
+        AddResolvedCompoundStageConsequences(scope, command.CommandSubject, endpoint.Method, stages);
     }
 
     static EndpointCommand DescribeEndpointCommand(WolverineFactScope scope, HttpEndpoint endpoint)
@@ -249,7 +253,8 @@ internal static partial class WolverineFacts
     static void AnalyzeQuery(
         WolverineFactScope scope,
         HttpEndpoint endpoint,
-        WolverineValidationAuthorizationDiscoveryResult validationAuthorization)
+        WolverineValidationAuthorizationDiscoveryResult validationAuthorization,
+        IReadOnlyList<WolverineCompoundStage> stages)
     {
         var project = scope.Project;
         var querySubject = MethodSubject(project, endpoint.Method, "query");
@@ -288,6 +293,7 @@ internal static partial class WolverineFacts
         AddQueryModelFacts(scope, querySubject, model, evidence, isCollection, isOptional);
         AddPersistenceBoundReads(scope, querySubject, endpoint.Method, aggregateParameter: null);
         AddCompiledQueryReads(scope, querySubject, compiledQueries);
+        AddResolvedCompoundStageConsequences(scope, querySubject, endpoint.Method, stages);
     }
 
     static bool IsQueryModel(INamedTypeSymbol model, DotNetProjectCompilation project) =>

@@ -2,16 +2,14 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Screenplay.Generation;
-using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
 
 namespace Cratis.CritterStack.Screenplay.Wolverine;
 
 internal static partial class WolverineFacts
 {
-    // An OnException hook only sends its messages when the handler fails. The messages keep their association with the
-    // owning handler through a failure discriminator, so they never read as an ordinary success cascade, and the exception
-    // filter and retry conditions the shared model cannot express are reported on the hook.
+    // Generation has no failure branch: a Cascades relationship would print as an ordinary success consequence.
+    // Keep the owning handler and failure-only messages in a located diagnostic instead.
     static void AddFailureStage(
         WolverineFactScope scope,
         SubjectId sourceSubject,
@@ -25,7 +23,6 @@ internal static partial class WolverineFacts
             scope.Adapter,
             EvidenceStrength.Exact,
             $"Wolverine failure stage for '{entryPointName}' when '{exceptionType.Name}' is thrown");
-        var emission = EmissionFor(scope, sourceSubject, evidence);
         var consequences = WolverineReturnConsequences.Classify(
             stage.Method,
             scope.Project,
@@ -34,15 +31,10 @@ internal static partial class WolverineFacts
             hasEventStream: false);
         var messages = consequences
             .Where(_ => IsCascadeConsequence(_) && !IsCompoundStageControl(_.Type))
-            .Select(_ => ((INamedTypeSymbol)_.Type, (int?)_.Slot))
-            .Concat(DiscoverOutgoingMessages(stage.Method, scope.Project).Select(_ => (_.MessageType, (int?)null)))
-            .ToList();
-        foreach (var (messageType, returnSlot) in messages)
-        {
-            AddFailureCascade(emission, exceptionType, messageType, returnSlot);
-        }
-
-        var messageNames = messages.Select(_ => $"'{_.Item1.Name}'").Distinct(StringComparer.Ordinal).ToList();
+            .Select(_ => (INamedTypeSymbol)_.Type)
+            .Concat(DiscoverOutgoingMessages(stage.Method, scope.Project).Select(_ => _.MessageType))
+            .Concat(WolverineBusConsequences.Discover(stage.Method, scope.Project).Select(_ => _.MessageType).OfType<INamedTypeSymbol>());
+        var messageNames = messages.Select(_ => $"'{_.Name}'").Distinct(StringComparer.Ordinal).ToList();
         scope.Diagnostics.Add(new()
         {
             Code = WolverineDiagnosticCodes.FailureStageConditionOmitted,
@@ -54,19 +46,5 @@ internal static partial class WolverineFacts
             Source = evidence.Source,
             Subject = sourceSubject
         });
-    }
-
-    static void AddFailureCascade(
-        MessageEmission emission,
-        ITypeSymbol exceptionType,
-        INamedTypeSymbol messageType,
-        int? returnSlot)
-    {
-        var messageSubject = emission.Subjects.SubjectForType(emission.Project, messageType);
-        var failure = $"{emission.SourceSubject.Value}:{exceptionType.ToDisplayString()}";
-        var relationshipId = returnSlot is null
-            ? $"wolverine:cascades:failure:{failure}:{messageSubject.Value}"
-            : $"wolverine:cascades:failure:return:{failure}:{returnSlot}:{messageSubject.Value}";
-        AddMessageRelationship(emission, messageType, RelationshipKind.Cascades, relationshipId, $"failure:{exceptionType.ToDisplayString()}");
     }
 }

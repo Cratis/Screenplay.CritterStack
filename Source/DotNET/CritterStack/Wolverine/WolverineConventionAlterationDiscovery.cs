@@ -17,6 +17,7 @@ static class WolverineConventionAlterationDiscovery
         List<GenerationDiagnostic> diagnostics = [];
         diagnostics.AddRange(AlterationTypeDiagnostics(project, subjects));
         diagnostics.AddRange(MessageDiscoveryCustomizationDiagnostics(project, subjects));
+        diagnostics.AddRange(WolverinePolicyDiscovery.Discover(project, subjects));
 
         return
         [
