@@ -403,18 +403,27 @@ static class MartenConfigurationDiscovery
                 continue;
             }
 
-            var direct = scope.AllowExact && IsDirectScopeStatement(assignment, scope.Node);
+            var direct = IsDirectInSubscriptionScope(scope, assignment);
             var value = SubscriptionOptionValue(property, assignment, scope.SemanticModel);
-            scope.Project.Report(
-                scope.Subscription,
-                MartenDiagnosticCodes.SubscriptionConfigurationOmitted,
+            ReportSubscriptionOption(
+                scope,
+                assignment,
                 ExactOrUnknown(
                     direct && value is not null,
                     $"Marten subscription '{scope.Subscription.Name}' configures {SubscriptionLabel(property.Name)} '{value}', which is not expressible in the current Screenplay contracts",
-                    $"Marten subscription '{scope.Subscription.Name}' configures {SubscriptionLabel(property.Name)} conditionally or with a non-constant value that could not be resolved safely"),
-                assignment.GetLocation());
+                    $"Marten subscription '{scope.Subscription.Name}' configures {SubscriptionLabel(property.Name)} conditionally or with a non-constant value that could not be resolved safely"));
         }
     }
+
+    static bool IsDirectInSubscriptionScope(SubscriptionScope scope, SyntaxNode node) =>
+        scope.AllowExact && IsDirectScopeStatement(node, scope.Node);
+
+    static void ReportSubscriptionOption(SubscriptionScope scope, SyntaxNode node, Finding finding) =>
+        scope.Project.Report(
+            scope.Subscription,
+            MartenDiagnosticCodes.SubscriptionConfigurationOmitted,
+            finding,
+            node.GetLocation());
 
     static string? SubscriptionOptionValue(
         IPropertySymbol property,
@@ -437,16 +446,15 @@ static class MartenConfigurationDiscovery
                 continue;
             }
 
-            var direct = scope.AllowExact && IsDirectScopeStatement(invocation, scope.Node);
+            var direct = IsDirectInSubscriptionScope(scope, invocation);
             var value = direct ? SubscriptionMethodValue(invocation, method, scope.SemanticModel) : null;
-            scope.Project.Report(
-                scope.Subscription,
-                MartenDiagnosticCodes.SubscriptionConfigurationOmitted,
+            ReportSubscriptionOption(
+                scope,
+                invocation,
                 ExactOrUnknown(
                     value is not null,
                     $"Marten subscription '{scope.Subscription.Name}' configures {value}, which is not expressible in the current Screenplay contracts",
-                    $"Marten subscription '{scope.Subscription.Name}' uses {method.Name} conditionally or with arguments that could not be resolved exactly"),
-                invocation.GetLocation());
+                    $"Marten subscription '{scope.Subscription.Name}' uses {method.Name} conditionally or with arguments that could not be resolved exactly"));
         }
     }
 
@@ -607,10 +615,7 @@ static class MartenConfigurationDiscovery
             return genericType;
         }
 
-        return invocation.ArgumentList.Arguments
-            .Select(_ => semanticModel.GetTypeInfo(_.Expression).Type)
-            .OfType<INamedTypeSymbol>()
-            .FirstOrDefault(IsSubscription);
+        return ArgumentTypes(invocation, semanticModel).FirstOrDefault(IsSubscription);
     }
 
     static INamedTypeSymbol? ProjectionTypeFrom(
@@ -623,11 +628,14 @@ static class MartenConfigurationDiscovery
             return genericType;
         }
 
-        return invocation.ArgumentList.Arguments
-            .Select(_ => semanticModel.GetTypeInfo(_.Expression).Type)
-            .OfType<INamedTypeSymbol>()
+        return ArgumentTypes(invocation, semanticModel)
             .FirstOrDefault(_ => MartenProjectionDiscovery.ShapeOf(_) is not null || IsRawProjection(_));
     }
+
+    static IEnumerable<INamedTypeSymbol> ArgumentTypes(InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>
+        invocation.ArgumentList.Arguments
+            .Select(_ => semanticModel.GetTypeInfo(_.Expression).Type)
+            .OfType<INamedTypeSymbol>();
 
     static ArgumentSyntax? ArgumentForParameter(
         InvocationExpressionSyntax invocation,
@@ -726,31 +734,30 @@ static class MartenConfigurationDiscovery
     static bool? ConstantBoolean(ExpressionSyntax expression, SemanticModel semanticModel) =>
         semanticModel.GetConstantValue(expression) is { HasValue: true, Value: bool value } ? value : null;
 
+    static object? ConstantNumber(ExpressionSyntax expression, SemanticModel semanticModel) =>
+        semanticModel.GetConstantValue(expression) is { HasValue: true, Value: { } value } ? value : null;
+
     static uint? ConstantUnsigned(ExpressionSyntax expression, SemanticModel semanticModel) =>
-        semanticModel.GetConstantValue(expression) is { HasValue: true, Value: not null } constant
-            ? constant.Value switch
-            {
-                byte value => value,
-                ushort value => value,
-                uint value => value,
-                int value when value >= 0 => (uint)value,
-                _ => null
-            }
-            : null;
+        ConstantNumber(expression, semanticModel) switch
+        {
+            byte value => value,
+            ushort value => value,
+            uint value => value,
+            int value when value >= 0 => (uint)value,
+            _ => null
+        };
 
     static long? ConstantLong(ExpressionSyntax expression, SemanticModel semanticModel) =>
-        semanticModel.GetConstantValue(expression) is { HasValue: true, Value: not null } constant
-            ? constant.Value switch
-            {
-                byte value => value,
-                short value => value,
-                ushort value => value,
-                int value => value,
-                uint value => value,
-                long value => value,
-                _ => null
-            }
-            : null;
+        ConstantNumber(expression, semanticModel) switch
+        {
+            byte value => value,
+            short value => value,
+            ushort value => value,
+            int value => value,
+            uint value => value,
+            long value => value,
+            _ => null
+        };
 
     static Finding ExactOrUnknown(bool exact, string exactMessage, string unresolvedMessage) =>
         exact ? Finding.Unsupported(exactMessage) : Finding.Unknown(unresolvedMessage);
