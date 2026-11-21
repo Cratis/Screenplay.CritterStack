@@ -39,6 +39,7 @@ static class WellKnownTypes
     public const string MartenDocumentMappingExpression = "Marten.MartenRegistry+DocumentMappingExpression`1";
     public const string JasperFxIdentityAttribute = "JasperFx.IdentityAttribute";
     public const string JasperFxNaturalKeyAttribute = "JasperFx.Events.Aggregation.NaturalKeyAttribute";
+    public const string JasperFxBoundaryAggregateAttribute = "JasperFx.Events.Aggregation.BoundaryAggregateAttribute";
     public const string MartenProjectionOptions = "Marten.Events.Projections.ProjectionOptions";
     public const string MartenProjection = "Marten.Events.Projections.IProjection";
     public const string MartenProjectionBase = "Marten.Events.Projections.ProjectionBase";
