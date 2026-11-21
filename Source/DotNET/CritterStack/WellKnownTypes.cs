@@ -135,6 +135,11 @@ static class WellKnownTypes
     public const string WolverineMartenOp = "Wolverine.Marten.IMartenOp";
     public const string WolverineMartenStoreAttribute = "Wolverine.Marten.MartenStoreAttribute";
     public const string WolverineEventForwarding = "Wolverine.Marten.IEventForwarding";
+    public const string WolverineMartenIntegration = "Wolverine.Marten.MartenIntegration";
+    public const string WolverineEventForwardingTransform = "Wolverine.Marten.EventForwardingTransform`1";
+    public const string WolverineOptionsMartenExtensions = "Wolverine.Marten.WolverineOptionsMartenExtensions";
+    public const string WolverineAncillaryMartenExtensions = "Wolverine.Marten.AncillaryWolverineOptionsMartenExtensions";
+    public const string WolverinePublishingRelay = "Wolverine.Marten.Subscriptions.IPublishingRelay";
     public const string WolverineEvents = "Wolverine.Marten.Events";
     public const string WolverineEventsToAppend = "Wolverine.Persistence.EventSourcing.EventsToAppend";
     public const string WolverineOutgoingMessages = "Wolverine.OutgoingMessages";

@@ -87,6 +87,7 @@ internal static partial class WolverineFacts
         var validationAuthorization = WolverineValidationAuthorizationDiscovery.Discover(project, subjects);
         var diagnostics = new List<GenerationDiagnostic>(discovery.Diagnostics);
         diagnostics.AddRange(validationAuthorization.Diagnostics);
+        diagnostics.AddRange(WolverineEventForwardingDiscovery.Discover(project));
         var sagaDiscovery = WolverineSagaFacts.Discover(project, adapter, subjects, discovery.Policy);
         facts.AddRange(sagaDiscovery.Facts);
         diagnostics.AddRange(sagaDiscovery.Diagnostics);
