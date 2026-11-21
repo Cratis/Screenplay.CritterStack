@@ -20,6 +20,11 @@ static class CanonicalGolden
     public const string RegenerateVariable = "CRATIS_REGENERATE_GOLDEN";
 
     /// <summary>
+    /// The environment variable naming the directory for actual outputs without rewriting golden fixtures.
+    /// </summary>
+    public const string ActualDirectoryVariable = "CRATIS_CANONICAL_ACTUAL_DIR";
+
+    /// <summary>
     /// Normalizes text so that line endings and trailing whitespace do not affect comparison.
     /// </summary>
     /// <param name="text">The text to normalize.</param>
@@ -78,6 +83,7 @@ static class CanonicalGolden
             ($"{goldenPrefix}.play.txt", Normalize(result.Source)),
             ($"{goldenPrefix}.diagnostics.txt", StableDiagnostics(result.Diagnostics, sourceRoot))
         };
+        await WriteActualOutputs(fixtures);
         if (Environment.GetEnvironmentVariable(RegenerateVariable) == "1")
         {
             foreach (var (path, actual) in fixtures)
@@ -100,6 +106,21 @@ static class CanonicalGolden
         }
 
         return matches;
+    }
+
+    static async Task WriteActualOutputs(IEnumerable<(string Path, string Actual)> fixtures)
+    {
+        var directory = Environment.GetEnvironmentVariable(ActualDirectoryVariable);
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(directory);
+        foreach (var (path, actual) in fixtures)
+        {
+            await File.WriteAllTextAsync(Path.Combine(directory, Path.GetFileName(path)), actual);
+        }
     }
 
     static string? LineAt(string[] lines, int index) => index < lines.Length ? lines[index] : null;

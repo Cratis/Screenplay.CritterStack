@@ -12,6 +12,11 @@ fi
 version=$1
 feed=$(cd "$2" && pwd)
 repo_root=$(cd "$(dirname "$0")/.." && pwd)
+EXPECTED_SCREENPLAY=$(grep -F 'Include="Cratis.Screenplay"' "$repo_root/Directory.Packages.props" | sed -nE 's/.*Version="([^"]+)".*/\1/p')
+EXPECTED_GENERATION=$(grep -F 'Include="Cratis.Screenplay.Generation"' "$repo_root/Directory.Packages.props" | sed -nE 's/.*Version="([^"]+)".*/\1/p')
+: "${EXPECTED_SCREENPLAY:?Could not read the Cratis.Screenplay version from Directory.Packages.props}"
+: "${EXPECTED_GENERATION:?Could not read the Cratis.Screenplay.Generation version from Directory.Packages.props}"
+export EXPECTED_SCREENPLAY EXPECTED_GENERATION
 work_dir=$(mktemp -d "${TMPDIR:-/tmp}/critter-stack-consumer.XXXXXXXXXX")
 trap 'rm -rf "$work_dir"' EXIT
 
