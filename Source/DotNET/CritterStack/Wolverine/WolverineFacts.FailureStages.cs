@@ -31,7 +31,7 @@ internal static partial class WolverineFacts
             aggregateWorkflow: false,
             hasEventStream: false);
         var messages = consequences
-            .Where(_ => IsCascadeConsequence(_) && !IsCompoundStageControl(_.Type))
+            .Where(_ => IsCompoundStageMessage(_, scope.Project))
             .Select(_ => (INamedTypeSymbol)_.Type)
             .Concat(DiscoverOutgoingMessages(stage.Method, scope.Project).Select(_ => _.MessageType))
             .Concat(WolverineBusConsequences.Discover(stage.Method, scope.Project).Select(_ => _.MessageType).OfType<INamedTypeSymbol>());
