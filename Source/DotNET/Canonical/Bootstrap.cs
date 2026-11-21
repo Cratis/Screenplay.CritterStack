@@ -9,13 +9,13 @@ static class Bootstrap
 {
     public static int Run(string[] args)
     {
-        if (args.Length != 3)
+        if (args.Length is not (3 or 4))
         {
-            Console.Error.WriteLine("Usage: canonical <project.csproj> <expected.txt> <output.play>");
+            Console.Error.WriteLine("Usage: canonical <project.csproj> <expected.txt> <output.play> [<golden-prefix>]");
             return 2;
         }
 
         MSBuildLocator.RegisterDefaults();
-        return CanonicalRunner.Run(args[0], args[1], args[2]).GetAwaiter().GetResult();
+        return CanonicalRunner.Run(args[0], args[1], args[2], args.ElementAtOrDefault(3)).GetAwaiter().GetResult();
     }
 }

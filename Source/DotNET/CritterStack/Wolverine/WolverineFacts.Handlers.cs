@@ -26,11 +26,9 @@ internal static partial class WolverineFacts
             Method = method,
             RequestType = requestType,
             Batched = request!.Type is IArrayTypeSymbol,
-            Shape = DiscoverStateChangeShape(method, request, requestType, scope.Project, isHttpEndpoint: false)
+            Shape = DiscoverStateChangeShape(method, request, requestType, scope, isHttpEndpoint: false)
         };
-        var compoundStages = handler.Shape.Dcb is null
-            ? WolverineCompoundStages.StagesFor(method, requestType, scope.Project)
-            : [];
+        var compoundStages = WolverineCompoundStages.StagesFor(method, requestType, scope.Project);
         if (HasNoPersistenceEffects(handler.Shape, scope.Project))
         {
             AnalyzeNonPersistingHandler(scope, handler, compoundStages, validationAuthorization);
@@ -52,6 +50,7 @@ internal static partial class WolverineFacts
     static bool HasNoProducedEvents(StateChangeShape shape) =>
         shape.BodyEvents.Length == 0 &&
         shape.ReturnEvents.Count == 0 &&
+        shape.SessionAppends.Count == 0 &&
         shape.Yields.Count == 0;
 
     static void AnalyzeNonPersistingHandler(
@@ -65,7 +64,7 @@ internal static partial class WolverineFacts
         var automationReturns = hasDocumentPersistence ? [] : handler.Shape.ReturnConsequences;
         var automationOutgoingMessages = hasDocumentPersistence ? [] : handler.Shape.OutgoingMessages;
         var busConsequences = handler.Shape.BusConsequences;
-        if (!HasAutomationConsequences(handler.Batched, compoundStages, busConsequences, automationReturns, automationOutgoingMessages))
+        if (!HasReadModelHandlerConsequences(scope, method, HasAutomationConsequences(handler.Batched, compoundStages, busConsequences, automationReturns, automationOutgoingMessages)))
         {
             AddHandlerChainConfigurationDiagnostics(scope, MethodSubject(scope.Project, method, "handler"), method);
             return;
@@ -117,7 +116,7 @@ internal static partial class WolverineFacts
         var evidenceExplanation = $"Wolverine message handler with persistence effects{(handler.Batched ? " (batched: Wolverine delivers arrays of this message)" : string.Empty)}";
         var evidence = MethodEvidence(method, project, scope.Adapter, EvidenceStrength.Exact, evidenceExplanation);
         var productions = WolverineProductionPlan.Decide(
-            shape.ToProductionSources(requestType.Name, commandSubject, evidence.Source, hasCompoundValidation: false),
+            shape.ToProductionSources(requestType.Name, commandSubject, evidence.Source, hasCompoundValidation: HasShortCircuitingStage(compoundStages)),
             scope.Diagnostics);
         var feature = StateFeature(requestType.Name, shape.AggregateType, shape.StreamBindings, shape.Dcb?.ModelType);
         var compatibilityPlacement = CritterStackSourcePlacement.CompatibilityPlacement(
@@ -136,7 +135,7 @@ internal static partial class WolverineFacts
         AddStateReadFacts(scope, commandSubject, requestType.Name, shape, isHttpEndpoint: false);
         AddProductionFacts(scope, commandSubject, commandSubject, productions, shape, compatibilityPlacement, evidence);
         AddEffectFacts(scope, commandSubject, shape, evidence);
-        AddCompoundStageConsequences(scope, commandSubject, method, compoundStages);
+        AddResolvedCompoundStageConsequences(scope, commandSubject, method, compoundStages);
         AddHandlerChainConfigurationDiagnostics(scope, commandSubject, method);
     }
 
@@ -187,11 +186,12 @@ internal static partial class WolverineFacts
             : method.ContainingType.Name;
 
         AddReactionFacts(scope, handler, requestSubject, reactionSubject, reactionName, evidence);
+        AddReadModelParameterFacts(scope, reactionSubject, method);
         var emission = EmissionFor(scope, reactionSubject, evidence);
         AddReturnConsequences(emission, handler.ReturnConsequences);
         AddOutgoingMessages(emission, method, handler.OutgoingMessages, scope.Diagnostics);
         AddDirectBusConsequences(emission, method, scope.Diagnostics, handler.BusConsequences);
-        AddCompoundStageConsequences(scope, reactionSubject, method, handler.CompoundStages);
+        AddResolvedCompoundStageConsequences(scope, reactionSubject, method, handler.CompoundStages);
         AddHandlerChainConfigurationDiagnostics(scope, reactionSubject, method);
     }
 

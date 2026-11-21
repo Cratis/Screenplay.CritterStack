@@ -14,6 +14,7 @@ public class when_generating_wolverine_dcb_chain_competition : given.a_wolverine
         new CritterStackScreenplayOptions { Domain = "Accounts" });
 
     [Fact] void should_succeed() => Assert.True(_result.IsSuccess);
+    [Fact] void should_not_cascade_a_companion_query_as_a_message() => _result.Graph.Relationships.Where(relationship => relationship.Key.Kind == RelationshipKind.Cascades && relationship.Key.Target.Value.EndsWith("/JasperFx.Events.Tags.EventTagQuery", StringComparison.Ordinal)).ShouldBeEmpty();
     [Fact] void should_prefer_the_earlier_declared_companion_over_the_alphabetically_earlier_one() => Conditions("Ordered").ShouldContainOnly([Prefix + "AccountId:event:dotnet://Accounts/Accounts/Accounts.AccountCredited"]);
     [Fact] void should_prefer_the_earlier_declared_companion_regardless_of_companion_name() => Conditions("Reversed").ShouldContainOnly([Prefix + "AccountId:event:dotnet://Accounts/Accounts/Accounts.AccountOpened"]);
     [Fact] void should_prefer_the_companion_in_the_path_earlier_file_for_a_partial_class() => Conditions("Split").ShouldContainOnly([Prefix + "AccountId:event:dotnet://Accounts/Accounts/Accounts.AccountOpened"]);
@@ -33,6 +34,15 @@ public class when_generating_wolverine_dcb_chain_competition : given.a_wolverine
     [Fact] void should_capture_every_event_of_an_event_collection_return() => Produced("CollectionWrapper").ShouldContainOnly(["CollectionDone"]);
     [Fact] void should_capture_both_tuple_siblings() => Produced("TupleSiblings").ShouldContainOnly(["TupleFirst", "TupleSecond"]);
     [Fact] void should_capture_distinct_boundary_appends_once_each() => Produced("OrdinaryOnBoundary").ShouldContainOnly(["BoundaryAppended", "BoundaryAppendedAlso"]);
+    [Fact] void should_report_one_production_fallback_per_boundary_append() => BoundaryAppendFallbacks().Count.ShouldEqual(2);
+    [Fact] void should_report_boundary_appends_as_information() => BoundaryAppendFallbacks().ShouldEachConformTo(_ => _.Severity == GenerationDiagnosticSeverity.Information);
+
+    IReadOnlyList<GenerationDiagnostic> BoundaryAppendFallbacks() =>
+    [
+        .. Diagnostics(WolverineDiagnosticCodes.ProductionLinkOmitted)
+            .Where(_ => _.Message.Contains("Command 'OrdinaryOnBoundary' ", StringComparison.Ordinal) &&
+                        _.Message.Contains("it is appended imperatively through a dynamic consistency boundary", StringComparison.Ordinal))
+    ];
 
     IReadOnlyList<string> ReadDiscriminators(string commandName) =>
     [

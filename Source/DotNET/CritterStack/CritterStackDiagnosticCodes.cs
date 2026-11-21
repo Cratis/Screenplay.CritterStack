@@ -31,4 +31,9 @@ public static class CritterStackDiagnosticCodes
     /// Source placement put artifacts of more than one slice kind in one slice, so they were split by artifact.
     /// </summary>
     public const string MixedSliceKindsSplit = "CRITTERSTACK0004";
+
+    /// <summary>
+    /// An enum's explicit member numbers are not preserved in the generated enumeration concept.
+    /// </summary>
+    public const string EnumNumbersNotPreserved = "CRITTERSTACK0005";
 }

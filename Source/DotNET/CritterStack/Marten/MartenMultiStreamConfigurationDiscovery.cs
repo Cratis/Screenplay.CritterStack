@@ -168,9 +168,7 @@ static class MartenMultiStreamConfigurationDiscovery
     {
         var method = site.Method;
         var projectionName = scope.Projection.Name;
-        if (method.TypeArguments is not [INamedTypeSymbol configuredEventType] ||
-            site.Invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is not LambdaExpressionSyntax lambda ||
-            !TryMemberPath(lambda, site.SemanticModel, out var path, out var lambdaParameterType))
+        if (!TryIdentitySelector(site, out var configuredEventType, out var path, out var lambdaParameterType))
         {
             scope.Report(
                 site.Evidence,
@@ -209,9 +207,7 @@ static class MartenMultiStreamConfigurationDiscovery
     {
         var projectionName = scope.Projection.Name;
         if (site.Method.TypeArguments is not [INamedTypeSymbol parentEventType, INamedTypeSymbol childEventType] ||
-            site.Invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is not LambdaExpressionSyntax lambda ||
-            !TryMemberPath(lambda, site.SemanticModel, out var path, out var lambdaParameterType) ||
-            !TryFanOutMode(site.Invocation, site.SemanticModel, out var mode))
+            !TryFanOutSelector(site, out var path, out var lambdaParameterType, out var mode))
         {
             scope.Report(
                 site.Evidence,
@@ -236,6 +232,42 @@ static class MartenMultiStreamConfigurationDiscovery
             path,
             mode,
             site.Evidence));
+    }
+
+    static LambdaExpressionSyntax? FirstLambdaArgument(InvocationExpressionSyntax invocation) =>
+        invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression as LambdaExpressionSyntax;
+
+    static bool TryIdentitySelector(
+        ConfigurationSite site,
+        out INamedTypeSymbol configuredEventType,
+        out string path,
+        out INamedTypeSymbol? lambdaParameterType)
+    {
+        configuredEventType = null!;
+        path = string.Empty;
+        lambdaParameterType = null;
+        if (site.Method.TypeArguments is not [INamedTypeSymbol eventType] ||
+            FirstLambdaArgument(site.Invocation) is not { } lambda)
+        {
+            return false;
+        }
+
+        configuredEventType = eventType;
+        return TryMemberPath(lambda, site.SemanticModel, out path, out lambdaParameterType);
+    }
+
+    static bool TryFanOutSelector(
+        ConfigurationSite site,
+        out string path,
+        out INamedTypeSymbol? lambdaParameterType,
+        out string mode)
+    {
+        path = string.Empty;
+        lambdaParameterType = null;
+        mode = string.Empty;
+        return FirstLambdaArgument(site.Invocation) is { } lambda &&
+               TryMemberPath(lambda, site.SemanticModel, out path, out lambdaParameterType) &&
+               TryFanOutMode(site.Invocation, site.SemanticModel, out mode);
     }
 
     static bool TryMemberPath(

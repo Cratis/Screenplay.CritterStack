@@ -10,10 +10,10 @@ namespace Cratis.CritterStack.Screenplay.given;
 /// partial declarations; constant, computed, named and positional registration arguments; lambda shapes; method
 /// calls that are valid first and unresolved later; repeated registrations of the same subscription.
 /// </summary>
-public class a_marten_configuration_variants_application : Specification
+public class a_marten_configuration_variants_application : a_projection_events_stub
 {
-    const string FrameworkSource =
-        """
+    static readonly string FrameworkSource =
+        $$"""
         namespace Microsoft.Extensions.DependencyInjection
         {
             public enum ServiceLifetime { Singleton, Scoped, Transient }
@@ -158,11 +158,7 @@ public class a_marten_configuration_variants_application : Specification
         {
             public interface ISubscription
             {
-                System.Threading.Tasks.Task ProcessEventsAsync(
-                    Marten.Events.Daemon.EventRange page,
-                    Marten.Events.Daemon.ISubscriptionController controller,
-                    Marten.IDocumentOperations operations,
-                    System.Threading.CancellationToken cancellationToken);
+                {{InterfaceProcessEvents}};
             }
 
             public abstract class SubscriptionBase : JasperFx.Events.Projections.EventFilterable, ISubscription, JasperFx.Events.Subscriptions.ISubscriptionOptions
@@ -171,17 +167,13 @@ public class a_marten_configuration_variants_application : Specification
                 public string SubscriptionName { get; set; } = string.Empty;
                 public uint Version { get; set; } = 1;
                 public JasperFx.Events.Projections.AsyncOptions Options { get; } = new();
-                public abstract System.Threading.Tasks.Task ProcessEventsAsync(
-                    Marten.Events.Daemon.EventRange page,
-                    Marten.Events.Daemon.ISubscriptionController controller,
-                    Marten.IDocumentOperations operations,
-                    System.Threading.CancellationToken cancellationToken);
+                {{AbstractProcessEvents}};
             }
         }
         """;
 
-    const string LaterFileSource =
-        """
+    static readonly string LaterFileSource =
+        $$"""
         namespace Orders;
 
         public record OrderOpened(System.Guid Id);
@@ -340,11 +332,7 @@ public class a_marten_configuration_variants_application : Specification
                 Version = (uint)System.Environment.ProcessorCount;
             }
 
-            public override System.Threading.Tasks.Task ProcessEventsAsync(
-                Marten.Events.Daemon.EventRange page,
-                Marten.Events.Daemon.ISubscriptionController controller,
-                Marten.IDocumentOperations operations,
-                System.Threading.CancellationToken cancellationToken)
+            {{OverrideProcessEvents}}
             {
                 operations.Store(new Money(3));
                 return System.Threading.Tasks.Task.CompletedTask;
@@ -371,22 +359,14 @@ public class a_marten_configuration_variants_application : Specification
                 Options.SubscribeFromSequence(version);
             }
 
-            public override System.Threading.Tasks.Task ProcessEventsAsync(
-                Marten.Events.Daemon.EventRange page,
-                Marten.Events.Daemon.ISubscriptionController controller,
-                Marten.IDocumentOperations operations,
-                System.Threading.CancellationToken cancellationToken) => System.Threading.Tasks.Task.CompletedTask;
+            {{OverrideProcessEvents}} => System.Threading.Tasks.Task.CompletedTask;
         }
 
         public sealed class ExpressionBodiedSubscription : Marten.Subscriptions.SubscriptionBase
         {
             public ExpressionBodiedSubscription() => Name = "expression";
 
-            public override System.Threading.Tasks.Task ProcessEventsAsync(
-                Marten.Events.Daemon.EventRange page,
-                Marten.Events.Daemon.ISubscriptionController controller,
-                Marten.IDocumentOperations operations,
-                System.Threading.CancellationToken cancellationToken) => System.Threading.Tasks.Task.CompletedTask;
+            {{OverrideProcessEvents}} => System.Threading.Tasks.Task.CompletedTask;
         }
 
         public sealed class NestedSubscription : Marten.Subscriptions.SubscriptionBase
@@ -414,11 +394,7 @@ public class a_marten_configuration_variants_application : Specification
                 }
             }
 
-            public override System.Threading.Tasks.Task ProcessEventsAsync(
-                Marten.Events.Daemon.EventRange page,
-                Marten.Events.Daemon.ISubscriptionController controller,
-                Marten.IDocumentOperations operations,
-                System.Threading.CancellationToken cancellationToken) => System.Threading.Tasks.Task.CompletedTask;
+            {{OverrideProcessEvents}} => System.Threading.Tasks.Task.CompletedTask;
         }
 
         public sealed partial class SplitSubscription : Marten.Subscriptions.SubscriptionBase
@@ -428,20 +404,12 @@ public class a_marten_configuration_variants_application : Specification
                 Name = "later-part";
             }
 
-            public override System.Threading.Tasks.Task ProcessEventsAsync(
-                Marten.Events.Daemon.EventRange page,
-                Marten.Events.Daemon.ISubscriptionController controller,
-                Marten.IDocumentOperations operations,
-                System.Threading.CancellationToken cancellationToken) => System.Threading.Tasks.Task.CompletedTask;
+            {{OverrideProcessEvents}} => System.Threading.Tasks.Task.CompletedTask;
         }
 
         public sealed class PlainRawSubscription : Marten.Subscriptions.ISubscription
         {
-            public System.Threading.Tasks.Task ProcessEventsAsync(
-                Marten.Events.Daemon.EventRange page,
-                Marten.Events.Daemon.ISubscriptionController controller,
-                Marten.IDocumentOperations operations,
-                System.Threading.CancellationToken cancellationToken) => System.Threading.Tasks.Task.CompletedTask;
+            {{PublicProcessEvents}} => System.Threading.Tasks.Task.CompletedTask;
         }
 
         public static class LaterConfiguration
@@ -625,8 +593,8 @@ public class a_marten_configuration_variants_application : Specification
         }
         """;
 
-    const string GeneratedFileSource =
-        """
+    static readonly string GeneratedFileSource =
+        $$"""
         // <auto-generated/>
         namespace Orders;
 
@@ -637,11 +605,7 @@ public class a_marten_configuration_variants_application : Specification
                 Name = "generated";
             }
 
-            public override System.Threading.Tasks.Task ProcessEventsAsync(
-                Marten.Events.Daemon.EventRange page,
-                Marten.Events.Daemon.ISubscriptionController controller,
-                Marten.IDocumentOperations operations,
-                System.Threading.CancellationToken cancellationToken) => System.Threading.Tasks.Task.CompletedTask;
+            {{OverrideProcessEvents}} => System.Threading.Tasks.Task.CompletedTask;
         }
 
         public static class GeneratedConfiguration
@@ -654,8 +618,8 @@ public class a_marten_configuration_variants_application : Specification
         }
         """;
 
-    const string NonAuthoredFileSource =
-        """
+    static readonly string NonAuthoredFileSource =
+        $$"""
         namespace Orders;
 
         public sealed class NonAuthoredSubscription : Marten.Subscriptions.SubscriptionBase
@@ -666,11 +630,7 @@ public class a_marten_configuration_variants_application : Specification
                 Version = 2;
             }
 
-            public override System.Threading.Tasks.Task ProcessEventsAsync(
-                Marten.Events.Daemon.EventRange page,
-                Marten.Events.Daemon.ISubscriptionController controller,
-                Marten.IDocumentOperations operations,
-                System.Threading.CancellationToken cancellationToken) => System.Threading.Tasks.Task.CompletedTask;
+            {{OverrideProcessEvents}} => System.Threading.Tasks.Task.CompletedTask;
         }
 
         public static class NonAuthoredConfiguration

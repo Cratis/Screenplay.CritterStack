@@ -27,6 +27,33 @@ enum ExpectationKind
     FanOut
 }
 
+/// <summary>
+/// A <c language="text">Kind:Name</c> reference to an artifact in an expectation value.
+/// </summary>
+/// <param name="Kind">The artifact kind.</param>
+/// <param name="Name">The artifact definition name.</param>
+readonly record struct ArtifactReference(ArtifactKind Kind, string Name)
+{
+    public static bool TryParse(string value, out ArtifactReference reference)
+    {
+        var parts = value.Split(':', 2);
+        if (parts.Length == 2 && Enum.TryParse<ArtifactKind>(parts[0], out var kind))
+        {
+            reference = new(kind, parts[1]);
+            return true;
+        }
+
+        reference = default;
+        return false;
+    }
+
+    public bool Matches(ResolvedArtifact artifact)
+    {
+        var name = Name;
+        return artifact.Key.Kind == Kind && artifact.Variants.Any(variant => variant.Definition.Name == name);
+    }
+}
+
 sealed record Expectation(ExpectationKind Kind, string Value)
 {
     static readonly Dictionary<ExpectationKind, Func<GeneratedScreenplayDefinition, string, bool>> _checks = new()
@@ -91,13 +118,10 @@ sealed record Expectation(ExpectationKind Kind, string Value)
                artifact.Variants.Sum(_ => _.Evidence.Count) == count;
     }
 
-    static ResolvedArtifact? ArtifactIn(GeneratedScreenplayDefinition result, string value)
-    {
-        var parts = value.Split(':', 2);
-        return parts.Length == 2 && Enum.TryParse<ArtifactKind>(parts[0], out var kind)
-            ? result.Graph.Artifacts.FirstOrDefault(_ => _.Key.Kind == kind && _.Variants.Any(variant => variant.Definition.Name == parts[1]))
+    static ResolvedArtifact? ArtifactIn(GeneratedScreenplayDefinition result, string value) =>
+        ArtifactReference.TryParse(value, out var reference)
+            ? result.Graph.Artifacts.FirstOrDefault(reference.Matches)
             : null;
-    }
 
     static bool IsRelationshipIn(GeneratedScreenplayDefinition result, string value)
     {
@@ -133,16 +157,9 @@ sealed record Expectation(ExpectationKind Kind, string Value)
                    ArtifactMatches(result, relationship.Key.Target, parts[2])) == count;
     }
 
-    static bool ArtifactMatches(GeneratedScreenplayDefinition result, SubjectId subject, string value)
-    {
-        var parts = value.Split(':', 2);
-        return parts.Length == 2 &&
-               Enum.TryParse<ArtifactKind>(parts[0], out var kind) &&
-               result.Graph.Artifacts.Any(artifact =>
-                   artifact.Key.Subject == subject &&
-                   artifact.Key.Kind == kind &&
-                   artifact.Variants.Any(variant => variant.Definition.Name == parts[1]));
-    }
+    static bool ArtifactMatches(GeneratedScreenplayDefinition result, SubjectId subject, string value) =>
+        ArtifactReference.TryParse(value, out var reference) &&
+        result.Graph.Artifacts.Any(artifact => artifact.Key.Subject == subject && reference.Matches(artifact));
 
     static bool IsIdentifierIn(GeneratedScreenplayDefinition result, string value)
     {

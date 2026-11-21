@@ -1,0 +1,7 @@
+GEN0004 Warning Unsupported | Reports/Program.cs | The recognized Document artifact 'Report' cannot yet be represented by the Screenplay lowerer and was omitted
+GEN0004 Warning Unsupported | Reports/Program.cs | The recognized Handler artifact 'StartReportEndpoint.Handle(StartReport, ReportId)' cannot yet be represented by the Screenplay lowerer and was omitted
+GEN0009 Warning Unknown | Reports/Program.cs | The recognized ReadModel artifact 'Report' has no Screenplay placement and was omitted
+GEN0012 Warning Unknown |  | Concept 'ReportId' has no proven representation and was omitted
+GEN0016 Warning Unknown |  | Type reference 'ReportId' targets concept 'dotnet://Reports/Reports/ReportId', which could not be emitted
+MARTEN0003 Information Unsupported | Reports/Program.cs | Marten document 'Report' is persisted, queried, or explicitly configured, but the current Screenplay language has no ordinary document-state declaration
+WOLVERINE0002 Information Unsupported | Reports/Program.cs | HTTP POST route '/report' for 'StartReport' is not represented by the current Screenplay language

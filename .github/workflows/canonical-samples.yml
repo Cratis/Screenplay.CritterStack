@@ -15,6 +15,7 @@ on:
       - "Source/DotNET/CritterStack/**"
       - "Source/DotNET/Canonical/**"
       - "Integration/Canonical/**"
+      - "Source/DotNET/CritterStack.Specs/Golden/canonical/**"
       - "Directory.Build.props"
       - "Directory.Packages.props"
       - "Screenplay.CritterStack.slnx"
@@ -80,6 +81,16 @@ jobs:
           # Add the exact compatibility-matrix version to the disposable checkout so a clean runner is reproducible.
           dotnet add samples/critter-stack/MartenWithProjectAspire/TripBuildingService/TripBuildingService.csproj package Marten --version 9.45.0
 
+      - name: Patch pinned Trip OpenTelemetry dependency
+        run: |
+          # Patch GHSA-4625-4j76-fww9 in the disposable sample checkout without disabling audit.
+          dotnet add samples/critter-stack/MartenWithProjectAspire/TripBuildingService/TripBuildingService.csproj package OpenTelemetry.Exporter.OpenTelemetryProtocol --version 1.15.3
+
+      - name: Patch pinned Reports OpenAPI dependency
+        run: |
+          # The pinned sample brings Microsoft.OpenApi 2.0.0; patch GHSA-v5pm-xwqc-g5wc without disabling audit.
+          dotnet add samples/critter-stack/Reports/Reports.csproj package Microsoft.OpenApi --version 2.7.5
+
       - name: Build canonical applications
         run: |
           dotnet build samples/critter-stack/BankAccountES/BankAccountES.csproj --configuration Debug
@@ -92,38 +103,52 @@ jobs:
           dotnet build samples/helpdesk/Helpdesk.Api/Helpdesk.Api.csproj --configuration Debug
 
       - name: Generate and verify BankAccountES
+        env:
+          CRATIS_CANONICAL_ACTUAL_DIR: ${{ runner.temp }}/canonical-actual
         run: |
           adapter/scripts/verify-canonical.sh \
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
             samples/critter-stack/BankAccountES/BankAccountES.csproj \
             adapter/Integration/Canonical/BankAccountES.expected \
-            "${RUNNER_TEMP}/BankAccountES.play"
+            "${RUNNER_TEMP}/BankAccountES.play" \
+            adapter/Source/DotNET/CritterStack.Specs/Golden/canonical/BankAccountES
 
       - name: Generate and verify document CRUD
+        env:
+          CRATIS_CANONICAL_ACTUAL_DIR: ${{ runner.temp }}/canonical-actual
         run: |
           adapter/scripts/verify-canonical.sh \
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
             samples/critter-stack/CqrsMinimalApi/CqrsMinimalApi.csproj \
             adapter/Integration/Canonical/CqrsMinimalApi.expected \
-            "${RUNNER_TEMP}/CqrsMinimalApi.play"
+            "${RUNNER_TEMP}/CqrsMinimalApi.play" \
+            adapter/Source/DotNET/CritterStack.Specs/Golden/canonical/CqrsMinimalApi
 
       - name: Generate and verify Marten operation returns
+        env:
+          CRATIS_CANONICAL_ACTUAL_DIR: ${{ runner.temp }}/canonical-actual
         run: |
           adapter/scripts/verify-canonical.sh \
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
             samples/critter-stack/Reports/Reports.csproj \
             adapter/Integration/Canonical/Reports.expected \
-            "${RUNNER_TEMP}/Reports.play"
+            "${RUNNER_TEMP}/Reports.play" \
+            adapter/Source/DotNET/CritterStack.Specs/Golden/canonical/Reports
 
       - name: Generate and verify Marten async projections
+        env:
+          CRATIS_CANONICAL_ACTUAL_DIR: ${{ runner.temp }}/canonical-actual
         run: |
           adapter/scripts/verify-canonical.sh \
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
             samples/critter-stack/MartenWithProjectAspire/TripBuildingService/TripBuildingService.csproj \
             adapter/Integration/Canonical/MartenWithProjectAspire.expected \
-            "${RUNNER_TEMP}/MartenWithProjectAspire.play"
+            "${RUNNER_TEMP}/MartenWithProjectAspire.play" \
+            adapter/Source/DotNET/CritterStack.Specs/Golden/canonical/Trip
 
       - name: Generate and verify CommunityKitchen
+        env:
+          CRATIS_CANONICAL_ACTUAL_DIR: ${{ runner.temp }}/canonical-actual
         run: |
           adapter/scripts/verify-canonical.sh \
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
@@ -132,6 +157,8 @@ jobs:
             "${RUNNER_TEMP}/CommunityKitchen.play"
 
       - name: Generate and verify IncidentService
+        env:
+          CRATIS_CANONICAL_ACTUAL_DIR: ${{ runner.temp }}/canonical-actual
         run: |
           adapter/scripts/verify-canonical.sh \
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
@@ -140,6 +167,8 @@ jobs:
             "${RUNNER_TEMP}/IncidentService.play"
 
       - name: Generate and verify Vogen concepts
+        env:
+          CRATIS_CANONICAL_ACTUAL_DIR: ${{ runner.temp }}/canonical-actual
         run: |
           adapter/scripts/verify-canonical.sh \
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
@@ -148,9 +177,21 @@ jobs:
             "${RUNNER_TEMP}/VogenConcepts.play"
 
       - name: Generate and verify legacy HelpDesk
+        env:
+          CRATIS_CANONICAL_ACTUAL_DIR: ${{ runner.temp }}/canonical-actual
         run: |
           adapter/scripts/verify-canonical.sh \
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
             samples/helpdesk/Helpdesk.Api/Helpdesk.Api.csproj \
             adapter/Integration/Canonical/Helpdesk.expected \
-            "${RUNNER_TEMP}/Helpdesk.play"
+            "${RUNNER_TEMP}/Helpdesk.play" \
+            adapter/Source/DotNET/CritterStack.Specs/Golden/canonical/Helpdesk
+
+      - name: Upload canonical actual outputs on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: canonical-actual
+          path: ${{ runner.temp }}/canonical-actual/
+          if-no-files-found: ignore
+          retention-days: 7

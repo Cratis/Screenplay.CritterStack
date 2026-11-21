@@ -9,10 +9,17 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.CritterStack.Screenplay.Wolverine;
 
+enum SagaBusEmissionKind
+{
+    OutgoingMessages,
+    DirectBus
+}
+
 sealed record WolverineDiscoveryResult(
     IReadOnlyList<GenerationFact> Facts,
     IReadOnlyList<GenerationDiagnostic> Diagnostics,
-    IReadOnlyList<CritterStackPlacementIntent>? Placements = null);
+    IReadOnlyList<CritterStackPlacementIntent>? Placements = null,
+    IReadOnlySet<IMethodSymbol>? FailureStageMethods = null);
 
 sealed record HttpEndpoint(IMethodSymbol Method, string Verb, string? Route)
 {
@@ -68,7 +75,8 @@ internal static partial class WolverineFacts
         DotNetProjectCompilation project,
         DotNetAdapterOptions options,
         AdapterIdentity adapter,
-        CritterStackSubjectResolver subjects)
+        CritterStackSubjectResolver subjects,
+        AuthoredImplementationManifest? implementations = null)
     {
         if (project.Compilation.GetTypeByMetadataName(WellKnownTypes.WolverineOptions) is null)
         {
@@ -81,6 +89,7 @@ internal static partial class WolverineFacts
         var validationAuthorization = WolverineValidationAuthorizationDiscovery.Discover(project, subjects);
         var diagnostics = new List<GenerationDiagnostic>(discovery.Diagnostics);
         diagnostics.AddRange(validationAuthorization.Diagnostics);
+        diagnostics.AddRange(WolverineEventForwardingDiscovery.Discover(project));
         var sagaDiscovery = WolverineSagaFacts.Discover(project, adapter, subjects, discovery.Policy);
         facts.AddRange(sagaDiscovery.Facts);
         diagnostics.AddRange(sagaDiscovery.Diagnostics);
@@ -90,6 +99,7 @@ internal static partial class WolverineFacts
             Options = options,
             Adapter = adapter,
             Subjects = subjects,
+            Implementations = implementations,
             Facts = facts,
             Placements = placements,
             Diagnostics = diagnostics
@@ -97,7 +107,7 @@ internal static partial class WolverineFacts
 
         var endpoints = AnalyzeHandlers(scope, discovery.Policy, validationAuthorization);
         AnalyzeEndpoints(scope, endpoints, validationAuthorization);
-        return new(facts, diagnostics, placements);
+        return new(facts, diagnostics, placements, scope.FailureStageMethods);
     }
 
     internal static bool IsSagaMessagePayloadType(ITypeSymbol type) => IsEventPayloadType(type);
@@ -144,7 +154,12 @@ internal static partial class WolverineFacts
         Evidence evidence,
         List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics) =>
-        AddOutgoingMessages(SagaEmissionFor(project, subjects, sourceSubject, evidence, facts), method, consequences, diagnostics);
+        AddSagaBusEmission(
+            SagaBusEmissionKind.OutgoingMessages,
+            SagaEmissionFor(project, subjects, sourceSubject, evidence, facts),
+            method,
+            consequences,
+            diagnostics);
 
     internal static void AddSagaDirectBusConsequences(
         DotNetProjectCompilation project,
@@ -154,7 +169,29 @@ internal static partial class WolverineFacts
         Evidence evidence,
         List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics) =>
-        AddDirectBusConsequences(SagaEmissionFor(project, subjects, sourceSubject, evidence, facts), method, diagnostics);
+        AddSagaBusEmission(
+            SagaBusEmissionKind.DirectBus,
+            SagaEmissionFor(project, subjects, sourceSubject, evidence, facts),
+            method,
+            [],
+            diagnostics);
+
+    static void AddSagaBusEmission(
+        SagaBusEmissionKind kind,
+        MessageEmission emission,
+        IMethodSymbol method,
+        IReadOnlyList<WolverineOutgoingMessageConsequence> consequences,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        if (kind == SagaBusEmissionKind.OutgoingMessages)
+        {
+            AddOutgoingMessages(emission, method, consequences, diagnostics);
+        }
+        else
+        {
+            AddDirectBusConsequences(emission, method, diagnostics);
+        }
+    }
 
     static List<HttpEndpoint> AnalyzeHandlers(
         WolverineFactScope scope,
@@ -237,9 +274,13 @@ sealed class WolverineFactScope
 
     public required CritterStackSubjectResolver Subjects { get; init; }
 
+    public AuthoredImplementationManifest? Implementations { get; init; }
+
     public required List<GenerationFact> Facts { get; init; }
 
     public required List<CritterStackPlacementIntent> Placements { get; init; }
 
     public required List<GenerationDiagnostic> Diagnostics { get; init; }
+
+    public HashSet<IMethodSymbol> FailureStageMethods { get; } = [with(SymbolEqualityComparer.Default)];
 }

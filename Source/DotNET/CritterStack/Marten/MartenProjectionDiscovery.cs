@@ -74,6 +74,11 @@ static class MartenProjectionDiscovery
 
     public static ProjectionRegistration? ShapeOf(INamedTypeSymbol projection)
     {
+        if (MartenProjectionKindDiscovery.IsOpaqueProjection(projection))
+        {
+            return null;
+        }
+
         var singleStream = BaseClosing(projection, _singleStreamProjectionTypes);
         if (singleStream?.TypeArguments[0] is INamedTypeSymbol singleStreamModel)
         {
@@ -102,6 +107,7 @@ static class MartenProjectionDiscovery
         AdapterIdentity adapter)
     {
         if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
+            MartenProjectionKindDiscovery.IsComposite(method.ContainingType) ||
             !IsMarten(method, invocation, semanticModel) ||
             ProjectionTypeFrom(method, invocation, semanticModel) is not { } type)
         {
@@ -116,25 +122,33 @@ static class MartenProjectionDiscovery
             Explanation = $"Marten projection registration through {method.Name}"
         };
 
-        switch (method.Name)
+        return method.Name switch
         {
-            case "Snapshot":
-            case "LiveStreamAggregation":
-                return new(type, null, ProjectionKind.Snapshot, evidence)
-                {
-                    Lifecycle = string.Equals(method.Name, "LiveStreamAggregation", StringComparison.Ordinal)
-                        ? "Live"
-                        : LifecycleFrom(invocation, semanticModel)
-                };
-            case "Add":
-            case "AddProjectionWithServices":
-                return (ShapeOf(type) ?? CustomShapeOf(type)) is { } shape
-                    ? shape with { Evidence = evidence, Lifecycle = LifecycleFrom(invocation, semanticModel) }
-                    : null;
-            default:
-                return null;
-        }
+            "Snapshot" or "LiveStreamAggregation" => SnapshotRegistration(method, type, evidence, invocation, semanticModel),
+            "Add" or "AddProjectionWithServices" => AddedRegistration(type, evidence, invocation, semanticModel),
+            _ => null
+        };
     }
+
+    static ProjectionRegistration SnapshotRegistration(
+        IMethodSymbol method,
+        INamedTypeSymbol type,
+        Evidence evidence,
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel) => new(type, null, ProjectionKind.Snapshot, evidence)
+        {
+            Lifecycle = string.Equals(method.Name, "LiveStreamAggregation", StringComparison.Ordinal)
+                ? "Live"
+                : LifecycleFrom(invocation, semanticModel)
+        };
+
+    static ProjectionRegistration? AddedRegistration(
+        INamedTypeSymbol type,
+        Evidence evidence,
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel) => (ShapeOf(type) ?? CustomShapeOf(type)) is { } shape
+            ? shape with { Evidence = evidence, Lifecycle = LifecycleFrom(invocation, semanticModel) }
+            : null;
 
     static void AddConventionalRegistrations(
         List<ProjectionRegistration> registrations,
@@ -162,6 +176,7 @@ static class MartenProjectionDiscovery
     }
 
     static ProjectionRegistration? CustomShapeOf(INamedTypeSymbol projection) =>
+        !MartenProjectionKindDiscovery.IsOpaqueProjection(projection) &&
         DotNetSubjectIds.MetadataName(projection) != WellKnownTypes.MartenProjection &&
         projection.AllInterfaces.Any(_ => DotNetSubjectIds.MetadataName(_.OriginalDefinition) == WellKnownTypes.MartenProjection)
             ? new(projection, projection, ProjectionKind.Custom, null!)

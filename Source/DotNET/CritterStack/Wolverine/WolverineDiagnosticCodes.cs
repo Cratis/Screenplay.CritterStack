@@ -131,5 +131,34 @@ public static class WolverineDiagnosticCodes
     /// <summary>
     /// A command's produced event could not be linked with produces, so the model references the handler instead.
     /// </summary>
+    /// <remarks>
+    /// Reported as a warning when production evidence is omitted or unresolved, and as information when the handler
+    /// reference accurately represents a structural pattern, such as an IEventStream&lt;T&gt; parameter or a dynamic consistency boundary.
+    /// </remarks>
     public const string ProductionLinkOmitted = "WOLVERINE0025";
+
+    /// <summary>
+    /// A handler's OnException failure stage sends messages only when the handler fails; the exception filter and retry conditions are not represented.
+    /// </summary>
+    public const string FailureStageConditionOmitted = "WOLVERINE0026";
+
+    /// <summary>
+    /// Authored Marten event forwarding or its message transformation could not be represented exactly.
+    /// </summary>
+    public const string EventForwardingOmitted = "WOLVERINE0027";
+
+    /// <summary>
+    /// Authored response replay, always-publish, or topic-routing semantics could not be represented.
+    /// </summary>
+    public const string EndpointIdempotencyOmitted = "WOLVERINE0028";
+
+    /// <summary>
+    /// An authored abstraction call could not be resolved to a proven persistence consequence.
+    /// </summary>
+    public const string AuthoredAbstractionUnresolved = "WOLVERINE0029";
+
+    /// <summary>
+    /// An aggregate's natural-key identity could not be represented without guessing a stream identity.
+    /// </summary>
+    public const string NaturalKeyIdentityOmitted = "WOLVERINE0030";
 }

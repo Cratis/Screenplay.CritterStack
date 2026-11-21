@@ -41,32 +41,16 @@ static class MartenCompiledQueryDiscovery
         AdapterIdentity adapter,
         CritterStackSubjectResolver subjects)
     {
+        var entry = new QueryEntry(entryPoint, entryPointSubject);
+        var context = new QueryContext(project, adapter, subjects);
         var links = new List<MartenCompiledQueryLink>();
         var diagnostics = new List<GenerationDiagnostic>();
         foreach (var syntaxReference in entryPoint.DeclaringSyntaxReferences)
         {
-            if (syntaxReference.GetSyntax() is not MethodDeclarationSyntax declaration ||
-                DotNetGeneratedSource.IsGenerated(declaration.SyntaxTree))
+            if (syntaxReference.GetSyntax() is MethodDeclarationSyntax declaration &&
+                !DotNetGeneratedSource.IsGenerated(declaration.SyntaxTree))
             {
-                continue;
-            }
-
-            var semanticModel = project.Compilation.GetSemanticModel(declaration.SyntaxTree);
-            foreach (var invocation in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
-            {
-                if (!TryResolve(invocation, semanticModel, out var plan))
-                {
-                    continue;
-                }
-
-                if (IsInProvenEndpointFlow(invocation, declaration, semanticModel))
-                {
-                    links.Add(LinkFor(plan, invocation, entryPoint, project, adapter, subjects));
-                }
-                else
-                {
-                    diagnostics.Add(UnprovenFlowDiagnostic(plan, invocation, entryPoint, entryPointSubject, project));
-                }
+                DiscoverInDeclaration(declaration, entry, context, links, diagnostics);
             }
         }
 
@@ -92,12 +76,7 @@ static class MartenCompiledQueryDiscovery
             return false;
         }
 
-        var selectedCompiledInterface = CompiledInterfaceOf(argumentType.ConvertedType ?? compiledParameter.Type);
-        var compiledInterface = selectedCompiledInterface is null
-            ? null
-            : CompiledInterfaceOf(planType, selectedCompiledInterface);
-        if (compiledInterface is null ||
-            !HasAuthoredQueryPlan(planType, compiledInterface) ||
+        if (CompiledInterfaceFor(planType, argumentType, compiledParameter) is not { } compiledInterface ||
             compiledInterface.TypeArguments[0] is not INamedTypeSymbol documentType ||
             !IsSourceDocumentType(documentType))
         {
@@ -115,38 +94,75 @@ static class MartenCompiledQueryDiscovery
     public static bool IsCompiledQueryExecution(IMethodSymbol method) =>
         IsCompiledQueryExecution(method, out _);
 
+    static void DiscoverInDeclaration(
+        MethodDeclarationSyntax declaration,
+        QueryEntry entry,
+        QueryContext context,
+        List<MartenCompiledQueryLink> links,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        var semanticModel = context.Project.Compilation.GetSemanticModel(declaration.SyntaxTree);
+        foreach (var invocation in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
+        {
+            if (!TryResolve(invocation, semanticModel, out var plan))
+            {
+                continue;
+            }
+
+            if (IsInProvenEndpointFlow(invocation, declaration, semanticModel))
+            {
+                links.Add(LinkFor(plan, invocation, entry, context));
+            }
+            else
+            {
+                diagnostics.Add(UnprovenFlowDiagnostic(plan, invocation, entry, context.Project));
+            }
+        }
+    }
+
+    static INamedTypeSymbol? CompiledInterfaceFor(
+        INamedTypeSymbol planType,
+        TypeInfo argumentType,
+        IParameterSymbol compiledParameter)
+    {
+        var selectedCompiledInterface = CompiledInterfaceOf(argumentType.ConvertedType ?? compiledParameter.Type);
+        var compiledInterface = selectedCompiledInterface is null
+            ? null
+            : CompiledInterfaceOf(planType, selectedCompiledInterface);
+        return compiledInterface is not null && HasAuthoredQueryPlan(planType, compiledInterface)
+            ? compiledInterface
+            : null;
+    }
+
     static GenerationDiagnostic UnprovenFlowDiagnostic(
         MartenCompiledQueryPlan plan,
         InvocationExpressionSyntax invocation,
-        IMethodSymbol entryPoint,
-        SubjectId entryPointSubject,
+        QueryEntry entry,
         DotNetProjectCompilation project) => new()
         {
             Code = MartenDiagnosticCodes.CompiledQueryFlowUnresolved,
             Severity = GenerationDiagnosticSeverity.Warning,
             Outcome = GenerationDiagnosticOutcome.Unknown,
-            Message = $"Marten compiled query '{plan.PlanType.Name}' is inside a nested executable scope whose invocation from endpoint '{entryPoint.ContainingType.Name}.{entryPoint.Name}' could not be proven",
+            Message = $"Marten compiled query '{plan.PlanType.Name}' is inside a nested executable scope whose invocation from endpoint '{entry.Method.ContainingType.Name}.{entry.Method.Name}' could not be proven",
             Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
-            Subject = entryPointSubject
+            Subject = entry.Subject
         };
 
     static MartenCompiledQueryLink LinkFor(
         MartenCompiledQueryPlan plan,
         InvocationExpressionSyntax invocation,
-        IMethodSymbol entryPoint,
-        DotNetProjectCompilation project,
-        AdapterIdentity adapter,
-        CritterStackSubjectResolver subjects) => new(
+        QueryEntry entry,
+        QueryContext context) => new(
             plan.PlanType,
             plan.DocumentType,
             plan.OutputType,
-            ParametersOf(plan.PlanType, subjects),
+            ParametersOf(plan.PlanType, context.Subjects),
             new Evidence
             {
-                Adapter = adapter,
+                Adapter = context.Adapter,
                 Strength = EvidenceStrength.Exact,
-                Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
-                Explanation = $"Marten compiled query '{plan.PlanType.Name}' is executed by application query entry point '{entryPoint.ContainingType.Name}.{entryPoint.Name}'"
+                Source = CritterStackSource.RangeForProject(invocation.GetLocation(), context.Project),
+                Explanation = $"Marten compiled query '{plan.PlanType.Name}' is executed by application query entry point '{entry.Method.ContainingType.Name}.{entry.Method.Name}'"
             });
 
     static bool IsSourceDocumentType(INamedTypeSymbol documentType) =>
@@ -360,4 +376,11 @@ static class MartenCompiledQueryDiscovery
     static string LowerFirst(string value) => value.Length == 0
         ? value
         : $"{char.ToLowerInvariant(value[0])}{value[1..]}";
+
+    sealed record QueryEntry(IMethodSymbol Method, SubjectId Subject);
+
+    sealed record QueryContext(
+        DotNetProjectCompilation Project,
+        AdapterIdentity Adapter,
+        CritterStackSubjectResolver Subjects);
 }

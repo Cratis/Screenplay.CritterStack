@@ -41,49 +41,6 @@ static class MartenProjectionSideEffects
         return new(scan.Facts, scan.Diagnostics);
     }
 
-    static string? SourceFileOf(ISymbol symbol, DotNetProjectCompilation project) =>
-        CritterStackSource.EvidenceFor(symbol, new AdapterIdentity { Id = "source", Version = "1" }, project, EvidenceStrength.Exact).Source?.Path;
-
-    static ArtifactFact Artifact(
-        string id,
-        SubjectId subject,
-        string name,
-        string? file,
-        IReadOnlyList<PropertyDefinition> properties,
-        Evidence evidence) => new()
-        {
-            Id = new FactId { Value = id },
-            Subject = subject,
-            Definition = new ArtifactDefinition
-            {
-                Key = new ArtifactKey { Subject = subject, Kind = ArtifactKind.Message },
-                Name = name,
-                File = file,
-                Properties = properties
-            },
-            Evidence = evidence
-        };
-
-    static RelationshipFact Relationship(
-        string id,
-        SubjectId source,
-        SubjectId target,
-        Evidence evidence) => new()
-        {
-            Id = new FactId { Value = id },
-            Subject = source,
-            Definition = new RelationshipDefinition
-            {
-                Key = new RelationshipKey
-                {
-                    Kind = RelationshipKind.Publishes,
-                    Source = source,
-                    Target = target
-                }
-            },
-            Evidence = evidence
-        };
-
     sealed class SideEffectScan(
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
@@ -168,20 +125,26 @@ static class MartenProjectionSideEffects
             var artifactId = $"wolverine:message:{messageSubject.Value}";
             if (_messageArtifactIds.Add(artifactId))
             {
-                Facts.Add(Artifact(
-                    artifactId,
-                    messageSubject,
-                    messageType.Name,
-                    SourceFileOf(messageType, project),
-                    DotNetTypeShapes.PropertiesOf(messageType),
-                    evidence));
+                Facts.Add(new MartenArtifactFact
+                {
+                    Id = artifactId,
+                    Subject = messageSubject,
+                    Kind = ArtifactKind.Message,
+                    Name = messageType.Name,
+                    File = MartenSourceFiles.FileOf(messageType, project),
+                    Properties = DotNetTypeShapes.PropertiesOf(messageType),
+                    Evidence = evidence
+                }.ToFact());
             }
 
-            Facts.Add(Relationship(
-                $"marten:projection:publishes:{projectionSubject.Value}:{messageSubject.Value}:{invocation.SpanStart}",
-                projectionSubject,
-                messageSubject,
-                evidence));
+            Facts.Add(new MartenRelationshipFact
+            {
+                Id = $"marten:projection:publishes:{projectionSubject.Value}:{messageSubject.Value}:{invocation.SpanStart}",
+                Source = projectionSubject,
+                Kind = RelationshipKind.Publishes,
+                Target = messageSubject,
+                Evidence = evidence
+            }.ToFact());
         }
     }
 }

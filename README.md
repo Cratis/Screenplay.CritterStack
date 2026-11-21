@@ -73,7 +73,15 @@ The compatibility plan uses:
 - `CritterStackHelpDesk` for Marten 6/Wolverine 1 behavior;
 - BankAccountES and other focused applications from the pinned public `CritterStackSamples` repository;
 - MartenWithProjectAspire for instance-registered async, multi-stream, and event projections;
-- the repository-owned `VogenConcepts` fixture pinned to Vogen 8.0.7, Marten 9.45.0, and Wolverine 6.45.0, including the canonical store-agnostic DCB and authored saga APIs.
+- the repository-owned `VogenConcepts` fixture pinned to Vogen 8.0.7, Marten 9.62.0, and Wolverine 6.64.2, including the canonical store-agnostic DCB and authored saga APIs.
+
+## Supported conventions and versions
+
+The [conventions and diagnostics reference](Documentation/goals.md#conventions-and-diagnostics) covers projection deletion registrations, Wolverine reference reads, returned `MartenOps` factories, and authored middleware. It also distinguishes detected but unrepresented store scope, event forwarding, response policies, natural-key identity, and enum numbering. Failure-only messages stay in diagnostics rather than becoming success-path consequences.
+
+[Authored persistence abstraction analysis](Documentation/goals.md#opt-in-authored-persistence-abstractions) is opt-in through `CritterStackScreenplayOptions.FollowAuthoredAbstractions`, which defaults to `false`. It requires selected authored implementations to agree; incomplete or conflicting dispatch produces `WOLVERINE0029` rather than guessed persistence. A standalone `BoundaryAggregate` marker produces `WOLVERINE0014`, not an inferred aggregate workflow.
+
+The main dependency pins are Cratis Screenplay 6.36.0, Generation SDK 0.21.2, Marten 9.62.0, and Wolverine 6.64.2. IncidentService uses Marten.AspNetCore 9.62.0 and Wolverine HTTP integration packages 6.64.2; legacy fixtures keep their own versions.
 
 These pinned samples and focused source-shape specs provide compatibility evidence for the versions and behaviors they exercise. They do not establish a broad support promise or replace the requirement for a wholly Cratis-owned deterministic release fixture.
 
@@ -84,7 +92,7 @@ See:
 
 ## Build and test
 
-The specifications use Cratis.Specifications 5.0 and the native xUnit v3 executable runner. The .NET 11 RC SDK is required to build. The mixed specification suite and canonical tool target .NET 11 only; the library targets net10.0 and net11.0 in Release and remains a library. The Release build and clean package-consumer check cover the .NET 10 library surface.
+The specifications use Cratis.Specifications 5.3.0 and the native xUnit v3 executable runner. `global.json` selects .NET SDK 11.0.100 with `latestFeature` roll-forward. The mixed specification suite and canonical tool target .NET 11 only; the library targets net10.0 and net11.0 in Release and remains a library. The Release build and clean package-consumer check cover the .NET 10 library surface.
 
 ```shell
 dotnet build Screenplay.CritterStack.slnx --configuration Debug --warnaserror
@@ -94,6 +102,10 @@ bash .github/scripts/run-specifications.sh Release
 dotnet pack Screenplay.CritterStack.slnx --no-build --configuration Release -o Artifacts/NuGet -p:Version=9999.0.0
 ./scripts/verify-package-consumer.sh 9999.0.0 Artifacts/NuGet
 ```
+
+The clean-package-consumer script reads its expected Screenplay and Generation versions from `Directory.Packages.props`. Running the consumer executable directly requires `EXPECTED_SCREENPLAY` and `EXPECTED_GENERATION`; it fails explicitly when either is missing.
+
+For canonical golden comparisons, set `CRATIS_CANONICAL_ACTUAL_DIR` to an output directory to retain normalized `<sample>.play.txt` and `<sample>.diagnostics.txt` files before comparison. This works for matching and mismatching results and does not rewrite checked-in fixtures. With the variable unset, no actual-output files are written. The canonical CI workflow uploads `canonical-actual` on failure when files exist and retains it for seven days.
 
 Package baseline validation remains enabled; the compatibility suppression file permits only the intentional removal of the .NET 8 and .NET 9 package targets.
 

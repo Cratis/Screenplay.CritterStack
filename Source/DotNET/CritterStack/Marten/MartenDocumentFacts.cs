@@ -21,7 +21,8 @@ static class MartenDocumentFacts
         AdapterIdentity adapter,
         CritterStackSubjectResolver subjects,
         IReadOnlyList<MartenDocumentUsage> projectedDocuments,
-        bool includeIntegrationApis = true)
+        bool includeIntegrationApis = true,
+        IReadOnlySet<IMethodSymbol>? failureStageMethods = null)
     {
         var state = new DiscoveryState(project, adapter, subjects, projectedDocuments);
         foreach (var tree in project.AuthoredSyntaxTrees.Where(_ => !DotNetGeneratedSource.IsGenerated(_)))
@@ -29,6 +30,11 @@ static class MartenDocumentFacts
             var semanticModel = project.Compilation.GetSemanticModel(tree);
             foreach (var invocation in DotNetSource.AuthoredInvocationsIn(tree.GetRoot(), project))
             {
+                if (IsInFailureStage(invocation, semanticModel, failureStageMethods))
+                {
+                    continue;
+                }
+
                 ObserveInvocation(state, invocation, semanticModel, includeIntegrationApis);
             }
         }
@@ -51,6 +57,32 @@ static class MartenDocumentFacts
             }));
 
         return new(state.Facts, state.Diagnostics, []);
+    }
+
+    static bool IsInFailureStage(
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel,
+        IReadOnlySet<IMethodSymbol>? failureStageMethods)
+    {
+        if (failureStageMethods is null || failureStageMethods.Count == 0)
+        {
+            return false;
+        }
+
+        for (var symbol = semanticModel.GetEnclosingSymbol(invocation.SpanStart); symbol is not null; symbol = symbol.ContainingSymbol)
+        {
+            if (symbol is not IMethodSymbol method)
+            {
+                continue;
+            }
+
+            if (failureStageMethods.Contains(method))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     static void ObserveInvocation(
@@ -100,8 +132,12 @@ static class MartenDocumentFacts
         SemanticModel semanticModel)
     {
         var kind = RelationshipKindFor(method.Name);
-        if (IsIgnoredUsage(kind, invocation, semanticModel) ||
-            (kind is null && !_configurationMethods.Contains(method.Name)))
+        if (IsIgnoredUsage(kind, invocation, semanticModel))
+        {
+            return;
+        }
+
+        if (kind is null && !_configurationMethods.Contains(method.Name))
         {
             return;
         }
@@ -117,7 +153,7 @@ static class MartenDocumentFacts
         state.Documents.TryAdd(documentSubject, new(documentType, evidence));
         if (kind is not null && semanticModel.GetEnclosingSymbol(invocation.SpanStart) is IMethodSymbol containingMethod)
         {
-            AddHandlerFacts(state, invocation, kind.Value, containingMethod, documentSubject, evidence);
+            AddHandlerFacts(state, new(invocation, containingMethod, documentSubject, evidence), kind.Value);
         }
     }
 
@@ -126,29 +162,26 @@ static class MartenDocumentFacts
          IsInEventProjection(invocation, semanticModel)) ||
         (kind is not null && IsInUnresolvedCustomProcessor(invocation, semanticModel));
 
-    static void AddHandlerFacts(
-        DiscoveryState state,
-        InvocationExpressionSyntax invocation,
-        RelationshipKind kind,
-        IMethodSymbol containingMethod,
-        SubjectId documentSubject,
-        Evidence evidence)
+    static void AddHandlerFacts(DiscoveryState state, HandlerUsage usage, RelationshipKind kind)
     {
-        var methodSubject = DotNetMethodIdentity.SubjectFor(state.Project, containingMethod);
-        state.Facts.Add(Artifact(
-            $"marten:handler:{methodSubject.Value}",
-            methodSubject,
-            ArtifactKind.Handler,
-            DotNetMethodIdentity.DisplayName(containingMethod),
-            SourceFileOf(containingMethod, state.Project),
-            [],
-            evidence));
-        state.Facts.Add(Relationship(
-            $"marten:{kind}:{methodSubject.Value}:{documentSubject.Value}:{invocation.SpanStart}",
-            methodSubject,
-            kind,
-            documentSubject,
-            evidence));
+        var methodSubject = DotNetMethodIdentity.SubjectFor(state.Project, usage.ContainingMethod);
+        state.Facts.Add(new MartenArtifactFact
+        {
+            Id = $"marten:handler:{methodSubject.Value}",
+            Subject = methodSubject,
+            Kind = ArtifactKind.Handler,
+            Name = DotNetMethodIdentity.DisplayName(usage.ContainingMethod),
+            File = MartenSourceFiles.FileOf(usage.ContainingMethod, state.Project),
+            Evidence = usage.Evidence
+        }.ToFact());
+        state.Facts.Add(new MartenRelationshipFact
+        {
+            Id = $"marten:{kind}:{methodSubject.Value}:{usage.DocumentSubject.Value}:{usage.Invocation.SpanStart}",
+            Source = methodSubject,
+            Kind = kind,
+            Target = usage.DocumentSubject,
+            Evidence = usage.Evidence
+        }.ToFact());
     }
 
     static void AddDocumentFacts(DiscoveryState state, SubjectId subject, DocumentObservation observed)
@@ -173,14 +206,16 @@ static class MartenDocumentFacts
             });
         }
 
-        state.Facts.Add(Artifact(
-            $"marten:document:{subject.Value}",
-            subject,
-            ArtifactKind.Document,
-            observed.Type.Name,
-            SourceFileOf(observed.Type, state.Project),
-            [.. properties.Select(_ => _.Definition with { IsIdentifier = _ == identityProperty })],
-            observed.RegistrationEvidence));
+        state.Facts.Add(new MartenArtifactFact
+        {
+            Id = $"marten:document:{subject.Value}",
+            Subject = subject,
+            Kind = ArtifactKind.Document,
+            Name = observed.Type.Name,
+            File = MartenSourceFiles.FileOf(observed.Type, state.Project),
+            Properties = [.. properties.Select(_ => _.Definition with { IsIdentifier = _ == identityProperty })],
+            Evidence = observed.RegistrationEvidence
+        }.ToFact());
     }
 
     static void ObserveIdentityConfiguration(
@@ -239,8 +274,12 @@ static class MartenDocumentFacts
         }
 
         var expression = Unwrap(lambda.ExpressionBody);
-        if (expression is not MemberAccessExpressionSyntax memberAccess ||
-            Unwrap(memberAccess.Expression) is not IdentifierNameSyntax identifier ||
+        if (expression is not MemberAccessExpressionSyntax memberAccess)
+        {
+            return null;
+        }
+
+        if (Unwrap(memberAccess.Expression) is not IdentifierNameSyntax identifier ||
             !string.Equals(identifier.Identifier.ValueText, LambdaParameterName(lambda), StringComparison.Ordinal))
         {
             return null;
@@ -417,46 +456,6 @@ static class MartenDocumentFacts
 
     static bool IsSourceType(INamedTypeSymbol type) => type.TypeKind != TypeKind.Error && type.Locations.Any(_ => _.IsInSource);
 
-    static string? SourceFileOf(ISymbol symbol, DotNetProjectCompilation project) =>
-        CritterStackSource.EvidenceFor(symbol, new AdapterIdentity { Id = "source", Version = "1" }, project, EvidenceStrength.Exact).Source?.Path;
-
-    static ArtifactFact Artifact(
-        string id,
-        SubjectId subject,
-        ArtifactKind kind,
-        string name,
-        string? file,
-        IReadOnlyList<PropertyDefinition> properties,
-        Evidence evidence) => new()
-        {
-            Id = new FactId { Value = id },
-            Subject = subject,
-            Definition = new ArtifactDefinition
-            {
-                Key = new ArtifactKey { Subject = subject, Kind = kind },
-                Name = name,
-                File = file,
-                Properties = properties
-            },
-            Evidence = evidence
-        };
-
-    static RelationshipFact Relationship(
-        string id,
-        SubjectId source,
-        RelationshipKind kind,
-        SubjectId target,
-        Evidence evidence) => new()
-        {
-            Id = new FactId { Value = id },
-            Subject = source,
-            Definition = new RelationshipDefinition
-            {
-                Key = new RelationshipKey { Kind = kind, Source = source, Target = target }
-            },
-            Evidence = evidence
-        };
-
     static string LowerFirst(string value) => value.Length == 0
         ? value
         : $"{char.ToLowerInvariant(value[0])}{value[1..]}";
@@ -483,6 +482,12 @@ static class MartenDocumentFacts
                 _ => _.Key,
                 _ => new DocumentObservation(_.First().Type, _.First().Evidence));
     }
+
+    sealed record HandlerUsage(
+        InvocationExpressionSyntax Invocation,
+        IMethodSymbol ContainingMethod,
+        SubjectId DocumentSubject,
+        Evidence Evidence);
 
     sealed record DocumentProperty(IPropertySymbol Member, PropertyDefinition Definition);
 

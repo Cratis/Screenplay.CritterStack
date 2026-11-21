@@ -15,6 +15,7 @@
         <PackageReference Include="Cratis.Screenplay.Generation.DotNet" />
         <PackageReference Include="Cratis.Screenplay.Generation.DotNet.Vogen" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+        <PackageReference Include="NSubstitute" />
 
         <ProjectReference Include="../Canonical/Canonical.csproj" />
         <ProjectReference Include="../CritterStack/CritterStack.csproj" />

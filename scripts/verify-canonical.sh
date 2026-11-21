@@ -4,8 +4,8 @@
 
 set -euo pipefail
 
-if [[ $# -ne 4 ]]; then
-    echo "Usage: $0 <runner.dll> <project.csproj> <expectations> <output.play>" >&2
+if [[ $# -ne 4 && $# -ne 5 ]]; then
+    echo "Usage: $0 <runner.dll> <project.csproj> <expectations> <output.play> [<golden-prefix>]" >&2
     exit 2
 fi
 
@@ -13,10 +13,12 @@ runner=$1
 project=$2
 expectations=$3
 output=$4
+# Optional prefix of the checked-in golden model (<prefix>.play.txt) and diagnostics (<prefix>.diagnostics.txt).
+golden=("${@:5}")
 repeat_output="${output}.repeat"
 
 rm -f "$output" "$repeat_output"
-dotnet "$runner" "$project" "$expectations" "$output"
+dotnet "$runner" "$project" "$expectations" "$output" ${golden[@]+"${golden[@]}"}
 dotnet "$runner" "$project" "$expectations" "$repeat_output"
 cmp "$output" "$repeat_output"
 rm -f "$repeat_output"

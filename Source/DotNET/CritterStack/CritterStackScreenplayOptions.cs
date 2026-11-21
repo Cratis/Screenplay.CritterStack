@@ -27,4 +27,11 @@ public sealed record CritterStackScreenplayOptions
     /// Gets the number of leading namespace segments to omit from inferred features.
     /// </summary>
     public int NamespaceSegmentsToSkip { get; init; }
+
+    /// <summary>
+    /// Gets whether to follow authored repository and helper calls across the selected projects when every implementation agrees.
+    /// Disabled by default. Missing authored bodies or source locations, incomplete or conflicting dispatch, recursion, and traversal limits
+    /// are reported without inferred persistence. Open, variant, or constrained generic dispatch and generic methods remain unsupported.
+    /// </summary>
+    public bool FollowAuthoredAbstractions { get; init; }
 }

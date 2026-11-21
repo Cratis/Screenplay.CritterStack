@@ -1,0 +1,136 @@
+domain TripBuildingService
+
+concept Direction : Enum
+  file MartenWithProjectAspire/TripDomain/Direction.cs
+  north
+  south
+  east
+  west
+
+module TripBuildingService
+
+  feature Day
+
+    slice StateView Day
+
+      readmodel Day
+        file MartenWithProjectAspire/TripBuildingService/Day.cs
+        version Int
+        id Int
+        started Int
+        ended Int
+        stops Int
+        north Decimal
+        east Decimal
+        west Decimal
+        south Decimal
+
+      reducer DayProjection => Day
+        on IDayEvent
+          file MartenWithProjectAspire/TripBuildingService/DayProjection.cs
+        on Movement
+          file MartenWithProjectAspire/TripBuildingService/DayProjection.cs
+        on Stop
+          file MartenWithProjectAspire/TripBuildingService/DayProjection.cs
+        on Travel
+          file MartenWithProjectAspire/TripBuildingService/DayProjection.cs
+        on TripEnded
+          file MartenWithProjectAspire/TripBuildingService/DayProjection.cs
+        on TripStarted
+          file MartenWithProjectAspire/TripBuildingService/DayProjection.cs
+
+  feature Events
+
+    slice StateView Arrival
+
+      event Arrival
+        file MartenWithProjectAspire/TripDomain/Arrival.cs
+        day Int
+        state String
+
+    slice StateView Breakdown
+
+      event Breakdown
+        file MartenWithProjectAspire/TripDomain/TripAborted.cs
+        isCritical Bool
+
+    slice StateView IDayEvent
+
+      event IDayEvent
+        file MartenWithProjectAspire/TripDomain/IDayEvent.cs
+        day Int
+
+    slice StateView Movement
+
+      event Movement
+        file MartenWithProjectAspire/TripDomain/Movement.cs
+        direction Direction
+        distance Decimal
+
+    slice StateView Stop
+
+      event Stop
+        file MartenWithProjectAspire/TripDomain/Stop.cs
+        time TimeOnly
+        state String
+        duration Int
+
+    slice StateView Travel
+
+      event Travel
+        file MartenWithProjectAspire/TripDomain/Travel.cs
+        day Int
+        movements Movement[]
+        stops Stop[]
+
+    slice StateView TripAborted
+
+      event TripAborted
+        file MartenWithProjectAspire/TripDomain/TripAborted.cs
+
+    slice StateView TripEnded
+
+      event TripEnded
+        file MartenWithProjectAspire/TripDomain/TripEnded.cs
+        day Int
+        state String
+
+    slice StateView TripStarted
+
+      event TripStarted
+        file MartenWithProjectAspire/TripDomain/TripStarted.cs
+        day Int
+
+    slice StateView VacationOver
+
+      event VacationOver
+        file MartenWithProjectAspire/TripDomain/TripAborted.cs
+
+  feature Trip
+
+    slice StateView Trip
+
+      readmodel Trip
+        file MartenWithProjectAspire/TripDomain/Trip.cs
+        endedOn Int
+        traveled Decimal
+        state String
+        active Bool
+        startedOn Int
+        repairShopId Uuid optional
+
+      reducer TripProjection => Trip
+        on Arrival
+          file MartenWithProjectAspire/TripBuildingService/TripProjection.cs
+        on Breakdown
+          file MartenWithProjectAspire/TripBuildingService/TripProjection.cs
+        on Travel
+          file MartenWithProjectAspire/TripBuildingService/TripProjection.cs
+        on TripAborted
+          file MartenWithProjectAspire/TripBuildingService/TripProjection.cs
+        on TripEnded
+          file MartenWithProjectAspire/TripBuildingService/TripProjection.cs
+        on TripStarted
+          file MartenWithProjectAspire/TripBuildingService/TripProjection.cs
+        on VacationOver
+          file MartenWithProjectAspire/TripBuildingService/TripProjection.cs

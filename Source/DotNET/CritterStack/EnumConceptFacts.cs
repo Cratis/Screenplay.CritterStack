@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Globalization;
 using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
@@ -50,6 +51,8 @@ static class EnumConceptFacts
                 diagnostics.Add(omission);
                 continue;
             }
+
+            diagnostics.AddRange(NumberingDiagnostics(candidate.Type, declaration, subject, evidence));
 
             if (concepts.Add(subject))
             {
@@ -132,6 +135,23 @@ static class EnumConceptFacts
         return Drop(contributions, captured);
     }
 
+    static IEnumerable<GenerationDiagnostic> NumberingDiagnostics(
+        INamedTypeSymbol type,
+        EnumDeclarationSyntax declaration,
+        SubjectId subject,
+        Evidence evidence)
+    {
+        var numbers = new EnumMemberNumbers([.. declaration.Members.Select(member => type
+            .GetMembers(member.Identifier.ValueText)
+            .OfType<IFieldSymbol>()
+            .Single()
+            .ConstantValue)]);
+        if (!numbers.IsPositional)
+        {
+            yield return NumberingDiagnostic(type, subject, evidence);
+        }
+    }
+
     // Mirrors ScreenplayLowerer.TypeName (Screenplay.Generation 0.18): only a concept-targeted subject with a contributed
     // concept prints the concept name; every other type reference prints its plain name.
     static bool IsConceptReference(TypeReferenceDefinition type, HashSet<SubjectId> conceptSubjects) =>
@@ -177,7 +197,6 @@ static class EnumConceptFacts
             .GroupBy(_ => _.Fact.Subject)
             .Select(_ => _.First())
             .ToArray();
-        bool IsDropped(PropertyDefinition property) => property.Type.Subject is { } subject && dropped.ContainsKey(subject);
 
         return
         [
@@ -194,31 +213,40 @@ static class EnumConceptFacts
                     Facts =
                     [
                         .. contribution.Facts
-                            .Where(fact => fact switch
-                            {
-                                ArtifactFact artifact => artifact.Definition.Key.Kind != ArtifactKind.Concept || !dropped.ContainsKey(artifact.Subject),
-                                ConceptRepresentationFact representation => !dropped.ContainsKey(representation.Definition.Concept) || !IsEnumRepresentation(representation),
-                                _ => true
-                            })
-                            .Select(fact => fact is ArtifactFact artifact && artifact.Definition.Properties.Any(IsDropped)
-                                ? artifact with
-                                {
-                                    Definition = artifact.Definition with
-                                    {
-                                        Properties =
-                                        [
-                                            .. artifact.Definition.Properties.Select(property => IsDropped(property)
-                                                ? property with { Type = property.Type with { Subject = null } }
-                                                : property)
-                                        ]
-                                    }
-                                }
-                                : fact)
+                            .Where(fact => KeepFact(fact, dropped))
+                            .Select(fact => WithoutDroppedReferences(fact, dropped))
                     ],
                     Diagnostics = diagnostics
                 };
             })
         ];
+    }
+
+    static bool KeepFact(GenerationFact fact, Dictionary<SubjectId, string> dropped) => fact switch
+    {
+        ArtifactFact artifact => artifact.Definition.Key.Kind != ArtifactKind.Concept || !dropped.ContainsKey(artifact.Subject),
+        ConceptRepresentationFact representation => !dropped.ContainsKey(representation.Definition.Concept) || !IsEnumRepresentation(representation),
+        _ => true
+    };
+
+    static GenerationFact WithoutDroppedReferences(GenerationFact fact, Dictionary<SubjectId, string> dropped)
+    {
+        bool IsDropped(PropertyDefinition property) => property.Type.Subject is { } subject && dropped.ContainsKey(subject);
+
+        return fact is ArtifactFact artifact && artifact.Definition.Properties.Any(IsDropped)
+            ? artifact with
+            {
+                Definition = artifact.Definition with
+                {
+                    Properties =
+                    [
+                        .. artifact.Definition.Properties.Select(property => IsDropped(property)
+                            ? property with { Type = property.Type with { Subject = null } }
+                            : property)
+                    ]
+                }
+            }
+            : fact;
     }
 
     static GenerationDiagnostic? OmissionOf(INamedTypeSymbol type, SubjectId subject, Evidence evidence, string[] values)
@@ -289,6 +317,16 @@ static class EnumConceptFacts
         Message = message
     };
 
+    static GenerationDiagnostic NumberingDiagnostic(INamedTypeSymbol type, SubjectId subject, Evidence evidence) => new()
+    {
+        Code = CritterStackDiagnosticCodes.EnumNumbersNotPreserved,
+        Severity = GenerationDiagnosticSeverity.Warning,
+        Outcome = GenerationDiagnosticOutcome.Unsupported,
+        Subject = subject,
+        Source = evidence.Source,
+        Message = $"Enum '{type.Name}': explicit member numbers are not preserved in the generated concept"
+    };
+
     static GenerationDiagnostic ConflictDiagnostic(ArtifactFact concept, string message) => new()
     {
         Code = CritterStackDiagnosticCodes.EnumConceptNameConflict,
@@ -330,4 +368,11 @@ static class EnumConceptFacts
         value.Skip(1).All(_ => _ == '_' || char.IsLetterOrDigit(_)) &&
         !string.Equals(value, "file", StringComparison.Ordinal) &&
         !string.Equals(value, "validate", StringComparison.Ordinal);
+
+    internal sealed record EnumMemberNumbers(IReadOnlyList<object?> Values)
+    {
+        public bool IsPositional => Values
+            .Select((value, index) => value is not null && Convert.ToDecimal(value, CultureInfo.InvariantCulture) == index)
+            .All(_ => _);
+    }
 }
