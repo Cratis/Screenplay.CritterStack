@@ -18,7 +18,7 @@ public class when_registering_attribute_middleware : given.a_wolverine_attribute
             public static void Post(Create message) { }
         }
         public static class Registered { public static void Before(Process message) { } }
-        public static class Generic { public static void Before(Process message) { } }
+        public class Generic { public static void Before(Process message) { } }
         public static class HttpRegistered { public static void Before(Create message) { } }
         public static class Filtered { public static FilteredMessage Before(Process message) => new(message.Id); }
         public static class Configuration
