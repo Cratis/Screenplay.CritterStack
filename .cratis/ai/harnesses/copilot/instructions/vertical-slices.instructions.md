@@ -90,7 +90,7 @@ The command carries input from the caller. `Handle()` is defined directly on the
 | Reusable value invariant (length, format, range) | `ConceptValidator<T>` on the concept type |
 | Command-input / cross-field / pre-handler rule (incl. injected read-model/service/identity checks) | `CommandValidator<TCommand>` with `RuleFor(...)` |
 | Handler needs fetched/computed data before it can build the event | `Provide()` — fetches the data; may validate it and short-circuit |
-| State-dependent rule that must hold **under concurrency** | Read protection `On`: the read model as a `CommandValidator<T>` constructor (or `Handle()`) parameter; a per-stream read model or `IStreamReads`/`StreamDecision` for one stream; an aggregate for a rich lifecycle. `[ProtectedDecision]` + `DecisionRead<T>` is the older per-command opt-in. Under `Off` (default) injection is a hint |
+| State-dependent rule that must hold **under concurrency** | Read protection `On`: the read model as a `CommandValidator<T>` constructor (or `Handle()`) parameter; a per-stream read model or `IStreamReads`/`StreamDecision` for one stream; an aggregate for a rich lifecycle. `[ProtectedDecision]` + `DecisionRead<T>` is the older per-command opt-in. Under `Off` (set explicitly, or the Arc 22 behavior) injection is a hint |
 | Uniqueness | Chronicle `[Unique]` / `IConstraint` (race-safe) — not a read-model pre-check |
 | Genuinely exceptional failure (bug, missing infra) | `throw` a domain exception |
 
@@ -184,7 +184,7 @@ Three attributes scope an append broad→narrow, and each one *also* (only with 
 
 Each attribute always tags the appended events (visible in `EventContext`). **Only when the command also carries `concurrency: true`** does each dimension join the server-side `ConcurrencyScope` (plus the event source id), with the optimistic strategy supplying the expected tail sequence number. A command **without** `concurrency: true` contributes no scope of its own, and the append falls to whatever concurrency strategy the event sequence is configured with — by default the optimistic one, scoped to the event source. So the attribute chooses *which dimensions* bound the check, not whether a check happens at all. Reach for it on high-contention state transitions where a stale read would let two commands both "win" — it narrows the boundary so appends that are genuinely independent stop colliding (concurrency failures surface on `CommandResult`/`AppendResult`). Adopt it deliberately per behavior, not as a blanket default.
 
-New code sets `<CratisReadProtection>On</CratisReadProtection>` (Arc 22.106.0).
+Read protection `On` is the default from Arc 23: leave `<CratisReadProtection>` unset (the `On` default comes from `Cratis.Arc.Chronicle`'s build props, `Source/DotNET/Chronicle/build/Cratis.Arc.Chronicle.props`; a project not importing them has no default) and never add `[ReadProtection(ReadProtectionMode.On)]` to a command. Opt out only where needed, narrowest first, each with a stated reason: `[Unprotected("why")]` on a read-model parameter, model type or method (one advisory read; the method form covers only raw reads in the body, never injected read-model parameters, and mixing it with protected read-model parameters raises ARCCHR0034, so put it on the parameter); `[Unprotected("why")]` or `[ReadProtection(ReadProtectionMode.Off)]` on one command; project-level `Off` or `Measure` only as a temporary adoption step. For a key computed at runtime, `IDecisionReads.Get<T>(key)` in `Provide` or a validator is a protected read; method-level `[Unprotected]` is only for reads the guard cannot cover (joins, children, other sequences, raw event store, external stores) and its reason names what guards the append. Arc 23 key metadata is strict by default (`CommandReadModelKeysMissing`, `ReadProtection:RequireGeneratedMetadata`, `ProtectedReadModelKeyOptions.Strict`). A project that sets the property keeps its mode. Legacy (Arc 22.106.0 and later 22.x only): the default was `Off`, so set `<CratisReadProtection>On</CratisReadProtection>`; remove it on upgrading to Arc 23.
 Under `On`, a read-model parameter of `Handle()` or of a `CommandValidator<T>`
 constructor is read fresh and guards the append; the state rule goes in the
 validator. Two entities: two parameters, `[LookUpBy(nameof(Cmd.Prop))]` on the
@@ -195,7 +195,7 @@ routed with `[EventSource<TSource>("Stream")]` and `[EventStreamId("{Prop}")]`, 
 A deliberate advisory read is `[Unprotected("why")]`. Models must be admitted
 (source-keyed projection with a string or Guid `Id`, or an unfiltered reducer
 without constructor dependencies); joins, children and event-property keys are
-refused. Under `Off` (the default) injection and keyed reads are advisory,
+refused. Under `Off` (set explicitly, or the Arc 22 behavior) injection and keyed reads are advisory,
 including in `Handle()`; `[ProtectedDecision]` + `DecisionRead<T>` is the older
 per-command opt-in and still works. Exact returned scopes replace automatic
 `concurrency: true` capture. Refusals: [choosing how a rule holds](../../../skills/cratis-chronicle-decision-reads/references/choosing-how-a-rule-holds.md).

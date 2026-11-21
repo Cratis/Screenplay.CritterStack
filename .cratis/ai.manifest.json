@@ -1,5 +1,5 @@
 {
-  "SourceRevision": "e4693bd713aa819bd3739d100868d69dde1844a3",
+  "SourceRevision": "cfcba49b25e14fe0396fbcf3b0923e6320b73c74",
   "Files": [
     {
       "Source": "agents/backend-developer.md",
@@ -104,7 +104,7 @@
     {
       "Source": "harnesses/copilot/instructions/application-profile.instructions.md",
       "Destination": "harnesses/copilot/instructions/application-profile.instructions.md",
-      "Hash": "69FBDBB89ADFE191F5EEEC1159A29EC6E6545F650A5D6927D5C487FCBC69D39E"
+      "Hash": "B408AF809AFDAE7C5AC2B65F2300E66DE1475905503FB95B48E6CAFB0E51F847"
     },
     {
       "Source": "harnesses/copilot/instructions/authoring-skills.instructions.md",
@@ -239,7 +239,7 @@
     {
       "Source": "harnesses/copilot/instructions/glossary.instructions.md",
       "Destination": "harnesses/copilot/instructions/glossary.instructions.md",
-      "Hash": "D0E83D91AE38DD1B74EF0E2609BCA76F599504F6062B3A84875A7BD66AFEE017"
+      "Hash": "515A16482B23A6474ADD8AC0906E573A7089A61ED84CAF7F29C95FF5D904EDF1"
     },
     {
       "Source": "harnesses/copilot/instructions/go-engineering.instructions.md",
@@ -269,7 +269,7 @@
     {
       "Source": "harnesses/copilot/instructions/local-work-artifacts.instructions.md",
       "Destination": "harnesses/copilot/instructions/local-work-artifacts.instructions.md",
-      "Hash": "6A99E69991158BDFB4F8F4757192B34120256625D04468EE2F100B610E0F23A2"
+      "Hash": "F3F4EB7C0799B59C25249A4AFEEECB01D0A7500E7CC96EE6A2791D5BAE3C4B89"
     },
     {
       "Source": "harnesses/copilot/instructions/mongodb.instructions.md",
@@ -319,7 +319,7 @@
     {
       "Source": "harnesses/copilot/instructions/review-reports.instructions.md",
       "Destination": "harnesses/copilot/instructions/review-reports.instructions.md",
-      "Hash": "18EE888B28F1F0BA271ACED17F4F1FFCCEE32F400A9DCF79D01CD57D1F8BF0E1"
+      "Hash": "FF3B883F368323CBF53C6CE4645CE73BE3115BFA0553BEE59C2AE8A5FEDF8093"
     },
     {
       "Source": "harnesses/copilot/instructions/rtk.instructions.md",
@@ -374,7 +374,7 @@
     {
       "Source": "harnesses/copilot/instructions/vertical-slices.instructions.md",
       "Destination": "harnesses/copilot/instructions/vertical-slices.instructions.md",
-      "Hash": "007B6459812523BF051262D97DBE6324FA67FD45D11AB7B50B8C5D2C92ED8C78"
+      "Hash": "14F3AEB962851859017637A5E494B403BDA38DD9D8AD3E4EE3A059D0556AF04F"
     },
     {
       "Source": "harnesses/copilot/instructions/web-fetching.instructions.md",
@@ -569,7 +569,7 @@
     {
       "Source": "harnesses/pi/extensions/cratis-hooks/index.ts",
       "Destination": "harnesses/pi/extensions/cratis-hooks/index.ts",
-      "Hash": "D6F561265F4731262D458167B7B2324F0284FA43FBB8DE048706E80B5514AF2D"
+      "Hash": "FD6BB3FE6465DB059180B17EFDBE906C14592158AD4B3A02F2909A791FE34F68"
     },
     {
       "Source": "harnesses/pi/extensions/cratis-hooks/quality-gate.ts",
@@ -769,7 +769,7 @@
     {
       "Source": "hooks/README.md",
       "Destination": "hooks/README.md",
-      "Hash": "75D0E039868FE16B9D6C1A59C5ED25117B99EF63620F172DE38B9CBFEDCB316B"
+      "Hash": "74C5EBF1B12690B89482461AE43046FC8121D15638969559C3304B711185348B"
     },
     {
       "Source": "hooks/agent-stop.md",
@@ -804,7 +804,7 @@
     {
       "Source": "hooks/scripts/cratis-guard-secrets.sh",
       "Destination": "hooks/scripts/cratis-guard-secrets.sh",
-      "Hash": "242A13EE77057C0DB82321D3A6CA3AA798826B0CD3260B27745A98E502F9272C"
+      "Hash": "CA12937F1918F72EDCE3A48D535586041D49D1E70F6FC32DBE513BE9DC70CD86"
     },
     {
       "Source": "hooks/scripts/cratis-guard-shell-writes-repair.mjs",
@@ -814,7 +814,7 @@
     {
       "Source": "hooks/scripts/cratis-guard-shell-writes.sh",
       "Destination": "hooks/scripts/cratis-guard-shell-writes.sh",
-      "Hash": "0084A25D45C1A235534028AA0F85B83D79AD807BBBE97073DB80B98A17D90424"
+      "Hash": "AA609F848BF24F924F054D2BEB8E12694A22FFF19B65ECED5115E1232A59B757"
     },
     {
       "Source": "hooks/scripts/cratis-guard-store-mutations.sh",
@@ -824,7 +824,7 @@
     {
       "Source": "hooks/scripts/cratis-guard-writes.sh",
       "Destination": "hooks/scripts/cratis-guard-writes.sh",
-      "Hash": "4BFB06D4388C3F31FE5EEA23F754F5E3CC64F1F7A6DCFD8BD6B8A32B37C2D9F7"
+      "Hash": "43FF6385E121A4A20EBB912F4335164D73EF0844E0B8B26F3C8AFA742077159C"
     },
     {
       "Source": "hooks/scripts/cratis-nuget-pins.txt",
@@ -909,12 +909,12 @@
     {
       "Source": "profile-catalog.json",
       "Destination": "profile-catalog.json",
-      "Hash": "0811A94901CFD3CF23052EE79F353CF049F6C1D8A836F22D500B6CCCE3A3758D"
+      "Hash": "F144FF4676E594C37E4E8739AEE840F9ECDFAC599B7ADE6015FBBB6BA6B09F7C"
     },
     {
       "Source": "prompts/add-business-rule.prompt.md",
       "Destination": "prompts/add-business-rule.prompt.md",
-      "Hash": "203D10CF02C3E264070AB0472B43335CFDD735D85D468B27A60F29C212D825BA"
+      "Hash": "0FCF21D203C201E0E32D13B51038080BB8110C811A8300997091969259094163"
     },
     {
       "Source": "prompts/add-concept.prompt.md",
@@ -1114,7 +1114,7 @@
     {
       "Source": "rules/glossary.md",
       "Destination": "rules/glossary.md",
-      "Hash": "65ABDEA1241CEE1D90C0A3AB5604B90E8A5BFC8185614F6B0A5FCB4E6AC95C1C"
+      "Hash": "FE6C98369335930E6A50FC9653F26D84E4EEB4FB2AC7852BB4780D97A6925A8D"
     },
     {
       "Source": "rules/go-engineering.md",
@@ -1144,7 +1144,7 @@
     {
       "Source": "rules/local-work-artifacts.md",
       "Destination": "rules/local-work-artifacts.md",
-      "Hash": "ECEC066A49968B2124960F5C435F46CDAD0AD03E9943F1A0C952E0CB08BF7C8E"
+      "Hash": "C5FDE5B31FECC81D7159547503CB87E9EEDE6BD7C027EB9ECBB186D6D384EC0B"
     },
     {
       "Source": "rules/new-repository-intake.md",
@@ -1179,7 +1179,7 @@
     {
       "Source": "rules/review-reports.md",
       "Destination": "rules/review-reports.md",
-      "Hash": "BC33A9A9AD4E50146F3AFDCAF9EB5FFB2FAAFB77DA9C84F83E5FC9BE592E644D"
+      "Hash": "A13DC7020C7687D82B9F4825454781E5FCF3EAD5966FE87A85D2CBE7F21F2339"
     },
     {
       "Source": "rules/scripting.md",
@@ -1364,12 +1364,12 @@
     {
       "Source": "skills/cratis-ci-pipeline-performance/SKILL.md",
       "Destination": "skills/cratis-ci-pipeline-performance/SKILL.md",
-      "Hash": "4918D491A4E9EBCBB73AB5881818D31DF08EBA754FCA10A55D798A869485FE92"
+      "Hash": "E539EF845AB28BBDA6D79939AE245BB0BAA9ADCAF0BA02D3CFCF593896AA2291"
     },
     {
       "Source": "skills/cratis-ci-pipeline-performance/references/build-once-and-shard.md",
       "Destination": "skills/cratis-ci-pipeline-performance/references/build-once-and-shard.md",
-      "Hash": "1748DE75B0E6A1E80A2A6595110EDC362D8442B57D6534B116BD52B8D015D674"
+      "Hash": "40C5C766D13E89C4AB1CB96777B9CEF75E22CE187E2D99566DE809DCD0653414"
     },
     {
       "Source": "skills/cratis-ci-pipeline-performance/references/caching.md",
@@ -1774,7 +1774,7 @@
     {
       "Source": "skills/cratis-engineering-release-trains/SKILL.md",
       "Destination": "skills/cratis-engineering-release-trains/SKILL.md",
-      "Hash": "06972223A02251905FD07690C4C69C05CBE899D98AD4BCF4D8E55A4F864D2DE1"
+      "Hash": "939ABFEDB79813997E4CBF76FA82A203E94AAA0CE79E1D75D14422C48CA3E7DA"
     },
     {
       "Source": "skills/cratis-engineering-review-rounds/LICENSE",
@@ -2134,7 +2134,7 @@
     {
       "Source": "skills/msbuild/NOTICE",
       "Destination": "skills/msbuild/NOTICE",
-      "Hash": "3ED07C95D82C61E0B4A143496FD9464D20B52D789F24CBFD42D374C1583EFD34"
+      "Hash": "58EA2A52E207C2165767226E151870E36B15359DA8F99172119BD4C70EE4293F"
     },
     {
       "Source": "skills/msbuild/SKILL.md",
@@ -2169,12 +2169,12 @@
     {
       "Source": "skills/msbuild/references/build-perf-baseline.md",
       "Destination": "skills/msbuild/references/build-perf-baseline.md",
-      "Hash": "A40EEE1BF1718E4BEE01D0B9D35D793C1FCD105DE495CD5173E883CBCF94E7C0"
+      "Hash": "0A90DE125CCA982917F0E1B32C4E0B418FA6FE6406AB50C52C9ED9B06EECF9B8"
     },
     {
       "Source": "skills/msbuild/references/build-perf-diagnostics.md",
       "Destination": "skills/msbuild/references/build-perf-diagnostics.md",
-      "Hash": "E7EFB9D2CBB13B4C29AE75EE0C038A2545A62AD1A5F603E01F87115BC79599E1"
+      "Hash": "1B6A8BDBCB47F76C0293C641E97F228C216BB72CB271D5FF6DFD668A5179C41F"
     },
     {
       "Source": "skills/msbuild/references/copy-to-output-directory.md",
