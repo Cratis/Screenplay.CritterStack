@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -14,6 +13,7 @@ internal static partial class WolverinePolicyDiscovery
     public static IReadOnlyList<WolverineMiddlewareApplication> MiddlewareFor(
         IMethodSymbol handler,
         DotNetProjectCompilation project,
+        WolverineMiddlewareRegistrations registrations,
         bool isHttpEndpoint)
     {
         var applications = new List<WolverineMiddlewareApplication>();
@@ -26,9 +26,7 @@ internal static partial class WolverinePolicyDiscovery
             }
         }
 
-        applications.AddRange(Registrations(project)
-            .Where(_ => _.IsResolved && _.IsHttpEndpoint == isHttpEndpoint)
-            .Select(_ => new WolverineMiddlewareApplication(_.Type!, _.Source)));
+        applications.AddRange(registrations.ApplicationsFor(isHttpEndpoint));
         return applications;
     }
 
@@ -47,7 +45,10 @@ internal static partial class WolverinePolicyDiscovery
         };
     }
 
-    static IEnumerable<MiddlewareRegistration> Registrations(DotNetProjectCompilation project)
+    public static WolverineMiddlewareRegistrations DiscoverRegistrations(DotNetProjectCompilation project) =>
+        new(Registrations(project));
+
+    static IEnumerable<WolverineMiddlewareRegistration> Registrations(DotNetProjectCompilation project)
     {
         foreach (var tree in project.AuthoredSyntaxTrees.Where(_ => !DotNetGeneratedSource.IsGenerated(_)).OrderBy(_ => _.FilePath, StringComparer.Ordinal))
         {
@@ -62,7 +63,7 @@ internal static partial class WolverinePolicyDiscovery
         }
     }
 
-    static MiddlewareRegistration? RegistrationFrom(
+    static WolverineMiddlewareRegistration? RegistrationFrom(
         InvocationExpressionSyntax invocation,
         SemanticModel model,
         DotNetProjectCompilation project)
@@ -132,11 +133,4 @@ internal static partial class WolverinePolicyDiscovery
     static bool IsConditional(InvocationExpressionSyntax invocation) => invocation.Ancestors().Any(_ => _ is
         IfStatementSyntax or ConditionalExpressionSyntax or ConditionalAccessExpressionSyntax or SwitchStatementSyntax or SwitchExpressionSyntax or
         ForStatementSyntax or ForEachStatementSyntax or ForEachVariableStatementSyntax or WhileStatementSyntax or DoStatementSyntax or CatchClauseSyntax);
-
-    sealed record MiddlewareRegistration(
-        INamedTypeSymbol? Type,
-        INamedTypeSymbol Owner,
-        bool IsHttpEndpoint,
-        bool IsResolved,
-        SourceRange? Source);
 }

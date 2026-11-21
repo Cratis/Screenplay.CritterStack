@@ -18,7 +18,8 @@ internal static partial class WolverinePolicyDiscovery
 
     public static IReadOnlyList<GenerationDiagnostic> Discover(
         DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects)
+        CritterStackSubjectResolver subjects,
+        WolverineMiddlewareRegistrations registrations)
     {
         var diagnostics = new List<GenerationDiagnostic>();
         foreach (var type in new DotNetArtifactCatalog(project.Compilation).Types.Where(_ => IsAuthored(_, project)))
@@ -30,7 +31,7 @@ internal static partial class WolverinePolicyDiscovery
             }
         }
 
-        foreach (var registration in Registrations(project).Where(_ => !_.IsResolved))
+        foreach (var registration in registrations.Unresolved)
         {
             diagnostics.Add(Unresolved(
                 registration.Source,

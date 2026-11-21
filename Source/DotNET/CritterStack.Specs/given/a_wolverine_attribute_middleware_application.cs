@@ -26,7 +26,7 @@ public class a_wolverine_attribute_middleware_application : Specification
         namespace Wolverine.Configuration { public interface IWolverineReturnType; }
         namespace Wolverine.Attributes
         {
-            public enum MiddlewareScoping { All, Handlers, HttpEndpoints }
+            public enum MiddlewareScoping { Anywhere, MessageHandlers, HttpEndpoints, All = Anywhere, Handlers = MessageHandlers }
             public abstract class ScopedMiddlewareAttribute : System.Attribute
             {
                 public MiddlewareScoping Scoping { get; set; }
@@ -106,20 +106,20 @@ public class a_wolverine_attribute_middleware_application : Specification
             .Select(_ => MetadataReference.CreateFromFile(_))
     ];
 
-    protected static DotNetProjectCompilation CreateProject(string source)
+    protected static DotNetProjectCompilation CreateProject(string source, string name = "MiddlewareApplication")
     {
         var compilation = CSharpCompilation.Create(
-            "MiddlewareApplication",
+            name,
             [
                 CSharpSyntaxTree.ParseText(FrameworkSource, path: "/workspace/Framework.cs"),
-                CSharpSyntaxTree.ParseText(source, path: "/workspace/MiddlewareApplication/Handlers.cs")
+                CSharpSyntaxTree.ParseText(source, path: $"/workspace/{name}/Handlers.cs")
             ],
             _references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
         return new()
         {
-            Name = "MiddlewareApplication",
-            ProjectPath = "/workspace/MiddlewareApplication/MiddlewareApplication.csproj",
+            Name = name,
+            ProjectPath = $"/workspace/{name}/{name}.csproj",
             SourceRoot = "/workspace",
             Compilation = compilation,
             AuthoredSyntaxTrees = compilation.SyntaxTrees.ToHashSet()

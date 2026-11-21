@@ -376,20 +376,15 @@ internal static partial class WolverineFacts
         Facts = scope.Facts
     };
 
-    static MessageEmission SagaEmissionFor(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        SubjectId sourceSubject,
-        Evidence evidence,
-        List<GenerationFact> facts) => new()
-        {
-            Project = project,
-            Subjects = subjects,
-            SourceSubject = sourceSubject,
-            Evidence = evidence,
-            Facts = facts,
-            SagaAnalysis = true
-        };
+    static MessageEmission SagaEmissionFor(WolverineSagaEmissionContext context) => new()
+    {
+        Project = context.Project,
+        Subjects = context.Subjects,
+        SourceSubject = context.SourceSubject,
+        Evidence = context.Evidence,
+        Facts = context.Facts,
+        SagaAnalysis = true
+    };
 
     sealed class MessageEmission
     {

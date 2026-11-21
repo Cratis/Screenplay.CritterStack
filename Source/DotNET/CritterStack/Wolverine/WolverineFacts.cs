@@ -38,6 +38,19 @@ sealed record HttpEndpoint(IMethodSymbol Method, string Verb, string? Route)
 
 sealed record WolverineOutgoingMessageConsequence(INamedTypeSymbol MessageType, bool Delayed);
 
+sealed class WolverineSagaEmissionContext
+{
+    public required DotNetProjectCompilation Project { get; init; }
+
+    public required CritterStackSubjectResolver Subjects { get; init; }
+
+    public required SubjectId SourceSubject { get; init; }
+
+    public required Evidence Evidence { get; init; }
+
+    public required List<GenerationFact> Facts { get; init; }
+}
+
 internal static partial class WolverineFacts
 {
     static readonly HashSet<string> _persistenceMethods =
@@ -85,7 +98,8 @@ internal static partial class WolverineFacts
 
         var facts = new List<GenerationFact>();
         var placements = new List<CritterStackPlacementIntent>();
-        var discovery = WolverineHandlerDiscovery.Discover(project, subjects);
+        var middlewareRegistrations = WolverinePolicyDiscovery.DiscoverRegistrations(project);
+        var discovery = WolverineHandlerDiscovery.Discover(project, subjects, middlewareRegistrations);
         var validationAuthorization = WolverineValidationAuthorizationDiscovery.Discover(project, subjects);
         var diagnostics = new List<GenerationDiagnostic>(discovery.Diagnostics);
         diagnostics.AddRange(validationAuthorization.Diagnostics);
@@ -100,6 +114,7 @@ internal static partial class WolverineFacts
             Adapter = adapter,
             Subjects = subjects,
             Implementations = implementations,
+            MiddlewareRegistrations = middlewareRegistrations,
             Facts = facts,
             Placements = placements,
             Diagnostics = diagnostics
@@ -134,44 +149,32 @@ internal static partial class WolverineFacts
     ];
 
     internal static void AddSagaReturnConsequences(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        SubjectId sourceSubject,
-        IReadOnlyList<WolverineReturnConsequence> consequences,
-        Evidence evidence,
-        List<GenerationFact> facts) => AddReturnConsequences(SagaEmissionFor(project, subjects, sourceSubject, evidence, facts), consequences);
+        WolverineSagaEmissionContext context,
+        IReadOnlyList<WolverineReturnConsequence> consequences) => AddReturnConsequences(SagaEmissionFor(context), consequences);
 
     internal static List<WolverineOutgoingMessageConsequence> DiscoverSagaOutgoingMessages(
         IMethodSymbol method,
         DotNetProjectCompilation project) => DiscoverOutgoingMessages(method, project);
 
     internal static void AddSagaOutgoingMessages(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        SubjectId sourceSubject,
+        WolverineSagaEmissionContext context,
         IMethodSymbol method,
         IReadOnlyList<WolverineOutgoingMessageConsequence> consequences,
-        Evidence evidence,
-        List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics) =>
         AddSagaBusEmission(
             SagaBusEmissionKind.OutgoingMessages,
-            SagaEmissionFor(project, subjects, sourceSubject, evidence, facts),
+            SagaEmissionFor(context),
             method,
             consequences,
             diagnostics);
 
     internal static void AddSagaDirectBusConsequences(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        SubjectId sourceSubject,
+        WolverineSagaEmissionContext context,
         IMethodSymbol method,
-        Evidence evidence,
-        List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics) =>
         AddSagaBusEmission(
             SagaBusEmissionKind.DirectBus,
-            SagaEmissionFor(project, subjects, sourceSubject, evidence, facts),
+            SagaEmissionFor(context),
             method,
             [],
             diagnostics);
@@ -275,6 +278,8 @@ sealed class WolverineFactScope
     public required CritterStackSubjectResolver Subjects { get; init; }
 
     public AuthoredImplementationManifest? Implementations { get; init; }
+
+    public required WolverineMiddlewareRegistrations MiddlewareRegistrations { get; init; }
 
     public required List<GenerationFact> Facts { get; init; }
 

@@ -48,7 +48,8 @@ public class when_deriving_cross_project_source_placement : given.a_cross_projec
             ProjectPath = "/workspace/DiagnosticScanner/DiagnosticScanner.csproj"
         };
         _diagnosticOnlyMarten = MartenTenancyConfigurationDiscovery.Discover(diagnosticScanner, subjects);
-        _diagnosticOnlyWolverine = WolverineConventionAlterationDiscovery.Discover(diagnosticScanner, subjects);
+        var middlewareRegistrations = WolverinePolicyDiscovery.DiscoverRegistrations(diagnosticScanner);
+        _diagnosticOnlyWolverine = WolverineConventionAlterationDiscovery.Discover(diagnosticScanner, subjects, middlewareRegistrations);
 
         var missingDiagnosticSubjects = new CritterStackSubjectResolver(new([projects.Application]));
         var missingDiagnosticCheckpoint = missingDiagnosticSubjects.Checkpoint();
@@ -62,7 +63,7 @@ public class when_deriving_cross_project_source_placement : given.a_cross_projec
         };
         var ambiguousDiagnosticSubjects = new CritterStackSubjectResolver(new([projects.Application, duplicateApplication, projects.Domain]));
         var ambiguousDiagnosticCheckpoint = ambiguousDiagnosticSubjects.Checkpoint();
-        _ = WolverineConventionAlterationDiscovery.Discover(diagnosticScanner, ambiguousDiagnosticSubjects);
+        _ = WolverineConventionAlterationDiscovery.Discover(diagnosticScanner, ambiguousDiagnosticSubjects, middlewareRegistrations);
         _diagnosticOnlyWolverineAmbiguityBlocked = ambiguousDiagnosticSubjects.HasBlockingDiagnosticsSince(ambiguousDiagnosticCheckpoint);
         var marten = MartenFacts.Discover(projects.Application, AdapterOptions, Adapter.Identity, subjects);
         var wolverine = WolverineFacts.Discover(projects.Application, AdapterOptions, Adapter.Identity, subjects);
