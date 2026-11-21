@@ -45,6 +45,8 @@ jobs:
     if: needs.already-ran.outputs.skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      CRATIS_CANONICAL_ACTUAL_DIR: ${{ runner.temp }}/canonical-actual
     steps:
       - name: Checkout adapter
         uses: actions/checkout@v7
@@ -160,3 +162,12 @@ jobs:
             adapter/Integration/Canonical/Helpdesk.expected \
             "${RUNNER_TEMP}/Helpdesk.play" \
             adapter/Source/DotNET/CritterStack.Specs/Golden/canonical/Helpdesk
+
+      - name: Upload canonical actual outputs on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: canonical-actual
+          path: ${{ runner.temp }}/canonical-actual/
+          if-no-files-found: ignore
+          retention-days: 7
