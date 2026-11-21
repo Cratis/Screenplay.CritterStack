@@ -5,6 +5,11 @@ namespace Cratis.CritterStack.Screenplay.for_CritterStackScreenplayGenerator;
 
 public class when_printing_failure_stage_printed_model : given.an_on_exception_handler_application
 {
+    protected override string ApplicationSource => base.ApplicationSource.Replace(
+        "public static Wolverine.OutgoingMessages Handle(ShipOrder message) => [new OrderShipped(message.Id)];",
+        "public static Wolverine.OutgoingMessages Handle(ShipOrder message, Marten.IDocumentSession session) { session.Events.Append(message.Id, new OrderShipped(message.Id)); return [new OrderShipped(message.Id)]; }",
+        StringComparison.Ordinal);
+
     GeneratedScreenplayDefinition _result = null!;
 
     void Because() => _result = new CritterStackScreenplayGenerator().Generate(

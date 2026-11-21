@@ -17,7 +17,7 @@ public class when_failure_stage_printed_model_has_bus_and_storage_effects : give
         public class FailureDocument { public System.Guid Id { get; set; } }
         public static class ProcessHandler
         {
-            public static Succeeded Handle(Process message) => new(message.Id);
+            public static Wolverine.OutgoingMessages Handle(Process message, Marten.IDocumentSession session) { session.Events.Append(message.Id, new Succeeded(message.Id)); return [new Succeeded(message.Id)]; }
             public static Wolverine.OutgoingMessages OnException(Process message, System.InvalidOperationException exception, Wolverine.IMessageBus bus, Marten.IDocumentSession session)
             {
                 session.Store(new FailureDocument { Id = message.Id });
@@ -49,13 +49,14 @@ public class when_failure_stage_printed_model_has_bus_and_storage_effects : give
     [Fact] void should_not_print_failure_only_publications() => _result.Source.ShouldNotContain("FailurePublished");
     [Fact] void should_not_print_failure_only_documents() => _result.Source.ShouldNotContain("FailureDocument");
     [Fact] void should_not_print_failure_only_events() => _result.Source.ShouldNotContain("FailureAppended");
-    [Fact] void should_not_emit_failure_storage_or_production_facts() => _contribution.Facts.OfType<RelationshipFact>().Where(_ => _.Definition.Key.Kind is RelationshipKind.Stores or RelationshipKind.Produces or RelationshipKind.Appends).ShouldBeEmpty();
+    [Fact] void should_keep_the_success_production() => _contribution.Facts.OfType<RelationshipFact>().Count(fact => fact.Definition.Key.Kind == RelationshipKind.Produces && fact.Definition.Key.Target.Value.EndsWith("/FailureEffects.Succeeded", StringComparison.Ordinal)).ShouldEqual(1);
+    [Fact] void should_not_emit_failure_storage_or_production_facts() => _contribution.Facts.OfType<RelationshipFact>().Where(fact => fact.Definition.Key.Kind is RelationshipKind.Stores or RelationshipKind.Produces or RelationshipKind.Appends && !fact.Definition.Key.Target.Value.EndsWith("/FailureEffects.Succeeded", StringComparison.Ordinal)).ShouldBeEmpty();
     [Fact] void should_not_emit_failure_cascades() => _contribution.Facts.OfType<RelationshipFact>().Count(_ => _.Definition.Key.Kind == RelationshipKind.Cascades).ShouldEqual(1);
     [Fact] void should_name_the_failure_only_returned_message() => FailureDiagnostic.Message.ShouldContain("'FailureReturned'");
     [Fact] void should_name_the_failure_only_sent_message() => FailureDiagnostic.Message.ShouldContain("'FailureSent'");
     [Fact] void should_name_the_failure_only_published_message() => FailureDiagnostic.Message.ShouldContain("'FailurePublished'");
     [Fact] void should_keep_the_loss_located_at_the_failure_hook() => FailureDiagnostic.Source.StartLine.ShouldEqual(12);
-    [Fact] void should_keep_the_loss_attached_to_the_owning_handler() => FailureDiagnostic.Subject.ShouldEqual(_contribution.Facts.OfType<ArtifactFact>().Single(_ => _.Definition.Key.Kind == ArtifactKind.Reaction).Definition.Key.Subject);
+    [Fact] void should_keep_the_loss_attached_to_the_owning_handler() => FailureDiagnostic.Subject.ShouldEqual(_contribution.Facts.OfType<ArtifactFact>().Single(_ => _.Definition.Key.Kind == ArtifactKind.Command).Definition.Key.Subject);
 
     GenerationDiagnostic FailureDiagnostic => _contribution.Diagnostics.Single(_ => _.Code == WolverineDiagnosticCodes.FailureStageConditionOmitted);
 }

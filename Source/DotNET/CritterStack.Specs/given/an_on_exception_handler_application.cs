@@ -18,9 +18,19 @@ public class an_on_exception_handler_application : Specification
         {
             public interface IWolverineReturnType;
         }
+
+        namespace Marten
+        {
+            public interface IDocumentSession { Events.IEventStore Events { get; } }
+        }
+
+        namespace Marten.Events
+        {
+            public interface IEventStore { void Append(string id, params object[] events); }
+        }
         """;
 
-    const string ApplicationSource =
+    protected virtual string ApplicationSource =>
         """
         namespace OnExceptionHandlers;
 
