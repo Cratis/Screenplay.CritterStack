@@ -43,11 +43,13 @@ public sealed class CritterStackScreenplayAdapter : IDotNetScreenplayAdapter
     /// <param name="context">The analysis context.</param>
     /// <param name="options">The adapter options.</param>
     /// <param name="useSharedPlacement">Whether to derive shared source placement.</param>
+    /// <param name="implementations">The opt-in, selected-project authored implementation manifest.</param>
     /// <returns>The contribution; the composer must remove type subjects without a contributed concept.</returns>
     internal AdapterContribution AnalyzeForComposition(
         DotNetAnalysisContext context,
         DotNetAdapterOptions options,
-        bool useSharedPlacement)
+        bool useSharedPlacement,
+        AuthoredImplementationManifest? implementations = null)
     {
         var facts = new List<GenerationFact>();
         var diagnostics = new List<GenerationDiagnostic>();
@@ -71,7 +73,7 @@ public sealed class CritterStackScreenplayAdapter : IDotNetScreenplayAdapter
             projectFacts.AddRange(documents.Facts);
             projectDiagnostics.AddRange(documents.Diagnostics);
 
-            var wolverine = Wolverine.WolverineFacts.Discover(project, options, Identity, subjects);
+            var wolverine = Wolverine.WolverineFacts.Discover(project, options, Identity, subjects, implementations);
             projectFacts.AddRange(wolverine.Facts);
             projectDiagnostics.AddRange(wolverine.Diagnostics);
             projectPlacements.AddRange(wolverine.Placements ?? []);

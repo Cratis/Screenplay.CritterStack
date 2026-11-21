@@ -22,7 +22,10 @@ sealed record WolverineProduction(
     ISymbol? StreamIdentity,
     string? LossReason,
     SourceRange? Source,
-    GenerationDiagnosticOutcome LossOutcome = GenerationDiagnosticOutcome.Unknown);
+    GenerationDiagnosticOutcome LossOutcome = GenerationDiagnosticOutcome.Unknown)
+{
+    public IReadOnlyList<SourceRange> AuthoredSources { get; init; } = [];
+}
 
 /// <summary>
 /// The handler declaration, its semantic model and the project a production is read from.
@@ -61,6 +64,16 @@ static class WolverineProductionLinks
                     .SelectMany(invocationSyntax => AppendProductions(invocationSyntax, new(_.Declaration, _.SemanticModel, project), request)))
         ];
     }
+
+    internal static IReadOnlyList<WolverineProduction> AuthoredSessionAppends(
+        IMethodSymbol method,
+        DotNetProjectCompilation project,
+        Func<IOperation, ISymbol?> identity) =>
+        [
+            .. WolverineMethodSyntax.Declarations(method, project)
+                .SelectMany(declaration => declaration.Declaration.DescendantNodes().OfType<InvocationExpressionSyntax>()
+                    .SelectMany(invocation => AppendProductions(invocation, new(declaration.Declaration, declaration.SemanticModel, project), null, identity)))
+        ];
 
     /// <summary>
     /// Discovers events an aggregate handler yields through yield return.
@@ -108,7 +121,8 @@ static class WolverineProductionLinks
     static IEnumerable<WolverineProduction> AppendProductions(
         InvocationExpressionSyntax invocationSyntax,
         WolverineProductionScope scope,
-        IParameterSymbol? request)
+        IParameterSymbol? request,
+        Func<IOperation, ISymbol?>? resolveIdentity = null)
     {
         var project = scope.Project;
         if (scope.SemanticModel.GetOperation(invocationSyntax) is not IInvocationOperation invocation ||
@@ -125,7 +139,7 @@ static class WolverineProductionLinks
                 .Select(_ => new WolverineProduction(_, null, "the appended payload is not a direct event creation", source));
         }
 
-        var (identity, identityLoss) = StreamIdentity(invocation, request);
+        var (identity, identityLoss) = StreamIdentity(invocation, request, resolveIdentity);
         var (lossReason, lossOutcome) = AppendLoss(identityLoss, IsConditional(invocationSyntax, scope.Declaration));
         return eventTypes
             .Where(_ => !WolverineSagaTypes.IsSagaState(_, project))
@@ -201,7 +215,10 @@ static class WolverineProductionLinks
         return identity is null ? "the aggregate stream identity is not a command property" : null;
     }
 
-    static (ISymbol? Identity, string? LossReason) StreamIdentity(IInvocationOperation invocation, IParameterSymbol? request)
+    static (ISymbol? Identity, string? LossReason) StreamIdentity(
+        IInvocationOperation invocation,
+        IParameterSymbol? request,
+        Func<IOperation, ISymbol?>? resolveIdentity)
     {
         var identityArgument = invocation.Arguments.FirstOrDefault(_ => _.Parameter is not null && IsStreamIdentityType(_.Parameter.Type));
         if (identityArgument is null)
@@ -213,6 +230,11 @@ static class WolverineProductionLinks
         while (value is IConversionOperation conversion)
         {
             value = conversion.Operand;
+        }
+
+        if (resolveIdentity?.Invoke(value) is { } resolvedIdentity)
+        {
+            return (resolvedIdentity, null);
         }
 
         if (value is IPropertyReferenceOperation { Instance: IParameterReferenceOperation parameter } property &&
@@ -254,12 +276,12 @@ static class WolverineProductionLinks
         !WolverineSagaTypes.IsSagaState(type, project) &&
         !DotNetSubjectIds.MetadataName(type.OriginalDefinition).StartsWith("System.", StringComparison.Ordinal);
 
-    static bool IsInHandlerBody(SyntaxNode node, MethodDeclarationSyntax declaration) =>
+    internal static bool IsInHandlerBody(SyntaxNode node, MethodDeclarationSyntax declaration) =>
         !node.Ancestors()
             .TakeWhile(_ => _ != declaration)
             .Any(_ => _ is LocalFunctionStatementSyntax or AnonymousFunctionExpressionSyntax);
 
-    static bool IsConditional(SyntaxNode node, MethodDeclarationSyntax declaration) =>
+    internal static bool IsConditional(SyntaxNode node, MethodDeclarationSyntax declaration) =>
         node.Ancestors()
             .TakeWhile(_ => _ != declaration)
             .Any(_ => _ is IfStatementSyntax

@@ -14,6 +14,7 @@ internal static partial class WolverineFacts
         IMethodSymbol method,
         bool hasAutomationConsequences)
     {
+        AddStandaloneBoundaryDiagnostics(scope, method);
         if (hasAutomationConsequences)
         {
             return true;
@@ -57,6 +58,7 @@ internal static partial class WolverineFacts
 
     static void AddReadModelParameterFacts(WolverineFactScope scope, SubjectId sourceSubject, IMethodSymbol method)
     {
+        AddStandaloneBoundaryDiagnostics(scope, method);
         foreach (var parameter in method.Parameters)
         {
             var attribute = WolverineReadModelParameters.ReadAttribute(parameter, scope.Project);
@@ -141,6 +143,38 @@ internal static partial class WolverineFacts
             Source = source,
             Subject = scope.Subjects.SubjectForType(scope.Project, method.ContainingType)
         });
+    }
+
+    static void AddStandaloneBoundaryDiagnostics(WolverineFactScope scope, IMethodSymbol method)
+    {
+        var request = RequestParameter(method, scope.Project);
+        var aggregate = AggregateParameter(method, request, HasWritableAggregateWorkflow(method, scope.Project), scope.Project);
+        foreach (var parameter in method.Parameters.Where(parameter =>
+                     !SymbolEqualityComparer.Default.Equals(parameter, aggregate) &&
+                     !IsStateInputParameter(parameter, scope.Project)))
+        {
+            var attribute = WolverineReadModelParameters.AttributeFor(parameter.Type, scope.Project, WellKnownTypes.JasperFxBoundaryAggregateAttribute);
+            if (attribute is null)
+            {
+                continue;
+            }
+
+            var source = WolverineReadModelParameters.SourceOf(attribute, scope.Project);
+            if (scope.Diagnostics.Any(diagnostic => diagnostic.Code == WolverineDiagnosticCodes.DcbBoundaryOmitted && diagnostic.Source == source))
+            {
+                continue;
+            }
+
+            scope.Diagnostics.Add(new GenerationDiagnostic
+            {
+                Code = WolverineDiagnosticCodes.DcbBoundaryOmitted,
+                Severity = GenerationDiagnosticSeverity.Information,
+                Outcome = GenerationDiagnosticOutcome.Unsupported,
+                Message = $"The standalone BoundaryAggregate marker on '{parameter.Type.Name}' does not establish a recognized Wolverine aggregate workflow; tag routing and boundary concurrency cannot be represented without guessing",
+                Source = source,
+                Subject = scope.Subjects.SubjectForType(scope.Project, (INamedTypeSymbol)parameter.Type)
+            });
+        }
     }
 
     sealed record ReadModelInput(IParameterSymbol Parameter, INamedTypeSymbol ModelType, AttributeData Attribute);

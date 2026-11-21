@@ -12,7 +12,10 @@ namespace Cratis.CritterStack.Screenplay.Wolverine;
 /// <param name="EventType">The produced event type.</param>
 /// <param name="Declarative">Whether the production is a declarative produces link rather than a handler reference.</param>
 /// <param name="StreamIdentity">The command member that identifies the target stream, when known.</param>
-sealed record WolverineProductionDecision(INamedTypeSymbol EventType, bool Declarative, ISymbol? StreamIdentity);
+sealed record WolverineProductionDecision(INamedTypeSymbol EventType, bool Declarative, ISymbol? StreamIdentity)
+{
+    public IReadOnlyList<SourceRange> AuthoredSources { get; init; } = [];
+}
 
 /// <summary>
 /// Everything a command handler produces, as read from source.
@@ -68,13 +71,21 @@ static class WolverineProductionPlan
         var events = Distinct(produced.Returns.Concat(produced.Yields).Concat(produced.Body).Concat(produced.Session));
         var blockers = Blockers(sources, produced);
 
-        if (blockers.Count == 0)
+        if (blockers.Count > 0)
         {
-            return LinkedDecisions(sources, events);
+            Report(sources, blockers, diagnostics);
         }
 
-        Report(sources, blockers, diagnostics);
-        return HandlerReferenceDecisions(sources, produced, events);
+        var decisions = blockers.Count == 0
+            ? LinkedDecisions(sources, events)
+            : HandlerReferenceDecisions(sources, produced, events);
+        return [.. decisions.Select(decision => decision with
+        {
+            AuthoredSources = [.. sources.SessionAppends
+                .Where(production => SymbolEqualityComparer.Default.Equals(production.EventType, decision.EventType))
+                .SelectMany(production => production.AuthoredSources)
+                .Distinct()]
+        })];
     }
 
     static WolverineProductionDecision[] LinkedDecisions(WolverineProductionSources sources, INamedTypeSymbol[] events) =>

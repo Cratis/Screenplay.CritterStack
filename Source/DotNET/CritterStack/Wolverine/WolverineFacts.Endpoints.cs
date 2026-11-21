@@ -74,7 +74,7 @@ internal static partial class WolverineFacts
         {
             Endpoint = endpoint,
             CommandType = commandType,
-            Shape = DiscoverStateChangeShape(method, request, commandType, project, isHttpEndpoint: true),
+            Shape = DiscoverStateChangeShape(method, request, commandType, scope, isHttpEndpoint: true),
             CommandSubject = commandType is not null
                 ? scope.Subjects.SubjectForType(project, commandType)
                 : MethodSubject(project, method, "command"),
