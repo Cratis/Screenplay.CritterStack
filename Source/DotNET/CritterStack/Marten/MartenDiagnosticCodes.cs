@@ -92,4 +92,19 @@ public static class MartenDiagnosticCodes
     /// Applicable authored Marten source cannot be mapped to authoritative stable source identity.
     /// </summary>
     public const string UnsafeSourceMapping = "MARTEN0017";
+
+    /// <summary>
+    /// A composite projection's constituent processing could not be represented.
+    /// </summary>
+    public const string CompositeProjectionOmitted = "MARTEN0018";
+
+    /// <summary>
+    /// A flat-table projection's relational processing could not be represented.
+    /// </summary>
+    public const string FlatTableProjectionOmitted = "MARTEN0019";
+
+    /// <summary>
+    /// Authored event-model naming or store ownership could not be represented as scoped facts.
+    /// </summary>
+    public const string StoreScopeNotRepresented = "MARTEN0020";
 }
