@@ -16,12 +16,12 @@ internal static partial class WolverineFacts
         DotNetProjectCompilation project,
         bool isHttpEndpoint)
     {
-        var aggregateWorkflow = IsAggregateWorkflow(method);
+        var aggregateWorkflow = HasWritableAggregateWorkflow(method, project);
         var dcb = WolverineDcb.Discover(method, request, project, isHttpEndpoint);
         var parameterBindings = WolverineEventStreams.ParameterBindings(method, messageType, project);
         var fetchedBindings = WolverineFetchedEventStreams.Bindings(method, messageType, project);
         IReadOnlyList<WolverineStateBinding> streamBindings = [.. parameterBindings, .. fetchedBindings];
-        var aggregate = dcb is null ? AggregateParameter(method, request, aggregateWorkflow) : null;
+        var aggregate = dcb is null ? AggregateParameter(method, request, aggregateWorkflow, project) : null;
         var yieldsAggregateEvents = dcb is null && aggregateWorkflow && parameterBindings.Count == 0;
         var returnIdentity = ReturnIdentityOf(messageType, aggregate);
         var inputs = new StateChangeInputs(method, project, isHttpEndpoint);
@@ -94,6 +94,8 @@ internal static partial class WolverineFacts
         bool isHttpEndpoint)
     {
         AddPersistenceBoundReads(scope, commandSubject, shape.Method, shape.Aggregate);
+        AddReadModelParameterFacts(scope, commandSubject, shape.Method);
+        AddConsistentAggregateDiagnostics(scope, shape);
         AddEventStreamBindingFacts(scope, commandSubject, commandName, shape.StreamBindings, isHttpEndpoint);
         AddDcbFacts(scope, commandSubject, commandName, shape.Dcb);
     }
@@ -139,6 +141,7 @@ internal static partial class WolverineFacts
     {
         var project = scope.Project;
         var aggregateSubject = scope.Subjects.SubjectForType(project, aggregateType);
+        WolverineNaturalKeyDiscovery.AddDiagnostics(scope, aggregateType);
         scope.Facts.Add(Artifact(
             $"wolverine:read-model:{aggregateSubject.Value}",
             new ArtifactKey { Subject = aggregateSubject, Kind = ArtifactKind.ReadModel },
@@ -301,19 +304,20 @@ internal static partial class WolverineFacts
         MessageElementType(_.Type) is not null &&
         !IsInfrastructureParameter(_.Type) &&
         !IsAggregateParameter(_) &&
-        !IsPersistenceBoundParameter(_) &&
-        !WolverineEventStreams.IsEventStream(_.Type) &&
-        !WolverineDcb.HasAttributedParameter(_, project));
+        !IsStateInputParameter(_, project) &&
+        !WolverineEventStreams.IsEventStream(_.Type));
 
     static IParameterSymbol? AggregateParameter(
         IMethodSymbol method,
         IParameterSymbol? request,
-        bool aggregateWorkflow)
+        bool aggregateWorkflow,
+        DotNetProjectCompilation project)
     {
-        var attributed = method.Parameters.FirstOrDefault(_ =>
+        var candidates = method.Parameters.Where(parameter => !IsReadModelParameter(parameter, project)).ToArray();
+        var attributed = candidates.FirstOrDefault(_ =>
             IsAggregateParameter(_) && !WolverineEventStreams.IsEventStream(_.Type));
         return attributed ?? (aggregateWorkflow
-            ? method.Parameters.FirstOrDefault(_ =>
+            ? candidates.FirstOrDefault(_ =>
                 !SymbolEqualityComparer.Default.Equals(_, request) &&
                 IsSourceType(_.Type) &&
                 !IsInfrastructureParameter(_.Type) &&

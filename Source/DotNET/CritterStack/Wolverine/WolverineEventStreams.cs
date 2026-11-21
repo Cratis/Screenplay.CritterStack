@@ -201,8 +201,11 @@ static class WolverineEventStreams
         attribute?.ConstructorArguments.FirstOrDefault().Value as string,
         NamedString(attribute, "VersionSource"),
         NamedEnum(attribute, "LoadStyle") ?? "Optimistic",
-        NamedBoolean(attribute, "AlwaysEnforceConsistency") ?? false,
+        NamedBoolean(attribute, "AlwaysEnforceConsistency") ?? HasConsistentAggregateDefault(parameter, project),
         SourceOf(attribute, parameter, project));
+
+    static bool HasConsistentAggregateDefault(IParameterSymbol parameter, DotNetProjectCompilation project) =>
+        WolverineReadModelParameters.ConsistentAttribute(parameter, project) is not null;
 
     static WolverineStateBinding BindingFor(
         BindingContext context,
