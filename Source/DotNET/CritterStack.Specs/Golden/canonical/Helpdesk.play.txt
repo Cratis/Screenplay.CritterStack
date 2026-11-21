@@ -1,0 +1,133 @@
+domain Helpdesk.Api
+
+concept IncidentCategory : Enum
+  file Helpdesk.Api/Incident.cs
+  software
+  hardware
+  network
+  database
+
+concept IncidentPriority : Enum
+  file Helpdesk.Api/Incident.cs
+  critical
+  high
+  medium
+  low
+
+concept IncidentStatus : Enum
+  file Helpdesk.Api/Incident.cs
+  pending
+  resolved
+  resolutionAcknowledgedByCustomer
+  closed
+
+concept ResolutionType : Enum
+  file Helpdesk.Api/Incident.cs
+  temporary
+  permanent
+  notAnIncident
+
+module HelpdeskApi
+
+  feature Events
+
+    slice StateView AgentAssignedToIncident
+
+      event AgentAssignedToIncident
+        file Helpdesk.Api/Incident.cs
+        agentId Uuid
+
+    slice StateView IncidentClosed
+
+      event IncidentClosed
+        file Helpdesk.Api/Incident.cs
+        incidentId Uuid
+        closedBy Uuid
+        closedAt DateTime
+
+    slice StateView IncidentPrioritised
+
+      event IncidentPrioritised
+        file Helpdesk.Api/Incident.cs
+        priority IncidentPriority
+        userId Uuid
+
+    slice StateView IncidentResolved
+
+      event IncidentResolved
+        file Helpdesk.Api/Incident.cs
+        resolution ResolutionType
+        resolvedBy Uuid
+        resolvedAt DateTime
+
+    slice StateView ResolutionAcknowledgedByCustomer
+
+      event ResolutionAcknowledgedByCustomer
+        file Helpdesk.Api/Incident.cs
+        incidentId Uuid
+        acknowledgedBy Uuid
+        acknowledgedAt DateTime
+
+  feature IncidentDetails
+
+    slice StateChange CategoriseIncident
+
+      command CategoriseIncident
+        id Uuid identifier
+        category IncidentCategory
+        version Int
+        reads IncidentDetails by id
+        handler
+          file Helpdesk.Api/CategoriseIncident.cs
+
+      event IncidentCategorised
+        file Helpdesk.Api/Incident.cs
+        category IncidentCategory
+        userId Uuid
+
+    slice StateView IncidentDetails
+
+      readmodel IncidentDetails
+        file Helpdesk.Api/IncidentDetails.cs
+        id Uuid
+        customerId Uuid
+        status IncidentStatus
+        notes IncidentNote[]
+        category IncidentCategory optional
+        priority IncidentPriority optional
+        agentId Uuid optional
+        version Int
+
+      reducer IncidentDetailsProjection => IncidentDetails
+        on AgentAssignedToIncident
+          file Helpdesk.Api/IncidentDetails.cs
+        on IncidentCategorised
+          file Helpdesk.Api/IncidentDetails.cs
+        on IncidentClosed
+          file Helpdesk.Api/IncidentDetails.cs
+        on IncidentLogged
+          file Helpdesk.Api/IncidentDetails.cs
+        on IncidentPrioritised
+          file Helpdesk.Api/IncidentDetails.cs
+        on IncidentResolved
+          file Helpdesk.Api/IncidentDetails.cs
+        on ResolutionAcknowledgedByCustomer
+          file Helpdesk.Api/IncidentDetails.cs
+
+  feature LogIncident
+
+    slice StateChange LogIncident
+
+      command LogIncident
+        customerId Uuid
+        contact Contact
+        description String
+        handler
+          file Helpdesk.Api/LogIncident.cs
+
+      event IncidentLogged
+        file Helpdesk.Api/Incident.cs
+        customerId Uuid
+        contact Contact
+        description String
+        loggedBy Uuid

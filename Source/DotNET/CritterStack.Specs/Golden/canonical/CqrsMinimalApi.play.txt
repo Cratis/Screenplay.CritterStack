@@ -1,0 +1,70 @@
+domain CqrsMinimalApi
+
+module CqrsMinimalApi
+
+  feature CreateStudentRequest
+
+    slice StateChange CreateStudentRequest
+
+      command CreateStudentRequest
+        name String
+        address String optional
+        email String optional
+        dateOfBirth DateTime optional
+        active Bool
+        handler
+          file CqrsMinimalApi/StudentEndpoints.cs
+
+  feature DeleteStudent
+
+    slice StateChange DeleteStudent
+
+      command DeleteStudent
+        reads Student
+        handler
+          file CqrsMinimalApi/StudentEndpoints.cs
+
+  feature Student
+
+    slice StateView GetAll
+
+      query GetAll => Student[]
+        performer
+          file CqrsMinimalApi/StudentEndpoints.cs
+
+    slice StateView GetById
+
+      query GetById => Student optional
+        performer
+          file CqrsMinimalApi/StudentEndpoints.cs
+
+    slice StateView GetByName
+
+      query GetByName => Student optional
+        performer
+          file CqrsMinimalApi/StudentEndpoints.cs
+
+    slice StateView Student
+
+      readmodel Student
+        file CqrsMinimalApi/Student.cs
+        id Int
+        name String
+        address String optional
+        email String optional
+        dateOfBirth DateTime optional
+        active Bool
+
+  feature UpdateStudentRequest
+
+    slice StateChange UpdateStudentRequest
+
+      command UpdateStudentRequest
+        name String
+        address String optional
+        email String optional
+        dateOfBirth DateTime optional
+        active Bool
+        reads Student
+        handler
+          file CqrsMinimalApi/StudentEndpoints.cs

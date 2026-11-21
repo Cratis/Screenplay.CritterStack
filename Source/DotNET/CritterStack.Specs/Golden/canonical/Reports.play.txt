@@ -1,0 +1,12 @@
+domain Reports
+
+module Reports
+
+  feature StartReport
+
+    slice StateChange StartReport
+
+      command StartReport
+        name String
+        handler
+          file Reports/Program.cs
