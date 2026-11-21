@@ -137,6 +137,11 @@ internal static partial class WolverineFacts
         MessageEmission emission,
         IReadOnlyList<WolverineReturnConsequence> consequences)
     {
+        foreach (var consequence in consequences.Where(_ => _.MartenOperation is not null))
+        {
+            AddMartenOperation(emission, consequence);
+        }
+
         foreach (var consequence in consequences.Where(IsCascadeConsequence))
         {
             var messageType = (INamedTypeSymbol)consequence.Type;
@@ -148,6 +153,39 @@ internal static partial class WolverineFacts
                 $"wolverine:cascades:return:{emission.SourceSubject.Value}:{consequence.Slot}:{messageSubject.Value}",
                 $"return-slot:{consequence.Slot}");
         }
+    }
+
+    static void AddMartenOperation(MessageEmission emission, WolverineReturnConsequence consequence)
+    {
+        var operation = consequence.MartenOperation!;
+        var targetSubject = emission.Subjects.SubjectForType(emission.Project, operation.ModelType);
+        var startsStream = operation.FactoryName == "StartStream";
+        var evidence = emission.Evidence with
+        {
+            Explanation = $"Wolverine returned MartenOps.{operation.FactoryName} operation for {operation.ModelType.Name}"
+        };
+        emission.Facts.Add(Artifact(
+            $"wolverine:marten-op:{(startsStream ? "aggregate" : "document")}:{targetSubject.Value}",
+            new ArtifactKey { Subject = targetSubject, Kind = startsStream ? ArtifactKind.Aggregate : ArtifactKind.ReadModel },
+            operation.ModelType.Name,
+            SourceFileOf(operation.ModelType, emission.Project),
+            DotNetTypeShapes.PropertiesOf(operation.ModelType),
+            evidence));
+        var kind = operation.FactoryName switch
+        {
+            "Delete" => RelationshipKind.Deletes,
+            "Update" => RelationshipKind.Updates,
+            "StartStream" => RelationshipKind.StartsStream,
+            _ => RelationshipKind.Stores
+        };
+        emission.Facts.Add(Relationship(
+            $"wolverine:marten-op:{emission.SourceSubject.Value}:{consequence.Slot}:{kind}:{targetSubject.Value}",
+            emission.SourceSubject,
+            kind,
+            targetSubject,
+            evidence,
+            discriminator: $"marten-op:{consequence.Slot}",
+            isCollection: operation.FactoryName == "StoreMany"));
     }
 
     static void AddCompoundStageConsequences(
