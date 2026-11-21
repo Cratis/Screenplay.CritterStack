@@ -228,7 +228,7 @@ internal static partial class WolverineFacts
             hasEventStream: false);
         if (!string.Equals(stage.StageKind, "load", StringComparison.Ordinal))
         {
-            foreach (var consequence in consequences.Where(_ => IsCascadeConsequence(_) && !IsCompoundStageControl(_.Type)))
+            foreach (var consequence in consequences.Where(_ => IsCompoundStageMessage(_, scope.Project)))
             {
                 AddStageCascade(emission, stage, (INamedTypeSymbol)consequence.Type, consequence.Slot);
             }
@@ -301,6 +301,11 @@ internal static partial class WolverineFacts
         method.Parameters is [{ Type: INamedTypeSymbol parameterType }] &&
         DotNetSubjectIds.MetadataName(parameterType.OriginalDefinition) == WellKnownTypes.WolverineHandlerChain &&
         method.Locations.Any(location => IsAuthoredSourceLocation(location, project));
+
+    static bool IsCompoundStageMessage(WolverineReturnConsequence consequence, DotNetProjectCompilation project) =>
+        IsCascadeConsequence(consequence) &&
+        !IsCompoundStageControl(consequence.Type) &&
+        !SymbolEqualityComparer.Default.Equals(consequence.Type, project.Compilation.GetTypeByMetadataName(WellKnownTypes.JasperFxEventTagQuery));
 
     static bool IsCompoundStageControl(ITypeSymbol type)
     {

@@ -14,6 +14,7 @@ public class when_generating_wolverine_dcb_chain_competition : given.a_wolverine
         new CritterStackScreenplayOptions { Domain = "Accounts" });
 
     [Fact] void should_succeed() => Assert.True(_result.IsSuccess);
+    [Fact] void should_not_cascade_a_companion_query_as_a_message() => _result.Graph.Relationships.Where(relationship => relationship.Key.Kind == RelationshipKind.Cascades && relationship.Key.Target.Value.EndsWith("/JasperFx.Events.Tags.EventTagQuery", StringComparison.Ordinal)).ShouldBeEmpty();
     [Fact] void should_prefer_the_earlier_declared_companion_over_the_alphabetically_earlier_one() => Conditions("Ordered").ShouldContainOnly([Prefix + "AccountId:event:dotnet://Accounts/Accounts/Accounts.AccountCredited"]);
     [Fact] void should_prefer_the_earlier_declared_companion_regardless_of_companion_name() => Conditions("Reversed").ShouldContainOnly([Prefix + "AccountId:event:dotnet://Accounts/Accounts/Accounts.AccountOpened"]);
     [Fact] void should_prefer_the_companion_in_the_path_earlier_file_for_a_partial_class() => Conditions("Split").ShouldContainOnly([Prefix + "AccountId:event:dotnet://Accounts/Accounts/Accounts.AccountOpened"]);
