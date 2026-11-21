@@ -50,6 +50,7 @@ internal static partial class WolverineFacts
     static bool HasNoProducedEvents(StateChangeShape shape) =>
         shape.BodyEvents.Length == 0 &&
         shape.ReturnEvents.Count == 0 &&
+        shape.SessionAppends.Count == 0 &&
         shape.Yields.Count == 0;
 
     static void AnalyzeNonPersistingHandler(
