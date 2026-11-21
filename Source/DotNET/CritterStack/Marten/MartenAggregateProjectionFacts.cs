@@ -4,6 +4,7 @@
 using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.CritterStack.Screenplay.Marten;
 
@@ -52,8 +53,11 @@ sealed record MartenEventSite(
 
 static class MartenAggregateProjectionFacts
 {
+    const string AggregationBase = "JasperFx.Events.Aggregation.JasperFxAggregationProjectionBase`4";
+    const string AggregationSteps = "JasperFx.Events.Daemon.IAggregationSteps`2";
     static readonly string[] _eventWrapperTypes = ["JasperFx.Events.IEvent`1", "Marten.Events.IEvent`1"];
     static readonly string[] _evolutionMethodNames = ["Apply", "Create", "ShouldDelete"];
+    static readonly string[] _dispatchMethodNames = ["Evolve", "EvolveAsync", "DetermineAction", "DetermineActionAsync"];
     static readonly HashSet<string> _infrastructureParameterTypes =
     [
         "System.Threading.CancellationToken",
@@ -72,7 +76,7 @@ static class MartenAggregateProjectionFacts
         AddModelFacts(collected, registration, scope);
         AddReducerFacts(collected, registration, scope);
 
-        foreach (var (eventType, evidence) in EvolutionEvents(scope.Projection, registration.Model, collected.Project, collected.Adapter))
+        foreach (var (eventType, evidence) in EvolutionEvents(scope.Projection, registration.Model, collected))
         {
             AddEventFacts(collected, scope.ModelSubject, new(eventType, evidence, scope.PlacementEvidence));
             var eventSubject = collected.Subjects.SubjectForType(collected.Project, eventType);
@@ -211,23 +215,124 @@ static class MartenAggregateProjectionFacts
     static IEnumerable<(INamedTypeSymbol EventType, Evidence Evidence)> EvolutionEvents(
         INamedTypeSymbol projection,
         INamedTypeSymbol model,
-        DotNetProjectCompilation project,
-        AdapterIdentity adapter)
+        MartenCollectedFacts collected)
     {
-        foreach (var method in projection.GetMembers().OfType<IMethodSymbol>()
-                     .Where(_ => _evolutionMethodNames.Contains(_.Name, StringComparer.Ordinal)))
+        foreach (var method in projection.GetMembers().OfType<IMethodSymbol>())
         {
-            var eventType = EventTypeFrom(method, model);
-            if (eventType is null)
+            var conventional = _evolutionMethodNames.Contains(method.Name, StringComparer.Ordinal);
+            if (!conventional && !IsDispatchOverride(method))
             {
                 continue;
             }
 
-            yield return (
-                eventType,
-                CritterStackSource.EvidenceFor(method, adapter, project, EvidenceStrength.Conventional, $"Marten treats {method.Name} as an event evolution method"));
+            var evidence = CritterStackSource.EvidenceFor(method, collected.Adapter, collected.Project, EvidenceStrength.Conventional, $"Marten treats {method.Name} as an event evolution method");
+            if (!conventional && evidence.Source is null)
+            {
+                continue;
+            }
+
+            var eventType = conventional ? EventTypeFrom(method, model) : DispatchEventTypeFrom(method);
+            if (eventType is not null)
+            {
+                yield return (eventType, evidence);
+            }
+            else if (!conventional)
+            {
+                collected.Diagnostics.Add(new()
+                {
+                    Code = MartenDiagnosticCodes.CustomProcessingOmitted,
+                    Severity = GenerationDiagnosticSeverity.Information,
+                    Outcome = GenerationDiagnosticOutcome.Unsupported,
+                    Message = $"Marten evolution override '{method.Name}' processes untyped events; no event type or processing consequences were inferred",
+                    Source = evidence.Source,
+                    Subject = collected.Subjects.SubjectForType(collected.Project, projection)
+                });
+            }
+        }
+
+        foreach (var registration in DeleteEvents(projection, collected))
+        {
+            yield return registration;
         }
     }
+
+    static bool IsDispatchOverride(IMethodSymbol method)
+    {
+        if (!method.IsOverride || !_dispatchMethodNames.Contains(method.Name, StringComparer.Ordinal))
+        {
+            return false;
+        }
+
+        for (var current = method.OverriddenMethod; current is not null; current = current.OverriddenMethod)
+        {
+            if (DotNetSubjectIds.MetadataName(current.ContainingType.OriginalDefinition) == AggregationBase)
+            {
+                return method.Parameters.Length == current.Parameters.Length && method.Parameters
+                    .Select((parameter, index) => parameter.RefKind == current.Parameters[index].RefKind &&
+                        SymbolEqualityComparer.Default.Equals(parameter.Type, current.Parameters[index].Type))
+                    .All(_ => _);
+            }
+        }
+
+        return false;
+    }
+
+    static INamedTypeSymbol? DispatchEventTypeFrom(IMethodSymbol method) => method.Parameters
+        .Select(_ => _.Type).OfType<INamedTypeSymbol>()
+        .Where(_ => _eventWrapperTypes.Contains(DotNetSubjectIds.MetadataName(_.OriginalDefinition), StringComparer.Ordinal))
+        .Select(_ => _.TypeArguments[0]).OfType<INamedTypeSymbol>().FirstOrDefault();
+
+    static IEnumerable<(INamedTypeSymbol EventType, Evidence Evidence)> DeleteEvents(
+        INamedTypeSymbol projection,
+        MartenCollectedFacts collected)
+    {
+        foreach (var constructor in projection.InstanceConstructors.SelectMany(_ => _.DeclaringSyntaxReferences)
+                     .Select(_ => _.GetSyntax()).OfType<ConstructorDeclarationSyntax>()
+                     .Where(_ => collected.Project.AuthoredSyntaxTrees.Contains(_.SyntaxTree) && !DotNetGeneratedSource.IsGenerated(_.SyntaxTree)))
+        {
+            var semanticModel = collected.Project.Compilation.GetSemanticModel(constructor.SyntaxTree);
+            foreach (var invocation in constructor.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            {
+                if (DeleteEventType(invocation, semanticModel) is not { } eventType)
+                {
+                    continue;
+                }
+
+                yield return (eventType, new Evidence
+                {
+                    Adapter = collected.Adapter,
+                    Strength = EvidenceStrength.Configured,
+                    Source = CritterStackSource.RangeForProject(invocation.GetLocation(), collected.Project),
+                    Explanation = "Marten registers this event type to delete the aggregate"
+                });
+            }
+        }
+    }
+
+    static INamedTypeSymbol? DeleteEventType(InvocationExpressionSyntax invocation, SemanticModel semanticModel)
+    {
+        if (!IsSelfRegistration(invocation, semanticModel) ||
+            semanticModel.GetEnclosingSymbol(invocation.SpanStart) is not IMethodSymbol { MethodKind: MethodKind.Constructor } ||
+            semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol { Name: "DeleteEvent", Parameters.Length: 0, TypeArguments.Length: 1 } method ||
+            !IsAggregationStep(method))
+        {
+            return null;
+        }
+
+        return method.TypeArguments[0] is INamedTypeSymbol { TypeKind: not TypeKind.Error } eventType ? eventType : null;
+    }
+
+    static bool IsAggregationStep(IMethodSymbol method) => DotNetSubjectIds.MetadataName(method.ContainingType.OriginalDefinition) is AggregationBase or AggregationSteps;
+
+    static bool IsSelfRegistration(InvocationExpressionSyntax invocation, SemanticModel semanticModel) => invocation.Expression switch
+    {
+        GenericNameSyntax => true,
+        MemberAccessExpressionSyntax { Expression: ThisExpressionSyntax or BaseExpressionSyntax } => true,
+        MemberAccessExpressionSyntax { Expression: InvocationExpressionSyntax receiver } =>
+            semanticModel.GetSymbolInfo(receiver).Symbol is IMethodSymbol { Name: "DeleteEvent" or "TransformsEvent", Parameters.Length: 0, TypeArguments.Length: 1 } method &&
+            IsAggregationStep(method) && IsSelfRegistration(receiver, semanticModel),
+        _ => false
+    };
 
     static INamedTypeSymbol? EventTypeFrom(IMethodSymbol method, INamedTypeSymbol model)
     {

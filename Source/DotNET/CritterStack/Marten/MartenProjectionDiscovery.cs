@@ -74,6 +74,11 @@ static class MartenProjectionDiscovery
 
     public static ProjectionRegistration? ShapeOf(INamedTypeSymbol projection)
     {
+        if (MartenProjectionKindDiscovery.IsOpaqueProjection(projection))
+        {
+            return null;
+        }
+
         var singleStream = BaseClosing(projection, _singleStreamProjectionTypes);
         if (singleStream?.TypeArguments[0] is INamedTypeSymbol singleStreamModel)
         {
@@ -102,6 +107,7 @@ static class MartenProjectionDiscovery
         AdapterIdentity adapter)
     {
         if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
+            MartenProjectionKindDiscovery.IsComposite(method.ContainingType) ||
             !IsMarten(method, invocation, semanticModel) ||
             ProjectionTypeFrom(method, invocation, semanticModel) is not { } type)
         {
@@ -170,6 +176,7 @@ static class MartenProjectionDiscovery
     }
 
     static ProjectionRegistration? CustomShapeOf(INamedTypeSymbol projection) =>
+        !MartenProjectionKindDiscovery.IsOpaqueProjection(projection) &&
         DotNetSubjectIds.MetadataName(projection) != WellKnownTypes.MartenProjection &&
         projection.AllInterfaces.Any(_ => DotNetSubjectIds.MetadataName(_.OriginalDefinition) == WellKnownTypes.MartenProjection)
             ? new(projection, projection, ProjectionKind.Custom, null!)
