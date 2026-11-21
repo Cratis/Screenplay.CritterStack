@@ -65,7 +65,7 @@ internal static partial class WolverineFacts
         var automationReturns = hasDocumentPersistence ? [] : handler.Shape.ReturnConsequences;
         var automationOutgoingMessages = hasDocumentPersistence ? [] : handler.Shape.OutgoingMessages;
         var busConsequences = handler.Shape.BusConsequences;
-        if (!HasAutomationConsequences(handler.Batched, compoundStages, busConsequences, automationReturns, automationOutgoingMessages))
+        if (!HasReadModelHandlerConsequences(scope, method, HasAutomationConsequences(handler.Batched, compoundStages, busConsequences, automationReturns, automationOutgoingMessages)))
         {
             AddHandlerChainConfigurationDiagnostics(scope, MethodSubject(scope.Project, method, "handler"), method);
             return;
@@ -187,6 +187,7 @@ internal static partial class WolverineFacts
             : method.ContainingType.Name;
 
         AddReactionFacts(scope, handler, requestSubject, reactionSubject, reactionName, evidence);
+        AddReadModelParameterFacts(scope, reactionSubject, method);
         var emission = EmissionFor(scope, reactionSubject, evidence);
         AddReturnConsequences(emission, handler.ReturnConsequences);
         AddOutgoingMessages(emission, method, handler.OutgoingMessages, scope.Diagnostics);

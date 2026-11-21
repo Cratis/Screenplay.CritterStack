@@ -28,7 +28,7 @@ internal static partial class WolverineFacts
             Source = dcb.Source,
             Explanation = $"Authored Wolverine DCB model parameter '{dcb.Parameter.Name}' with an EventTagQuery companion"
         };
-        AddAggregateArtifact(scope.Project, aggregateSubject, dcb.ModelType, evidence, scope.Facts);
+        AddAggregateArtifact(scope, aggregateSubject, dcb.ModelType, evidence);
         scope.Facts.Add(Relationship(
             $"wolverine:reads:{commandSubject.Value}:{dcb.Discriminator}:{aggregateSubject.Value}",
             commandSubject,
@@ -177,7 +177,7 @@ internal static partial class WolverineFacts
         var aggregateSubject = scope.Subjects.SubjectForType(scope.Project, binding.ModelType);
         if (aggregateSubjects.Add(aggregateSubject))
         {
-            AddAggregateArtifact(scope.Project, aggregateSubject, binding.ModelType, evidence, scope.Facts);
+            AddAggregateArtifact(scope, aggregateSubject, binding.ModelType, evidence);
         }
 
         scope.Facts.Add(Relationship(
@@ -244,7 +244,7 @@ internal static partial class WolverineFacts
         if (!fetched.IsEmpty)
         {
             var aggregateSubject = scope.Subjects.SubjectForType(scope.Project, binding.ModelType);
-            AddAggregateArtifact(scope.Project, aggregateSubject, binding.ModelType, evidence, scope.Facts);
+            AddAggregateArtifact(scope, aggregateSubject, binding.ModelType, evidence);
             scope.Facts.Add(Relationship(
                 $"wolverine:reads:{commandSubject.Value}:{binding.Discriminator}:{aggregateSubject.Value}",
                 commandSubject,
@@ -327,7 +327,7 @@ internal static partial class WolverineFacts
         };
         if (context.AggregateSubjects.Add(aggregateSubject))
         {
-            AddAggregateArtifact(scope.Project, aggregateSubject, binding.ModelType, evidence, scope.Facts);
+            AddAggregateArtifact(scope, aggregateSubject, binding.ModelType, evidence);
         }
 
         foreach (var eventType in append.EventTypes)
@@ -375,17 +375,20 @@ internal static partial class WolverineFacts
     }
 
     static void AddAggregateArtifact(
-        DotNetProjectCompilation project,
+        WolverineFactScope scope,
         SubjectId aggregateSubject,
         INamedTypeSymbol aggregateType,
-        Evidence evidence,
-        List<GenerationFact> facts) => facts.Add(Artifact(
-        $"wolverine:aggregate:{aggregateSubject.Value}",
-        new ArtifactKey { Subject = aggregateSubject, Kind = ArtifactKind.Aggregate },
-        aggregateType.Name,
-        SourceFileOf(aggregateType, project),
-        DotNetTypeShapes.PropertiesOf(aggregateType),
-        evidence));
+        Evidence evidence)
+    {
+        WolverineNaturalKeyDiscovery.AddDiagnostics(scope, aggregateType);
+        scope.Facts.Add(Artifact(
+            $"wolverine:aggregate:{aggregateSubject.Value}",
+            new ArtifactKey { Subject = aggregateSubject, Kind = ArtifactKind.Aggregate },
+            aggregateType.Name,
+            SourceFileOf(aggregateType, scope.Project),
+            DotNetTypeShapes.PropertiesOf(aggregateType),
+            evidence));
+    }
 
     static Evidence StateBindingEvidence(
         AdapterIdentity adapter,

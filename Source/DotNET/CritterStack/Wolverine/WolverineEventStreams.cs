@@ -94,49 +94,69 @@ static class WolverineEventStreams
 
         foreach (var (declaration, semanticModel) in WolverineMethodSyntax.Declarations(method, project))
         {
+            var scope = new AppendScope(new(declaration, semanticModel, project), bindings);
             foreach (var invocationSyntax in DotNetSource.AuthoredInvocationsIn(declaration, project))
             {
-                if (!IsInDirectHandlerBody(invocationSyntax, declaration) ||
-                    DotNetInvocations.MethodFor(invocationSyntax, semanticModel) is not { } invocationMethod ||
-                    semanticModel.GetOperation(invocationSyntax) is not IInvocationOperation invocation ||
-                    !TryGetAppendModel(invocation, project, out var invokedModel))
+                if (DirectAppendOf(invocationSyntax, scope) is not { } direct)
                 {
                     continue;
                 }
 
                 hasDirectWrite = true;
-                var source = CritterStackSource.RangeForProject(invocationSyntax.GetLocation(), project);
-                if (DotNetInvocations.ReceiverFor(invocationSyntax, invocationMethod, semanticModel) is not { } receiverExpression ||
-                    (semanticModel.GetOperation(receiverExpression) ?? invocation.Instance) is not { } receiverOperation)
+                var outcome = ResolveAppend(direct, scope);
+                appends.AddRange(outcome.Appends);
+                if (outcome.Unresolved is { } reason)
                 {
-                    unresolved.Add(new("the receiver could not be resolved", source));
-                    continue;
-                }
-
-                var targets = AppendTargets(receiverOperation, invocationSyntax, invokedModel, new(declaration, semanticModel, project, bindings));
-                if (targets.Count == 0)
-                {
-                    unresolved.Add(new("the receiver is not rooted directly in an IEventStream<T> handler parameter or a supported, unmodified fetched-stream slot or foreach binding", source));
-                    continue;
-                }
-
-                if (!TryGetDirectPayloads(invocation, out var eventTypes))
-                {
-                    unresolved.Add(new("the appended payload is not a direct object creation, params value, array, collection expression, or direct collection initializer", source));
-                    continue;
-                }
-
-                var admittedEventTypes = eventTypes
-                    .Where(eventType => !WolverineSagaTypes.IsSagaState(eventType, project))
-                    .ToArray();
-                if (admittedEventTypes.Length > 0)
-                {
-                    appends.AddRange(targets.Select(binding => new WolverineEventStreamAppend(binding, admittedEventTypes, source)));
+                    unresolved.Add(reason);
                 }
             }
         }
 
         return new(appends, unresolved, hasDirectWrite);
+    }
+
+    // The exact IEventStream<T> append call a direct handler-body invocation represents, or null when it is anything else.
+    static DirectAppend? DirectAppendOf(InvocationExpressionSyntax invocationSyntax, AppendScope scope)
+    {
+        var method = scope.Method;
+        if (!IsInDirectHandlerBody(invocationSyntax, method.Declaration) ||
+            DotNetInvocations.MethodFor(invocationSyntax, method.Model) is not { } invocationMethod ||
+            method.Model.GetOperation(invocationSyntax) is not IInvocationOperation invocation ||
+            !TryGetAppendModel(invocation, method.Project, out var invokedModel))
+        {
+            return null;
+        }
+
+        return new(invocationSyntax, invocationMethod, invocation, invokedModel);
+    }
+
+    static AppendOutcome ResolveAppend(DirectAppend direct, AppendScope scope)
+    {
+        var method = scope.Method;
+        var source = CritterStackSource.RangeForProject(direct.Syntax.GetLocation(), method.Project);
+        if (DotNetInvocations.ReceiverFor(direct.Syntax, direct.Method, method.Model) is not { } receiverExpression ||
+            (method.Model.GetOperation(receiverExpression) ?? direct.Invocation.Instance) is not { } receiverOperation)
+        {
+            return AppendOutcome.Failed("the receiver could not be resolved", source);
+        }
+
+        var targets = AppendTargets(receiverOperation, direct.Syntax, direct.Model, scope);
+        if (targets.Count == 0)
+        {
+            return AppendOutcome.Failed("the receiver is not rooted directly in an IEventStream<T> handler parameter or a supported, unmodified fetched-stream slot or foreach binding", source);
+        }
+
+        if (!TryGetDirectPayloads(direct.Invocation, out var eventTypes))
+        {
+            return AppendOutcome.Failed("the appended payload is not a direct object creation, params value, array, collection expression, or direct collection initializer", source);
+        }
+
+        var admittedEventTypes = eventTypes
+            .Where(eventType => !WolverineSagaTypes.IsSagaState(eventType, method.Project))
+            .ToArray();
+        return admittedEventTypes.Length > 0
+            ? new AppendOutcome([.. targets.Select(binding => new WolverineEventStreamAppend(binding, admittedEventTypes, source))], null)
+            : new AppendOutcome([], null);
     }
 
     public static bool TryGetDirectPayloads(
@@ -169,45 +189,59 @@ static class WolverineEventStreams
         IParameterSymbol parameter,
         IReadOnlyList<INamedTypeSymbol> modelTypes)
     {
-        var (method, requestType, project, handlerKey, loadedBindingCount) = context;
-        var attribute = WriteModelAttribute(parameter, project);
-        var source = SourceOf(attribute, parameter, project);
-        var identityName = attribute?.ConstructorArguments.FirstOrDefault().Value as string;
-        var versionName = NamedString(attribute, "VersionSource");
-        var loadStyle = NamedEnum(attribute, "LoadStyle") ?? "Optimistic";
-        var consistency = NamedBoolean(attribute, "AlwaysEnforceConsistency") ?? false;
+        var declaration = DeclarationOf(WriteModelAttribute(parameter, context.Project), parameter, context.Project);
         foreach (var modelType in modelTypes)
         {
-            var identityMember = attribute is null
-                ? null
-                : IdentityMember(method, requestType, modelType, identityName, project);
-            var versionMember = attribute is null
-                ? null
-                : VersionMember(method, requestType, versionName, loadedBindingCount, project);
-            var hasAmbiguousConventionalVersion = attribute is not null &&
-                string.IsNullOrWhiteSpace(versionName) &&
-                HasConventionalVersionMember(context);
-            yield return new(
-                handlerKey,
-                parameter,
-                modelType,
-                attribute is null
-                    ? WolverineStateBindingKind.DirectEventStream
-                    : WolverineStateBindingKind.LoadedEventStream,
-                new(identityName ?? identityMember?.Name, EvidenceSource(identityMember, source, project)),
-                new(versionName ?? versionMember?.Name, EvidenceSource(versionMember, source, project)),
-                new(loadStyle, source),
-                new(consistency, source),
-                identityMember,
-                versionMember,
-                hasAmbiguousConventionalVersion,
-                source);
+            yield return BindingFor(context, parameter, modelType, declaration);
         }
+    }
+
+    static ParameterDeclaration DeclarationOf(AttributeData? attribute, IParameterSymbol parameter, DotNetProjectCompilation project) => new(
+        attribute,
+        attribute?.ConstructorArguments.FirstOrDefault().Value as string,
+        NamedString(attribute, "VersionSource"),
+        NamedEnum(attribute, "LoadStyle") ?? "Optimistic",
+        NamedBoolean(attribute, "AlwaysEnforceConsistency") ?? HasConsistentAggregateDefault(parameter, project),
+        SourceOf(attribute, parameter, project));
+
+    static bool HasConsistentAggregateDefault(IParameterSymbol parameter, DotNetProjectCompilation project) =>
+        WolverineReadModelParameters.ConsistentAttribute(parameter, project) is not null;
+
+    static WolverineStateBinding BindingFor(
+        BindingContext context,
+        IParameterSymbol parameter,
+        INamedTypeSymbol modelType,
+        ParameterDeclaration declaration)
+    {
+        var lookup = context.Lookup;
+        var project = context.Project;
+        var isLoaded = declaration.Attribute is not null;
+        var identityMember = isLoaded ? IdentityMember(lookup, modelType, declaration.IdentityName) : null;
+        var versionMember = isLoaded ? VersionMember(lookup, declaration.VersionName, context.LoadedBindingCount) : null;
+        var hasAmbiguousConventionalVersion = isLoaded &&
+            string.IsNullOrWhiteSpace(declaration.VersionName) &&
+            HasConventionalVersionMember(context);
+        var source = declaration.Source;
+        return new(
+            context.HandlerKey,
+            parameter,
+            modelType,
+            isLoaded
+                ? WolverineStateBindingKind.LoadedEventStream
+                : WolverineStateBindingKind.DirectEventStream,
+            new(declaration.IdentityName ?? identityMember?.Name, EvidenceSource(identityMember, source, project)),
+            new(declaration.VersionName ?? versionMember?.Name, EvidenceSource(versionMember, source, project)),
+            new(declaration.LoadStyle, source),
+            new(declaration.Consistency, source),
+            identityMember,
+            versionMember,
+            hasAmbiguousConventionalVersion,
+            source);
     }
 
     static bool HasConventionalVersionMember(BindingContext context) =>
         context.LoadedBindingCount > 1 &&
-        VersionMember(context.Method, context.RequestType, "Version", loadedBindingCount: 1, project: context.Project) is not null;
+        VersionMember(context.Lookup, "Version", loadedBindingCount: 1) is not null;
 
     static IReadOnlyList<WolverineStateBinding> AppendTargets(
         IOperation receiverOperation,
@@ -218,7 +252,7 @@ static class WolverineEventStreams
         var receiver = ReceiverParameter(receiverOperation);
         var bindings = scope.Bindings;
         var targets = receiver is null
-            ? WolverineFetchedEventStreams.Targets(receiverOperation, invocationSyntax, scope.Declaration, scope.SemanticModel, bindings, scope.Project)
+            ? WolverineFetchedEventStreams.Targets(receiverOperation, invocationSyntax, scope.Method, bindings)
             : [.. bindings.Where(binding => SymbolEqualityComparer.Default.Equals(binding.Parameter, receiver))];
         return [.. targets.Where(binding => SymbolEqualityComparer.Default.Equals(binding.ModelType, invokedModel))];
     }
@@ -370,13 +404,11 @@ static class WolverineEventStreams
     }
 
     static ISymbol? IdentityMember(
-        IMethodSymbol method,
-        INamedTypeSymbol? requestType,
+        MemberLookup lookup,
         INamedTypeSymbol modelType,
-        string? explicitName,
-        DotNetProjectCompilation project)
+        string? explicitName)
     {
-        var members = SourceMembers(method, requestType, project);
+        var members = SourceMembers(lookup);
         if (!string.IsNullOrWhiteSpace(explicitName))
         {
             return members.FirstOrDefault(_ => string.Equals(_.Name, explicitName, StringComparison.OrdinalIgnoreCase));
@@ -391,11 +423,9 @@ static class WolverineEventStreams
     }
 
     static ISymbol? VersionMember(
-        IMethodSymbol method,
-        INamedTypeSymbol? requestType,
+        MemberLookup lookup,
         string? explicitName,
-        int loadedBindingCount,
-        DotNetProjectCompilation project)
+        int loadedBindingCount)
     {
         if (loadedBindingCount > 1 && string.IsNullOrWhiteSpace(explicitName))
         {
@@ -403,19 +433,16 @@ static class WolverineEventStreams
         }
 
         var name = string.IsNullOrWhiteSpace(explicitName) ? "Version" : explicitName;
-        return SourceMembers(method, requestType, project).FirstOrDefault(member =>
+        return SourceMembers(lookup).FirstOrDefault(member =>
             string.Equals(member.Name, name, StringComparison.OrdinalIgnoreCase) &&
             TypeOf(member)?.SpecialType is SpecialType.System_Int32 or SpecialType.System_Int64 or SpecialType.System_UInt32);
     }
 
-    static IReadOnlyList<ISymbol> SourceMembers(
-        IMethodSymbol method,
-        INamedTypeSymbol? requestType,
-        DotNetProjectCompilation project) => requestType is null
-        ? [.. method.Parameters.Where(parameter =>
+    static IReadOnlyList<ISymbol> SourceMembers(MemberLookup lookup) => lookup.RequestType is null
+        ? [.. lookup.Method.Parameters.Where(parameter =>
             !IsEventStream(parameter.Type) &&
-            WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(parameter, project))]
-        : [.. requestType.GetMembers().OfType<IPropertySymbol>().Where(property => WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(property, project))];
+            WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(parameter, lookup.Project))]
+        : [.. lookup.RequestType.GetMembers().OfType<IPropertySymbol>().Where(property => WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(property, lookup.Project))];
 
     static ITypeSymbol? TypeOf(ISymbol symbol) => symbol switch
     {
@@ -534,34 +561,40 @@ static class WolverineEventStreams
         bool allowContainer = true)
     {
         operation = Unwrap(operation);
-        if (operation is IObjectCreationOperation objectCreation &&
-            !IsObjectCollection(objectCreation.Type) &&
-            IsEventPayloadType(objectCreation.Type))
+        if (TryGetSinglePayload(operation, eventTypes))
         {
-            eventTypes.Add((INamedTypeSymbol)objectCreation.Type!);
             return true;
         }
 
-        switch (operation)
-        {
-            case IArrayCreationOperation { Initializer: not null } arrayCreation when allowContainer:
-                return TryGetAllPayloads(arrayCreation.Initializer.ElementValues, eventTypes, allowEmpty);
-            case IArrayInitializerOperation arrayInitializer when allowContainer:
-                return TryGetAllPayloads(arrayInitializer.ElementValues, eventTypes, allowEmpty);
-            case ICollectionExpressionOperation collectionExpression when allowContainer:
-                if (collectionExpression.Elements.Any(_ => _ is ISpreadOperation))
-                {
-                    return false;
-                }
-
-                return TryGetAllPayloads(collectionExpression.Elements, eventTypes, allowEmpty);
-            case IObjectCreationOperation { Initializer: not null } collectionCreation when
-                allowContainer && IsSupportedCollectionInitializer(collectionCreation):
-                return TryGetCollectionInitializerPayloads(collectionCreation.Initializer, eventTypes, allowEmpty);
-            default:
-                return false;
-        }
+        return allowContainer && TryGetContainerPayloads(operation, eventTypes, allowEmpty);
     }
+
+    static bool TryGetSinglePayload(IOperation operation, List<INamedTypeSymbol> eventTypes)
+    {
+        if (operation is not IObjectCreationOperation objectCreation ||
+            IsObjectCollection(objectCreation.Type) ||
+            !IsEventPayloadType(objectCreation.Type))
+        {
+            return false;
+        }
+
+        eventTypes.Add((INamedTypeSymbol)objectCreation.Type!);
+        return true;
+    }
+
+    static bool TryGetContainerPayloads(IOperation operation, List<INamedTypeSymbol> eventTypes, bool allowEmpty) => operation switch
+    {
+        IArrayCreationOperation { Initializer: not null } arrayCreation =>
+            TryGetAllPayloads(arrayCreation.Initializer.ElementValues, eventTypes, allowEmpty),
+        IArrayInitializerOperation arrayInitializer =>
+            TryGetAllPayloads(arrayInitializer.ElementValues, eventTypes, allowEmpty),
+        ICollectionExpressionOperation collectionExpression =>
+            !collectionExpression.Elements.Any(_ => _ is ISpreadOperation) &&
+            TryGetAllPayloads(collectionExpression.Elements, eventTypes, allowEmpty),
+        IObjectCreationOperation { Initializer: not null } collectionCreation when IsSupportedCollectionInitializer(collectionCreation) =>
+            TryGetCollectionInitializerPayloads(collectionCreation.Initializer, eventTypes, allowEmpty),
+        _ => false
+    };
 
     static bool TryGetCollectionInitializerPayloads(
         IObjectOrCollectionInitializerOperation initializer,
@@ -617,11 +650,7 @@ static class WolverineEventStreams
         {
             switch (current)
             {
-                case IConversionOperation conversion when
-                    !conversion.Conversion.IsUserDefined &&
-                    (conversion.Conversion.IsIdentity ||
-                     conversion.Conversion.IsReference ||
-                     conversion.Operand is ICollectionExpressionOperation):
+                case IConversionOperation conversion when IsTransparentConversion(conversion):
                     current = conversion.Operand;
                     continue;
                 case IParenthesizedOperation parenthesized:
@@ -632,6 +661,12 @@ static class WolverineEventStreams
             }
         }
     }
+
+    static bool IsTransparentConversion(IConversionOperation conversion) =>
+        !conversion.Conversion.IsUserDefined &&
+        (conversion.Conversion.IsIdentity ||
+         conversion.Conversion.IsReference ||
+         conversion.Operand is ICollectionExpressionOperation);
 
     static bool IsSafeReceiverConversion(IConversionOperation conversion) =>
         !conversion.Conversion.IsUserDefined &&
@@ -671,16 +706,43 @@ static class WolverineEventStreams
             .TakeWhile(_ => _ != handlerDeclaration)
             .Any(_ => _ is LocalFunctionStatementSyntax or AnonymousFunctionExpressionSyntax);
 
+    sealed record MemberLookup(
+        IMethodSymbol Method,
+        INamedTypeSymbol? RequestType,
+        DotNetProjectCompilation Project);
+
     sealed record BindingContext(
         IMethodSymbol Method,
         INamedTypeSymbol? RequestType,
         DotNetProjectCompilation Project,
         string HandlerKey,
-        int LoadedBindingCount);
+        int LoadedBindingCount)
+    {
+        public MemberLookup Lookup => new(Method, RequestType, Project);
+    }
+
+    sealed record ParameterDeclaration(
+        AttributeData? Attribute,
+        string? IdentityName,
+        string? VersionName,
+        string LoadStyle,
+        bool Consistency,
+        SourceRange? Source);
 
     sealed record AppendScope(
-        MethodDeclarationSyntax Declaration,
-        SemanticModel SemanticModel,
-        DotNetProjectCompilation Project,
+        WolverineMethodScope Method,
         IReadOnlyList<WolverineStateBinding> Bindings);
+
+    sealed record DirectAppend(
+        InvocationExpressionSyntax Syntax,
+        IMethodSymbol Method,
+        IInvocationOperation Invocation,
+        INamedTypeSymbol Model);
+
+    sealed record AppendOutcome(
+        IReadOnlyList<WolverineEventStreamAppend> Appends,
+        WolverineUnresolvedEventStreamAppend? Unresolved)
+    {
+        public static AppendOutcome Failed(string reason, SourceRange? source) => new([], new(reason, source));
+    }
 }

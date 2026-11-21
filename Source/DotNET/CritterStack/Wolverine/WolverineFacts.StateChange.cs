@@ -16,16 +16,15 @@ internal static partial class WolverineFacts
         DotNetProjectCompilation project,
         bool isHttpEndpoint)
     {
-        var aggregateWorkflow = IsAggregateWorkflow(method);
+        var aggregateWorkflow = HasWritableAggregateWorkflow(method, project);
         var dcb = WolverineDcb.Discover(method, request, project, isHttpEndpoint);
         var parameterBindings = WolverineEventStreams.ParameterBindings(method, messageType, project);
         var fetchedBindings = WolverineFetchedEventStreams.Bindings(method, messageType, project);
         IReadOnlyList<WolverineStateBinding> streamBindings = [.. parameterBindings, .. fetchedBindings];
-        var aggregate = dcb is null ? AggregateParameter(method, request, aggregateWorkflow) : null;
+        var aggregate = dcb is null ? AggregateParameter(method, request, aggregateWorkflow, project) : null;
         var yieldsAggregateEvents = dcb is null && aggregateWorkflow && parameterBindings.Count == 0;
-        var returnIdentity = messageType is not null && aggregate?.Type is INamedTypeSymbol identityAggregate
-            ? IdentityProperty(messageType, identityAggregate)
-            : null;
+        var returnIdentity = ReturnIdentityOf(messageType, aggregate);
+        var inputs = new StateChangeInputs(method, project, isHttpEndpoint);
         return new StateChangeShape
         {
             Method = method,
@@ -37,27 +36,39 @@ internal static partial class WolverineFacts
             AppendDiscovery = WolverineEventStreams.Appends(method, project, streamBindings),
             Aggregate = aggregate,
             ReturnEvents = ReturnEvents(method, dcb, yieldsAggregateEvents, project),
-            BodyEvents = dcb is null ? [.. PersistenceEvents(method, project)] : [],
+            BodyEvents = BodyEventsOf(inputs, dcb),
             ReturnIdentity = returnIdentity,
-            SessionAppends = dcb is null ? WolverineProductionLinks.SessionAppends(method, request, project) : [],
+            SessionAppends = SessionAppendsOf(inputs, request, dcb),
             Yields = yieldsAggregateEvents ? WolverineProductionLinks.AggregateYields(method, returnIdentity, project) : [],
-            ReturnConsequences = ReturnConsequencesFor(method, dcb, aggregateWorkflow, parameterBindings.Count > 0, project, isHttpEndpoint),
+            ReturnConsequences = ReturnConsequencesFor(inputs, dcb, aggregateWorkflow, parameterBindings.Count > 0),
             OutgoingMessages = DiscoverOutgoingMessages(method, project),
             BusConsequences = WolverineBusConsequences.Discover(method, project)
         };
     }
 
+    static IPropertySymbol? ReturnIdentityOf(INamedTypeSymbol? messageType, IParameterSymbol? aggregate) =>
+        messageType is not null && aggregate?.Type is INamedTypeSymbol identityAggregate
+            ? IdentityProperty(messageType, identityAggregate)
+            : null;
+
+    static ITypeSymbol[] BodyEventsOf(StateChangeInputs inputs, WolverineDcbDiscovery? dcb) =>
+        dcb is null ? [.. PersistenceEvents(inputs.Method, inputs.Project)] : [];
+
+    static IReadOnlyList<WolverineProduction> SessionAppendsOf(
+        StateChangeInputs inputs,
+        IParameterSymbol? request,
+        WolverineDcbDiscovery? dcb) =>
+        dcb is null ? WolverineProductionLinks.SessionAppends(inputs.Method, request, inputs.Project) : [];
+
     static IReadOnlyList<WolverineReturnConsequence> ReturnConsequencesFor(
-        IMethodSymbol method,
+        StateChangeInputs inputs,
         WolverineDcbDiscovery? dcb,
         bool aggregateWorkflow,
-        bool hasParameterBindings,
-        DotNetProjectCompilation project,
-        bool isHttpEndpoint) =>
+        bool hasParameterBindings) =>
         WolverineReturnConsequences.Classify(
-            method,
-            project,
-            isHttpEndpoint,
+            inputs.Method,
+            inputs.Project,
+            inputs.IsHttpEndpoint,
             aggregateWorkflow || dcb is { IsBoundaryParameter: false },
             dcb is null && hasParameterBindings);
 
@@ -83,6 +94,8 @@ internal static partial class WolverineFacts
         bool isHttpEndpoint)
     {
         AddPersistenceBoundReads(scope, commandSubject, shape.Method, shape.Aggregate);
+        AddReadModelParameterFacts(scope, commandSubject, shape.Method);
+        AddConsistentAggregateDiagnostics(scope, shape);
         AddEventStreamBindingFacts(scope, commandSubject, commandName, shape.StreamBindings, isHttpEndpoint);
         AddDcbFacts(scope, commandSubject, commandName, shape.Dcb);
     }
@@ -128,6 +141,7 @@ internal static partial class WolverineFacts
     {
         var project = scope.Project;
         var aggregateSubject = scope.Subjects.SubjectForType(project, aggregateType);
+        WolverineNaturalKeyDiscovery.AddDiagnostics(scope, aggregateType);
         scope.Facts.Add(Artifact(
             $"wolverine:read-model:{aggregateSubject.Value}",
             new ArtifactKey { Subject = aggregateSubject, Kind = ArtifactKind.ReadModel },
@@ -290,19 +304,20 @@ internal static partial class WolverineFacts
         MessageElementType(_.Type) is not null &&
         !IsInfrastructureParameter(_.Type) &&
         !IsAggregateParameter(_) &&
-        !IsPersistenceBoundParameter(_) &&
-        !WolverineEventStreams.IsEventStream(_.Type) &&
-        !WolverineDcb.HasAttributedParameter(_, project));
+        !IsStateInputParameter(_, project) &&
+        !WolverineEventStreams.IsEventStream(_.Type));
 
     static IParameterSymbol? AggregateParameter(
         IMethodSymbol method,
         IParameterSymbol? request,
-        bool aggregateWorkflow)
+        bool aggregateWorkflow,
+        DotNetProjectCompilation project)
     {
-        var attributed = method.Parameters.FirstOrDefault(_ =>
+        var candidates = method.Parameters.Where(parameter => !IsReadModelParameter(parameter, project)).ToArray();
+        var attributed = candidates.FirstOrDefault(_ =>
             IsAggregateParameter(_) && !WolverineEventStreams.IsEventStream(_.Type));
         return attributed ?? (aggregateWorkflow
-            ? method.Parameters.FirstOrDefault(_ =>
+            ? candidates.FirstOrDefault(_ =>
                 !SymbolEqualityComparer.Default.Equals(_, request) &&
                 IsSourceType(_.Type) &&
                 !IsInfrastructureParameter(_.Type) &&
@@ -399,6 +414,11 @@ internal static partial class WolverineFacts
 
         return properties.FirstOrDefault(_ => string.Equals(_.Name, "Id", StringComparison.OrdinalIgnoreCase));
     }
+
+    sealed record StateChangeInputs(
+        IMethodSymbol Method,
+        DotNetProjectCompilation Project,
+        bool IsHttpEndpoint);
 
     sealed class StateChangeShape
     {
