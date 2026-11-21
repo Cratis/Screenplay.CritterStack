@@ -135,5 +135,5 @@ internal static partial class WolverinePolicyDiscovery
         INamedTypeSymbol Owner,
         bool IsHttpEndpoint,
         bool IsResolved,
-        SourceRange Source);
+        SourceRange? Source);
 }

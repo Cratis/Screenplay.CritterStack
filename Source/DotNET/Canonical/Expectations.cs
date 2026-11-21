@@ -47,8 +47,11 @@ readonly record struct ArtifactReference(ArtifactKind Kind, string Name)
         return false;
     }
 
-    public bool Matches(ResolvedArtifact artifact) =>
-        artifact.Key.Kind == Kind && artifact.Variants.Any(variant => variant.Definition.Name == Name);
+    public bool Matches(ResolvedArtifact artifact)
+    {
+        var name = Name;
+        return artifact.Key.Kind == Kind && artifact.Variants.Any(variant => variant.Definition.Name == name);
+    }
 }
 
 sealed record Expectation(ExpectationKind Kind, string Value)

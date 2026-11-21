@@ -80,7 +80,7 @@ public class when_generating_read_model_parameters : given.a_read_model_applicat
 
     [Fact]
     void should_admit_all_read_model_relationships_to_the_resolved_graph() =>
-        Result.ResolvedModel.Relationships.Count(relationship => relationship.Key.Discriminator?.StartsWith("read-model:", StringComparison.Ordinal) == true).ShouldEqual(7);
+        Result.Graph.Relationships.Count(relationship => relationship.Key.Discriminator?.StartsWith("read-model:", StringComparison.Ordinal) == true).ShouldEqual(7);
 
     [Fact]
     void should_keep_two_reads_of_the_same_model_distinct() =>
