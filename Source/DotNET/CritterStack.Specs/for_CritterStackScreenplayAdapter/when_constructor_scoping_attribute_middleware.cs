@@ -38,17 +38,17 @@ public class when_constructor_scoping_attribute_middleware : given.a_wolverine_a
             public static HttpMessage HttpClean() => new();
             [WolverineAfterCommit(MiddlewareScoping.HttpEndpoints)]
             public static HttpMessage HttpSaved() => new();
-            [WolverineBefore(MiddlewareScoping.Handlers)]
+            [WolverineBefore(MiddlewareScoping.MessageHandlers)]
             public static HandlerMessage HandlerPrepare() => new();
-            [WolverineAfter(MiddlewareScoping.Handlers)]
+            [WolverineAfter(MiddlewareScoping.MessageHandlers)]
             public static HandlerMessage HandlerFinish() => new();
-            [WolverineFinally(MiddlewareScoping.Handlers)]
+            [WolverineFinally(MiddlewareScoping.MessageHandlers)]
             public static HandlerMessage HandlerClean() => new();
-            [WolverineAfterCommit(MiddlewareScoping.Handlers)]
+            [WolverineAfterCommit(MiddlewareScoping.MessageHandlers)]
             public static HandlerMessage HandlerSaved() => new();
-            [WolverineBefore(MiddlewareScoping.HttpEndpoints, Scoping = MiddlewareScoping.Handlers)]
+            [WolverineBefore(MiddlewareScoping.HttpEndpoints, Scoping = MiddlewareScoping.MessageHandlers)]
             public static HandlerMessage HandlerOverride() => new();
-            [WolverineAfter(MiddlewareScoping.Handlers, Scoping = MiddlewareScoping.HttpEndpoints)]
+            [WolverineAfter(MiddlewareScoping.MessageHandlers, Scoping = MiddlewareScoping.HttpEndpoints)]
             public static HttpMessage HttpOverride() => new();
         }
         """;
@@ -62,8 +62,8 @@ public class when_constructor_scoping_attribute_middleware : given.a_wolverine_a
     {
         _project = CreateProject(Source);
         var named = Source
-            .Replace("MiddlewareScoping.HttpEndpoints, Scoping = MiddlewareScoping.Handlers", "MiddlewareScoping.Handlers", StringComparison.Ordinal)
-            .Replace("MiddlewareScoping.Handlers, Scoping = MiddlewareScoping.HttpEndpoints", "MiddlewareScoping.HttpEndpoints", StringComparison.Ordinal)
+            .Replace("MiddlewareScoping.HttpEndpoints, Scoping = MiddlewareScoping.MessageHandlers", "MiddlewareScoping.MessageHandlers", StringComparison.Ordinal)
+            .Replace("MiddlewareScoping.MessageHandlers, Scoping = MiddlewareScoping.HttpEndpoints", "MiddlewareScoping.HttpEndpoints", StringComparison.Ordinal)
             .Replace("(MiddlewareScoping.", "(Scoping = MiddlewareScoping.", StringComparison.Ordinal);
         _variants = new Dictionary<string, DotNetProjectCompilation>
         {
@@ -118,7 +118,7 @@ public class when_constructor_scoping_attribute_middleware : given.a_wolverine_a
 
     static string Anywhere(string source) => source
         .Replace("MiddlewareScoping.HttpEndpoints", "MiddlewareScoping.Anywhere", StringComparison.Ordinal)
-        .Replace("MiddlewareScoping.Handlers", "MiddlewareScoping.Anywhere", StringComparison.Ordinal);
+        .Replace("MiddlewareScoping.MessageHandlers", "MiddlewareScoping.Anywhere", StringComparison.Ordinal);
 
     IReadOnlyList<GenerationDiagnostic> StagesFor(string variant) => [.. _results[variant].Diagnostics.Where(_ => _.Code == WolverineDiagnosticCodes.CompoundStageOmitted)];
     GenerationDiagnostic Stage(string method) => _contribution.Diagnostics.Single(_ => _.Code == WolverineDiagnosticCodes.CompoundStageOmitted && _.Message.Contains($"'{method}'", StringComparison.Ordinal));

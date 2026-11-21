@@ -15,8 +15,8 @@ public class when_fetched_streams_do_not_identify_a_command_member : given.a_wol
         _fetchedWithAggregate = Select(Input("Conventional", "Aggregate", hasFetchedStreams: true));
         _fetchedBinding = Select(Input(
             "Conventional",
-            hasFetchedStreams: true,
-            bindings: [Binding(WolverineStateBindingKind.FetchedEventStream, Member("Conventional", "Title"), Type("Plain"))]));
+            bindings: [Binding(WolverineStateBindingKind.FetchedEventStream, Member("Conventional", "Title"), Type("Plain"))],
+            hasFetchedStreams: true));
     }
 
     [Fact] void should_select_nothing_for_fetched_streams_without_an_aggregate() => _fetchedWithoutAggregate.ShouldBeNull();

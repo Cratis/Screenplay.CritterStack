@@ -119,7 +119,7 @@ internal static partial class WolverinePolicyDiscovery
     {
         var values = MiddlewareValues(attribute).ToArray();
         var scoping = attribute.NamedArguments.FirstOrDefault(_ => _.Key == "Scoping").Value.Value;
-        return scoping is null or 0 or 1 or 2 && values.Length > 0 &&
+        return scoping is null or 0 or 1 or 2 or 3 && values.Length > 0 &&
             values.All(_ => _.Value is INamedTypeSymbol type && IsMiddlewareType(type, project));
     }
 

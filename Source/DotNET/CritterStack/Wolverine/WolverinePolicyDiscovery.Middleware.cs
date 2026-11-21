@@ -41,6 +41,7 @@ internal static partial class WolverinePolicyDiscovery
             null or 0 => true,
             1 => !isHttpEndpoint,
             2 => isHttpEndpoint,
+            3 => false,
             _ => false
         };
     }

@@ -38,19 +38,6 @@ sealed record HttpEndpoint(IMethodSymbol Method, string Verb, string? Route)
 
 sealed record WolverineOutgoingMessageConsequence(INamedTypeSymbol MessageType, bool Delayed);
 
-sealed class WolverineSagaEmissionContext
-{
-    public required DotNetProjectCompilation Project { get; init; }
-
-    public required CritterStackSubjectResolver Subjects { get; init; }
-
-    public required SubjectId SourceSubject { get; init; }
-
-    public required Evidence Evidence { get; init; }
-
-    public required List<GenerationFact> Facts { get; init; }
-}
-
 internal static partial class WolverineFacts
 {
     static readonly HashSet<string> _persistenceMethods =
@@ -262,6 +249,19 @@ internal static partial class WolverineFacts
         analyze();
         WolverineSlicePatterns.Apply(slicePattern, scope, method, firstPlacement);
     }
+}
+
+sealed class WolverineSagaEmissionContext
+{
+    public required DotNetProjectCompilation Project { get; init; }
+
+    public required CritterStackSubjectResolver Subjects { get; init; }
+
+    public required SubjectId SourceSubject { get; init; }
+
+    public required Evidence Evidence { get; init; }
+
+    public required List<GenerationFact> Facts { get; init; }
 }
 
 /// <summary>

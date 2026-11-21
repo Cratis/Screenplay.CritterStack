@@ -57,8 +57,8 @@ public class when_reusing_wolverine_middleware_registrations : given.a_wolverine
     [Fact] void should_compile_the_fixture() => _project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_materialize_during_construction() => _enumerationsAtConstruction.ShouldEqual(1);
     [Fact] void should_enumerate_the_input_only_once() => _enumerations.ShouldEqual(1);
-    [Fact] void should_keep_resolved_handler_registrations_in_order() => _handlers.ShouldEachConformTo(_ => string.Join(",", _.Select(application => application.Type.Name)) == "First,Second,First");
-    [Fact] void should_keep_each_handler_registration_source() => _handlers.ShouldEachConformTo(_ => string.Join(",", _.Select(application => application.Source.StartLine)) == "11,12,15");
+    [Fact] void should_keep_resolved_handler_registrations_in_order() => _handlers.ShouldEachConformTo(_ => string.Join(',', _.Select(application => application.Type.Name)) == "First,Second,First");
+    [Fact] void should_keep_each_handler_registration_source() => _handlers.ShouldEachConformTo(_ => string.Join(',', _.Select(application => application.Source.StartLine)) == "11,12,15");
     [Fact] void should_not_deduplicate_the_registration_input() => _handlers.ShouldEachConformTo(_ => _.Count == 3);
     [Fact] void should_keep_http_registrations_off_handlers() => _handlers.ShouldEachConformTo(_ => _.All(application => application.Type.Name != "Http"));
     [Fact] void should_keep_handler_registrations_off_endpoints() => _endpoints.ShouldEachConformTo(_ => _.Count == 1 && _[0].Type.Name == "Http");

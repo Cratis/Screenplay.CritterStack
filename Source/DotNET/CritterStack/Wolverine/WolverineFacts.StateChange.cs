@@ -9,6 +9,29 @@ namespace Cratis.CritterStack.Screenplay.Wolverine;
 
 internal static partial class WolverineFacts
 {
+    internal static IPropertySymbol? IdentityProperty(INamedTypeSymbol command, INamedTypeSymbol? aggregate)
+    {
+        var properties = command.GetMembers().OfType<IPropertySymbol>().ToArray();
+        var attributed = properties.FirstOrDefault(_ => _.GetAttributes().Any(attribute =>
+            attribute.AttributeClass is { } attributeType &&
+            DotNetSubjectIds.MetadataName(attributeType.OriginalDefinition) == WellKnownTypes.JasperFxIdentityAttribute));
+        if (attributed is not null)
+        {
+            return attributed;
+        }
+
+        if (aggregate is not null)
+        {
+            var aggregateId = properties.FirstOrDefault(_ => string.Equals(_.Name, $"{aggregate.Name}Id", StringComparison.OrdinalIgnoreCase));
+            if (aggregateId is not null)
+            {
+                return aggregateId;
+            }
+        }
+
+        return properties.FirstOrDefault(_ => string.Equals(_.Name, "Id", StringComparison.OrdinalIgnoreCase));
+    }
+
     static StateChangeShape DiscoverStateChangeShape(
         IMethodSymbol method,
         IParameterSymbol? request,
@@ -410,29 +433,6 @@ internal static partial class WolverineFacts
     {
         var identity = IdentityProperty(command, aggregate);
         return identity is null ? null : LowerFirst(identity.Name);
-    }
-
-    internal static IPropertySymbol? IdentityProperty(INamedTypeSymbol command, INamedTypeSymbol? aggregate)
-    {
-        var properties = command.GetMembers().OfType<IPropertySymbol>().ToArray();
-        var attributed = properties.FirstOrDefault(_ => _.GetAttributes().Any(attribute =>
-            attribute.AttributeClass is { } attributeType &&
-            DotNetSubjectIds.MetadataName(attributeType.OriginalDefinition) == WellKnownTypes.JasperFxIdentityAttribute));
-        if (attributed is not null)
-        {
-            return attributed;
-        }
-
-        if (aggregate is not null)
-        {
-            var aggregateId = properties.FirstOrDefault(_ => string.Equals(_.Name, $"{aggregate.Name}Id", StringComparison.OrdinalIgnoreCase));
-            if (aggregateId is not null)
-            {
-                return aggregateId;
-            }
-        }
-
-        return properties.FirstOrDefault(_ => string.Equals(_.Name, "Id", StringComparison.OrdinalIgnoreCase));
     }
 
     sealed record StateChangeInputs(

@@ -35,7 +35,7 @@ public class a_wolverine_command_members_application : Specification
 
     protected IPropertySymbol Member(string type, string name) => Type(type).GetMembers(name).OfType<IPropertySymbol>().Single();
 
-    protected static WolverineStateBinding Binding(WolverineStateBindingKind kind, ISymbol? identityMember, INamedTypeSymbol modelType) => new(
+    private protected static WolverineStateBinding Binding(WolverineStateBindingKind kind, ISymbol? identityMember, INamedTypeSymbol modelType) => new(
         "handler",
         null,
         modelType,
@@ -49,7 +49,7 @@ public class a_wolverine_command_members_application : Specification
         false,
         null);
 
-    protected WolverineCommandIdentityInput Input(
+    private protected WolverineCommandIdentityInput Input(
         string commandType,
         string? aggregateType = null,
         IReadOnlyList<WolverineStateBinding>? bindings = null,
@@ -62,5 +62,5 @@ public class a_wolverine_command_members_application : Specification
             linkedStreamIdentity);
 
     protected static string Identified(IEnumerable<PropertyDefinition> properties) =>
-        string.Join(",", properties.Where(_ => _.IsIdentifier).Select(_ => _.Name));
+        string.Join(',', properties.Where(_ => _.IsIdentifier).Select(_ => _.Name));
 }

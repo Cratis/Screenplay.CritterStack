@@ -26,7 +26,7 @@ public class when_preserving_method_backed_query_members : given.a_wolverine_att
 
     [Fact] void should_compile_the_fixture() => _project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_keep_the_parameter_order() => Properties.Select(_ => _.Name).ShouldContainOnly("orderId", "mode", "other");
-    [Fact] void should_take_the_identifier_from_the_first_non_enum_parameter() => string.Join(",", Properties.Where(_ => _.IsIdentifier).Select(_ => _.Name)).ShouldEqual("orderId");
+    [Fact] void should_take_the_identifier_from_the_first_non_enum_parameter() => string.Join(',', Properties.Where(_ => _.IsIdentifier).Select(_ => _.Name)).ShouldEqual("orderId");
 
     IReadOnlyList<PropertyDefinition> Properties => _contribution.Facts
         .OfType<ArtifactFact>()

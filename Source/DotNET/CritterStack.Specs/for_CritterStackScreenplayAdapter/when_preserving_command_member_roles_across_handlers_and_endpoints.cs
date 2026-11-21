@@ -12,12 +12,24 @@ public class when_preserving_command_member_roles_across_handlers_and_endpoints 
         public record Process(System.Guid Id, string Title, Mode Mode, int? Optional, System.Collections.Generic.List<string> Tags);
         public record Create(System.Guid Id, string Title, Mode Mode, int? Optional, System.Collections.Generic.List<string> Tags);
         public record Plain(string Title, int Count);
-        public static class ProcessHandler { public static void Handle(Process message) { } }
-        public static class PlainHandler { public static void Handle(Plain message) { } }
+        public record Processed(System.Guid Id);
+        public record PlainProcessed(string Title);
+        public record Created(System.Guid Id);
+        public static class ProcessHandler
+        {
+            public static void Handle(Process message, Marten.IDocumentSession session) =>
+                session.Events.Append(message.Id, new Processed(message.Id));
+        }
+        public static class PlainHandler
+        {
+            public static void Handle(Plain message, Marten.IDocumentSession session) =>
+                session.Events.Append(System.Guid.NewGuid(), new PlainProcessed(message.Title));
+        }
         public static class CreateEndpoint
         {
             [Wolverine.Http.WolverinePost("/create")]
-            public static void Post(Create message) { }
+            public static void Post(Create message, Marten.IDocumentSession session) =>
+                session.Events.Append(message.Id, new Created(message.Id));
         }
         """;
 
@@ -43,5 +55,5 @@ public class when_preserving_command_member_roles_across_handlers_and_endpoints 
 
     IEnumerable<string> Names(string command) => Properties(command).Select(_ => _.Name);
 
-    string Identifiers(string command) => string.Join(",", Properties(command).Where(_ => _.IsIdentifier).Select(_ => _.Name));
+    string Identifiers(string command) => string.Join(',', Properties(command).Where(_ => _.IsIdentifier).Select(_ => _.Name));
 }

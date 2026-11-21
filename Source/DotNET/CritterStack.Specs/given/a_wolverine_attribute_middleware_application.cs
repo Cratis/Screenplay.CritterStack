@@ -26,7 +26,7 @@ public class a_wolverine_attribute_middleware_application : Specification
         namespace Wolverine.Configuration { public interface IWolverineReturnType; }
         namespace Wolverine.Attributes
         {
-            public enum MiddlewareScoping { Anywhere, MessageHandlers, HttpEndpoints, All = Anywhere, Handlers = MessageHandlers }
+            public enum MiddlewareScoping { Anywhere = 0, MessageHandlers = 1, HttpEndpoints = 2, Grpc = 3 }
             public abstract class ScopedMiddlewareAttribute : System.Attribute
             {
                 public MiddlewareScoping Scoping { get; set; }

@@ -88,7 +88,7 @@ public class when_isolating_wolverine_middleware_registrations : given.a_wolveri
     [Fact] void should_keep_the_first_source_when_duplicate_stages_are_deduplicated() => Stages(_first).Where(_ => _.Message.Contains("'BeforeAsync'", StringComparison.Ordinal)).ShouldEachConformTo(_ => _.Source.StartLine == 38);
     [Fact] void should_keep_the_generic_registration_source() => Stages(_first).Where(_ => _.Message.Contains("'After'", StringComparison.Ordinal)).ShouldEachConformTo(_ => _.Source.StartLine == 39);
     [Fact] void should_keep_the_http_registration_source() => Stages(_first).Where(_ => _.Message.Contains("'Before'", StringComparison.Ordinal)).ShouldEachConformTo(_ => _.Source.StartLine == 41);
-    [Fact] void should_keep_registration_order_within_each_handler_chain() => Stages(_first).Where(_ => _.Source.StartLine != 41).GroupBy(_ => _.Subject).ShouldEachConformTo(_ => string.Join(",", _.Select(stage => stage.Source.StartLine)) == "38,39");
+    [Fact] void should_keep_registration_order_within_each_handler_chain() => Stages(_first).Where(_ => _.Source.StartLine != 41).GroupBy(_ => _.Subject).ShouldEachConformTo(_ => string.Join(',', _.Select(stage => stage.Source.StartLine)) == "38,39");
     [Fact] void should_keep_cascade_evidence_at_the_registration_source() => Cascades(_first).ShouldEachConformTo(_ => _.Evidence.Source.Path == "Alpha/Handlers.cs" && _.Evidence.Source.StartLine is 38 or 39 or 41);
     [Fact] void should_not_cascade_runtime_filtered_messages() => Cascades(_first).Where(_ => _.Definition.Key.Target.Value.EndsWith("/SharedMiddleware.FilteredNotice", StringComparison.Ordinal)).ShouldBeEmpty();
     [Fact] void should_diagnose_the_runtime_filter_once_per_project() => Unresolved(_first).Count.ShouldEqual(1);
@@ -111,6 +111,6 @@ public class when_isolating_wolverine_middleware_registrations : given.a_wolveri
     static IReadOnlyList<GenerationDiagnostic> Stages(AdapterContribution contribution) => [.. contribution.Diagnostics.Where(_ => _.Code == WolverineDiagnosticCodes.CompoundStageOmitted)];
     static IReadOnlyList<GenerationDiagnostic> Unresolved(AdapterContribution contribution) => [.. contribution.Diagnostics.Where(_ => _.Code == WolverineDiagnosticCodes.HandlerDiscoveryConfigurationUnresolved)];
     static IReadOnlyList<RelationshipFact> Cascades(AdapterContribution contribution) => [.. contribution.Facts.OfType<RelationshipFact>().Where(_ => _.Definition.Key.Kind == RelationshipKind.Cascades)];
-    static string Diagnostics(AdapterContribution contribution) => string.Join("\n", contribution.Diagnostics.Select(_ => $"{_.Code}|{_.Severity}|{_.Outcome}|{_.Subject}|{_.Source}|{_.Message}"));
+    static string Diagnostics(AdapterContribution contribution) => string.Join('\n', contribution.Diagnostics.Select(_ => $"{_.Code}|{_.Severity}|{_.Outcome}|{_.Subject}|{_.Source}|{_.Message}"));
     static IReadOnlyList<string> FactSignatures(AdapterContribution contribution) => [.. contribution.Facts.Select(_ => $"{_.GetType().FullName}|{System.Text.Json.JsonSerializer.Serialize(_, _.GetType())}")];
 }

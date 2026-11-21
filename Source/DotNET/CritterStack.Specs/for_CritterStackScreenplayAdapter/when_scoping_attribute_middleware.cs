@@ -11,7 +11,7 @@ public class when_scoping_attribute_middleware : given.a_wolverine_attribute_mid
         namespace ScopedMiddleware;
         public record Process(string Id);
         public record Create(string Id);
-        [Middleware(typeof(Shared), Scoping = MiddlewareScoping.Handlers)]
+        [Middleware(typeof(Shared), Scoping = MiddlewareScoping.MessageHandlers)]
         [Middleware(typeof(Excluded), Scoping = MiddlewareScoping.HttpEndpoints)]
         public static class ProcessHandler
         {
@@ -20,12 +20,12 @@ public class when_scoping_attribute_middleware : given.a_wolverine_attribute_mid
             public static void Before(Process message) { }
         }
         [Middleware(typeof(Shared), Scoping = MiddlewareScoping.HttpEndpoints)]
-        [Middleware(typeof(Excluded), Scoping = MiddlewareScoping.Handlers)]
+        [Middleware(typeof(Excluded), Scoping = MiddlewareScoping.MessageHandlers)]
         public static class CreateEndpoint
         {
             [Wolverine.Http.WolverinePost("/create")]
             public static void Post(Create message) { }
-            [WolverineAfter(Scoping = MiddlewareScoping.Handlers)]
+            [WolverineAfter(Scoping = MiddlewareScoping.MessageHandlers)]
             public static void After(Create message) { }
         }
         public static class Shared
