@@ -33,6 +33,15 @@ public class when_generating_wolverine_dcb_chain_competition : given.a_wolverine
     [Fact] void should_capture_every_event_of_an_event_collection_return() => Produced("CollectionWrapper").ShouldContainOnly(["CollectionDone"]);
     [Fact] void should_capture_both_tuple_siblings() => Produced("TupleSiblings").ShouldContainOnly(["TupleFirst", "TupleSecond"]);
     [Fact] void should_capture_distinct_boundary_appends_once_each() => Produced("OrdinaryOnBoundary").ShouldContainOnly(["BoundaryAppended", "BoundaryAppendedAlso"]);
+    [Fact] void should_report_one_production_fallback_per_boundary_append() => BoundaryAppendFallbacks().Count.ShouldEqual(2);
+    [Fact] void should_report_boundary_appends_as_information() => BoundaryAppendFallbacks().ShouldEachConformTo(_ => _.Severity == GenerationDiagnosticSeverity.Information);
+
+    IReadOnlyList<GenerationDiagnostic> BoundaryAppendFallbacks() =>
+    [
+        .. Diagnostics(WolverineDiagnosticCodes.ProductionLinkOmitted)
+            .Where(_ => _.Message.Contains("Command 'OrdinaryOnBoundary' ", StringComparison.Ordinal) &&
+                        _.Message.Contains("it is appended imperatively through a dynamic consistency boundary", StringComparison.Ordinal))
+    ];
 
     IReadOnlyList<string> ReadDiscriminators(string commandName) =>
     [

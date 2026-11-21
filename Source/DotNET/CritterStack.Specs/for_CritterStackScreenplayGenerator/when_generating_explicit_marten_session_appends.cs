@@ -39,8 +39,15 @@ public class when_generating_explicit_marten_session_appends : given.a_community
         _.Code == WolverineDiagnosticCodes.ProductionLinkOmitted &&
         _.Message.Contains("Command 'NoteTasting' is not linked to event 'TastingNoted'", StringComparison.Ordinal) &&
         _.Message.Contains("the append only happens on some paths through the handler", StringComparison.Ordinal));
+    [Fact] void should_report_one_loss_for_the_computed_stream_identity() => Losses("AdjustTarget").Count.ShouldEqual(1);
+    [Fact] void should_report_the_computed_stream_identity_as_a_warning() => Losses("AdjustTarget").Single().Severity.ShouldEqual(GenerationDiagnosticSeverity.Warning);
+    [Fact] void should_report_one_loss_for_the_conditional_append() => Losses("NoteTasting").Count.ShouldEqual(1);
+    [Fact] void should_report_the_conditional_append_as_a_warning() => Losses("NoteTasting").Single().Severity.ShouldEqual(GenerationDiagnosticSeverity.Warning);
     [Fact]
     void should_not_report_a_loss_for_a_linked_command() => _result.Diagnostics.ShouldNotContain(_ =>
         _.Code == WolverineDiagnosticCodes.ProductionLinkOmitted &&
         (_.Message.Contains("'PlanBatch'", StringComparison.Ordinal) || _.Message.Contains("'PreparePortions'", StringComparison.Ordinal)));
+
+    IReadOnlyList<GenerationDiagnostic> Losses(string command) =>
+        [.. _result.Diagnostics.Where(_ => _.Code == WolverineDiagnosticCodes.ProductionLinkOmitted && _.Message.Contains($"Command '{command}' ", StringComparison.Ordinal))];
 }
