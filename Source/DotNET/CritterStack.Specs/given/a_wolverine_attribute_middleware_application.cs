@@ -27,14 +27,36 @@ public class a_wolverine_attribute_middleware_application : Specification
         namespace Wolverine.Attributes
         {
             public enum MiddlewareScoping { All, Handlers, HttpEndpoints }
+            public abstract class ScopedMiddlewareAttribute : System.Attribute
+            {
+                public MiddlewareScoping Scoping { get; set; }
+                public ScopedMiddlewareAttribute(MiddlewareScoping scoping) { Scoping = scoping; }
+                protected ScopedMiddlewareAttribute() { }
+            }
             [System.AttributeUsage(System.AttributeTargets.Method)]
-            public class WolverineBeforeAttribute : System.Attribute { public MiddlewareScoping Scoping { get; set; } }
+            public class WolverineBeforeAttribute : ScopedMiddlewareAttribute
+            {
+                public WolverineBeforeAttribute(MiddlewareScoping scoping) : base(scoping) { }
+                public WolverineBeforeAttribute() { }
+            }
             [System.AttributeUsage(System.AttributeTargets.Method)]
-            public class WolverineAfterAttribute : System.Attribute { public MiddlewareScoping Scoping { get; set; } }
+            public class WolverineAfterAttribute : ScopedMiddlewareAttribute
+            {
+                public WolverineAfterAttribute(MiddlewareScoping scoping) : base(scoping) { }
+                public WolverineAfterAttribute() { }
+            }
             [System.AttributeUsage(System.AttributeTargets.Method)]
-            public class WolverineFinallyAttribute : System.Attribute { public MiddlewareScoping Scoping { get; set; } }
+            public class WolverineFinallyAttribute : ScopedMiddlewareAttribute
+            {
+                public WolverineFinallyAttribute(MiddlewareScoping scoping) : base(scoping) { }
+                public WolverineFinallyAttribute() { }
+            }
             [System.AttributeUsage(System.AttributeTargets.Method)]
-            public class WolverineAfterCommitAttribute : System.Attribute { public MiddlewareScoping Scoping { get; set; } }
+            public class WolverineAfterCommitAttribute : ScopedMiddlewareAttribute
+            {
+                public WolverineAfterCommitAttribute(MiddlewareScoping scoping) : base(scoping) { }
+                public WolverineAfterCommitAttribute() { }
+            }
             [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method, AllowMultiple = true)]
             public class MiddlewareAttribute(params System.Type[] types) : System.Attribute
             {

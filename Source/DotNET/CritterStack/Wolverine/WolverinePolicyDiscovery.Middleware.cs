@@ -34,7 +34,10 @@ internal static partial class WolverinePolicyDiscovery
 
     public static bool AppliesTo(AttributeData attribute, bool isHttpEndpoint)
     {
-        var scoping = attribute.NamedArguments.FirstOrDefault(_ => _.Key == "Scoping").Value;
+        var namedScoping = attribute.NamedArguments.FirstOrDefault(_ => _.Key == "Scoping");
+        var scoping = namedScoping.Key is not null
+            ? namedScoping.Value
+            : attribute.ConstructorArguments.FirstOrDefault(_ => _.Type?.TypeKind == TypeKind.Enum);
         return scoping.Value switch
         {
             null or 0 => true,
