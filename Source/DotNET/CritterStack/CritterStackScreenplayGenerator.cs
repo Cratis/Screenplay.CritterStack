@@ -115,10 +115,11 @@ public sealed class CritterStackScreenplayGenerator(
             Module = options.Module,
             NamespaceSegmentsToSkip = options.NamespaceSegmentsToSkip
         };
+        var implementations = options.FollowAuthoredAbstractions ? new AuthoredImplementationManifest(context) : null;
         var contributions = adapters
             .Where(_ => _.CanAnalyze(context))
             .Select(adapter => adapter is CritterStackScreenplayAdapter critterStackAdapter
-                ? critterStackAdapter.AnalyzeForComposition(context, adapterOptions, useSharedPlacement: !useCompatibilityPlacement)
+                ? critterStackAdapter.AnalyzeForComposition(context, adapterOptions, useSharedPlacement: !useCompatibilityPlacement, implementations: implementations)
                 : adapter.Analyze(context, adapterOptions))
             .ToArray();
         var boundContributions = ConceptTypeReferenceBinder.WithoutMissingConcepts(ConceptTypeReferenceBinder.Bind(context, contributions));

@@ -13,9 +13,10 @@ internal static partial class WolverineFacts
         IMethodSymbol method,
         IParameterSymbol? request,
         INamedTypeSymbol? messageType,
-        DotNetProjectCompilation project,
+        WolverineFactScope scope,
         bool isHttpEndpoint)
     {
+        var project = scope.Project;
         var aggregateWorkflow = HasWritableAggregateWorkflow(method, project);
         var dcb = WolverineDcb.Discover(method, request, project, isHttpEndpoint);
         var parameterBindings = WolverineEventStreams.ParameterBindings(method, messageType, project);
@@ -25,6 +26,7 @@ internal static partial class WolverineFacts
         var yieldsAggregateEvents = dcb is null && aggregateWorkflow && parameterBindings.Count == 0;
         var returnIdentity = ReturnIdentityOf(messageType, aggregate);
         var inputs = new StateChangeInputs(method, project, isHttpEndpoint);
+        var followedAppends = scope.Implementations?.SessionAppends(method, request, project, scope.Diagnostics) ?? [];
         return new StateChangeShape
         {
             Method = method,
@@ -38,7 +40,7 @@ internal static partial class WolverineFacts
             ReturnEvents = ReturnEvents(method, dcb, yieldsAggregateEvents, project),
             BodyEvents = BodyEventsOf(inputs, dcb),
             ReturnIdentity = returnIdentity,
-            SessionAppends = SessionAppendsOf(inputs, request, dcb),
+            SessionAppends = [.. SessionAppendsOf(inputs, request, dcb), .. followedAppends],
             Yields = yieldsAggregateEvents ? WolverineProductionLinks.AggregateYields(method, returnIdentity, project) : [],
             ReturnConsequences = ReturnConsequencesFor(inputs, dcb, aggregateWorkflow, parameterBindings.Count > 0),
             OutgoingMessages = DiscoverOutgoingMessages(method, project),
@@ -111,10 +113,39 @@ internal static partial class WolverineFacts
     {
         foreach (var production in productions)
         {
+            var firstFact = scope.Facts.Count;
             AddEventAndProduction(scope, commandSubject, eventOwner, production, compatibilityPlacement, evidence);
+            AddAuthoredProductionEvidence(scope, production, firstFact);
         }
 
         AddEventStreamAppendFacts(scope, commandSubject, eventOwner, compatibilityPlacement, shape.AppendDiscovery);
+    }
+
+    static void AddAuthoredProductionEvidence(WolverineFactScope scope, WolverineProductionDecision production, int firstFact)
+    {
+        if (production.AuthoredSources.Count == 0)
+        {
+            return;
+        }
+
+        var producedFacts = scope.Facts.Skip(firstFact).ToArray();
+        foreach (var source in production.AuthoredSources)
+        {
+            var location = $"{Uri.EscapeDataString(source.FileIdentity?.ToString() ?? source.Path)}:{source.StartLine}:{source.StartColumn}:{source.EndLine}:{source.EndColumn}";
+            foreach (var fact in producedFacts)
+            {
+                scope.Facts.Add(fact with
+                {
+                    Id = new FactId { Value = $"{fact.Id.Value}:authored:{location}" },
+                    Evidence = fact.Evidence with
+                    {
+                        Source = source,
+                        Strength = EvidenceStrength.Exact,
+                        Explanation = "The selected authored call chain and implementation body establish this event production"
+                    }
+                });
+            }
+        }
     }
 
     static void AddEffectFacts(

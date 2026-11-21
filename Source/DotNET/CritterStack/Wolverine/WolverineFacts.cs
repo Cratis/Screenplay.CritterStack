@@ -74,7 +74,8 @@ internal static partial class WolverineFacts
         DotNetProjectCompilation project,
         DotNetAdapterOptions options,
         AdapterIdentity adapter,
-        CritterStackSubjectResolver subjects)
+        CritterStackSubjectResolver subjects,
+        AuthoredImplementationManifest? implementations = null)
     {
         if (project.Compilation.GetTypeByMetadataName(WellKnownTypes.WolverineOptions) is null)
         {
@@ -97,6 +98,7 @@ internal static partial class WolverineFacts
             Options = options,
             Adapter = adapter,
             Subjects = subjects,
+            Implementations = implementations,
             Facts = facts,
             Placements = placements,
             Diagnostics = diagnostics
@@ -270,6 +272,8 @@ sealed class WolverineFactScope
     public required AdapterIdentity Adapter { get; init; }
 
     public required CritterStackSubjectResolver Subjects { get; init; }
+
+    public AuthoredImplementationManifest? Implementations { get; init; }
 
     public required List<GenerationFact> Facts { get; init; }
 
