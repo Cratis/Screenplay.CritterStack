@@ -18,20 +18,20 @@ sealed class AuthoredImplementationManifest
     const int MaximumCalls = 128;
 
     readonly IReadOnlyList<DotNetProjectCompilation> _projects;
-    readonly Dictionary<string, List<Implementation>> _methods = new(StringComparer.Ordinal);
-    readonly Dictionary<string, List<Dispatch>> _dispatch = new(StringComparer.Ordinal);
+    readonly Dictionary<string, List<Implementation>> _methods = [with(StringComparer.Ordinal)];
+    readonly Dictionary<string, List<Dispatch>> _dispatch = [with(StringComparer.Ordinal)];
     readonly HashSet<AssemblyIdentity> _incompleteAssemblies;
+    internal static readonly string[] sourceArray = new[] { "System", "Microsoft", "Marten", "Wolverine", "JasperFx" };
 
     public AuthoredImplementationManifest(DotNetAnalysisContext context)
     {
         _projects = context.Projects;
         var selectedAssemblies = _projects.Select(project => project.Compilation.Assembly.Identity).ToHashSet();
-        _incompleteAssemblies = _projects.SelectMany(project => project.Compilation.SourceModule.ReferencedAssemblySymbols)
+        _incompleteAssemblies = [.. _projects.SelectMany(project => project.Compilation.SourceModule.ReferencedAssemblySymbols)
             .Where(assembly => !selectedAssemblies.Contains(assembly.Identity))
             .SelectMany(assembly => assembly.Modules.SelectMany(module => module.ReferencedAssemblySymbols))
             .Select(assembly => assembly.Identity)
-            .Where(selectedAssemblies.Contains)
-            .ToHashSet();
+            .Where(selectedAssemblies.Contains)];
         foreach (var project in _projects)
         {
             foreach (var type in TypesIn(project.Compilation.Assembly.GlobalNamespace))
@@ -49,7 +49,7 @@ sealed class AuthoredImplementationManifest
     {
         var result = new List<WolverineProduction>();
         var arguments = request is null
-            ? new Dictionary<string, Argument>(StringComparer.Ordinal)
+            ? [with(StringComparer.Ordinal)]
             : new Dictionary<string, Argument>(StringComparer.Ordinal) { [ParameterKey(request)] = new(request.Type, null) };
         var budget = new TraversalBudget();
         var failed = false;
@@ -82,7 +82,7 @@ sealed class AuthoredImplementationManifest
                 _methods.Add(key, methods);
             }
 
-            if (!methods.Any(candidate => candidate.Project == project && candidate.Type == TypeKey(type)))
+            if (!methods.Exists(candidate => candidate.Project == project && candidate.Type == TypeKey(type)))
             {
                 methods.Add(new(project, method.PartialImplementationPart ?? method, TypeKey(type)));
             }
@@ -105,7 +105,7 @@ sealed class AuthoredImplementationManifest
                 _dispatch.Add(key, dispatches);
             }
 
-            if (!dispatches.Any(candidate => candidate.Project == project && TypeKey(candidate.Type) == TypeKey(type) && TypeKey(candidate.Contract.ContainingType) == TypeKey(contract.ContainingType)))
+            if (!dispatches.Exists(candidate => candidate.Project == project && TypeKey(candidate.Type) == TypeKey(type) && TypeKey(candidate.Contract.ContainingType) == TypeKey(contract.ContainingType)))
             {
                 dispatches.Add(new(project, type, contract));
             }
@@ -170,7 +170,7 @@ sealed class AuthoredImplementationManifest
 
         var declarations = WolverineMethodSyntax.Declarations(implementation.Method, implementation.Project).ToArray();
         var target = call.Operation.TargetMethod;
-        if (declarations.Length != 1 || declarations[0].Declaration.Body is null && declarations[0].Declaration.ExpressionBody is null ||
+        if (declarations.Length != 1 || (declarations[0].Declaration.Body is null && declarations[0].Declaration.ExpressionBody is null) ||
             implementation.Method.IsGenericMethod || target.ReducedFrom is not null ||
             implementation.Method.ContainingType.TypeKind == TypeKind.Interface ||
             target.Parameters.Any(parameter => parameter.RefKind != RefKind.None) ||
@@ -215,8 +215,8 @@ sealed class AuthoredImplementationManifest
                 AuthoredSources = production.Source is { } appendSource ? [.. sources, appendSource] : sources
             }).ToList();
         var nestedCalls = CallsIn(implementation.Method, implementation.Project).ToArray();
-        if (productions.Any(production => HasOpenType(production.EventType)) ||
-            productions.Count == 0 && nestedCalls.Any(nested => WolverineProductionLinks.IsSessionAppend(nested.Operation, nested.Project)))
+        if (productions.Exists(production => HasOpenType(production.EventType)) ||
+            (productions.Count == 0 && nestedCalls.Any(nested => WolverineProductionLinks.IsSessionAppend(nested.Operation, nested.Project))))
         {
             return Fail(traversal, call, "an implementation appends a payload whose event type is not established by authored source");
         }
@@ -264,7 +264,7 @@ sealed class AuthoredImplementationManifest
             }
 
             var runtimeType = Construct(dispatch, bindings);
-            var contract = runtimeType is null ? null : runtimeType.AllInterfaces.Concat(Hierarchy(runtimeType))
+            var contract = runtimeType?.AllInterfaces.Concat(Hierarchy(runtimeType))
                 .SingleOrDefault(type => TypeKey(type) == TypeKey(target.ContainingType));
             var member = contract?.GetMembers().OfType<IMethodSymbol>().SingleOrDefault(method => MethodKey(method) == MethodKey(target));
             var resolvedMethod = runtimeType is null || member is null ? null : ImplementationOf(runtimeType, member);
@@ -277,7 +277,8 @@ sealed class AuthoredImplementationManifest
         }
 
         return [.. implementations.OrderBy(implementation => DotNetSubjectIds.MetadataName(implementation.Method.ContainingType.OriginalDefinition), StringComparer.Ordinal)
-            .ThenBy(implementation => implementation.Method.Locations.Where(location => location.IsInSource)
+            .ThenBy(
+                implementation => implementation.Method.Locations.Where(location => location.IsInSource)
                 .Select(location => CritterStackSource.RangeForProject(location, implementation.Project)?.Path)
                 .Order(StringComparer.Ordinal).FirstOrDefault(), StringComparer.Ordinal)
             .ThenBy(implementation => implementation.Type, StringComparer.Ordinal)];
@@ -298,7 +299,7 @@ sealed class AuthoredImplementationManifest
         }
 
         var arguments = dispatch.Type.TypeParameters.Select(parameter => bindings.TryGetValue(parameter, out var type) ? ResolveType(type, dispatch.Project.Compilation) : null).ToArray();
-        return arguments.Any(argument => argument is null) ? null : dispatch.Type.Construct(arguments.OfType<ITypeSymbol>().ToArray());
+        return arguments.Any(argument => argument is null) ? null : dispatch.Type.Construct([.. arguments.OfType<ITypeSymbol>()]);
     }
 
     static ITypeSymbol? ResolveType(ITypeSymbol type, Compilation compilation)
@@ -309,7 +310,7 @@ sealed class AuthoredImplementationManifest
         }
 
         var definition = compilation.GetTypeByMetadataName(DotNetSubjectIds.MetadataName(named.OriginalDefinition));
-        if (definition is null || !definition.ContainingAssembly.Identity.Equals(named.ContainingAssembly.Identity))
+        if (definition?.ContainingAssembly.Identity.Equals(named.ContainingAssembly.Identity) != true)
         {
             return null;
         }
@@ -320,7 +321,7 @@ sealed class AuthoredImplementationManifest
         }
 
         var arguments = named.TypeArguments.Select(argument => ResolveType(argument, compilation)).ToArray();
-        return arguments.Any(argument => argument is null) ? null : definition.Construct(arguments.OfType<ITypeSymbol>().ToArray());
+        return arguments.Any(argument => argument is null) ? null : definition.Construct([.. arguments.OfType<ITypeSymbol>()]);
     }
 
     static bool BindTypes(ITypeSymbol pattern, ITypeSymbol actual, Dictionary<ITypeParameterSymbol, ITypeSymbol> bindings)
@@ -355,7 +356,7 @@ sealed class AuthoredImplementationManifest
 
     static bool Overrides(IMethodSymbol method, IMethodSymbol contract)
     {
-        for (IMethodSymbol? current = method; current is not null; current = current.OverriddenMethod)
+        for (var current = method; current is not null; current = current.OverriddenMethod)
         {
             if (MethodKey(current) == MethodKey(contract))
             {
@@ -369,8 +370,7 @@ sealed class AuthoredImplementationManifest
     static bool IsApplicationCall(IMethodSymbol method)
     {
         var name = method.ContainingNamespace.ToDisplayString();
-        return !new[] { "System", "Microsoft", "Marten", "Wolverine", "JasperFx" }
-            .Any(prefix => name == prefix || name.StartsWith($"{prefix}.", StringComparison.Ordinal));
+        return !sourceArray.Any(prefix => name == prefix || name.StartsWith($"{prefix}.", StringComparison.Ordinal));
     }
 
     static Argument Bind(IOperation operation, IReadOnlyDictionary<string, Argument> arguments)
@@ -422,14 +422,14 @@ sealed class AuthoredImplementationManifest
     }
 
     static bool HasOpenType(ITypeSymbol type) =>
-        type is ITypeParameterSymbol || type is INamedTypeSymbol named && (named.IsUnboundGenericType || named.TypeArguments.Any(HasOpenType));
+        type is ITypeParameterSymbol || (type is INamedTypeSymbol named && (named.IsUnboundGenericType || named.TypeArguments.Any(HasOpenType)));
 
     static IReadOnlyList<WolverineProduction> Fail(Traversal traversal, Call call, string reason)
     {
         traversal.Failed = true;
         var source = SourceOf(call);
         var message = $"Cannot follow authored abstraction '{call.Operation.TargetMethod.ToDisplayString()}' because {reason}; persistence behind this call is not inferred";
-        if (!traversal.Diagnostics.Any(diagnostic => diagnostic.Code == WolverineDiagnosticCodes.AuthoredAbstractionUnresolved && diagnostic.Source == source && diagnostic.Message == message))
+        if (!traversal.Diagnostics.Exists(diagnostic => diagnostic.Code == WolverineDiagnosticCodes.AuthoredAbstractionUnresolved && diagnostic.Source == source && diagnostic.Message == message))
         {
             traversal.Diagnostics.Add(new GenerationDiagnostic
             {
@@ -455,7 +455,7 @@ sealed class AuthoredImplementationManifest
     static SourceRange? SourceOf(Call call) => CritterStackSource.RangeForProject(call.Syntax.GetLocation(), call.Project);
 
     static string Signature(IEnumerable<WolverineProduction> productions) => string.Join('\n', productions
-        .Select(production => $"{TypeKey(production.EventType)}:{(production.StreamIdentity is null ? "" : MemberKey(production.StreamIdentity))}:{production.LossReason}:{production.LossOutcome}")
+        .Select(production => $"{TypeKey(production.EventType)}:{(production.StreamIdentity is null ? string.Empty : MemberKey(production.StreamIdentity))}:{production.LossReason}:{production.LossOutcome}")
         .Distinct(StringComparer.Ordinal)
         .Order(StringComparer.Ordinal));
 
@@ -469,7 +469,7 @@ sealed class AuthoredImplementationManifest
 
     static IEnumerable<INamedTypeSymbol> Hierarchy(INamedTypeSymbol type)
     {
-        for (INamedTypeSymbol? current = type; current is not null; current = current.BaseType)
+        for (var current = type; current is not null; current = current.BaseType)
         {
             yield return current;
         }

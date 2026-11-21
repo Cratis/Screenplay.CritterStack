@@ -23,7 +23,7 @@ public class when_analyzing_a_single_default_ancillary_store : given.a_marten_st
 
     void Because() => _contribution = Analyze(ProjectFor(Source));
 
-    [Fact] void should_report_only_one_located_information_note() => (_contribution.Diagnostics.Count, _contribution.Diagnostics.Single().Source!.Path, _contribution.Diagnostics.Single().Source!.StartLine).ShouldEqual((1, "StoreScope/Configuration.cs", 8));
+    [Fact] void should_report_only_one_located_information_note() => (_contribution.Diagnostics.Count, _contribution.Diagnostics.Single().Source.Path, _contribution.Diagnostics.Single().Source.StartLine).ShouldEqual((1, "StoreScope/Configuration.cs", 8));
     [Fact] void should_use_the_reserved_scope_code_without_a_warning() => (_contribution.Diagnostics.Single().Code, _contribution.Diagnostics.Single().Severity, _contribution.Diagnostics.Single().Outcome).ShouldEqual((MartenDiagnosticCodes.StoreScopeNotRepresented, GenerationDiagnosticSeverity.Information, GenerationDiagnosticOutcome.Unsupported));
     [Fact] void should_not_invent_a_collision() => _contribution.Diagnostics.Single().Message.ShouldNotContain("Multiple ancillary stores");
     [Fact] void should_leave_single_store_facts_unchanged() => _contribution.Facts.ShouldBeEmpty();

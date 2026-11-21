@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.Operations;
 
 namespace Cratis.CritterStack.Screenplay.Wolverine;
 
-static partial class WolverinePolicyDiscovery
+internal static partial class WolverinePolicyDiscovery
 {
     public static IReadOnlyList<WolverineMiddlewareApplication> MiddlewareFor(
         IMethodSymbol handler,

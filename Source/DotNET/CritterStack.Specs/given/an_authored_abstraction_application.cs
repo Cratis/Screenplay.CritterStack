@@ -84,7 +84,7 @@ public class an_authored_abstraction_application : Specification
 
     protected static GeneratedScreenplayDefinition GenerateFrom(IEnumerable<DotNetProjectCompilation> projects, bool follow) =>
         new CritterStackScreenplayGenerator().Generate(
-            projects.ToArray(),
+            [.. projects],
             new CritterStackScreenplayOptions { Domain = "Authored", FollowAuthoredAbstractions = follow });
 
     protected IReadOnlyList<DotNetProjectCompilation> CreateProjects(string root = "/workspace")
@@ -131,7 +131,7 @@ public class an_authored_abstraction_application : Specification
         {
             Name = name,
             Compilation = compilation,
-            AuthoredSyntaxTrees = generated ? new HashSet<SyntaxTree>() : trees.ToHashSet<SyntaxTree>(),
+            AuthoredSyntaxTrees = generated ? new HashSet<SyntaxTree>() : [.. trees],
             SourceContext = DotNetSourcePaths.Create(
                 name,
                 new DotNetSourcePathPolicy

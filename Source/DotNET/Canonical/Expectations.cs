@@ -93,7 +93,7 @@ sealed record Expectation(ExpectationKind Kind, string Value)
 
     static ResolvedArtifact? ArtifactIn(GeneratedScreenplayDefinition result, string value) =>
         ArtifactReference.TryParse(value, out var reference)
-            ? result.Graph.Artifacts.FirstOrDefault(_ => reference.Matches(_))
+            ? result.Graph.Artifacts.FirstOrDefault(reference.Matches)
             : null;
 
     static bool IsRelationshipIn(GeneratedScreenplayDefinition result, string value)

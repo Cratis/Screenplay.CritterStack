@@ -11,7 +11,7 @@ static class WolverineNaturalKeyDiscovery
     public static void AddDiagnostics(WolverineFactScope scope, INamedTypeSymbol aggregate)
     {
         var subject = scope.Subjects.SubjectForType(scope.Project, aggregate);
-        if (scope.Diagnostics.Where(IsNaturalKeyDiagnostic).Any(diagnostic => diagnostic.Subject == subject))
+        if (scope.Diagnostics.Any(diagnostic => IsNaturalKeyDiagnostic(diagnostic) && diagnostic.Subject == subject))
         {
             return;
         }

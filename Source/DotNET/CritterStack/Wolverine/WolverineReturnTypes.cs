@@ -96,8 +96,8 @@ static class WolverineReturnTypes
         }
 
         var declaration = expression.FirstAncestorOrSelf<MethodDeclarationSyntax>();
-        if (declaration is null || declaration.DescendantNodes().OfType<AssignmentExpressionSyntax>()
-            .Any(_ => SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(_.Left).Symbol, local)) ||
+        if (declaration?.DescendantNodes().OfType<AssignmentExpressionSyntax>()
+            .Any(_ => SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(_.Left).Symbol, local)) != false ||
             declaration.DescendantNodes().OfType<ArgumentSyntax>()
                 .Any(_ => _.RefKindKeyword.RawKind != 0 && SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(_.Expression).Symbol, local)))
         {

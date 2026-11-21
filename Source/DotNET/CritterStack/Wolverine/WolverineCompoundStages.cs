@@ -14,7 +14,7 @@ sealed record WolverineCompoundStage(IMethodSymbol Method, string StageKind, Sou
     public bool IsFailurePath => string.Equals(StageKind, OnException, StringComparison.Ordinal);
 }
 
-static partial class WolverineCompoundStages
+internal static partial class WolverineCompoundStages
 {
     static readonly HashSet<string> _handlerMethodNames =
     [

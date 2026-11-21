@@ -21,5 +21,5 @@ public class when_analyzing_marten_evolve_overrides : given.a_marten_evolve_appl
     [Fact] void should_ignore_typed_plain_hiding_private_and_unrelated_evolve_members() => Events.ShouldNotContain("NotAnEvent");
     [Fact] void should_ignore_the_lambda_delete_overload() => Events.ShouldNotContain("IgnoredLambda");
     [Fact] void should_keep_direct_and_fluent_constructor_delete_registrations_as_consumed_events() => _contribution.Facts.OfType<RelationshipFact>().Count(_ => _.Definition.Key.Kind == RelationshipKind.Consumes).ShouldEqual(5);
-    [Fact] void should_use_compilable_upstream_signatures() => Project.Compilation.GetDiagnostics().Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_use_compilable_upstream_signatures() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
 }

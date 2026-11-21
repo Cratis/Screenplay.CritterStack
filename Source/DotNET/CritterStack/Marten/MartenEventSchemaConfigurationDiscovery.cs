@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.CritterStack.Screenplay.Marten;
 
-sealed partial class MartenEventSchemaConfigurationDiscovery(
+internal sealed partial class MartenEventSchemaConfigurationDiscovery(
     DotNetProjectCompilation project,
     CritterStackSubjectResolver subjects,
     SemanticModel semanticModel,

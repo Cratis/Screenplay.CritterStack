@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.CritterStack.Screenplay.Marten;
 
-sealed partial class MartenEventSchemaConfigurationDiscovery
+internal sealed partial class MartenEventSchemaConfigurationDiscovery
 {
     static readonly HashSet<string> _eventAppendModes = ["Quick", "QuickWithServerTimestamps", "Rich"];
     static readonly HashSet<string> _streamIdentities = ["AsGuid", "AsString"];

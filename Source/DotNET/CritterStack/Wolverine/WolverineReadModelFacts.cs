@@ -129,7 +129,7 @@ internal static partial class WolverineFacts
         }
 
         var source = WolverineReadModelParameters.SourceOf(attribute, scope.Project);
-        if (scope.Diagnostics.Where(diagnostic => diagnostic.Code == WolverineDiagnosticCodes.StreamVersionOmitted).Any(diagnostic => diagnostic.Source == source))
+        if (scope.Diagnostics.Exists(diagnostic => diagnostic.Code == WolverineDiagnosticCodes.StreamVersionOmitted && diagnostic.Source == source))
         {
             return;
         }
@@ -160,7 +160,7 @@ internal static partial class WolverineFacts
             }
 
             var source = WolverineReadModelParameters.SourceOf(attribute, scope.Project);
-            if (scope.Diagnostics.Any(diagnostic => diagnostic.Code == WolverineDiagnosticCodes.DcbBoundaryOmitted && diagnostic.Source == source))
+            if (scope.Diagnostics.Exists(diagnostic => diagnostic.Code == WolverineDiagnosticCodes.DcbBoundaryOmitted && diagnostic.Source == source))
             {
                 continue;
             }

@@ -37,8 +37,8 @@ public class when_analyzing_marten_composite_projection : given.a_marten_store_s
     [Fact] void should_report_only_the_real_composite_registration() => _contribution.Diagnostics.Count.ShouldEqual(1);
     [Fact] void should_use_the_reserved_composite_code() => _contribution.Diagnostics.Single().Code.ShouldEqual(MartenDiagnosticCodes.CompositeProjectionOmitted);
     [Fact] void should_report_a_warning_for_unsupported_processing() => (_contribution.Diagnostics.Single().Severity, _contribution.Diagnostics.Single().Outcome).ShouldEqual((GenerationDiagnosticSeverity.Warning, GenerationDiagnosticOutcome.Unsupported));
-    [Fact] void should_locate_the_registration() => (_contribution.Diagnostics.Single().Source!.Path, _contribution.Diagnostics.Single().Source!.StartLine).ShouldEqual(("StoreScope/Configuration.cs", 9));
+    [Fact] void should_locate_the_registration() => (_contribution.Diagnostics.Single().Source.Path, _contribution.Diagnostics.Single().Source.StartLine).ShouldEqual(("StoreScope/Configuration.cs", 9));
     [Fact] void should_list_both_constituent_types() => _contribution.Diagnostics.Single().Message.ShouldContain("StoreScope.First, StoreScope.Second");
     [Fact] void should_not_invent_subprojection_facts_or_ordering() => _contribution.Facts.ShouldBeEmpty();
-    [Fact] void should_use_compilable_registration_signatures() => ProjectFor(Source).Compilation.GetDiagnostics().Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_use_compilable_registration_signatures() => ProjectFor(Source).Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
 }

@@ -51,7 +51,7 @@ static class MartenStoreScopeDiscovery
         var assignments = invocation.DescendantNodes().OfType<AssignmentExpressionSyntax>()
             .Where(_ => IsModelName(_.Left, semanticModel)).ToArray();
         return assignments.Length == 0 || assignments.Any(_ => semanticModel.GetConstantValue(_.Right) is
-            { HasValue: true, Value: null or "EventModel" });
+        { HasValue: true, Value: null or "EventModel" });
     }
 
     static INamedTypeSymbol? SelectedStoreType(AttributeSyntax attribute, SemanticModel semanticModel) =>

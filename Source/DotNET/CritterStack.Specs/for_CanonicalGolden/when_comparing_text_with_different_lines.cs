@@ -11,6 +11,7 @@ public class when_comparing_text_with_different_lines : Specification
 
     void Because() => _difference = CanonicalGolden.FirstDifference("domain Kitchen\nmodule Sales\nevent Old\n", "domain Kitchen\nmodule Orders\nevent New\n");
 
-    [Fact] void should_report_only_the_first_difference_with_a_one_based_line_number() =>
+    [Fact]
+    void should_report_only_the_first_difference_with_a_one_based_line_number() =>
         _difference.ShouldEqual("line 2: expected 'module Sales' but generated 'module Orders'");
 }

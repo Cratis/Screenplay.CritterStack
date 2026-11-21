@@ -19,5 +19,5 @@ public class when_authored_repository_implementations_disagree : given.an_author
 
     [Fact] void should_report_unknown_dispatch_without_invented_persistence() => ShouldRejectWithoutPersistence();
     [Fact] void should_name_the_unresolved_abstraction() => Unresolved.Single().Message.ShouldContain("IRepository");
-    [Fact] void should_locate_the_unresolved_call() => Unresolved.Single().Source!.Path.ShouldEqual("Application/Source0.cs");
+    [Fact] void should_locate_the_unresolved_call() => Unresolved.Single().Source.Path.ShouldEqual("Application/Source0.cs");
 }

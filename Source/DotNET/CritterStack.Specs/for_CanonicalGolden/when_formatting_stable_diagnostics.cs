@@ -36,6 +36,7 @@ public class when_formatting_stable_diagnostics : Specification
 
     void Because() => _formatted = CanonicalGolden.StableDiagnostics(_diagnostics, _sourceRoot);
 
-    [Fact] void should_sort_and_preserve_display_paths_and_replace_checkout_paths_in_messages() =>
+    [Fact]
+    void should_sort_and_preserve_display_paths_and_replace_checkout_paths_in_messages() =>
         _formatted.ShouldEqual("A001 Error Conflict | src/First.cs | Failed at <workspace>/src/First.cs\nZ002 Warning Unsupported | src/Last.cs | Other <workspace>/src/Last.cs\n");
 }

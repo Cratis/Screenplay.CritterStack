@@ -31,8 +31,8 @@ public class when_analyzing_marten_flat_table_projection : given.a_marten_store_
     [Fact] void should_report_both_real_registration_forms_only() => _contribution.Diagnostics.Count.ShouldEqual(2);
     [Fact] void should_use_the_reserved_flat_table_code() => _contribution.Diagnostics.All(_ => _.Code == MartenDiagnosticCodes.FlatTableProjectionOmitted).ShouldBeTrue();
     [Fact] void should_report_unsupported_processing_as_warnings() => _contribution.Diagnostics.All(_ => _.Severity == GenerationDiagnosticSeverity.Warning && _.Outcome == GenerationDiagnosticOutcome.Unsupported).ShouldBeTrue();
-    [Fact] void should_locate_each_registration() => _contribution.Diagnostics.Select(_ => (_.Source!.Path, _.Source!.StartLine)).ShouldContainOnly(("StoreScope/Configuration.cs", 11), ("StoreScope/Configuration.cs", 12));
+    [Fact] void should_locate_each_registration() => _contribution.Diagnostics.Select(_ => (_.Source.Path, _.Source.StartLine)).ShouldContainOnly(("StoreScope/Configuration.cs", 11), ("StoreScope/Configuration.cs", 12));
     [Fact] void should_name_the_projection_type() => _contribution.Diagnostics.All(_ => _.Message.Contains("StoreScope.TableProjection", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_not_invent_flat_table_state_or_relationships() => _contribution.Facts.ShouldBeEmpty();
-    [Fact] void should_use_compilable_registration_signatures() => ProjectFor(Source).Compilation.GetDiagnostics().Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_use_compilable_registration_signatures() => ProjectFor(Source).Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
 }

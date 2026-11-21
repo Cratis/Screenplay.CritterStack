@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis;
 
 namespace Cratis.CritterStack.Screenplay.Wolverine;
 
-static partial class WolverineCompoundStages
+internal static partial class WolverineCompoundStages
 {
     static bool IsException(ITypeSymbol type)
     {

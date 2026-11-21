@@ -92,8 +92,11 @@ public class an_event_forwarding_application : Specification
             references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
         Project = new()
         {
-            Name = "Forwarding", ProjectPath = "/workspace/Forwarding/Forwarding.csproj", SourceRoot = "/workspace",
-            Compilation = compilation, AuthoredSyntaxTrees = compilation.SyntaxTrees.ToHashSet()
+            Name = "Forwarding",
+            ProjectPath = "/workspace/Forwarding/Forwarding.csproj",
+            SourceRoot = "/workspace",
+            Compilation = compilation,
+            AuthoredSyntaxTrees = compilation.SyntaxTrees.ToHashSet()
         };
         Contribution = new CritterStackScreenplayAdapter().Analyze(new([Project]), new());
     }

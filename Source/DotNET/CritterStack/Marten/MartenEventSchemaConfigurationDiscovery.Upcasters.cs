@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.CritterStack.Screenplay.Marten;
 
-sealed partial class MartenEventSchemaConfigurationDiscovery
+internal sealed partial class MartenEventSchemaConfigurationDiscovery
 {
     const string UpcastConfigurationNote = ". This authored declaration is retained as diagnostic evidence only; it does not originate Event or Upcast artifacts or infer behavioral relationships, and runtime execution, reachability, ordering, or precedence is not asserted";
 

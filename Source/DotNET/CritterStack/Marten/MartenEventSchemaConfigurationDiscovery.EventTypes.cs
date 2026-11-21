@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.CritterStack.Screenplay.Marten;
 
-sealed partial class MartenEventSchemaConfigurationDiscovery
+internal sealed partial class MartenEventSchemaConfigurationDiscovery
 {
     const string EventConfigurationNote = ". This authored declaration is retained as diagnostic evidence only; it does not rename, version, originate, or duplicate a Screenplay Event artifact, and runtime execution or precedence is not asserted";
 

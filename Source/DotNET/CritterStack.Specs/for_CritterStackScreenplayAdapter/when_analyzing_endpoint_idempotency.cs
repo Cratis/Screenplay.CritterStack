@@ -49,7 +49,7 @@ public class when_analyzing_endpoint_idempotency : given.a_wolverine_attribute_m
     [Fact] void should_report_all_three_unrepresented_policies() => Policies.Count.ShouldEqual(3);
     [Fact] void should_anchor_each_policy_to_its_attribute() => Policies.Select(_ => _.Source.StartLine).ShouldContainOnly(4, 8, 9);
     [Fact] void should_classify_policy_losses_as_unsupported_warnings() => Policies.ShouldEachConformTo(_ => _.Severity == GenerationDiagnosticSeverity.Warning && _.Outcome == GenerationDiagnosticOutcome.Unsupported);
-    [Fact] void should_name_each_policy() => _policies.ShouldEachConformTo(policy => Policies.Any(_ => _.Message.Contains(policy.Split('.').Last() + "Attribute", StringComparison.Ordinal)));
+    [Fact] void should_name_each_policy() => _policies.ShouldEachConformTo(policy => Policies.Any(_ => _.Message.Contains(policy.Split('.')[^1] + "Attribute", StringComparison.Ordinal)));
     [Fact] void should_leave_all_endpoint_facts_byte_identical() => SerializedFacts(_contribution).ShouldEqual(SerializedFacts(_withoutPolicies));
     [Fact] void should_not_match_same_named_lookalike_attributes() => _withoutPolicies.Diagnostics.Where(_ => _.Code == WolverineDiagnosticCodes.EndpointIdempotencyOmitted).ShouldBeEmpty();
     [Fact] void should_not_duplicate_command_execution() => _contribution.Facts.OfType<ArtifactFact>().Count(_ => _.Definition.Key.Kind == ArtifactKind.Command).ShouldEqual(1);

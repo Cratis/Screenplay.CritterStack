@@ -68,27 +68,34 @@ public class when_generating_consistent_aggregate_attributes : given.a_read_mode
 
     void Because() => Generate();
 
-    [Fact] void should_keep_the_authored_input_compilable() =>
+    [Fact]
+    void should_keep_the_authored_input_compilable() =>
         Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeFalse();
 
-    [Fact] void should_recognize_class_method_parameter_http_and_derived_forms() =>
+    [Fact]
+    void should_recognize_class_method_parameter_http_and_derived_forms() =>
         Contribution.Facts.OfType<ArtifactFact>().Where(fact => fact.Definition.Key.Kind == ArtifactKind.Command)
             .Select(fact => fact.Definition.Name).ShouldContainOnly(["ChangeClass", "ChangeMethod", "ChangePlain", "ChangeHttp", "ChangeDerived", "ChangeDisabled"]);
 
-    [Fact] void should_keep_the_existing_persisted_event_semantics() =>
+    [Fact]
+    void should_keep_the_existing_persisted_event_semantics() =>
         Contribution.Facts.OfType<ArtifactFact>().Where(fact => fact.Definition.Key.Kind == ArtifactKind.Event)
             .Select(fact => fact.Definition.Name).ShouldContainOnly(["ClassChanged", "MethodChanged", "PlainChanged", "HttpChanged", "DerivedChanged", "DisabledChanged"]);
 
-    [Fact] void should_report_each_unrepresentable_consistency_source() =>
+    [Fact]
+    void should_report_each_unrepresentable_consistency_source() =>
         ConsistencyDiagnostics().Count().ShouldEqual(5);
 
-    [Fact] void should_locate_consistency_diagnostics_in_authored_source() =>
+    [Fact]
+    void should_locate_consistency_diagnostics_in_authored_source() =>
         ConsistencyDiagnostics().All(diagnostic => diagnostic.Source?.Path == "Aggregates/Handlers.cs").ShouldBeTrue();
 
-    [Fact] void should_report_consistency_as_information_not_a_concurrency_fact() =>
+    [Fact]
+    void should_report_consistency_as_information_not_a_concurrency_fact() =>
         ConsistencyDiagnostics().All(diagnostic => diagnostic.Severity == GenerationDiagnosticSeverity.Information).ShouldBeTrue();
 
-    [Fact] void should_retain_the_explicit_version_diagnostic() =>
+    [Fact]
+    void should_retain_the_explicit_version_diagnostic() =>
         ConsistencyDiagnostics().Any(diagnostic => diagnostic.Source?.StartLine == 6).ShouldBeTrue();
 
     IEnumerable<GenerationDiagnostic> ConsistencyDiagnostics() => Contribution.Diagnostics

@@ -4,6 +4,4 @@
 namespace Cratis.CritterStack.Screenplay.for_CanonicalGolden.given;
 
 [CollectionDefinition("Canonical golden environment", DisableParallelization = true)]
-public class canonical_golden_environment
-{
-}
+public class canonical_golden_environment;

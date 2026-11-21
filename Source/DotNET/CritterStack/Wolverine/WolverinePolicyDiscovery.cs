@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis;
 
 namespace Cratis.CritterStack.Screenplay.Wolverine;
 
-static partial class WolverinePolicyDiscovery
+internal static partial class WolverinePolicyDiscovery
 {
     static readonly HashSet<string> _endpointPolicies =
     [
@@ -23,8 +23,7 @@ static partial class WolverinePolicyDiscovery
         var diagnostics = new List<GenerationDiagnostic>();
         foreach (var type in new DotNetArtifactCatalog(project.Compilation).Types.Where(_ => IsAuthored(_, project)))
         {
-            var owners = new ISymbol[] { type }.Concat(type.GetMembers().OfType<IMethodSymbol>());
-            foreach (var owner in owners)
+            foreach (var owner in new ISymbol[] { type }.Concat(type.GetMembers().OfType<IMethodSymbol>()))
             {
                 AddPolicyDiagnostics(project, subjects.SubjectForType(project, type), owner, diagnostics);
                 AddMiddlewareAttributeDiagnostics(project, subjects.SubjectForType(project, type), owner, diagnostics);

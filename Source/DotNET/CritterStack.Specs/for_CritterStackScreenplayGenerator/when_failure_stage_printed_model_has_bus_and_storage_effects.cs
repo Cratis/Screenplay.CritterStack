@@ -50,7 +50,7 @@ public class when_failure_stage_printed_model_has_bus_and_storage_effects : give
     [Fact] void should_not_print_failure_only_documents() => _result.Source.ShouldNotContain("FailureDocument");
     [Fact] void should_not_print_failure_only_events() => _result.Source.ShouldNotContain("FailureAppended");
     [Fact] void should_not_emit_failure_storage_or_production_facts() => _contribution.Facts.OfType<RelationshipFact>().Where(_ => _.Definition.Key.Kind is RelationshipKind.Stores or RelationshipKind.Produces or RelationshipKind.Appends).ShouldBeEmpty();
-    [Fact] void should_not_emit_failure_cascades() => _contribution.Facts.OfType<RelationshipFact>().Where(_ => _.Definition.Key.Kind == RelationshipKind.Cascades).Count().ShouldEqual(1);
+    [Fact] void should_not_emit_failure_cascades() => _contribution.Facts.OfType<RelationshipFact>().Count(_ => _.Definition.Key.Kind == RelationshipKind.Cascades).ShouldEqual(1);
     [Fact] void should_name_the_failure_only_returned_message() => FailureDiagnostic.Message.ShouldContain("'FailureReturned'");
     [Fact] void should_name_the_failure_only_sent_message() => FailureDiagnostic.Message.ShouldContain("'FailureSent'");
     [Fact] void should_name_the_failure_only_published_message() => FailureDiagnostic.Message.ShouldContain("'FailurePublished'");

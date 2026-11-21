@@ -101,13 +101,13 @@ internal static partial class WolverineFacts
         string? discriminator = null,
         bool isCollection = false,
         bool isOptional = false) => Relationship(new WolverineRelationshipFact(id, source, kind, target, evidence)
-    {
-        SourceMember = sourceMember,
-        TargetMember = targetMember,
-        Discriminator = discriminator,
-        IsCollection = isCollection,
-        IsOptional = isOptional
-    });
+        {
+            SourceMember = sourceMember,
+            TargetMember = targetMember,
+            Discriminator = discriminator,
+            IsCollection = isCollection,
+            IsOptional = isOptional
+        });
 
     static RelationshipFact Relationship(WolverineRelationshipFact relationship) => new()
     {

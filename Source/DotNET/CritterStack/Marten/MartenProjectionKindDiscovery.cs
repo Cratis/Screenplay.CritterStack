@@ -54,9 +54,8 @@ static class MartenProjectionKindDiscovery
             return type;
         }
 
-        var argument = (semanticModel.GetOperation(invocation) as IInvocationOperation)?.Arguments
-            .FirstOrDefault(_ => _.Parameter?.Ordinal == 0)?.Syntax as ArgumentSyntax;
-        return argument is null ? null : semanticModel.GetTypeInfo(argument.Expression).Type as INamedTypeSymbol;
+        return (semanticModel.GetOperation(invocation) as IInvocationOperation)?.Arguments
+            .FirstOrDefault(_ => _.Parameter?.Ordinal == 0)?.Syntax is not ArgumentSyntax argument ? null : semanticModel.GetTypeInfo(argument.Expression).Type as INamedTypeSymbol;
     }
 
     static IReadOnlyList<string> ConstituentTypes(InvocationExpressionSyntax invocation, SemanticModel semanticModel)
@@ -79,7 +78,7 @@ static class MartenProjectionKindDiscovery
         Code = kind == "composite" ? MartenDiagnosticCodes.CompositeProjectionOmitted : MartenDiagnosticCodes.FlatTableProjectionOmitted,
         Severity = GenerationDiagnosticSeverity.Warning,
         Outcome = GenerationDiagnosticOutcome.Unsupported,
-        Message = $"Marten registers an opaque {kind} projection{(constituents.Count == 0 ? "" : $" involving {string.Join(", ", constituents)}")}; no reducer, read-model, event relationship, or subprojection ordering was inferred from this registration",
+        Message = $"Marten registers an opaque {kind} projection{(constituents.Count == 0 ? string.Empty : $" involving {string.Join(", ", constituents)}")}; no reducer, read-model, event relationship, or subprojection ordering was inferred from this registration",
         Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
         Subject = new SubjectId { Value = $"dotnet:project/{project.Name}" }
     };
