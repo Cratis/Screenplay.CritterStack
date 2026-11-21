@@ -57,20 +57,33 @@ static void AssertSourceRange(Microsoft.CodeAnalysis.SyntaxTree syntaxTree)
 
 static void AssertDependencyGraph()
 {
+    var screenplayVersion = ExpectedVersion("EXPECTED_SCREENPLAY");
+    var generationVersion = ExpectedVersion("EXPECTED_GENERATION");
     var dependencyFile = Path.Combine(AppContext.BaseDirectory, "PackageConsumer.deps.json");
     using var document = JsonDocument.Parse(File.ReadAllText(dependencyFile));
     var libraries = document.RootElement.GetProperty("libraries");
 
-    AssertPackage(libraries, "Cratis.Screenplay/6.32.0");
-    AssertPackage(libraries, "Cratis.Screenplay.Generation.Contracts/0.21.2");
-    AssertPackage(libraries, "Cratis.Screenplay.Generation/0.21.2");
-    AssertPackage(libraries, "Cratis.Screenplay.Generation.DotNet/0.21.2");
-    AssertPackage(libraries, "Cratis.Screenplay.Generation.DotNet.Vogen/0.21.2");
+    AssertPackage(libraries, $"Cratis.Screenplay/{screenplayVersion}");
+    AssertPackage(libraries, $"Cratis.Screenplay.Generation.Contracts/{generationVersion}");
+    AssertPackage(libraries, $"Cratis.Screenplay.Generation/{generationVersion}");
+    AssertPackage(libraries, $"Cratis.Screenplay.Generation.DotNet/{generationVersion}");
+    AssertPackage(libraries, $"Cratis.Screenplay.Generation.DotNet.Vogen/{generationVersion}");
 
     if (libraries.EnumerateObject().Any(_ => _.Name.StartsWith("Vogen/", StringComparison.Ordinal)))
     {
         throw new InvalidOperationException("The generator facade must not bring the Vogen source-generator/runtime package into consumers");
     }
+}
+
+static string ExpectedVersion(string variable)
+{
+    var version = Environment.GetEnvironmentVariable(variable);
+    if (string.IsNullOrWhiteSpace(version))
+    {
+        throw new InvalidOperationException($"The clean consumer requires environment variable '{variable}' from Directory.Packages.props");
+    }
+
+    return version;
 }
 
 static void AssertPackage(JsonElement libraries, string package)
