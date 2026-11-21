@@ -28,7 +28,7 @@ internal static partial class WolverineFacts
             Batched = request!.Type is IArrayTypeSymbol,
             Shape = DiscoverStateChangeShape(method, request, requestType, scope, isHttpEndpoint: false)
         };
-        var compoundStages = WolverineCompoundStages.StagesFor(method, requestType, scope.Project);
+        var compoundStages = WolverineCompoundStages.StagesFor(method, requestType, scope);
         if (HasNoPersistenceEffects(handler.Shape, scope.Project))
         {
             AnalyzeNonPersistingHandler(scope, handler, compoundStages, validationAuthorization);
@@ -154,7 +154,7 @@ internal static partial class WolverineFacts
             key,
             handler.RequestType.Name,
             evidence.Source?.Path,
-            CommandProperties(handler.RequestType, shape.AggregateType, shape.ParameterBindings, shape.FetchedBindings.Count > 0, LinkedStreamIdentity(productions)),
+            CommandProperties(handler.RequestType, shape, productions),
             evidence));
         scope.Placements.Add(new(
             $"wolverine:placement:command:{commandSubject.Value}",

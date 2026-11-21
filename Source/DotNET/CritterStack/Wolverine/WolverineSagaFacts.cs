@@ -226,29 +226,29 @@ static class WolverineSagaFacts
     static void AddConsequenceFacts(WolverineSagaFactScope scope, WolverineSagaRoleScope roleScope)
     {
         var project = scope.Project;
-        var subjects = scope.Subjects;
-        var facts = scope.Facts;
         var diagnostics = scope.Diagnostics;
         var method = roleScope.Role.Method;
-        var handlerSubject = roleScope.HandlerSubject;
-        var roleEvidence = roleScope.RoleEvidence;
+        var emission = new WolverineSagaEmissionContext
+        {
+            Project = project,
+            Subjects = scope.Subjects,
+            SourceSubject = roleScope.HandlerSubject,
+            Evidence = roleScope.RoleEvidence,
+            Facts = scope.Facts
+        };
         var returnConsequences = WolverineReturnConsequences.Classify(
             method,
             project,
             isHttpEndpoint: false,
             aggregateWorkflow: false,
             hasEventStream: false);
-        WolverineFacts.AddSagaReturnConsequences(project, subjects, handlerSubject, returnConsequences, roleEvidence, facts);
+        WolverineFacts.AddSagaReturnConsequences(emission, returnConsequences);
         WolverineFacts.AddSagaOutgoingMessages(
-            project,
-            subjects,
-            handlerSubject,
+            emission,
             method,
             WolverineFacts.DiscoverSagaOutgoingMessages(method, project),
-            roleEvidence,
-            facts,
             diagnostics);
-        WolverineFacts.AddSagaDirectBusConsequences(project, subjects, handlerSubject, method, roleEvidence, facts, diagnostics);
+        WolverineFacts.AddSagaDirectBusConsequences(emission, method, diagnostics);
         AddTimeoutDiagnostics(diagnostics, roleScope, returnConsequences);
     }
 

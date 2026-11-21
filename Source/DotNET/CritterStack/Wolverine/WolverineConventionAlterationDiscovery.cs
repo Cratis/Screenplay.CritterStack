@@ -12,12 +12,13 @@ static class WolverineConventionAlterationDiscovery
 {
     public static IReadOnlyList<GenerationDiagnostic> Discover(
         DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects)
+        CritterStackSubjectResolver subjects,
+        WolverineMiddlewareRegistrations registrations)
     {
         List<GenerationDiagnostic> diagnostics = [];
         diagnostics.AddRange(AlterationTypeDiagnostics(project, subjects));
         diagnostics.AddRange(MessageDiscoveryCustomizationDiagnostics(project, subjects));
-        diagnostics.AddRange(WolverinePolicyDiscovery.Discover(project, subjects));
+        diagnostics.AddRange(WolverinePolicyDiscovery.Discover(project, subjects, registrations));
 
         return
         [

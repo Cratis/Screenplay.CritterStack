@@ -12,11 +12,12 @@ static class WolverineHandlerDiscovery
 {
     public static WolverineHandlerDiscoveryResult Discover(
         DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects)
+        CritterStackSubjectResolver subjects,
+        WolverineMiddlewareRegistrations registrations)
     {
         ConfigurationCall[] calls = [.. ConfigurationCalls(project)];
         var state = new DiscoveryState(project, subjects);
-        state.Diagnostics.AddRange(WolverineConventionAlterationDiscovery.Discover(project, subjects));
+        state.Diagnostics.AddRange(WolverineConventionAlterationDiscovery.Discover(project, subjects, registrations));
 
         foreach (var call in calls)
         {

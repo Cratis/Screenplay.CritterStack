@@ -18,7 +18,8 @@ internal static partial class WolverinePolicyDiscovery
 
     public static IReadOnlyList<GenerationDiagnostic> Discover(
         DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects)
+        CritterStackSubjectResolver subjects,
+        WolverineMiddlewareRegistrations registrations)
     {
         var diagnostics = new List<GenerationDiagnostic>();
         foreach (var type in new DotNetArtifactCatalog(project.Compilation).Types.Where(_ => IsAuthored(_, project)))
@@ -30,7 +31,7 @@ internal static partial class WolverinePolicyDiscovery
             }
         }
 
-        foreach (var registration in Registrations(project).Where(_ => !_.IsResolved))
+        foreach (var registration in registrations.Unresolved)
         {
             diagnostics.Add(Unresolved(
                 registration.Source,
@@ -118,7 +119,7 @@ internal static partial class WolverinePolicyDiscovery
     {
         var values = MiddlewareValues(attribute).ToArray();
         var scoping = attribute.NamedArguments.FirstOrDefault(_ => _.Key == "Scoping").Value.Value;
-        return scoping is null or 0 or 1 or 2 && values.Length > 0 &&
+        return scoping is null or 0 or 1 or 2 or 3 && values.Length > 0 &&
             values.All(_ => _.Value is INamedTypeSymbol type && IsMiddlewareType(type, project));
     }
 
