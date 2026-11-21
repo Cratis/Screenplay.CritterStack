@@ -82,6 +82,8 @@ Composite and flat-table registrations remain opaque. `MARTEN0018` and `MARTEN00
 
 Current and legacy consistency inheritance is retained, including HTTP and derived `ConsistentAggregate` forms. Always-enforced consistency defaults are recognized. `WOLVERINE0003` reports the unrepresented consistency semantics; explicit `VersionSource` evidence remains located at the command member. Plain `ConsistentAggregate` parameters and class/method `ConsistentAggregateHandler` declarations receive Information/Unsupported diagnostics for their consistency-only behavior. An explicit `AlwaysEnforceConsistency = false` suppresses that consistency-only diagnostic, not independently applicable diagnostics.
 
+An authored `JasperFx.Events.Aggregation.BoundaryAggregateAttribute` on the type of an otherwise unrecognized handler parameter produces `WOLVERINE0014` (Information/Unsupported), located at the marker and deduplicated by that source location. The marker alone creates no Aggregate, Reads, Appends or Produces facts and establishes no stream identity. Recognized DCB, read-model and writable-aggregate workflows retain their existing handling; same-name unrelated attributes and generated markers do not qualify.
+
 Each authored property-level `JasperFx.Events.Aggregation.NaturalKeyAttribute` on an already recognized aggregate produces one `WOLVERINE0030` diagnostic, deduplicated across handlers. Existing surrogate-id handling stays intact; a natural key does not establish a stream identity.
 
 Returned, symbol-bound `Wolverine.Marten.MartenOps` factories refine generic `IMartenOp` side effects as follows:
@@ -95,6 +97,16 @@ Returned, symbol-bound `Wolverine.Marten.MartenOps` factories refine generic `IM
 | `StartStream` | Aggregate and StartsStream evidence; existing event discovery handles inline payloads. |
 
 Classification is per return slot, including task/value-task unwrapping, direct tuples, `Task.FromResult` tuples and unchanged local factory results. Every return path for a slot must resolve to the same factory and model type. Tenant overloads use the generic model type, not the tenant argument, and do not introduce tenant scope. `StoreObjects`, `DeleteWhere`, custom factories, mutated or unresolved values, and interprocedural factory following are not refined. Operation wrappers never become cascading domain messages. StartsStream is a Generation relationship, not new executable Screenplay syntax.
+
+### Opt-in authored persistence abstractions
+
+Set `CritterStackScreenplayOptions.FollowAuthoredAbstractions` to `true` when the host supplies the selected projects' compilations and authored source locations and needs to follow persistence behind repository or helper calls. The option defaults to `false`. Leaving it off preserves direct framework recognition without following those abstractions or issuing `WOLVERINE0029` for them. This is selected-source analysis, not dependency-injection container execution or runtime plugin discovery.
+
+With the option enabled, authored helpers and interface, abstract or virtual dispatch can contribute persistence evidence only when the complete visible implementation set is available and every implementation agrees on the event, stream and conditional consequences. Exact closed invariant generic repository dispatch is supported, including unconstrained generic implementations constructed from the contract arguments. Same-name unrelated interfaces and overloads are not combined. Call-site, implementation-declaration, nested-call and append locations remain attached to successful production evidence.
+
+`WOLVERINE0029` (`AuthoredAbstractionUnresolved`, Warning/Unknown) names and locates an unresolved call. Missing, generated or external bodies, unselected implementation scopes, unavailable call or implementation locations, conflicting alternatives, unsupported argument binding, recursion and traversal limits prevent inference. An implementation that does not persist cannot be ignored when another implementation does. Traversal is limited to eight authored calls in depth and a shared budget of 128 implementation expansions per handler. A failed traversal discards all partial authored production for that handler; direct framework evidence is unchanged.
+
+Generic methods, open/variant/constrained generic dispatch, reduced extension methods, ref/out arguments and reassigned forwarded values are not guessed. Local aliases do not establish stream identity. An external dependency referencing a selected contract makes dispatch incomplete even if a selected implementation is visible. Conditional calls or unproven stream identity retain the existing `WOLVERINE0025` and imperative handler-reference behavior rather than becoming unconditional declarative production. The pinned sample coverage does not establish general support for application-specific repository abstractions; enable the option only with review of the resulting candidate and diagnostics.
 
 ### Middleware, forwarding and response policies
 
@@ -120,10 +132,12 @@ These entries describe the cases above, not every use of a diagnostic code. Revi
 | `MARTEN0020` | `StoreScopeNotRepresented` | Information / Unsupported for one unambiguous default store; Warning / Unsupported for nondefault, unknown or multiple-store scope. |
 | `WOLVERINE0003` | `StreamVersionOmitted` | Information / Unsupported for consistency-only declarations. |
 | `WOLVERINE0007` | `HandlerDiscoveryConfigurationUnresolved` | Warning / Unknown for unresolved middleware application. |
+| `WOLVERINE0014` | `DcbBoundaryOmitted` | Information / Unsupported for a standalone BoundaryAggregate marker; the marker alone contributes no aggregate workflow facts. |
 | `WOLVERINE0020` | `CompoundStageOmitted` | Information / Unsupported for resolved compound stages. |
 | `WOLVERINE0026` | `FailureStageConditionOmitted` | Warning / Unsupported; failure-only messages remain diagnostic-only. |
 | `WOLVERINE0027` | `EventForwardingOmitted` | Warning / Unsupported. |
 | `WOLVERINE0028` | `EndpointIdempotencyOmitted` | Warning / Unsupported. |
+| `WOLVERINE0029` | `AuthoredAbstractionUnresolved` | Warning / Unknown for unresolved authored traversal when explicitly enabled. |
 | `WOLVERINE0030` | `NaturalKeyIdentityOmitted` | Information / Unsupported, located at the property attribute. |
 | `CRITTERSTACK0005` | `EnumNumbersNotPreserved` | Warning / Unsupported; member names remain in the enumeration concept. |
 
