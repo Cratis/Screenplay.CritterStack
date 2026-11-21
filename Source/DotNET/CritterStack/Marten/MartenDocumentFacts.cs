@@ -21,7 +21,8 @@ static class MartenDocumentFacts
         AdapterIdentity adapter,
         CritterStackSubjectResolver subjects,
         IReadOnlyList<MartenDocumentUsage> projectedDocuments,
-        bool includeIntegrationApis = true)
+        bool includeIntegrationApis = true,
+        IReadOnlySet<IMethodSymbol>? failureStageMethods = null)
     {
         var state = new DiscoveryState(project, adapter, subjects, projectedDocuments);
         foreach (var tree in project.AuthoredSyntaxTrees.Where(_ => !DotNetGeneratedSource.IsGenerated(_)))
@@ -29,6 +30,11 @@ static class MartenDocumentFacts
             var semanticModel = project.Compilation.GetSemanticModel(tree);
             foreach (var invocation in DotNetSource.AuthoredInvocationsIn(tree.GetRoot(), project))
             {
+                if (IsInFailureStage(invocation, semanticModel, failureStageMethods))
+                {
+                    continue;
+                }
+
                 ObserveInvocation(state, invocation, semanticModel, includeIntegrationApis);
             }
         }
@@ -51,6 +57,32 @@ static class MartenDocumentFacts
             }));
 
         return new(state.Facts, state.Diagnostics, []);
+    }
+
+    static bool IsInFailureStage(
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel,
+        IReadOnlySet<IMethodSymbol>? failureStageMethods)
+    {
+        if (failureStageMethods is null || failureStageMethods.Count == 0)
+        {
+            return false;
+        }
+
+        for (var symbol = semanticModel.GetEnclosingSymbol(invocation.SpanStart); symbol is not null; symbol = symbol.ContainingSymbol)
+        {
+            if (symbol is not IMethodSymbol method)
+            {
+                continue;
+            }
+
+            if (failureStageMethods.Contains(method))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     static void ObserveInvocation(
@@ -100,8 +132,12 @@ static class MartenDocumentFacts
         SemanticModel semanticModel)
     {
         var kind = RelationshipKindFor(method.Name);
-        if (IsIgnoredUsage(kind, invocation, semanticModel) ||
-            (kind is null && !_configurationMethods.Contains(method.Name)))
+        if (IsIgnoredUsage(kind, invocation, semanticModel))
+        {
+            return;
+        }
+
+        if (kind is null && !_configurationMethods.Contains(method.Name))
         {
             return;
         }
@@ -238,8 +274,12 @@ static class MartenDocumentFacts
         }
 
         var expression = Unwrap(lambda.ExpressionBody);
-        if (expression is not MemberAccessExpressionSyntax memberAccess ||
-            Unwrap(memberAccess.Expression) is not IdentifierNameSyntax identifier ||
+        if (expression is not MemberAccessExpressionSyntax memberAccess)
+        {
+            return null;
+        }
+
+        if (Unwrap(memberAccess.Expression) is not IdentifierNameSyntax identifier ||
             !string.Equals(identifier.Identifier.ValueText, LambdaParameterName(lambda), StringComparison.Ordinal))
         {
             return null;

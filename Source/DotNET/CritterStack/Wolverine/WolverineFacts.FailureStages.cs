@@ -16,6 +16,7 @@ internal static partial class WolverineFacts
         string entryPointName,
         WolverineCompoundStage stage)
     {
+        scope.FailureStageMethods.Add(stage.Method);
         var exceptionType = WolverineCompoundStages.ExceptionParameter(stage.Method)!.Type;
         var evidence = MethodEvidence(
             stage.Method,

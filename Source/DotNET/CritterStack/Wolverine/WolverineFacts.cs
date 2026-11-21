@@ -18,7 +18,8 @@ enum SagaBusEmissionKind
 sealed record WolverineDiscoveryResult(
     IReadOnlyList<GenerationFact> Facts,
     IReadOnlyList<GenerationDiagnostic> Diagnostics,
-    IReadOnlyList<CritterStackPlacementIntent>? Placements = null);
+    IReadOnlyList<CritterStackPlacementIntent>? Placements = null,
+    IReadOnlySet<IMethodSymbol>? FailureStageMethods = null);
 
 sealed record HttpEndpoint(IMethodSymbol Method, string Verb, string? Route)
 {
@@ -106,7 +107,7 @@ internal static partial class WolverineFacts
 
         var endpoints = AnalyzeHandlers(scope, discovery.Policy, validationAuthorization);
         AnalyzeEndpoints(scope, endpoints, validationAuthorization);
-        return new(facts, diagnostics, placements);
+        return new(facts, diagnostics, placements, scope.FailureStageMethods);
     }
 
     internal static bool IsSagaMessagePayloadType(ITypeSymbol type) => IsEventPayloadType(type);
@@ -280,4 +281,6 @@ sealed class WolverineFactScope
     public required List<CritterStackPlacementIntent> Placements { get; init; }
 
     public required List<GenerationDiagnostic> Diagnostics { get; init; }
+
+    public HashSet<IMethodSymbol> FailureStageMethods { get; } = [with(SymbolEqualityComparer.Default)];
 }
