@@ -51,31 +51,46 @@ static class MartenSessionListenerDiscovery
             var semanticModel = project.Compilation.GetSemanticModel(tree);
             foreach (var invocation in tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>().OrderBy(_ => _.SpanStart))
             {
-                if (invocation.Expression is not MemberAccessExpressionSyntax
-                    {
-                        Name.Identifier.ValueText: "Add",
-                        Expression: MemberAccessExpressionSyntax listeners
-                    } ||
-                    semanticModel.GetSymbolInfo(listeners).Symbol is not IPropertySymbol { Name: "Listeners" } ||
-                    invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is not { } argument)
+                if (ListenerRegistrationFrom(invocation, semanticModel) is { } registration)
                 {
-                    continue;
-                }
-
-                var creation = argument.DescendantNodesAndSelf()
-                    .OfType<ObjectCreationExpressionSyntax>()
-                    .FirstOrDefault();
-                var listenerType = creation is null
-                    ? semanticModel.GetTypeInfo(argument).Type as INamedTypeSymbol
-                    : semanticModel.GetTypeInfo(creation).Type as INamedTypeSymbol;
-                if (listenerType is not null && IsListener(listenerType))
-                {
-                    registrations.Add(new(listenerType, invocation.GetLocation()));
+                    registrations.Add(registration);
                 }
             }
         }
 
         return registrations;
+    }
+
+    static ListenerRegistration? ListenerRegistrationFrom(InvocationExpressionSyntax invocation, SemanticModel semanticModel)
+    {
+        if (!IsListenersAddCall(invocation, semanticModel) ||
+            invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is not { } argument)
+        {
+            return null;
+        }
+
+        var listenerType = ListenerTypeOf(argument, semanticModel);
+        return listenerType is not null && IsListener(listenerType)
+            ? new(listenerType, invocation.GetLocation())
+            : null;
+    }
+
+    static bool IsListenersAddCall(InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>
+        invocation.Expression is MemberAccessExpressionSyntax
+        {
+            Name.Identifier.ValueText: "Add",
+            Expression: MemberAccessExpressionSyntax listeners
+        } &&
+        semanticModel.GetSymbolInfo(listeners).Symbol is IPropertySymbol { Name: "Listeners" };
+
+    static INamedTypeSymbol? ListenerTypeOf(ExpressionSyntax argument, SemanticModel semanticModel)
+    {
+        var creation = argument.DescendantNodesAndSelf()
+            .OfType<ObjectCreationExpressionSyntax>()
+            .FirstOrDefault();
+        return creation is null
+            ? semanticModel.GetTypeInfo(argument).Type as INamedTypeSymbol
+            : semanticModel.GetTypeInfo(creation).Type as INamedTypeSymbol;
     }
 
     static bool IsAuthoredConcreteListener(INamedTypeSymbol type, DotNetProjectCompilation project) =>
