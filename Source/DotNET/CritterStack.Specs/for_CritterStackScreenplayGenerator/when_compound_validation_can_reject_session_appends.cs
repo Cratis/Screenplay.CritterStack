@@ -48,17 +48,21 @@ public class when_compound_validation_can_reject_session_appends : given.a_commu
     [Fact] void should_keep_the_started_stream_as_a_handler_reference() => Production(_result, "PlanBatch", "BatchPlanned").Key.Discriminator.ShouldEqual("imperative");
     [Fact] void should_not_claim_an_unconditional_append() => _result.Source.ShouldNotContain("produces PortionsPrepared");
     [Fact] void should_not_claim_an_unconditional_stream_start() => _result.Source.ShouldNotContain("produces BatchPlanned");
-    [Fact]
-    void should_report_the_append_validation_blocker() => _result.Diagnostics.ShouldContain(_ =>
-        _.Code == WolverineDiagnosticCodes.ProductionLinkOmitted &&
-        _.Severity == GenerationDiagnosticSeverity.Warning &&
-        _.Subject == ArtifactNamed(_result, ArtifactKind.Command, "PreparePortions").Key.Subject &&
-        _.Message.Contains("compound validation decides whether it is produced", StringComparison.Ordinal) &&
-        _.Source.Path == "Application/Kitchen/Preparation/PreparePortions.cs");
-    [Fact]
-    void should_report_the_stream_start_validation_blocker() => _result.Diagnostics.ShouldContain(_ =>
-        _.Code == WolverineDiagnosticCodes.ProductionLinkOmitted &&
-        _.Subject == ArtifactNamed(_result, ArtifactKind.Command, "PlanBatch").Key.Subject &&
-        _.Message.Contains("compound validation decides whether it is produced", StringComparison.Ordinal) &&
-        _.Source.Path == "Application/Kitchen/Planning/PlanBatch.cs");
+    [Fact] void should_report_one_blocker_for_the_append() => Blockers("PreparePortions").Count.ShouldEqual(1);
+    [Fact] void should_report_the_append_blocker_as_a_warning() => Blockers("PreparePortions").Single().Severity.ShouldEqual(GenerationDiagnosticSeverity.Warning);
+    [Fact] void should_report_the_append_blocker_as_unsupported() => Blockers("PreparePortions").Single().Outcome.ShouldEqual(GenerationDiagnosticOutcome.Unsupported);
+    [Fact] void should_report_the_append_validation_blocker() => Blockers("PreparePortions").Single().Message.ShouldContain("compound validation decides whether it is produced");
+    [Fact] void should_anchor_the_append_blocker_in_its_handler() => Blockers("PreparePortions").Single().Source.Path.ShouldEqual("Application/Kitchen/Preparation/PreparePortions.cs");
+    [Fact] void should_report_one_blocker_for_the_stream_start() => Blockers("PlanBatch").Count.ShouldEqual(1);
+    [Fact] void should_report_the_stream_start_blocker_as_a_warning() => Blockers("PlanBatch").Single().Severity.ShouldEqual(GenerationDiagnosticSeverity.Warning);
+    [Fact] void should_report_the_stream_start_blocker_as_unsupported() => Blockers("PlanBatch").Single().Outcome.ShouldEqual(GenerationDiagnosticOutcome.Unsupported);
+    [Fact] void should_report_the_stream_start_validation_blocker() => Blockers("PlanBatch").Single().Message.ShouldContain("compound validation decides whether it is produced");
+    [Fact] void should_anchor_the_stream_start_blocker_in_its_handler() => Blockers("PlanBatch").Single().Source.Path.ShouldEqual("Application/Kitchen/Planning/PlanBatch.cs");
+
+    IReadOnlyList<GenerationDiagnostic> Blockers(string command) =>
+    [
+        .. _result.Diagnostics.Where(_ =>
+            _.Code == WolverineDiagnosticCodes.ProductionLinkOmitted &&
+            _.Subject == ArtifactNamed(_result, ArtifactKind.Command, command).Key.Subject)
+    ];
 }

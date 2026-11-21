@@ -131,5 +131,9 @@ public static class WolverineDiagnosticCodes
     /// <summary>
     /// A command's produced event could not be linked with produces, so the model references the handler instead.
     /// </summary>
+    /// <remarks>
+    /// Reported as a warning when production evidence is omitted or unresolved, and as information when the handler
+    /// reference accurately represents a structural pattern, such as an IEventStream&lt;T&gt; parameter or a dynamic consistency boundary.
+    /// </remarks>
     public const string ProductionLinkOmitted = "WOLVERINE0025";
 }
