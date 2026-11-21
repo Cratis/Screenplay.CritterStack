@@ -103,6 +103,8 @@ diagnostic-message: WOLVERINE0016|does not safely establish portable conditional
 diagnostic-message: WOLVERINE0016|realization/provenance
 diagnostic-message: WOLVERINE0016|ordinary Event Modeling building blocks
 diagnostic-message: WOLVERINE0016|MarkCompleted
+diagnostic: WOLVERINE0020
+diagnostic-message: WOLVERINE0020|Compound handler stage 'Before' (before)
 source: slice Automation RebalanceOrders
 source: slice StateChange CancelOrders
 source: command RebalanceOrders

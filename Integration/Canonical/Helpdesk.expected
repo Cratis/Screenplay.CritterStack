@@ -16,6 +16,7 @@ not-source: event RingAllTheAlarms
 artifact: Aggregate:IncidentDetails
 relationship: Produces
 relationship: Reads
+diagnostic: CRITTERSTACK0005
 diagnostic: WOLVERINE0002
 diagnostic: WOLVERINE0003
 diagnostic: WOLVERINE0005

@@ -17,8 +17,11 @@ not-source: command PrioritiseIncident
 not-source: event UpdatedAggregate
 not-source: event ArchiveIncident
 artifact: Message:ArchiveIncident
+artifact: Aggregate:Incident
+relationship: StartsStream
 relationship: Cascades
 relationship: Deletes
+diagnostic: CRITTERSTACK0005
 diagnostic: WOLVERINE0001
 diagnostic: WOLVERINE0002
 diagnostic: WOLVERINE0003
