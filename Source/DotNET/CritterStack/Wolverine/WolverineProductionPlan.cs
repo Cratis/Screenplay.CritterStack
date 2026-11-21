@@ -70,25 +70,32 @@ static class WolverineProductionPlan
 
         if (blockers.Count == 0)
         {
-            return
-            [
-                .. events.Select(eventType => new WolverineProductionDecision(
-                    eventType,
-                    Declarative: true,
-                    sources.SessionAppends.FirstOrDefault(_ => SymbolEqualityComparer.Default.Equals(_.EventType, eventType))?.StreamIdentity ??
-                    sources.ReturnIdentity))
-            ];
+            return LinkedDecisions(sources, events);
         }
 
         Report(sources, blockers, diagnostics);
-        return
-        [
-            .. events.Select(eventType => new WolverineProductionDecision(
-                eventType,
-                Declarative: IsDeclarativeReturn(sources, produced, eventType),
-                StreamIdentity: null))
-        ];
+        return HandlerReferenceDecisions(sources, produced, events);
     }
+
+    static WolverineProductionDecision[] LinkedDecisions(WolverineProductionSources sources, INamedTypeSymbol[] events) =>
+    [
+        .. events.Select(eventType => new WolverineProductionDecision(
+            eventType,
+            Declarative: true,
+            sources.SessionAppends.FirstOrDefault(_ => SymbolEqualityComparer.Default.Equals(_.EventType, eventType))?.StreamIdentity ??
+            sources.ReturnIdentity))
+    ];
+
+    static WolverineProductionDecision[] HandlerReferenceDecisions(
+        WolverineProductionSources sources,
+        ProducedEvents produced,
+        INamedTypeSymbol[] events) =>
+    [
+        .. events.Select(eventType => new WolverineProductionDecision(
+            eventType,
+            Declarative: IsDeclarativeReturn(sources, produced, eventType),
+            StreamIdentity: null))
+    ];
 
     static void Report(WolverineProductionSources sources, IEnumerable<Blocker> blockers, List<GenerationDiagnostic> diagnostics) =>
         diagnostics.AddRange(blockers.Select(blocker => new GenerationDiagnostic
@@ -111,37 +118,11 @@ static class WolverineProductionPlan
 
     static List<Blocker> Blockers(WolverineProductionSources sources, ProducedEvents produced)
     {
-        var (returnEvents, yieldEvents, bodyEvents, sessionEvents) = produced;
         var blockers = new List<Blocker>();
-        foreach (var production in sources.SessionAppends.Concat(sources.Yields).Where(_ => _.LossReason is not null))
-        {
-            blockers.Add(Omitted(production.EventType, production.LossReason!, production.LossOutcome, production.Source));
-        }
-
-        blockers.AddRange(bodyEvents
-            .Where(_ => !Contains(sessionEvents, _))
-            .Select(_ => Omitted(_, "it is added to a Wolverine event collection or appended through a persistence call whose stream is not read from source")));
-        blockers.AddRange(Distinct(sources.ImperativeDcbEvents)
-            .Select(_ => Structural(_, "it is appended imperatively through a dynamic consistency boundary")));
-        blockers.AddRange(Distinct(sources.EventStreamAppendEvents)
-            .Select(_ => Structural(_, "it is appended through an IEventStream<T> handler parameter")));
-        if (sources.HasCompoundValidation)
-        {
-            blockers.AddRange(Distinct(returnEvents.Concat(yieldEvents).Concat(sessionEvents))
-                .Select(_ => Omitted(_, "compound validation decides whether it is produced")));
-        }
-
-        var identities = sources.SessionAppends
-            .Select(_ => _.StreamIdentity)
-            .Concat(returnEvents.Length + sources.Yields.Count > 0 ? [sources.ReturnIdentity] : [])
-            .OfType<ISymbol>()
-            .Distinct(SymbolEqualityComparer.Default)
-            .Count();
-        if (identities > 1)
-        {
-            blockers.AddRange(sessionEvents.Concat(returnEvents).Concat(yieldEvents)
-                .Select(_ => Omitted(_, "the handler appends to more than one stream")));
-        }
+        AddUnresolvedProductionBlockers(sources, produced, blockers);
+        AddStructuralBlockers(sources, blockers);
+        AddCompoundValidationBlockers(sources, produced, blockers);
+        AddMultipleStreamBlockers(sources, produced, blockers);
 
         return
         [
@@ -151,6 +132,52 @@ static class WolverineProductionPlan
                 .OrderBy(_ => _.EventType.ToDisplayString(), StringComparer.Ordinal)
                 .ThenBy(_ => _.Reason, StringComparer.Ordinal)
         ];
+    }
+
+    static void AddUnresolvedProductionBlockers(WolverineProductionSources sources, ProducedEvents produced, List<Blocker> blockers)
+    {
+        foreach (var production in sources.SessionAppends.Concat(sources.Yields).Where(_ => _.LossReason is not null))
+        {
+            blockers.Add(Omitted(production.EventType, production.LossReason!, production.LossOutcome, production.Source));
+        }
+
+        blockers.AddRange(produced.Body
+            .Where(_ => !Contains(produced.Session, _))
+            .Select(_ => Omitted(_, "it is added to a Wolverine event collection or appended through a persistence call whose stream is not read from source")));
+    }
+
+    static void AddStructuralBlockers(WolverineProductionSources sources, List<Blocker> blockers)
+    {
+        blockers.AddRange(Distinct(sources.ImperativeDcbEvents)
+            .Select(_ => Structural(_, "it is appended imperatively through a dynamic consistency boundary")));
+        blockers.AddRange(Distinct(sources.EventStreamAppendEvents)
+            .Select(_ => Structural(_, "it is appended through an IEventStream<T> handler parameter")));
+    }
+
+    static void AddCompoundValidationBlockers(WolverineProductionSources sources, ProducedEvents produced, List<Blocker> blockers)
+    {
+        if (!sources.HasCompoundValidation)
+        {
+            return;
+        }
+
+        blockers.AddRange(Distinct(produced.Returns.Concat(produced.Yields).Concat(produced.Session))
+            .Select(_ => Omitted(_, "compound validation decides whether it is produced")));
+    }
+
+    static void AddMultipleStreamBlockers(WolverineProductionSources sources, ProducedEvents produced, List<Blocker> blockers)
+    {
+        var identities = sources.SessionAppends
+            .Select(_ => _.StreamIdentity)
+            .Concat(produced.Returns.Length + sources.Yields.Count > 0 ? [sources.ReturnIdentity] : [])
+            .OfType<ISymbol>()
+            .Distinct(SymbolEqualityComparer.Default)
+            .Count();
+        if (identities > 1)
+        {
+            blockers.AddRange(produced.Session.Concat(produced.Returns).Concat(produced.Yields)
+                .Select(_ => Omitted(_, "the handler appends to more than one stream")));
+        }
     }
 
     static bool Contains(IEnumerable<ITypeSymbol> types, ITypeSymbol type) =>

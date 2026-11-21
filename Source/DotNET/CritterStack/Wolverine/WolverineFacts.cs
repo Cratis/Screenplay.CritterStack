@@ -31,6 +31,12 @@ sealed record HttpEndpoint(IMethodSymbol Method, string Verb, string? Route)
 
 sealed record WolverineOutgoingMessageConsequence(INamedTypeSymbol MessageType, bool Delayed);
 
+enum SagaBusEmissionKind
+{
+    OutgoingMessages,
+    DirectBus
+}
+
 internal static partial class WolverineFacts
 {
     static readonly HashSet<string> _persistenceMethods =
@@ -81,6 +87,7 @@ internal static partial class WolverineFacts
         var validationAuthorization = WolverineValidationAuthorizationDiscovery.Discover(project, subjects);
         var diagnostics = new List<GenerationDiagnostic>(discovery.Diagnostics);
         diagnostics.AddRange(validationAuthorization.Diagnostics);
+        diagnostics.AddRange(WolverineEventForwardingDiscovery.Discover(project));
         var sagaDiscovery = WolverineSagaFacts.Discover(project, adapter, subjects, discovery.Policy);
         facts.AddRange(sagaDiscovery.Facts);
         diagnostics.AddRange(sagaDiscovery.Diagnostics);
@@ -144,7 +151,12 @@ internal static partial class WolverineFacts
         Evidence evidence,
         List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics) =>
-        AddOutgoingMessages(SagaEmissionFor(project, subjects, sourceSubject, evidence, facts), method, consequences, diagnostics);
+        AddSagaBusEmission(
+            SagaBusEmissionKind.OutgoingMessages,
+            SagaEmissionFor(project, subjects, sourceSubject, evidence, facts),
+            method,
+            consequences,
+            diagnostics);
 
     internal static void AddSagaDirectBusConsequences(
         DotNetProjectCompilation project,
@@ -154,7 +166,29 @@ internal static partial class WolverineFacts
         Evidence evidence,
         List<GenerationFact> facts,
         List<GenerationDiagnostic> diagnostics) =>
-        AddDirectBusConsequences(SagaEmissionFor(project, subjects, sourceSubject, evidence, facts), method, diagnostics);
+        AddSagaBusEmission(
+            SagaBusEmissionKind.DirectBus,
+            SagaEmissionFor(project, subjects, sourceSubject, evidence, facts),
+            method,
+            [],
+            diagnostics);
+
+    static void AddSagaBusEmission(
+        SagaBusEmissionKind kind,
+        MessageEmission emission,
+        IMethodSymbol method,
+        IReadOnlyList<WolverineOutgoingMessageConsequence> consequences,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        if (kind == SagaBusEmissionKind.OutgoingMessages)
+        {
+            AddOutgoingMessages(emission, method, consequences, diagnostics);
+        }
+        else
+        {
+            AddDirectBusConsequences(emission, method, diagnostics);
+        }
+    }
 
     static List<HttpEndpoint> AnalyzeHandlers(
         WolverineFactScope scope,
