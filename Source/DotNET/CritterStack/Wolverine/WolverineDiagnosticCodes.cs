@@ -132,4 +132,9 @@ public static class WolverineDiagnosticCodes
     /// A command's produced event could not be linked with produces, so the model references the handler instead.
     /// </summary>
     public const string ProductionLinkOmitted = "WOLVERINE0025";
+
+    /// <summary>
+    /// A handler's OnException failure stage sends messages only when the handler fails; the exception filter and retry conditions are not represented.
+    /// </summary>
+    public const string FailureStageConditionOmitted = "WOLVERINE0026";
 }
