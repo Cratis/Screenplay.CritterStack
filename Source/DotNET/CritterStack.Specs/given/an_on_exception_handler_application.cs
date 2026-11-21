@@ -40,7 +40,7 @@ public class an_on_exception_handler_application : Specification
             public static Wolverine.OutgoingMessages OnException(ShipOrder message, System.InvalidOperationException exception) =>
                 [new ShipmentFailed(message.Id)];
 
-            public static ShipmentTimedOut OnException(ShipOrder message, System.TimeoutException exception) =>
+            public static ShipmentTimedOut OnException(System.TimeoutException exception, ShipOrder message) =>
                 new(message.Id);
 
             public static Wolverine.OutgoingMessages OnException(ShipOrder message) => [new ShipmentNoted(message.Id)];
@@ -50,7 +50,15 @@ public class an_on_exception_handler_application : Specification
 
             public static Wolverine.OutgoingMessages OnException(CancelOrder message, System.InvalidOperationException exception) =>
                 [new CancellationFailed(message.Id)];
+
+            public static System.Threading.Tasks.Task<ShipmentRejected> OnExceptionAsync(System.IServiceProvider services, System.ArgumentException exception, ShipOrder message) =>
+                System.Threading.Tasks.Task.FromResult(new ShipmentRejected(message.Id));
+
+            public static Wolverine.OutgoingMessages OnExceptionAsync(System.ArgumentException exception, CancelOrder message) =>
+                [new CancellationFailed(message.Id)];
         }
+
+        public record ShipmentRejected(string Id);
         """;
 
     static readonly IReadOnlyList<MetadataReference> _references =

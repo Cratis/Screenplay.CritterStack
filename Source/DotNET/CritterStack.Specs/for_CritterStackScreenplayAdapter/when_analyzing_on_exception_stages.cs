@@ -12,14 +12,15 @@ public class when_analyzing_on_exception_stages : given.an_on_exception_handler_
     [Fact] void should_compile_the_fixture() => Project.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_keep_the_success_cascade() => Cascade("OrderShipped").Definition.Key.Discriminator.ShouldEqual("immediate");
     [Fact] void should_lower_the_outgoing_failure_message() => Cascade("ShipmentFailed").Definition.Key.Discriminator.ShouldEqual("failure:System.InvalidOperationException");
-    [Fact] void should_lower_the_returned_failure_message_of_the_overload() => Cascade("ShipmentTimedOut").Definition.Key.Discriminator.ShouldEqual("failure:System.TimeoutException");
+    [Fact] void should_lower_the_returned_failure_message_of_the_exception_first_overload() => Cascade("ShipmentTimedOut").Definition.Key.Discriminator.ShouldEqual("failure:System.TimeoutException");
+    [Fact] void should_lower_the_returned_failure_message_of_the_dependency_first_async_hook() => Cascade("ShipmentRejected").Definition.Key.Discriminator.ShouldEqual("failure:System.ArgumentException");
     [Fact] void should_own_failure_messages_by_the_handler() => Cascade("ShipmentFailed").Definition.Key.Source.ShouldEqual(Cascade("OrderShipped").Definition.Key.Source);
     [Fact] void should_not_link_failure_messages_as_success_cascades() => FailureCascades.ShouldEachConformTo(_ => _.Definition.Key.Discriminator!.StartsWith("failure:", StringComparison.Ordinal) && _.Id.Value.StartsWith("wolverine:cascades:failure:", StringComparison.Ordinal));
-    [Fact] void should_lower_one_cascade_per_failure_hook() => FailureCascades.Count.ShouldEqual(2);
+    [Fact] void should_lower_one_cascade_per_failure_hook() => FailureCascades.Count.ShouldEqual(3);
     [Fact] void should_not_match_a_hook_without_an_exception() => ArtifactNames(ArtifactKind.Message).ShouldNotContain("ShipmentNoted");
     [Fact] void should_not_match_an_unrelated_method() => ArtifactNames(ArtifactKind.Message).ShouldNotContain("ShipmentCompensated");
     [Fact] void should_not_match_a_hook_for_another_message() => ArtifactNames(ArtifactKind.Message).ShouldNotContain("CancellationFailed");
-    [Fact] void should_report_one_condition_loss_per_failure_hook() => FailureDiagnostics.Count.ShouldEqual(2);
+    [Fact] void should_report_one_condition_loss_per_failure_hook() => FailureDiagnostics.Count.ShouldEqual(3);
     [Fact] void should_locate_the_loss_on_the_invalid_operation_hook() => FailureDiagnostic("InvalidOperationException").Source.StartLine.ShouldEqual(16);
     [Fact] void should_locate_the_loss_on_the_timeout_hook() => FailureDiagnostic("TimeoutException").Source.StartLine.ShouldEqual(19);
     [Fact] void should_locate_the_loss_in_the_handler_file() => FailureDiagnostics.ShouldEachConformTo(_ => _.Source.Path == "OnExceptionHandlers/Handlers.cs");

@@ -118,6 +118,11 @@ static class WolverineCompoundStages
         ITypeSymbol requestType,
         WolverineCompoundStage stage)
     {
+        if (stage.IsFailurePath)
+        {
+            return stage.Method.Parameters.Any(_ => SymbolEqualityComparer.Default.Equals(_.Type, requestType));
+        }
+
         if (!string.Equals(stage.StageKind, "load", StringComparison.Ordinal))
         {
             return stage.Method.Parameters.FirstOrDefault()?.Type is { } stageRequestType &&
