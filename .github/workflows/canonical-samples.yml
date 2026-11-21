@@ -81,6 +81,16 @@ jobs:
           # Add the exact compatibility-matrix version to the disposable checkout so a clean runner is reproducible.
           dotnet add samples/critter-stack/MartenWithProjectAspire/TripBuildingService/TripBuildingService.csproj package Marten --version 9.45.0
 
+      - name: Patch pinned Trip OpenTelemetry dependency
+        run: |
+          # Patch GHSA-4625-4j76-fww9 in the disposable sample checkout without disabling audit.
+          dotnet add samples/critter-stack/MartenWithProjectAspire/TripBuildingService/TripBuildingService.csproj package OpenTelemetry.Exporter.OpenTelemetryProtocol --version 1.15.3
+
+      - name: Patch pinned Reports OpenAPI dependency
+        run: |
+          # The pinned sample brings Microsoft.OpenApi 2.0.0; patch GHSA-v5pm-xwqc-g5wc without disabling audit.
+          dotnet add samples/critter-stack/Reports/Reports.csproj package Microsoft.OpenApi --version 2.7.5
+
       - name: Build canonical applications
         run: |
           dotnet build samples/critter-stack/BankAccountES/BankAccountES.csproj --configuration Debug

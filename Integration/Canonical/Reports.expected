@@ -8,6 +8,8 @@ identifier: Document:Report:id
 relationship: Stores
 diagnostic: MARTEN0003
 diagnostic: WOLVERINE0002
+diagnostic: GEN0009
+diagnostic-message: GEN0009|The recognized ReadModel artifact 'Report' has no Screenplay placement and was omitted
 diagnostic: GEN0012
 diagnostic-message: GEN0012|ReportId
 diagnostic: GEN0016

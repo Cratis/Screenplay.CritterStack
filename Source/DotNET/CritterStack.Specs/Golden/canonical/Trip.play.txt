@@ -83,6 +83,11 @@ module TripBuildingService
         movements Movement[]
         stops Stop[]
 
+    slice StateView TripAborted
+
+      event TripAborted
+        file MartenWithProjectAspire/TripDomain/TripAborted.cs
+
     slice StateView TripEnded
 
       event TripEnded
@@ -120,6 +125,8 @@ module TripBuildingService
         on Breakdown
           file MartenWithProjectAspire/TripBuildingService/TripProjection.cs
         on Travel
+          file MartenWithProjectAspire/TripBuildingService/TripProjection.cs
+        on TripAborted
           file MartenWithProjectAspire/TripBuildingService/TripProjection.cs
         on TripEnded
           file MartenWithProjectAspire/TripBuildingService/TripProjection.cs
