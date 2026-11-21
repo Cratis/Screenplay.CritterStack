@@ -30,7 +30,7 @@ Follow an admitted endpoint or handler to the consequences its source proves. A 
 - Marten + Wolverine HTTP and message handlers, including signature-stable overloaded handler identities and batched `T[]` message delivery.
 - Returned `IStorageAction<T>` / `UnitOfWork<T>` persistence, exact per-slot storage-factory refinement, and `[Entity]` / `[FirstOrDefault]` / `[Queryable]` bound reads.
 - Presence diagnostics for Wolverine/Marten convention-alteration hooks, per-chain `Configure(HandlerChain)`, and Marten session listeners without interpreting policy or listener bodies.
-- Compound `Load*`, `Before*`, `After*`, `PostProcess*`, `Finally*`, and after-commit stages, with exact outgoing-message consequences retained on the owning entry point and explicit `WOLVERINE0020` loss. `OnException`/`OnExceptionAsync` hooks that take the handled message and an exception are failure stages: their outgoing messages stay on the owning entry point as cascades with a `failure:<exception type>` discriminator, never as success cascades, and `WOLVERINE0026` on the hook reports that the exception filter and retry conditions are not represented.
+- Compound `Load*`, `Before*`, `After*`, `PostProcess*`, `Finally*`, and after-commit stages, with exact outgoing-message consequences retained on the owning entry point and explicit `WOLVERINE0020` loss. `OnException`/`OnExceptionAsync` hooks that take the handled message and an exception are failure stages. `WOLVERINE0026` names the owning entry point, exception type and proven failure-only messages. Those messages do not create Cascades relationships or failure-only Message artifacts: the generation model has no failure branch, so lowering them would imply success-path behavior. Failure-only storage, appends and production are also excluded from success facts.
 - Current store-agnostic Wolverine event-sourcing APIs and legacy Marten-specific APIs.
 - Command-to-event `produces` links for unconditional `session.Events.StartStream(id, new TEvent(...))` / `session.Events.Append(id, new TEvent(...))` writes and for events an `[AggregateHandler]` returns or yields, with the command member that identifies the stream recorded on the link and marked as the command identifier. A conditional write, a stream identity that is not a command property, or an indirect payload keeps the handler reference and reports `WOLVERINE0025` naming the command, the event, and the reason. `WOLVERINE0025` is a Warning when production evidence is omitted or unresolved (conditional or compound-validated writes, unresolved stream identity or payload, several streams, event collections), and Information when the handler reference accurately represents a known structural pattern (`IEventStream<T>` parameter appends and imperative DCB boundary appends). Produced events are placed with their command, and an HTTP endpoint that only forwards its command to a Wolverine handler defers to that handler's source file.
 - Target-aware exact current and legacy `IEventStream<T>` appends across multiple handler parameters, including commandless HTTP and metadata-only loaded streams, with per-binding identities and explicit diagnostics instead of first-stream guesses.
@@ -52,7 +52,7 @@ Screenplay uses ordinary Event Modeling building blocks; this is not a language-
 Some recovered types come from adapter composition, while source placement decides where admitted artifacts appear. Review those choices separately from the Marten and Wolverine behavior above; a concept or a folder choice is not additional evidence of runtime behavior.
 
 - Vogen concepts, primitive representations, authored validation hooks, nullable usages, and explicit loss diagnostics through the separately composed `Cratis.Screenplay.Generation.DotNet.Vogen` adapter.
-- Authored enums used by recovered artifacts emitted as enumeration concepts. Flags enums report `CRITTERSTACK0001` rather than pretending a combinable bit field is a closed set of choices. Enums with no values, or with values that collide after Screenplay naming, report `CRITTERSTACK0002`; an enum whose concept name is also required by another type (another enum, a Vogen concept or a Marten value type), or is printed for a different type without a concept (a generated, flags or package enum, a record, or a value object without its adapter), reports `CRITTERSTACK0003` and only the enum gives way. A field whose type has no emitted concept keeps its plain type name instead of dropping the artifact that uses it.
+- Authored enums used by recovered artifacts emitted as enumeration concepts. Non-positional numbering reports `CRITTERSTACK0005` (Warning/Unsupported) at the enum while keeping its member names in declaration order. Implicit or explicit `0, 1, 2, …` numbering is positional and emits no numbering warning; sparse, reordered, negative, aliased and out-of-int32 values warn without changing the concept. Numeric values are not preserved, and alias names are not merged. Flags enums report `CRITTERSTACK0001` rather than pretending a combinable bit field is a closed set of choices. Enums with no values, or with values that collide after Screenplay naming, report `CRITTERSTACK0002`; an enum whose concept name is also required by another type (another enum, a Vogen concept or a Marten value type), or is printed for a different type without a concept (a generated, flags or package enum, a record, or a value object without its adapter), reports `CRITTERSTACK0003` and only the enum gives way. A field whose type has no emitted concept keeps its plain type name instead of dropping the artifact that uses it.
 - Source placement that never aborts on a flat feature namespace: when one namespace or folder would hold artifacts of more than one slice kind, each command, aggregate, or read model gets its own slice and `CRITTERSTACK0004` explains how to choose the slices through folders, namespaces, or the skip-segments, feature-root, and module options.
 
 ### Output and review
@@ -61,6 +61,71 @@ Some recovered types come from adapter composition, while source placement decid
 - Explicit diagnostics whenever source behavior cannot be represented faithfully.
 
 `CritterStackScreenplayGenerator.Generate` composes source contributions and passes them to Screenplay.Generation. Review the candidate and its diagnostics together: readable model source does not turn an unsupported lifecycle or unresolved source flow into represented behavior. To investigate a missing shape, follow the [adapter extension guide](guides/extend-source-adapter.md): choose the owning framework reader, add a focused authored-source scenario, and check the recovered relationships and loss diagnostics before updating a compatibility expectation. Compatibility expectations apply only to the package/sample versions they exercise; they are not a general support promise.
+
+## Conventions and diagnostics
+
+The conventions below are recovered from authored source and symbol-bound framework APIs. Matching a method or attribute name alone does not establish framework behavior. The repository pins Marten 9.62.0 and Wolverine 6.64.2; the compatibility fixtures also exercise selected older APIs. These pins do not promise support for every version or configuration.
+
+### Marten projection and store boundaries
+
+Conventional `Apply`, `Create` and `ShouldDelete` discovery is supplemented by parameterless `DeleteEvent<TEvent>()` registrations in authored projection constructors. Direct, `this`/`base` and supported fluent registrations contribute event/Consumes facts. Calls on another instance, lambda-taking overloads, deferred or local-function calls, and calls outside constructors do not qualify. A recognized registration does not prove that it executes unconditionally.
+
+Genuine overrides of `Evolve`, `EvolveAsync`, `DetermineAction` and `DetermineActionAsync` are checked through the override chain to `JasperFxAggregationProjectionBase<TDoc,TId,TOperations,TQuerySession>`. At the pinned API these dispatch methods consume untyped events, so they produce located `MARTEN0010` evidence instead of inferred event types. A typed `Evolve(IEvent<T>)` overload is not a dispatch override; neither are same-name helpers or hiding members.
+
+Composite and flat-table registrations remain opaque. `MARTEN0018` and `MARTEN0019` report them at the registration site, with composite constituent types when directly resolvable. The registration itself contributes no artifacts, relationships or subprojection ordering. Independently discovered conventional projections retain their facts.
+
+`StoreOptions.EventModelName`, `AddMartenStore<TStore>` and Wolverine `[MartenStore(typeof(TStore))]` retain store-scope evidence under `MARTEN0020`. Constant names can be reported; computed names remain unknown. Facts are not scoped by store, and store ownership is not represented. Store interfaces do not create model or module boundaries. Equal eventual event-model names can coalesce, and multiple ancillary stores with default names receive a possible-coalescing warning. There is no inferred runtime store selection, tenancy or store-to-module mapping.
+
+### Wolverine reads, consistency and returned operations
+
+`Wolverine.Persistence.EventSourcing.ReadModelAttribute`, legacy `Wolverine.Marten.ReadAggregateAttribute` and admitted derived attributes contribute Aggregate and Reads facts at the parameter attribute. Two parameters reading the same model keep distinct read evidence. Read parameters are excluded from request and writable-aggregate inference: a read-only handler follows the non-persisting Reaction path, even when its type name ends in `AggregateHandler`. Reading alone never proves returned-event persistence. A mixed read/write handler keeps its writable path and separate reference reads.
+
+Current and legacy consistency inheritance is retained, including HTTP and derived `ConsistentAggregate` forms. Always-enforced consistency defaults are recognized. `WOLVERINE0003` reports the unrepresented consistency semantics; explicit `VersionSource` evidence remains located at the command member. Plain `ConsistentAggregate` parameters and class/method `ConsistentAggregateHandler` declarations receive Information/Unsupported diagnostics for their consistency-only behavior. An explicit `AlwaysEnforceConsistency = false` suppresses that consistency-only diagnostic, not independently applicable diagnostics.
+
+Each authored property-level `JasperFx.Events.Aggregation.NaturalKeyAttribute` on an already recognized aggregate produces one `WOLVERINE0030` diagnostic, deduplicated across handlers. Existing surrogate-id handling stays intact; a natural key does not establish a stream identity.
+
+Returned, symbol-bound `Wolverine.Marten.MartenOps` factories refine generic `IMartenOp` side effects as follows:
+
+| Factory | Recovered consequence |
+| --- | --- |
+| `Store`, `Insert` | Stores; there is no distinct insert relationship. |
+| `Update` | Updates. |
+| `Delete` | Deletes. |
+| `StoreMany` | Stores with collection evidence. |
+| `StartStream` | Aggregate and StartsStream evidence; existing event discovery handles inline payloads. |
+
+Classification is per return slot, including task/value-task unwrapping, direct tuples, `Task.FromResult` tuples and unchanged local factory results. Every return path for a slot must resolve to the same factory and model type. Tenant overloads use the generic model type, not the tenant argument, and do not introduce tenant scope. `StoreObjects`, `DeleteWhere`, custom factories, mutated or unresolved values, and interprocedural factory following are not refined. Operation wrappers never become cascading domain messages. StartsStream is a Generation relationship, not new executable Screenplay syntax.
+
+### Middleware, forwarding and response policies
+
+Public methods marked `[WolverineBefore]`, `[WolverineAfter]` or `[WolverineFinally]` can use arbitrary names. Finally retains after-stage treatment. A method matching both a name convention and an attribute is included once.
+
+Authored `[Middleware(typeof(...))]` on handler/endpoint classes or methods, direct unfiltered `WolverineOptions.Policies.AddMiddleware` registrations, and `WolverineHttpOptions.AddMiddleware` registrations can resolve authored middleware types. `MiddlewareScoping.All`, `Handlers` and `HttpEndpoints` keep the two chain kinds separate. Resolved stages retain `WOLVERINE0020` at the applying attribute or registration: ordering, short-circuit and transaction behavior remain unrepresented. A before/load stage returning `HandlerContinuation`, `RequirementResult` or an HTTP response prevents an unconditional produces assertion.
+
+Runtime filters, conditional registrations, runtime-selected types, and null or partly resolved attribute type lists are not applied. They report `WOLVERINE0007` rather than guessed consequences. Unrelated `AddMiddleware` methods and name-only lookalike attributes are ignored.
+
+The adapter detects `PublishEventsToWolverine`, `ProcessEventsWithWolverineHandlersInStrictOrder`, `SubscribeToEvents`, `SubscribeToEvent<T>().TransformedTo<TMessage>()` and `UseFastEventForwarding` on recognized Wolverine/Marten owners. `WOLVERINE0027` reports the source location and resolvable types, but creates no Reaction, Consumer, Consumes or Cascades facts for forwarding. A bare `SubscribeToEvent<T>()` reports an incomplete transformation without claiming forwarding is enabled. Literal `UseFastEventForwarding = false` is silent. The HelpDesk 1.x spelling `EventForwardingToWolverine` is not recognized; the presence of that sample does not establish forwarding coverage.
+
+`[DeduplicatedWithResponse]`, `[AlwaysPublishResponse]` and `[Topic]` each produce `WOLVERINE0028` at the attribute. They add no response replay, deduplication, publication or routing execution facts.
+
+### Diagnostic reference
+
+These entries describe the cases above, not every use of a diagnostic code. Review the source location and message as well as the code. In particular, detecting an omitted policy or store boundary does not mean it has been recovered as executable behavior.
+
+| Code | Name | Severity / outcome for these cases |
+| --- | --- | --- |
+| `MARTEN0010` | `CustomProcessingOmitted` | Information / Unsupported for genuine untyped evolution/dispatch overrides. |
+| `MARTEN0018` | `CompositeProjectionOmitted` | Warning / Unsupported. |
+| `MARTEN0019` | `FlatTableProjectionOmitted` | Warning / Unsupported. |
+| `MARTEN0020` | `StoreScopeNotRepresented` | Information / Unsupported for one unambiguous default store; Warning / Unsupported for nondefault, unknown or multiple-store scope. |
+| `WOLVERINE0003` | `StreamVersionOmitted` | Information / Unsupported for consistency-only declarations. |
+| `WOLVERINE0007` | `HandlerDiscoveryConfigurationUnresolved` | Warning / Unknown for unresolved middleware application. |
+| `WOLVERINE0020` | `CompoundStageOmitted` | Information / Unsupported for resolved compound stages. |
+| `WOLVERINE0026` | `FailureStageConditionOmitted` | Warning / Unsupported; failure-only messages remain diagnostic-only. |
+| `WOLVERINE0027` | `EventForwardingOmitted` | Warning / Unsupported. |
+| `WOLVERINE0028` | `EndpointIdempotencyOmitted` | Warning / Unsupported. |
+| `WOLVERINE0030` | `NaturalKeyIdentityOmitted` | Information / Unsupported, located at the property attribute. |
+| `CRITTERSTACK0005` | `EnumNumbersNotPreserved` | Warning / Unsupported; member names remain in the enumeration concept. |
 
 ## Declared Wolverine slice patterns
 
