@@ -277,13 +277,16 @@ sealed class AuthoredImplementationManifest
             implementations.Add(new(owners[0].Project, resolvedMethod.PartialImplementationPart ?? resolvedMethod, TypeKey(runtimeType!)));
         }
 
-        return [.. implementations.OrderBy(implementation => DotNetSubjectIds.MetadataName(implementation.Method.ContainingType.OriginalDefinition), StringComparer.Ordinal)
-            .ThenBy(
-                implementation => implementation.Method.Locations.Where(location => location.IsInSource)
-                    .Select(location => CritterStackSource.RangeForProject(location, implementation.Project)?.Path)
-                    .Order(StringComparer.Ordinal).FirstOrDefault(),
-                StringComparer.Ordinal)
-            .ThenBy(implementation => implementation.Type, StringComparer.Ordinal)];
+        return
+        [
+            .. implementations.OrderBy(implementation => DotNetSubjectIds.MetadataName(implementation.Method.ContainingType.OriginalDefinition), StringComparer.Ordinal)
+                .ThenBy(
+                    implementation => implementation.Method.Locations.Where(location => location.IsInSource)
+                        .Select(location => CritterStackSource.RangeForProject(location, implementation.Project)?.Path)
+                        .Order(StringComparer.Ordinal).FirstOrDefault(),
+                    StringComparer.Ordinal)
+                .ThenBy(implementation => implementation.Type, StringComparer.Ordinal)
+        ];
     }
 
     static INamedTypeSymbol? Construct(Dispatch dispatch, IReadOnlyDictionary<ITypeParameterSymbol, ITypeSymbol> bindings)
