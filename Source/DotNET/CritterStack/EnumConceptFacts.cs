@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Globalization;
 using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
@@ -49,6 +50,16 @@ static class EnumConceptFacts
             {
                 diagnostics.Add(omission);
                 continue;
+            }
+
+            var numbers = new EnumMemberNumbers([.. declaration.Members.Select(member => candidate.Type
+                .GetMembers(member.Identifier.ValueText)
+                .OfType<IFieldSymbol>()
+                .Single()
+                .ConstantValue)]);
+            if (!numbers.IsPositional)
+            {
+                diagnostics.Add(NumberingDiagnostic(candidate.Type, subject, evidence));
             }
 
             if (concepts.Add(subject))
@@ -289,6 +300,16 @@ static class EnumConceptFacts
         Message = message
     };
 
+    static GenerationDiagnostic NumberingDiagnostic(INamedTypeSymbol type, SubjectId subject, Evidence evidence) => new()
+    {
+        Code = CritterStackDiagnosticCodes.EnumNumbersNotPreserved,
+        Severity = GenerationDiagnosticSeverity.Warning,
+        Outcome = GenerationDiagnosticOutcome.Unsupported,
+        Subject = subject,
+        Source = evidence.Source,
+        Message = $"Enum '{type.Name}': explicit member numbers are not preserved in the generated concept"
+    };
+
     static GenerationDiagnostic ConflictDiagnostic(ArtifactFact concept, string message) => new()
     {
         Code = CritterStackDiagnosticCodes.EnumConceptNameConflict,
@@ -318,6 +339,13 @@ static class EnumConceptFacts
         return lowered.Length > 0 &&
             lowered.All(IsScreenplayEnumValue) &&
             lowered.Distinct(StringComparer.Ordinal).Count() == lowered.Length;
+    }
+
+    internal sealed record EnumMemberNumbers(IReadOnlyList<object?> Values)
+    {
+        public bool IsPositional => Values
+            .Select((value, index) => value is not null && Convert.ToDecimal(value, CultureInfo.InvariantCulture) == index)
+            .All(_ => _);
     }
 
     static string ScreenplayEnumValue(string value) => value.Length == 0

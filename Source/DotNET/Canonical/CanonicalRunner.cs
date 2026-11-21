@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Runtime.CompilerServices;
+using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
@@ -30,60 +31,13 @@ static class CanonicalRunner
         var projects = new List<DotNetProjectCompilation>();
         foreach (var project in selectedProjects)
         {
-            var projectFilePath = project.FilePath ?? throw new InvalidDotNetProjectIdentity(project.Name);
-            var projectDirectory = Path.GetDirectoryName(projectFilePath)!;
-            var authoredDocuments = await Task.WhenAll(project.Documents.Select(async document =>
-            {
-                var syntaxTree = await document.GetSyntaxTreeAsync() ??
-                                 throw new DotNetSourceTreeNotMapped(document.FilePath ?? document.Name);
-                var documentPath = document.FilePath ?? throw new InvalidDotNetSourcePath(document.Name);
-                return new DotNetSourceDocument
-                {
-                    SyntaxTree = syntaxTree,
-                    ProjectRelativePath = PortableRelativePath(projectDirectory, documentPath),
-                    WorkspaceRelativePath = PortableRelativePath(sourceRoot, documentPath)
-                };
-            }));
-            var authoredSyntaxTrees = authoredDocuments.Select(_ => _.SyntaxTree).ToHashSet();
-            var sourceContext = DotNetSourcePaths.Create(
-                ProjectIdentityFor(sourceRoot, projectFilePath),
-                new DotNetSourcePathPolicy
-                {
-                    Version = 1,
-                    DisplayRoot = DotNetSourceDisplayRoot.Workspace,
-                    CasePolicy = DotNetSourcePathCasePolicy.Ordinal
-                },
-                authoredDocuments);
-            await Console.Out.WriteLineAsync(SourceContextPolicyLine(sourceContext));
-
-            var compilation = await project.GetCompilationAsync();
-            if (compilation is null)
-            {
-                await Console.Error.WriteLineAsync($"operational-compilation: project={project.Name} error=no-compilation");
-                return 3;
-            }
-
-            compilation = FrameworkReferences.AddMissingTo(project, compilation);
-            var compilationErrors = compilation.GetDiagnostics().Where(_ => _.Severity == DiagnosticSeverity.Error).ToArray();
-            foreach (var diagnostic in compilationErrors)
-            {
-                await Console.Error.WriteLineAsync(OperationalCompilationDiagnostic(diagnostic, project.Name, sourceRoot, sourceContext));
-            }
-            if (compilationErrors.Length > 0)
+            var loaded = await LoadProject(project, sourceRoot);
+            if (loaded is null)
             {
                 return 3;
             }
 
-            projects.Add(new DotNetProjectCompilation
-            {
-                Name = project.Name,
-                Role = DotNetProjectRole.Application,
-                ProjectPath = project.FilePath,
-                SourceRoot = sourceRoot,
-                SourceContext = sourceContext,
-                Compilation = compilation,
-                AuthoredSyntaxTrees = authoredSyntaxTrees
-            });
+            projects.Add(loaded);
         }
 
         var result = new CritterStackScreenplayGenerator().GenerateCompatibility(
@@ -93,41 +47,10 @@ static class CanonicalRunner
         await File.WriteAllTextAsync(outputPath, result.Source);
 
         var unmet = Expectations.Read(expectedPath).Where(_ => !_.IsMetBy(result)).ToArray();
-        foreach (var diagnostic in result.Diagnostics)
-        {
-            await Console.Out.WriteLineAsync($"generated-diagnostic: severity={diagnostic.Severity} code={diagnostic.Code} message={diagnostic.Message}");
-        }
-        foreach (var expectation in unmet)
-        {
-            await Console.Error.WriteLineAsync($"verification: unmet={expectation}");
-        }
-        if (unmet.Length > 0 || !result.IsSuccess)
-        {
-            foreach (var artifact in result.Graph.Artifacts)
-            {
-                await Console.Error.WriteLineAsync($"verification: artifact={artifact.Key.Subject.Value} kind={artifact.Key.Kind} name={artifact.Variants[0].Definition.Name}");
-            }
-            foreach (var placement in result.Graph.Placements)
-            {
-                var slice = placement.EffectiveVariants.Count == 0
-                    ? "conflicted"
-                    : placement.EffectiveVariants[0].Placement.Slice;
-                await Console.Error.WriteLineAsync($"verification: placement={placement.Artifact.Subject.Value} kind={placement.Artifact.Kind} slice={slice}");
-            }
-        }
+        await ReportResult(result, unmet);
 
         var goldenMatches = goldenPrefix is null || await CanonicalGolden.Verify(goldenPrefix, result, sourceRoot, Console.Error);
-        if (!result.IsSuccess)
-        {
-            return 4;
-        }
-
-        if (unmet.Length > 0)
-        {
-            return 5;
-        }
-
-        return goldenMatches ? 0 : 6;
+        return ExitCodeFor(result, unmet.Length, goldenMatches);
     }
 
     internal static IReadOnlyList<Project> SelectApplicationProjectReferenceClosure(Project rootProject, string sourceRoot)
@@ -193,15 +116,131 @@ static class CanonicalRunner
         }
 
         var relativePath = Path.GetRelativePath(root, path).Replace('\\', '/');
-        if (Path.IsPathFullyQualified(relativePath) ||
-            relativePath == ".." ||
-            relativePath.StartsWith("../", StringComparison.Ordinal))
+        if (EscapesRoot(relativePath))
         {
             throw new InvalidDotNetSourcePath(relativePath);
         }
 
         return relativePath;
     }
+
+    static async Task<DotNetProjectCompilation?> LoadProject(Project project, string sourceRoot)
+    {
+        var projectFilePath = project.FilePath ?? throw new InvalidDotNetProjectIdentity(project.Name);
+        var authoredDocuments = await ReadAuthoredDocuments(project, projectFilePath, sourceRoot);
+        var authoredSyntaxTrees = authoredDocuments.Select(_ => _.SyntaxTree).ToHashSet();
+        var sourceContext = DotNetSourcePaths.Create(
+            ProjectIdentityFor(sourceRoot, projectFilePath),
+            new DotNetSourcePathPolicy
+            {
+                Version = 1,
+                DisplayRoot = DotNetSourceDisplayRoot.Workspace,
+                CasePolicy = DotNetSourcePathCasePolicy.Ordinal
+            },
+            authoredDocuments);
+        await Console.Out.WriteLineAsync(SourceContextPolicyLine(sourceContext));
+
+        var compilation = await project.GetCompilationAsync();
+        if (compilation is null)
+        {
+            await Console.Error.WriteLineAsync($"operational-compilation: project={project.Name} error=no-compilation");
+            return null;
+        }
+
+        compilation = FrameworkReferences.AddMissingTo(project, compilation);
+        var compilationErrors = compilation.GetDiagnostics().Where(_ => _.Severity == DiagnosticSeverity.Error).ToArray();
+        foreach (var diagnostic in compilationErrors)
+        {
+            await Console.Error.WriteLineAsync(OperationalCompilationDiagnostic(diagnostic, project.Name, sourceRoot, sourceContext));
+        }
+
+        if (compilationErrors.Length > 0)
+        {
+            return null;
+        }
+
+        return new DotNetProjectCompilation
+        {
+            Name = project.Name,
+            Role = DotNetProjectRole.Application,
+            ProjectPath = project.FilePath,
+            SourceRoot = sourceRoot,
+            SourceContext = sourceContext,
+            Compilation = compilation,
+            AuthoredSyntaxTrees = authoredSyntaxTrees
+        };
+    }
+
+    static async Task<DotNetSourceDocument[]> ReadAuthoredDocuments(Project project, string projectFilePath, string sourceRoot)
+    {
+        var projectDirectory = Path.GetDirectoryName(projectFilePath)!;
+        return await Task.WhenAll(project.Documents.Select(async document =>
+        {
+            var syntaxTree = await document.GetSyntaxTreeAsync() ??
+                             throw new DotNetSourceTreeNotMapped(document.FilePath ?? document.Name);
+            var documentPath = document.FilePath ?? throw new InvalidDotNetSourcePath(document.Name);
+            return new DotNetSourceDocument
+            {
+                SyntaxTree = syntaxTree,
+                ProjectRelativePath = PortableRelativePath(projectDirectory, documentPath),
+                WorkspaceRelativePath = PortableRelativePath(sourceRoot, documentPath)
+            };
+        }));
+    }
+
+    static async Task ReportResult(GeneratedScreenplayDefinition result, Expectation[] unmet)
+    {
+        foreach (var diagnostic in result.Diagnostics)
+        {
+            await Console.Out.WriteLineAsync($"generated-diagnostic: severity={diagnostic.Severity} code={diagnostic.Code} message={diagnostic.Message}");
+        }
+
+        foreach (var expectation in unmet)
+        {
+            await Console.Error.WriteLineAsync($"verification: unmet={expectation}");
+        }
+
+        if (unmet.Length > 0 || !result.IsSuccess)
+        {
+            await ReportGraph(result);
+        }
+    }
+
+    static async Task ReportGraph(GeneratedScreenplayDefinition result)
+    {
+        foreach (var artifact in result.Graph.Artifacts)
+        {
+            await Console.Error.WriteLineAsync($"verification: artifact={artifact.Key.Subject.Value} kind={artifact.Key.Kind} name={artifact.Variants[0].Definition.Name}");
+        }
+
+        foreach (var placement in result.Graph.Placements)
+        {
+            var slice = placement.EffectiveVariants.Count == 0
+                ? "conflicted"
+                : placement.EffectiveVariants[0].Placement.Slice;
+            await Console.Error.WriteLineAsync($"verification: placement={placement.Artifact.Subject.Value} kind={placement.Artifact.Kind} slice={slice}");
+        }
+    }
+
+    static int ExitCodeFor(GeneratedScreenplayDefinition result, int unmetCount, bool goldenMatches)
+    {
+        if (!result.IsSuccess)
+        {
+            return 4;
+        }
+
+        if (unmetCount > 0)
+        {
+            return 5;
+        }
+
+        return goldenMatches ? 0 : 6;
+    }
+
+    static bool EscapesRoot(string relativePath) =>
+        Path.IsPathFullyQualified(relativePath) ||
+        relativePath == ".." ||
+        relativePath.StartsWith("../", StringComparison.Ordinal);
 
     static string FindRepositoryRoot(string path)
     {
