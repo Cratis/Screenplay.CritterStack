@@ -738,7 +738,10 @@ static class MartenConfigurationDiscovery
         semanticModel.GetConstantValue(expression) is { HasValue: true, Value: { } value } ? value : null;
 
     static uint? ConstantUnsigned(ExpressionSyntax expression, SemanticModel semanticModel) =>
-        ConstantNumber(expression, semanticModel) switch
+        UnsignedValue(ConstantNumber(expression, semanticModel));
+
+    static uint? UnsignedValue(object? number) =>
+        number switch
         {
             byte value => value,
             ushort value => value,
@@ -750,13 +753,10 @@ static class MartenConfigurationDiscovery
     static long? ConstantLong(ExpressionSyntax expression, SemanticModel semanticModel) =>
         ConstantNumber(expression, semanticModel) switch
         {
-            byte value => value,
             short value => value,
-            ushort value => value,
             int value => value,
-            uint value => value,
             long value => value,
-            _ => null
+            var value => UnsignedValue(value)
         };
 
     static Finding ExactOrUnknown(bool exact, string exactMessage, string unresolvedMessage) =>

@@ -52,15 +52,7 @@ static class EnumConceptFacts
                 continue;
             }
 
-            var numbers = new EnumMemberNumbers([.. declaration.Members.Select(member => candidate.Type
-                .GetMembers(member.Identifier.ValueText)
-                .OfType<IFieldSymbol>()
-                .Single()
-                .ConstantValue)]);
-            if (!numbers.IsPositional)
-            {
-                diagnostics.Add(NumberingDiagnostic(candidate.Type, subject, evidence));
-            }
+            diagnostics.AddRange(NumberingDiagnostics(candidate.Type, declaration, subject, evidence));
 
             if (concepts.Add(subject))
             {
@@ -74,6 +66,23 @@ static class EnumConceptFacts
         // plain name; the generator also binds independently contributed Vogen concepts and normalizes again.
         var bound = ConceptTypeReferenceBinder.Bind(context, WithoutConflictingNames([contribution with { Facts = facts, Diagnostics = diagnostics }]));
         return WithoutCapturedNames(bound)[0];
+    }
+
+    static IEnumerable<GenerationDiagnostic> NumberingDiagnostics(
+        INamedTypeSymbol type,
+        EnumDeclarationSyntax declaration,
+        SubjectId subject,
+        Evidence evidence)
+    {
+        var numbers = new EnumMemberNumbers([.. declaration.Members.Select(member => type
+            .GetMembers(member.Identifier.ValueText)
+            .OfType<IFieldSymbol>()
+            .Single()
+            .ConstantValue)]);
+        if (!numbers.IsPositional)
+        {
+            yield return NumberingDiagnostic(type, subject, evidence);
+        }
     }
 
     /// <summary>
@@ -188,7 +197,6 @@ static class EnumConceptFacts
             .GroupBy(_ => _.Fact.Subject)
             .Select(_ => _.First())
             .ToArray();
-        bool IsDropped(PropertyDefinition property) => property.Type.Subject is { } subject && dropped.ContainsKey(subject);
 
         return
         [
@@ -205,31 +213,40 @@ static class EnumConceptFacts
                     Facts =
                     [
                         .. contribution.Facts
-                            .Where(fact => fact switch
-                            {
-                                ArtifactFact artifact => artifact.Definition.Key.Kind != ArtifactKind.Concept || !dropped.ContainsKey(artifact.Subject),
-                                ConceptRepresentationFact representation => !dropped.ContainsKey(representation.Definition.Concept) || !IsEnumRepresentation(representation),
-                                _ => true
-                            })
-                            .Select(fact => fact is ArtifactFact artifact && artifact.Definition.Properties.Any(IsDropped)
-                                ? artifact with
-                                {
-                                    Definition = artifact.Definition with
-                                    {
-                                        Properties =
-                                        [
-                                            .. artifact.Definition.Properties.Select(property => IsDropped(property)
-                                                ? property with { Type = property.Type with { Subject = null } }
-                                                : property)
-                                        ]
-                                    }
-                                }
-                                : fact)
+                            .Where(fact => KeepFact(fact, dropped))
+                            .Select(fact => WithoutDroppedReferences(fact, dropped))
                     ],
                     Diagnostics = diagnostics
                 };
             })
         ];
+    }
+
+    static bool KeepFact(GenerationFact fact, IReadOnlyDictionary<SubjectId, string> dropped) => fact switch
+    {
+        ArtifactFact artifact => artifact.Definition.Key.Kind != ArtifactKind.Concept || !dropped.ContainsKey(artifact.Subject),
+        ConceptRepresentationFact representation => !dropped.ContainsKey(representation.Definition.Concept) || !IsEnumRepresentation(representation),
+        _ => true
+    };
+
+    static GenerationFact WithoutDroppedReferences(GenerationFact fact, IReadOnlyDictionary<SubjectId, string> dropped)
+    {
+        bool IsDropped(PropertyDefinition property) => property.Type.Subject is { } subject && dropped.ContainsKey(subject);
+
+        return fact is ArtifactFact artifact && artifact.Definition.Properties.Any(IsDropped)
+            ? artifact with
+            {
+                Definition = artifact.Definition with
+                {
+                    Properties =
+                    [
+                        .. artifact.Definition.Properties.Select(property => IsDropped(property)
+                            ? property with { Type = property.Type with { Subject = null } }
+                            : property)
+                    ]
+                }
+            }
+            : fact;
     }
 
     static GenerationDiagnostic? OmissionOf(INamedTypeSymbol type, SubjectId subject, Evidence evidence, string[] values)

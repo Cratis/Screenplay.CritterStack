@@ -51,21 +51,46 @@ static partial class WolverinePolicyDiscovery
             var model = project.Compilation.GetSemanticModel(tree);
             foreach (var invocation in tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
-                if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
-                    !IsMiddlewareRegistration(method, project, out var isHttpEndpoint) ||
-                    model.GetEnclosingSymbol(invocation.SpanStart)?.ContainingType is not { } owner)
+                if (RegistrationFrom(invocation, model, project) is { } registration)
                 {
-                    continue;
+                    yield return registration;
                 }
-
-                var type = MiddlewareType(invocation, method, model);
-                var resolved = type is not null && IsMiddlewareType(type, project) &&
-                    !HasRuntimeFilter(invocation, model) && !IsConditional(invocation);
-                yield return new(type, owner, isHttpEndpoint, resolved,
-                    CritterStackSource.RangeForProject(invocation.GetLocation(), project));
             }
         }
     }
+
+    static MiddlewareRegistration? RegistrationFrom(
+        InvocationExpressionSyntax invocation,
+        SemanticModel model,
+        DotNetProjectCompilation project)
+    {
+        if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method)
+        {
+            return null;
+        }
+
+        if (!IsMiddlewareRegistration(method, project, out var isHttpEndpoint))
+        {
+            return null;
+        }
+
+        if (model.GetEnclosingSymbol(invocation.SpanStart)?.ContainingType is not { } owner)
+        {
+            return null;
+        }
+
+        var type = MiddlewareType(invocation, method, model);
+        return new(type, owner, isHttpEndpoint, IsResolvedMiddleware(type, invocation, model, project),
+            CritterStackSource.RangeForProject(invocation.GetLocation(), project));
+    }
+
+    static bool IsResolvedMiddleware(
+        INamedTypeSymbol? type,
+        InvocationExpressionSyntax invocation,
+        SemanticModel model,
+        DotNetProjectCompilation project) =>
+        type is not null && IsMiddlewareType(type, project) &&
+        !HasRuntimeFilter(invocation, model) && !IsConditional(invocation);
 
     static bool IsMiddlewareRegistration(IMethodSymbol method, DotNetProjectCompilation project, out bool isHttpEndpoint)
     {
