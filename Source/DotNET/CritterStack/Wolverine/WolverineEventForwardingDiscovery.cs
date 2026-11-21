@@ -59,7 +59,7 @@ static class WolverineEventForwardingDiscovery
         }
 
         var owner = MetadataName((method.ReducedFrom ?? method).ContainingType);
-        if (method.Name == "TransformedTo" && owner == WellKnownTypes.WolverineEventForwardingTransform)
+        if (IsTransformation(method, owner))
         {
             return $"TransformedTo: {Name(method.ContainingType.TypeArguments[0])}' to '{Name(method.TypeArguments[0])}";
         }
@@ -69,22 +69,33 @@ static class WolverineEventForwardingDiscovery
             return $"{method.Name}: {RegistrationTypes(invocation, model)}";
         }
 
+        return SubscriptionDescription(invocation, model, method, owner);
+    }
+
+    static string? SubscriptionDescription(InvocationExpressionSyntax invocation, SemanticModel model, IMethodSymbol method, string owner)
+    {
+        if (method.Name != "SubscribeToEvent" || !IsForwardingOwner(owner))
+        {
+            return null;
+        }
+
         // A bare subscription opens a transform but does not itself turn forwarding on.
         // Reporting it makes the incomplete configuration visible without claiming it runs.
-        return method.Name == "SubscribeToEvent" && IsForwardingOwner(owner) && !HasTransformParent(invocation, model)
-            ? $"SubscribeToEvent (uncompleted transformation): {Name(method.TypeArguments[0])}"
-            : null;
+        return HasTransformParent(invocation, model)
+            ? null
+            : $"SubscribeToEvent (uncompleted transformation): {Name(method.TypeArguments[0])}";
     }
+
+    static bool IsTransformation(IMethodSymbol method, string owner) =>
+        method.Name == "TransformedTo" && owner == WellKnownTypes.WolverineEventForwardingTransform;
 
     static bool HasTransformParent(InvocationExpressionSyntax invocation, SemanticModel model) =>
         invocation.Parent is MemberAccessExpressionSyntax { Parent: InvocationExpressionSyntax parent } &&
-        model.GetSymbolInfo(parent).Symbol is IMethodSymbol method && method.Name == "TransformedTo" &&
-        MetadataName(method.ContainingType) == WellKnownTypes.WolverineEventForwardingTransform;
+        model.GetSymbolInfo(parent).Symbol is IMethodSymbol method && IsTransformation(method, MetadataName(method.ContainingType));
 
     static string? FastForwardingDescription(AssignmentExpressionSyntax assignment, SemanticModel model)
     {
-        if (model.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol property || property.Name != "UseFastEventForwarding" ||
-            MetadataName(property.ContainingType) != WellKnownTypes.WolverineMartenIntegration)
+        if (model.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol property || !IsFastForwardingProperty(property))
         {
             return null;
         }
@@ -92,6 +103,9 @@ static class WolverineEventForwardingDiscovery
         var value = model.GetConstantValue(assignment.Right);
         return value.HasValue && value.Value is false ? null : "UseFastEventForwarding: all forwarded event types";
     }
+
+    static bool IsFastForwardingProperty(IPropertySymbol property) =>
+        property.Name == "UseFastEventForwarding" && MetadataName(property.ContainingType) == WellKnownTypes.WolverineMartenIntegration;
 
     static string RegistrationTypes(InvocationExpressionSyntax registration, SemanticModel model)
     {
@@ -114,8 +128,7 @@ static class WolverineEventForwardingDiscovery
 
     static IEnumerable<string> RelayedEvents(InvocationExpressionSyntax invocation, SemanticModel model)
     {
-        if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method || method.Name != "PublishEvent" ||
-            MetadataName(method.ContainingType) != WellKnownTypes.WolverinePublishingRelay)
+        if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method || !IsPublishingRelay(method))
         {
             return [];
         }
@@ -124,6 +137,9 @@ static class WolverineEventForwardingDiscovery
             .Select(_ => _.Expression).OfType<TypeOfExpressionSyntax>()
             .Select(_ => model.GetTypeInfo(_.Type).Type).OfType<ITypeSymbol>().Select(Name));
     }
+
+    static bool IsPublishingRelay(IMethodSymbol method) =>
+        method.Name == "PublishEvent" && MetadataName(method.ContainingType) == WellKnownTypes.WolverinePublishingRelay;
 
     static bool IsRegistrationOwner(string owner) =>
         owner == WellKnownTypes.WolverineOptionsMartenExtensions || owner == WellKnownTypes.WolverineAncillaryMartenExtensions;

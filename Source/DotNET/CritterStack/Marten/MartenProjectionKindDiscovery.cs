@@ -11,6 +11,11 @@ namespace Cratis.CritterStack.Screenplay.Marten;
 
 static class MartenProjectionKindDiscovery
 {
+    static readonly HashSet<string> _constituentRegistrations =
+    [
+        "Snapshot", "Add", "AddProjectionWithServices"
+    ];
+
     public static IReadOnlyList<GenerationDiagnostic> Discover(DotNetProjectCompilation project)
     {
         var diagnostics = new List<GenerationDiagnostic>();
@@ -19,20 +24,9 @@ static class MartenProjectionKindDiscovery
             var semanticModel = project.Compilation.GetSemanticModel(tree);
             foreach (var invocation in tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
-                if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
-                    DotNetSubjectIds.MetadataName(method.ContainingType.OriginalDefinition) != WellKnownTypes.MartenProjectionOptions)
+                if (RegistrationDiagnostic(project, invocation, semanticModel) is { } diagnostic)
                 {
-                    continue;
-                }
-
-                if (method.Name == "CompositeProjectionFor")
-                {
-                    var constituents = ConstituentTypes(invocation, semanticModel);
-                    diagnostics.Add(Report(project, invocation, "composite", constituents));
-                }
-                else if (method.Name == "Add" && RegistrationType(invocation, method, semanticModel) is { } type && IsOpaqueProjection(type))
-                {
-                    diagnostics.Add(Report(project, invocation, IsComposite(type) ? "composite" : "flat-table", [type.ToDisplayString()]));
+                    diagnostics.Add(diagnostic);
                 }
             }
         }
@@ -46,6 +40,34 @@ static class MartenProjectionKindDiscovery
 
     public static bool IsOpaqueProjection(INamedTypeSymbol type) =>
         IsComposite(type) || DotNetSymbols.IsOrInheritsFrom(type, WellKnownTypes.MartenFlatTableProjection);
+
+    static GenerationDiagnostic? RegistrationDiagnostic(DotNetProjectCompilation project, InvocationExpressionSyntax invocation, SemanticModel semanticModel)
+    {
+        if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
+            DotNetSubjectIds.MetadataName(method.ContainingType.OriginalDefinition) != WellKnownTypes.MartenProjectionOptions)
+        {
+            return null;
+        }
+
+        if (method.Name == "CompositeProjectionFor")
+        {
+            return Report(project, invocation, "composite", ConstituentTypes(invocation, semanticModel));
+        }
+
+        return method.Name == "Add"
+            ? OpaqueProjectionDiagnostic(project, invocation, RegistrationType(invocation, method, semanticModel))
+            : null;
+    }
+
+    static GenerationDiagnostic? OpaqueProjectionDiagnostic(DotNetProjectCompilation project, InvocationExpressionSyntax invocation, INamedTypeSymbol? type)
+    {
+        if (type is null || !IsOpaqueProjection(type))
+        {
+            return null;
+        }
+
+        return Report(project, invocation, IsComposite(type) ? "composite" : "flat-table", [type.ToDisplayString()]);
+    }
 
     static INamedTypeSymbol? RegistrationType(InvocationExpressionSyntax invocation, IMethodSymbol method, SemanticModel semanticModel)
     {
@@ -63,15 +85,23 @@ static class MartenProjectionKindDiscovery
         var types = new List<string>();
         foreach (var nested in invocation.DescendantNodes().OfType<InvocationExpressionSyntax>())
         {
-            if (semanticModel.GetSymbolInfo(nested).Symbol is IMethodSymbol method &&
-                (method.Name == "Snapshot" || method.Name == "Add" || method.Name == "AddProjectionWithServices") &&
-                IsComposite(method.ContainingType) && RegistrationType(nested, method, semanticModel) is { TypeKind: not TypeKind.Error } type)
+            if (ConstituentType(nested, semanticModel) is { TypeKind: not TypeKind.Error } type)
             {
                 types.Add(type.ToDisplayString());
             }
         }
 
         return [.. types.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+    }
+
+    static INamedTypeSymbol? ConstituentType(InvocationExpressionSyntax invocation, SemanticModel semanticModel)
+    {
+        if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method || !_constituentRegistrations.Contains(method.Name))
+        {
+            return null;
+        }
+
+        return IsComposite(method.ContainingType) ? RegistrationType(invocation, method, semanticModel) : null;
     }
 
     static GenerationDiagnostic Report(DotNetProjectCompilation project, InvocationExpressionSyntax invocation, string kind, IReadOnlyList<string> constituents) => new()

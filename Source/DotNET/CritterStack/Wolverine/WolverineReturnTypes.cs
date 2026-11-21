@@ -87,9 +87,7 @@ static class WolverineReturnTypes
         }
 
         var metadataName = DotNetSubjectIds.MetadataName(named.OriginalDefinition);
-        if (named.Name.StartsWith("UpdatedAggregate", StringComparison.Ordinal) ||
-            named.Name.StartsWith("CreationResponse", StringComparison.Ordinal) ||
-            _nonEventTypes.Contains(metadataName))
+        if (HasResponseName(named) || _nonEventTypes.Contains(metadataName))
         {
             return true;
         }
@@ -137,8 +135,7 @@ static class WolverineReturnTypes
 
     public static bool IsHttpResponseType(INamedTypeSymbol type)
     {
-        if (type.Name.StartsWith("CreationResponse", StringComparison.Ordinal) ||
-            type.Name.StartsWith("UpdatedAggregate", StringComparison.Ordinal))
+        if (HasResponseName(type))
         {
             return true;
         }
@@ -158,6 +155,10 @@ static class WolverineReturnTypes
 
         return type.AllInterfaces.Any(@interface => DotNetSubjectIds.MetadataName(@interface.OriginalDefinition) == metadataName);
     }
+
+    static bool HasResponseName(INamedTypeSymbol type) =>
+        type.Name.StartsWith("UpdatedAggregate", StringComparison.Ordinal) ||
+        type.Name.StartsWith("CreationResponse", StringComparison.Ordinal);
 
     static IEnumerable<ExpressionSyntax> ReturnedExpressions(MethodDeclarationSyntax declaration)
     {
@@ -197,11 +198,17 @@ static class WolverineReturnTypes
         expression = UnwrapExpression(expression, model);
         if (expression is InvocationExpressionSyntax invocation && model.GetSymbolInfo(invocation).Symbol is IMethodSymbol factory)
         {
-            return factory.IsStatic && DotNetSubjectIds.MetadataName(factory.ContainingType) == WellKnownTypes.WolverineMartenOps
-                ? factory
-                : null;
+            return IsMartenFactory(factory) ? factory : null;
         }
 
+        return LocalMartenFactory(expression, model, visited);
+    }
+
+    static bool IsMartenFactory(IMethodSymbol factory) =>
+        factory.IsStatic && DotNetSubjectIds.MetadataName(factory.ContainingType) == WellKnownTypes.WolverineMartenOps;
+
+    static IMethodSymbol? LocalMartenFactory(ExpressionSyntax expression, SemanticModel model, HashSet<ILocalSymbol> visited)
+    {
         if (model.GetSymbolInfo(expression).Symbol is not ILocalSymbol local || !visited.Add(local))
         {
             return null;
