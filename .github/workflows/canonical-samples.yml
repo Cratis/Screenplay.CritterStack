@@ -45,8 +45,6 @@ jobs:
     if: needs.already-ran.outputs.skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      CRATIS_CANONICAL_ACTUAL_DIR: ${{ runner.temp }}/canonical-actual
     steps:
       - name: Checkout adapter
         uses: actions/checkout@v7
@@ -95,6 +93,8 @@ jobs:
           dotnet build samples/helpdesk/Helpdesk.Api/Helpdesk.Api.csproj --configuration Debug
 
       - name: Generate and verify BankAccountES
+        env:
+          CRATIS_CANONICAL_ACTUAL_DIR: ${{ runner.temp }}/canonical-actual
         run: |
           adapter/scripts/verify-canonical.sh \
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
@@ -104,6 +104,8 @@ jobs:
             adapter/Source/DotNET/CritterStack.Specs/Golden/canonical/BankAccountES
 
       - name: Generate and verify document CRUD
+        env:
+          CRATIS_CANONICAL_ACTUAL_DIR: ${{ runner.temp }}/canonical-actual
         run: |
           adapter/scripts/verify-canonical.sh \
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
@@ -113,6 +115,8 @@ jobs:
             adapter/Source/DotNET/CritterStack.Specs/Golden/canonical/CqrsMinimalApi
 
       - name: Generate and verify Marten operation returns
+        env:
+          CRATIS_CANONICAL_ACTUAL_DIR: ${{ runner.temp }}/canonical-actual
         run: |
           adapter/scripts/verify-canonical.sh \
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
@@ -122,6 +126,8 @@ jobs:
             adapter/Source/DotNET/CritterStack.Specs/Golden/canonical/Reports
 
       - name: Generate and verify Marten async projections
+        env:
+          CRATIS_CANONICAL_ACTUAL_DIR: ${{ runner.temp }}/canonical-actual
         run: |
           adapter/scripts/verify-canonical.sh \
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
@@ -131,6 +137,8 @@ jobs:
             adapter/Source/DotNET/CritterStack.Specs/Golden/canonical/Trip
 
       - name: Generate and verify CommunityKitchen
+        env:
+          CRATIS_CANONICAL_ACTUAL_DIR: ${{ runner.temp }}/canonical-actual
         run: |
           adapter/scripts/verify-canonical.sh \
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
@@ -139,6 +147,8 @@ jobs:
             "${RUNNER_TEMP}/CommunityKitchen.play"
 
       - name: Generate and verify IncidentService
+        env:
+          CRATIS_CANONICAL_ACTUAL_DIR: ${{ runner.temp }}/canonical-actual
         run: |
           adapter/scripts/verify-canonical.sh \
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
@@ -147,6 +157,8 @@ jobs:
             "${RUNNER_TEMP}/IncidentService.play"
 
       - name: Generate and verify Vogen concepts
+        env:
+          CRATIS_CANONICAL_ACTUAL_DIR: ${{ runner.temp }}/canonical-actual
         run: |
           adapter/scripts/verify-canonical.sh \
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
@@ -155,6 +167,8 @@ jobs:
             "${RUNNER_TEMP}/VogenConcepts.play"
 
       - name: Generate and verify legacy HelpDesk
+        env:
+          CRATIS_CANONICAL_ACTUAL_DIR: ${{ runner.temp }}/canonical-actual
         run: |
           adapter/scripts/verify-canonical.sh \
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
