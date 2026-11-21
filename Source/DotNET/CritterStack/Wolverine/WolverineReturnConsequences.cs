@@ -23,7 +23,10 @@ sealed record WolverineReturnConsequence(
     int Slot,
     ITypeSymbol Type,
     WolverineReturnConsequenceKind Kind,
-    ITypeSymbol? EntityType = null);
+    ITypeSymbol? EntityType = null,
+    WolverineMartenOperation? MartenOperation = null);
+
+sealed record WolverineMartenOperation(string FactoryName, INamedTypeSymbol ModelType);
 
 sealed record WolverineReturnContext(
     DotNetProjectCompilation Project,
@@ -62,8 +65,39 @@ static class WolverineReturnConsequences
             aggregateWorkflow,
             hasEventStream,
             DotNetSymbols.HasAttribute(method, WellKnownTypes.WolverineEmptyResponseAttribute));
-        return [.. WolverineReturnTypes.CreatedValues(method).Select((type, slot) => Classify(type, slot, context))];
+        return [.. WolverineReturnTypes.CreatedValues(method).Select((type, slot) =>
+            MartenOperation(method, project, type, slot) ?? Classify(type, slot, context))];
     }
+
+    static WolverineReturnConsequence? MartenOperation(IMethodSymbol method, DotNetProjectCompilation project, ITypeSymbol type, int slot)
+    {
+        if (type is not INamedTypeSymbol named || !IsAssignableTo(named, WellKnownTypes.WolverineMartenOp))
+        {
+            return null;
+        }
+
+        var factories = WolverineReturnTypes.MartenFactories(method, project, slot);
+        if (factories.Count == 0 || factories.Any(_ => _ is null))
+        {
+            return null;
+        }
+
+        var operations = factories.OfType<IMethodSymbol>().Select(MartenOperation).ToArray();
+        var first = operations[0];
+        if (first is null || operations.Any(_ => _ is null || _.FactoryName != first.FactoryName ||
+            !SymbolEqualityComparer.Default.Equals(_.ModelType, first.ModelType)))
+        {
+            return null;
+        }
+
+        return new(slot, type, WolverineReturnConsequenceKind.StorageAction, MartenOperation: first);
+    }
+
+    static WolverineMartenOperation? MartenOperation(IMethodSymbol factory) =>
+        factory.Name is "Store" or "Insert" or "Update" or "Delete" or "StoreMany" or "StartStream" &&
+        factory.TypeArguments is [INamedTypeSymbol modelType]
+            ? new(factory.Name, modelType)
+            : null;
 
     public static bool IsTimeoutMessage(INamedTypeSymbol type) =>
         IsAssignableTo(type, WellKnownTypes.WolverineTimeoutMessage);
