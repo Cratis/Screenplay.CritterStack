@@ -44,24 +44,29 @@ sealed record WolverineProductionSources(
 /// <summary>
 /// Decides which produced events a command links with produces, and reports every production that falls back to a handler reference.
 /// </summary>
+/// <remarks>
+/// A fallback is a warning when production evidence is genuinely omitted or unresolved, and information when the handler
+/// reference accurately represents a known structural pattern, such as an IEventStream&lt;T&gt; parameter or a dynamic consistency boundary.
+/// </remarks>
 static class WolverineProductionPlan
 {
     /// <summary>
     /// Decides how each produced event is represented.
     /// </summary>
     /// <param name="sources">The productions read from source.</param>
-    /// <param name="diagnostics">Receives one loss diagnostic per production that is not linked.</param>
+    /// <param name="diagnostics">Receives one diagnostic per production that is not linked, with its severity.</param>
     /// <returns>The decision for each produced event, in a stable order.</returns>
     public static IReadOnlyList<WolverineProductionDecision> Decide(
         WolverineProductionSources sources,
         List<GenerationDiagnostic> diagnostics)
     {
-        var returnEvents = Distinct(sources.ReturnEvents);
-        var yieldEvents = Distinct(sources.Yields.Select(_ => _.EventType));
-        var bodyEvents = Distinct(sources.BodyEvents);
-        var sessionEvents = Distinct(sources.SessionAppends.Select(_ => _.EventType));
-        var events = Distinct(returnEvents.Concat(yieldEvents).Concat(bodyEvents).Concat(sessionEvents));
-        var blockers = Blockers(sources, returnEvents, yieldEvents, bodyEvents, sessionEvents);
+        var produced = new ProducedEvents(
+            Distinct(sources.ReturnEvents),
+            Distinct(sources.Yields.Select(_ => _.EventType)),
+            Distinct(sources.BodyEvents),
+            Distinct(sources.SessionAppends.Select(_ => _.EventType)));
+        var events = Distinct(produced.Returns.Concat(produced.Yields).Concat(produced.Body).Concat(produced.Session));
+        var blockers = Blockers(sources, produced);
 
         if (blockers.Count == 0)
         {
@@ -75,57 +80,55 @@ static class WolverineProductionPlan
             ];
         }
 
-        foreach (var blocker in blockers)
-        {
-            diagnostics.Add(new GenerationDiagnostic
-            {
-                Code = WolverineDiagnosticCodes.ProductionLinkOmitted,
-                Severity = GenerationDiagnosticSeverity.Warning,
-                Outcome = blocker.Outcome,
-                Message = $"Command '{sources.CommandName}' is not linked to event '{blocker.EventType.Name}' with produces because {blocker.Reason}; the model references the handler instead",
-                Source = blocker.Source ?? sources.CommandSource,
-                Subject = sources.CommandSubject
-            });
-        }
-
+        Report(sources, blockers, diagnostics);
         return
         [
             .. events.Select(eventType => new WolverineProductionDecision(
                 eventType,
-                Declarative: Contains(returnEvents, eventType) &&
-                             !Contains(bodyEvents, eventType) &&
-                             !Contains(sessionEvents, eventType) &&
-                             !Contains(yieldEvents, eventType) &&
-                             !Contains(sources.ImperativeDcbEvents, eventType) &&
-                             !sources.HasCompoundValidation,
+                Declarative: IsDeclarativeReturn(sources, produced, eventType),
                 StreamIdentity: null))
         ];
     }
 
-    static List<Blocker> Blockers(
-        WolverineProductionSources sources,
-        INamedTypeSymbol[] returnEvents,
-        INamedTypeSymbol[] yieldEvents,
-        INamedTypeSymbol[] bodyEvents,
-        INamedTypeSymbol[] sessionEvents)
+    static void Report(WolverineProductionSources sources, IEnumerable<Blocker> blockers, List<GenerationDiagnostic> diagnostics) =>
+        diagnostics.AddRange(blockers.Select(blocker => new GenerationDiagnostic
+        {
+            Code = WolverineDiagnosticCodes.ProductionLinkOmitted,
+            Severity = blocker.Severity,
+            Outcome = blocker.Outcome,
+            Message = $"Command '{sources.CommandName}' is not linked to event '{blocker.EventType.Name}' with produces because {blocker.Reason}; the model references the handler instead",
+            Source = blocker.Source ?? sources.CommandSource,
+            Subject = sources.CommandSubject
+        }));
+
+    static bool IsDeclarativeReturn(WolverineProductionSources sources, ProducedEvents produced, ITypeSymbol eventType) =>
+        Contains(produced.Returns, eventType) &&
+        !Contains(produced.Body, eventType) &&
+        !Contains(produced.Session, eventType) &&
+        !Contains(produced.Yields, eventType) &&
+        !Contains(sources.ImperativeDcbEvents, eventType) &&
+        !sources.HasCompoundValidation;
+
+    static List<Blocker> Blockers(WolverineProductionSources sources, ProducedEvents produced)
     {
+        var (returnEvents, yieldEvents, bodyEvents, sessionEvents) = produced;
         var blockers = new List<Blocker>();
         foreach (var production in sources.SessionAppends.Concat(sources.Yields).Where(_ => _.LossReason is not null))
         {
-            blockers.Add(new(production.EventType, production.LossReason!, production.LossOutcome, production.Source));
+            blockers.Add(Omitted(production.EventType, production.LossReason!, production.LossOutcome, production.Source));
         }
 
         blockers.AddRange(bodyEvents
             .Where(_ => !Contains(sessionEvents, _))
-            .Select(_ => new Blocker(_, "it is added to a Wolverine event collection or appended through a persistence call whose stream is not read from source", GenerationDiagnosticOutcome.Unsupported, null)));
+            .Select(_ => Omitted(_, "it is added to a Wolverine event collection or appended through a persistence call whose stream is not read from source")));
         blockers.AddRange(Distinct(sources.ImperativeDcbEvents)
-            .Select(_ => new Blocker(_, "it is appended imperatively through a dynamic consistency boundary", GenerationDiagnosticOutcome.Unsupported, null)));
+            .Select(_ => Structural(_, "it is appended imperatively through a dynamic consistency boundary")));
         blockers.AddRange(Distinct(sources.EventStreamAppendEvents)
-            .Select(_ => new Blocker(_, "it is appended through an IEventStream<T> handler parameter", GenerationDiagnosticOutcome.Unsupported, null)));
+            .Select(_ => Structural(_, "it is appended through an IEventStream<T> handler parameter")));
         if (sources.HasCompoundValidation)
         {
             blockers.AddRange(Distinct(returnEvents.Concat(yieldEvents).Concat(sessionEvents))
-                .Select(_ => new Blocker(_, "compound validation decides whether it is produced", GenerationDiagnosticOutcome.Unsupported, null)));
+                .Select(_ => Omitted(_, "compound validation decides whether it is produced")));
         }
 
         var identities = sources.SessionAppends
@@ -137,7 +140,7 @@ static class WolverineProductionPlan
         if (identities > 1)
         {
             blockers.AddRange(sessionEvents.Concat(returnEvents).Concat(yieldEvents)
-                .Select(_ => new Blocker(_, "the handler appends to more than one stream", GenerationDiagnosticOutcome.Unsupported, null)));
+                .Select(_ => Omitted(_, "the handler appends to more than one stream")));
         }
 
         return
@@ -161,5 +164,28 @@ static class WolverineProductionPlan
             .OfType<INamedTypeSymbol>()
     ];
 
-    sealed record Blocker(INamedTypeSymbol EventType, string Reason, GenerationDiagnosticOutcome Outcome, SourceRange? Source);
+    // Production evidence that source does not resolve, so the model genuinely omits it: reported as a warning.
+    static Blocker Omitted(
+        INamedTypeSymbol eventType,
+        string reason,
+        GenerationDiagnosticOutcome outcome = GenerationDiagnosticOutcome.Unsupported,
+        SourceRange? source = null) =>
+        new(eventType, reason, outcome, source, GenerationDiagnosticSeverity.Warning);
+
+    // A known pattern that the handler reference represents accurately, where no declarative link is possible by design.
+    static Blocker Structural(INamedTypeSymbol eventType, string reason) =>
+        new(eventType, reason, GenerationDiagnosticOutcome.Unsupported, null, GenerationDiagnosticSeverity.Information);
+
+    sealed record ProducedEvents(
+        INamedTypeSymbol[] Returns,
+        INamedTypeSymbol[] Yields,
+        INamedTypeSymbol[] Body,
+        INamedTypeSymbol[] Session);
+
+    sealed record Blocker(
+        INamedTypeSymbol EventType,
+        string Reason,
+        GenerationDiagnosticOutcome Outcome,
+        SourceRange? Source,
+        GenerationDiagnosticSeverity Severity);
 }
