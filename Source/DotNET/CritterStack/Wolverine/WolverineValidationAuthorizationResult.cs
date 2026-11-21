@@ -122,14 +122,7 @@ sealed class WolverineValidationAuthorizationDiscoveryResult(
 
         foreach (var type in sourceTypes)
         {
-            var supportedAccessibility = type.DeclaredAccessibility == Accessibility.Public ||
-                                         (policy.IncludeInternalValidators && type.DeclaredAccessibility == Accessibility.Internal);
-            if (supportedAccessibility &&
-                type.Locations.Any(IsAuthoredSourceLocation) &&
-                type.AllInterfaces.Any(@interface =>
-                    DotNetSubjectIds.MetadataName(@interface.OriginalDefinition) == WellKnownTypes.FluentValidationValidator &&
-                    @interface.TypeArguments.Length == 1 &&
-                    SymbolEqualityComparer.Default.Equals(@interface.TypeArguments[0], requestType)))
+            if (IsSupportedValidatorType(type, policy) && ValidatesRequest(type, requestType))
             {
                 return type;
             }
@@ -137,6 +130,19 @@ sealed class WolverineValidationAuthorizationDiscoveryResult(
 
         return null;
     }
+
+    static bool HasSupportedAccessibility(INamedTypeSymbol type, WolverineValidationPolicyActivation policy) =>
+        type.DeclaredAccessibility == Accessibility.Public ||
+        (policy.IncludeInternalValidators && type.DeclaredAccessibility == Accessibility.Internal);
+
+    static bool ValidatesRequest(INamedTypeSymbol type, INamedTypeSymbol requestType) =>
+        type.AllInterfaces.Any(@interface =>
+            DotNetSubjectIds.MetadataName(@interface.OriginalDefinition) == WellKnownTypes.FluentValidationValidator &&
+            @interface.TypeArguments.Length == 1 &&
+            SymbolEqualityComparer.Default.Equals(@interface.TypeArguments[0], requestType));
+
+    bool IsSupportedValidatorType(INamedTypeSymbol type, WolverineValidationPolicyActivation policy) =>
+        HasSupportedAccessibility(type, policy) && type.Locations.Any(IsAuthoredSourceLocation);
 
     bool HasDataAnnotationsValidation(INamedTypeSymbol requestType) =>
         requestType.AllInterfaces.Any(_ =>

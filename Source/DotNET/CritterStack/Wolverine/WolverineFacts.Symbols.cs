@@ -74,19 +74,21 @@ internal static partial class WolverineFacts
         string name,
         string? file,
         IReadOnlyList<PropertyDefinition> properties,
-        Evidence evidence) => new()
+        Evidence evidence) => Artifact(new WolverineArtifactFact(id, key, name, file, properties, evidence));
+
+    static ArtifactFact Artifact(WolverineArtifactFact artifact) => new()
+    {
+        Id = new FactId { Value = artifact.Id },
+        Subject = artifact.Key.Subject,
+        Definition = new ArtifactDefinition
         {
-            Id = new FactId { Value = id },
-            Subject = key.Subject,
-            Definition = new ArtifactDefinition
-            {
-                Key = key,
-                Name = name,
-                File = file,
-                Properties = properties
-            },
-            Evidence = evidence
-        };
+            Key = artifact.Key,
+            Name = artifact.Name,
+            File = artifact.File,
+            Properties = artifact.Properties
+        },
+        Evidence = artifact.Evidence
+    };
 
     static RelationshipFact Relationship(
         string id,
@@ -98,26 +100,35 @@ internal static partial class WolverineFacts
         string? targetMember = null,
         string? discriminator = null,
         bool isCollection = false,
-        bool isOptional = false) => new()
+        bool isOptional = false) => Relationship(new WolverineRelationshipFact(id, source, kind, target, evidence)
+    {
+        SourceMember = sourceMember,
+        TargetMember = targetMember,
+        Discriminator = discriminator,
+        IsCollection = isCollection,
+        IsOptional = isOptional
+    });
+
+    static RelationshipFact Relationship(WolverineRelationshipFact relationship) => new()
+    {
+        Id = new FactId { Value = relationship.Id },
+        Subject = relationship.Source,
+        Definition = new RelationshipDefinition
         {
-            Id = new FactId { Value = id },
-            Subject = source,
-            Definition = new RelationshipDefinition
+            Key = new RelationshipKey
             {
-                Key = new RelationshipKey
-                {
-                    Kind = kind,
-                    Source = source,
-                    Target = target,
-                    Discriminator = discriminator
-                },
-                SourceMember = sourceMember,
-                TargetMember = targetMember,
-                IsCollection = isCollection,
-                IsOptional = isOptional
+                Kind = relationship.Kind,
+                Source = relationship.Source,
+                Target = relationship.Target,
+                Discriminator = relationship.Discriminator
             },
-            Evidence = evidence
-        };
+            SourceMember = relationship.SourceMember,
+            TargetMember = relationship.TargetMember,
+            IsCollection = relationship.IsCollection,
+            IsOptional = relationship.IsOptional
+        },
+        Evidence = relationship.Evidence
+    };
 
     static Evidence MethodEvidence(
         IMethodSymbol method,

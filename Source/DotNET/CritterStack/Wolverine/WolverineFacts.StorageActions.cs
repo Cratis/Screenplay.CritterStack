@@ -29,7 +29,7 @@ internal static partial class WolverineFacts
 
             var entitySubject = scope.Subjects.SubjectForType(scope.Project, entityType);
             AddStoredEntityArtifact(scope, artifactIds, entitySubject, entityType);
-            scope.Facts.Add(Relationship(
+            scope.Facts.Add(Relationship(new WolverineRelationshipFact(
                 $"wolverine:stores:{sourceSubject.Value}:{entitySubject.Value}:{consequence.Slot}",
                 sourceSubject,
                 relationshipKind,
@@ -38,8 +38,10 @@ internal static partial class WolverineFacts
                 {
                     Strength = EvidenceStrength.Exact,
                     Explanation = "Wolverine applies this returned storage action to the persistence layer"
-                },
-                discriminator: $"storage-action:{consequence.Slot}"));
+                })
+            {
+                Discriminator = $"storage-action:{consequence.Slot}"
+            }));
         }
     }
 
@@ -60,13 +62,13 @@ internal static partial class WolverineFacts
             return;
         }
 
-        scope.Facts.Add(Artifact(
+        scope.Facts.Add(Artifact(new WolverineArtifactFact(
             artifactId,
             new ArtifactKey { Subject = entitySubject, Kind = ArtifactKind.ReadModel },
             entityType.Name,
             SourceFileOf(entityType, scope.Project),
             DotNetTypeShapes.PropertiesOf(entityType),
-            CritterStackSource.EvidenceFor(entityType, scope.Adapter, scope.Project, EvidenceStrength.Exact, "Wolverine persists this model through a returned storage action")));
+            CritterStackSource.EvidenceFor(entityType, scope.Adapter, scope.Project, EvidenceStrength.Exact, "Wolverine persists this model through a returned storage action"))));
     }
 
     static RelationshipKind? StorageActionRelationshipKind(
