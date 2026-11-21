@@ -11,7 +11,7 @@ namespace Cratis.CritterStack.Screenplay.Canonical;
 static class CanonicalRunner
 {
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public static async Task<int> Run(string projectPath, string expectedPath, string outputPath)
+    public static async Task<int> Run(string projectPath, string expectedPath, string outputPath, string? goldenPrefix = null)
     {
         projectPath = Path.GetFullPath(projectPath);
         var sourceRoot = FindRepositoryRoot(Path.GetDirectoryName(projectPath)!);
@@ -116,12 +116,18 @@ static class CanonicalRunner
             }
         }
 
+        var goldenMatches = goldenPrefix is null || await CanonicalGolden.Verify(goldenPrefix, result, sourceRoot, Console.Error);
         if (!result.IsSuccess)
         {
             return 4;
         }
 
-        return unmet.Length == 0 ? 0 : 5;
+        if (unmet.Length > 0)
+        {
+            return 5;
+        }
+
+        return goldenMatches ? 0 : 6;
     }
 
     internal static IReadOnlyList<Project> SelectApplicationProjectReferenceClosure(Project rootProject, string sourceRoot)

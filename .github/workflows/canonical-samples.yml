@@ -15,6 +15,7 @@ on:
       - "Source/DotNET/CritterStack/**"
       - "Source/DotNET/Canonical/**"
       - "Integration/Canonical/**"
+      - "Source/DotNET/CritterStack.Specs/Golden/canonical/**"
       - "Directory.Build.props"
       - "Directory.Packages.props"
       - "Screenplay.CritterStack.slnx"
@@ -97,7 +98,8 @@ jobs:
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
             samples/critter-stack/BankAccountES/BankAccountES.csproj \
             adapter/Integration/Canonical/BankAccountES.expected \
-            "${RUNNER_TEMP}/BankAccountES.play"
+            "${RUNNER_TEMP}/BankAccountES.play" \
+            adapter/Source/DotNET/CritterStack.Specs/Golden/canonical/BankAccountES
 
       - name: Generate and verify document CRUD
         run: |
@@ -105,7 +107,8 @@ jobs:
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
             samples/critter-stack/CqrsMinimalApi/CqrsMinimalApi.csproj \
             adapter/Integration/Canonical/CqrsMinimalApi.expected \
-            "${RUNNER_TEMP}/CqrsMinimalApi.play"
+            "${RUNNER_TEMP}/CqrsMinimalApi.play" \
+            adapter/Source/DotNET/CritterStack.Specs/Golden/canonical/CqrsMinimalApi
 
       - name: Generate and verify Marten operation returns
         run: |
@@ -113,7 +116,8 @@ jobs:
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
             samples/critter-stack/Reports/Reports.csproj \
             adapter/Integration/Canonical/Reports.expected \
-            "${RUNNER_TEMP}/Reports.play"
+            "${RUNNER_TEMP}/Reports.play" \
+            adapter/Source/DotNET/CritterStack.Specs/Golden/canonical/Reports
 
       - name: Generate and verify Marten async projections
         run: |
@@ -121,7 +125,8 @@ jobs:
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
             samples/critter-stack/MartenWithProjectAspire/TripBuildingService/TripBuildingService.csproj \
             adapter/Integration/Canonical/MartenWithProjectAspire.expected \
-            "${RUNNER_TEMP}/MartenWithProjectAspire.play"
+            "${RUNNER_TEMP}/MartenWithProjectAspire.play" \
+            adapter/Source/DotNET/CritterStack.Specs/Golden/canonical/Trip
 
       - name: Generate and verify CommunityKitchen
         run: |
@@ -153,4 +158,5 @@ jobs:
             adapter/Source/DotNET/Canonical/bin/Release/net11.0/Cratis.CritterStack.Screenplay.Canonical.dll \
             samples/helpdesk/Helpdesk.Api/Helpdesk.Api.csproj \
             adapter/Integration/Canonical/Helpdesk.expected \
-            "${RUNNER_TEMP}/Helpdesk.play"
+            "${RUNNER_TEMP}/Helpdesk.play" \
+            adapter/Source/DotNET/CritterStack.Specs/Golden/canonical/Helpdesk

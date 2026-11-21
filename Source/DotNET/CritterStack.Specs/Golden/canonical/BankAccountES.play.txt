@@ -1,0 +1,161 @@
+domain BankAccountES
+
+module BankAccountES
+
+  feature Account
+
+    slice StateView Account
+
+      readmodel Account
+        file BankAccountES/Account.cs
+        id Uuid
+        clientId Uuid
+        currency String
+        balance Decimal
+
+      reducer AccountSnapshot => Account
+        on AccountOpened
+          file BankAccountES/Account.cs
+        on FundsDeposited
+          file BankAccountES/Account.cs
+        on FundsWithdrawn
+          file BankAccountES/Account.cs
+
+    slice StateChange DepositFunds
+
+      command DepositFunds
+        accountId Uuid identifier
+        amount Decimal
+        reads Account by accountId
+        produces FundsDeposited
+
+      event FundsDeposited
+        file BankAccountES/Account.cs
+        accountId Uuid
+        amount Decimal
+        newBalance Decimal
+
+    slice StateView GetAccount
+
+      query GetAccount => Account optional
+        by id Uuid
+        performer
+          file BankAccountES/TransactionHistory.cs
+
+    slice StateView GetClientAccounts
+
+      query GetClientAccounts => Account[]
+        by clientId Uuid
+        performer
+          file BankAccountES/TransactionHistory.cs
+
+    slice StateChange WithdrawFunds
+
+      command WithdrawFunds
+        accountId Uuid identifier
+        amount Decimal
+        reads Account by accountId
+        handler
+          file BankAccountES/WithdrawFunds.cs
+
+      event FundsWithdrawn
+        file BankAccountES/Account.cs
+        accountId Uuid
+        amount Decimal
+        newBalance Decimal
+
+  feature AccountTransactions
+
+    slice StateView AccountTransactions
+
+      readmodel AccountTransactions
+        file BankAccountES/TransactionHistory.cs
+        id Uuid
+        transactions Transaction[]
+        balance Decimal
+
+      reducer AccountTransactionsProjection => AccountTransactions
+        on AccountOpened
+          file BankAccountES/TransactionHistory.cs
+        on FundsDeposited
+          file BankAccountES/TransactionHistory.cs
+        on FundsWithdrawn
+          file BankAccountES/TransactionHistory.cs
+
+    slice StateView GetTransactions
+
+      query GetTransactions => AccountTransactions optional
+        by accountId Uuid
+        performer
+          file BankAccountES/TransactionHistory.cs
+
+  feature Client
+
+    slice StateView Client
+
+      readmodel Client
+        file BankAccountES/Client.cs
+        id Uuid
+        name String
+        email String
+
+      reducer ClientSnapshot => Client
+        on ClientEnrolled
+          file BankAccountES/Client.cs
+        on ClientUpdated
+          file BankAccountES/Client.cs
+
+    slice StateView GetClient
+
+      query GetClient => Client optional
+        by id Uuid
+        performer
+          file BankAccountES/TransactionHistory.cs
+
+    slice StateChange UpdateClient
+
+      command UpdateClient
+        clientId Uuid identifier
+        name String
+        email String
+        reads Client by clientId
+        produces ClientUpdated
+
+      event ClientUpdated
+        file BankAccountES/Client.cs
+        clientId Uuid
+        name String
+        email String
+
+  feature EnrollClient
+
+    slice StateChange EnrollClient
+
+      command EnrollClient
+        name String
+        email String
+        handler
+          file BankAccountES/EnrollClient.cs
+
+      event ClientEnrolled
+        file BankAccountES/Client.cs
+        clientId Uuid
+        name String
+        email String
+
+  feature OpenAccount
+
+    slice StateChange OpenAccount
+
+      command OpenAccount
+        clientId Uuid
+        currency String
+        reads Client
+        handler
+          file BankAccountES/OpenAccount.cs
+
+      event AccountOpened
+        file BankAccountES/Account.cs
+        accountId Uuid
+        clientId Uuid
+        currency String
