@@ -142,6 +142,21 @@ public class a_marten_evolve_application : Specification
             Name = "Evolution",
             ProjectPath = "/workspace/Evolution/Evolution.csproj",
             SourceRoot = "/workspace",
+            SourceContext = DotNetSourcePaths.Create(
+                "Evolution/Evolution",
+                new DotNetSourcePathPolicy
+                {
+                    DisplayRoot = DotNetSourceDisplayRoot.Workspace,
+                    CasePolicy = DotNetSourcePathCasePolicy.Ordinal
+                },
+                [
+                    new DotNetSourceDocument
+                    {
+                        SyntaxTree = application,
+                        ProjectRelativePath = "Projections.cs",
+                        WorkspaceRelativePath = "Evolution/Projections.cs"
+                    }
+                ]),
             Compilation = CSharpCompilation.Create("Evolution", [framework, application], references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable)),
             AuthoredSyntaxTrees = new HashSet<SyntaxTree> { application }
         };
