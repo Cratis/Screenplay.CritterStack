@@ -136,4 +136,9 @@ public static class WolverineDiagnosticCodes
     /// reference accurately represents a structural pattern, such as an IEventStream&lt;T&gt; parameter or a dynamic consistency boundary.
     /// </remarks>
     public const string ProductionLinkOmitted = "WOLVERINE0025";
+
+    /// <summary>
+    /// A handler's OnException failure stage sends messages only when the handler fails; the exception filter and retry conditions are not represented.
+    /// </summary>
+    public const string FailureStageConditionOmitted = "WOLVERINE0026";
 }

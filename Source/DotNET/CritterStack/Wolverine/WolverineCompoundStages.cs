@@ -6,7 +6,12 @@ using Microsoft.CodeAnalysis;
 
 namespace Cratis.CritterStack.Screenplay.Wolverine;
 
-sealed record WolverineCompoundStage(IMethodSymbol Method, string StageKind);
+sealed record WolverineCompoundStage(IMethodSymbol Method, string StageKind)
+{
+    public const string OnException = "on-exception";
+
+    public bool IsFailurePath => string.Equals(StageKind, OnException, StringComparison.Ordinal);
+}
 
 static class WolverineCompoundStages
 {
@@ -34,6 +39,16 @@ static class WolverineCompoundStages
 
     static readonly HashSet<string> _afterCommitMethodNames = ["AfterCommit", "AfterCommitAsync"];
 
+    static readonly HashSet<string> _onExceptionMethodNames = ["OnException", "OnExceptionAsync"];
+
+    static readonly (HashSet<string> Names, string StageKind)[] _namedStages =
+    [
+        (["Load", "LoadAsync"], "load"),
+        (["Before", "BeforeAsync"], "before"),
+        (_afterMethodNames, "after"),
+        (_afterCommitMethodNames, "after-commit")
+    ];
+
     public static IReadOnlyList<IMethodSymbol> ValidationMethodsFor(
         IMethodSymbol handler,
         DotNetProjectCompilation project) =>
@@ -57,32 +72,45 @@ static class WolverineCompoundStages
                 .Where(stage => MatchesHandler(handler, requestType, stage))
         ];
 
+    /// <summary>
+    /// Gets the parameter through which a failure stage receives the exception it handles.
+    /// </summary>
+    /// <param name="method">The failure stage method.</param>
+    /// <returns>The exception parameter, or null when the method does not accept an exception.</returns>
+    public static IParameterSymbol? ExceptionParameter(IMethodSymbol method) =>
+        method.Parameters.FirstOrDefault(_ => IsException(_.Type));
+
     static WolverineCompoundStage? StageFor(IMethodSymbol method)
     {
-        if (string.Equals(method.Name, "Load", StringComparison.Ordinal) ||
-            string.Equals(method.Name, "LoadAsync", StringComparison.Ordinal))
+        if (_namedStages.FirstOrDefault(_ => _.Names.Contains(method.Name)).StageKind is { } stageKind)
         {
-            return new(method, "load");
+            return new(method, stageKind);
         }
 
-        if (string.Equals(method.Name, "Before", StringComparison.Ordinal) ||
-            string.Equals(method.Name, "BeforeAsync", StringComparison.Ordinal))
-        {
-            return new(method, "before");
-        }
-
-        if (_afterMethodNames.Contains(method.Name))
-        {
-            return new(method, "after");
-        }
-
-        if (_afterCommitMethodNames.Contains(method.Name) ||
-            DotNetSymbols.HasAttributeAssignableTo(method, WellKnownTypes.WolverineAfterCommitAttribute))
+        if (DotNetSymbols.HasAttributeAssignableTo(method, WellKnownTypes.WolverineAfterCommitAttribute))
         {
             return new(method, "after-commit");
         }
 
+        if (_onExceptionMethodNames.Contains(method.Name) && ExceptionParameter(method) is not null)
+        {
+            return new(method, WolverineCompoundStage.OnException);
+        }
+
         return null;
+    }
+
+    static bool IsException(ITypeSymbol type)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            if (string.Equals(current.ToDisplayString(), "System.Exception", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     static bool MatchesHandler(
@@ -90,6 +118,11 @@ static class WolverineCompoundStages
         ITypeSymbol requestType,
         WolverineCompoundStage stage)
     {
+        if (stage.IsFailurePath)
+        {
+            return stage.Method.Parameters.Any(_ => SymbolEqualityComparer.Default.Equals(_.Type, requestType));
+        }
+
         if (!string.Equals(stage.StageKind, "load", StringComparison.Ordinal))
         {
             return stage.Method.Parameters.FirstOrDefault()?.Type is { } stageRequestType &&

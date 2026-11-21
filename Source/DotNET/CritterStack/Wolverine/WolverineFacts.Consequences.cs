@@ -169,6 +169,12 @@ internal static partial class WolverineFacts
         string entryPointName,
         WolverineCompoundStage stage)
     {
+        if (stage.IsFailurePath)
+        {
+            AddFailureStage(scope, sourceSubject, entryPointName, stage);
+            return;
+        }
+
         var evidence = MethodEvidence(
             stage.Method,
             scope.Project,
