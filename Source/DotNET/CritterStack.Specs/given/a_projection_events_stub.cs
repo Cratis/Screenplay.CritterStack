@@ -4,7 +4,7 @@
 namespace Cratis.CritterStack.Screenplay.given;
 
 /// <summary>
-/// Shares the Marten subscription <c>ProcessEventsAsync</c> signature that the embedded application sources of the
+/// Shares the Marten subscription <c language="csharp">ProcessEventsAsync</c> signature that the embedded application sources of the
 /// Marten projection and subscription givens declare. The text it produces is character for character what the givens
 /// previously spelled out, so source positions asserted by specs do not move.
 /// </summary>

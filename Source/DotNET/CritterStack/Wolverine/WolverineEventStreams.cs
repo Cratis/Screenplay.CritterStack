@@ -115,6 +115,31 @@ static class WolverineEventStreams
         return new(appends, unresolved, hasDirectWrite);
     }
 
+    public static bool TryGetDirectPayloads(
+        IInvocationOperation invocation,
+        out IReadOnlyList<INamedTypeSymbol> eventTypes) => TryGetPayloads(invocation, out eventTypes);
+
+    public static bool TryGetDirectPayloads(
+        IOperation operation,
+        out IReadOnlyList<INamedTypeSymbol> eventTypes,
+        bool allowEmpty = false)
+    {
+        var payloads = new List<INamedTypeSymbol>();
+        if (!TryGetPayloads(operation, payloads, allowEmpty))
+        {
+            eventTypes = [];
+            return false;
+        }
+
+        eventTypes = payloads;
+        return true;
+    }
+
+    public static bool IsEventStream(ITypeSymbol type) => EventStreamInterfaces(type).Count > 0;
+
+    public static bool IsExactAppend(IInvocationOperation invocation, DotNetProjectCompilation project) =>
+        TryGetAppendModel(invocation, project, out _);
+
     // The exact IEventStream<T> append call a direct handler-body invocation represents, or null when it is anything else.
     static DirectAppend? DirectAppendOf(InvocationExpressionSyntax invocationSyntax, AppendScope scope)
     {
@@ -158,31 +183,6 @@ static class WolverineEventStreams
             ? new AppendOutcome([.. targets.Select(binding => new WolverineEventStreamAppend(binding, admittedEventTypes, source))], null)
             : new AppendOutcome([], null);
     }
-
-    public static bool TryGetDirectPayloads(
-        IInvocationOperation invocation,
-        out IReadOnlyList<INamedTypeSymbol> eventTypes) => TryGetPayloads(invocation, out eventTypes);
-
-    public static bool TryGetDirectPayloads(
-        IOperation operation,
-        out IReadOnlyList<INamedTypeSymbol> eventTypes,
-        bool allowEmpty = false)
-    {
-        var payloads = new List<INamedTypeSymbol>();
-        if (!TryGetPayloads(operation, payloads, allowEmpty))
-        {
-            eventTypes = [];
-            return false;
-        }
-
-        eventTypes = payloads;
-        return true;
-    }
-
-    public static bool IsEventStream(ITypeSymbol type) => EventStreamInterfaces(type).Count > 0;
-
-    public static bool IsExactAppend(IInvocationOperation invocation, DotNetProjectCompilation project) =>
-        TryGetAppendModel(invocation, project, out _);
 
     static IEnumerable<WolverineStateBinding> BindingsForParameter(
         BindingContext context,

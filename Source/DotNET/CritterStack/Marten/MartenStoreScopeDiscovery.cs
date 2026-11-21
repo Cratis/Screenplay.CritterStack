@@ -28,7 +28,7 @@ static class MartenStoreScopeDiscovery
         .Where(_ => project.AuthoredSyntaxTrees.Contains(_) && !DotNetGeneratedSource.IsGenerated(_));
 
     static bool IsModelName(ExpressionSyntax expression, SemanticModel semanticModel) =>
-        semanticModel.GetSymbolInfo(expression).Symbol is IPropertySymbol { Name: WellKnownTypes.MartenEventModelName } property &&
+        semanticModel.GetSymbolInfo(expression).Symbol is IPropertySymbol property && property.Name == WellKnownTypes.MartenEventModelName &&
         DotNetSubjectIds.MetadataName(property.ContainingType.OriginalDefinition) == WellKnownTypes.MartenStoreOptions;
 
     static INamedTypeSymbol? StoreType(InvocationExpressionSyntax invocation, SemanticModel semanticModel)
@@ -50,9 +50,11 @@ static class MartenStoreScopeDiscovery
     {
         var assignments = invocation.DescendantNodes().OfType<AssignmentExpressionSyntax>()
             .Where(_ => IsModelName(_.Left, semanticModel)).ToArray();
-        return assignments.Length == 0 || assignments.Any(_ => semanticModel.GetConstantValue(_.Right) is
-        { HasValue: true, Value: null or "EventModel" });
+        return assignments.Length == 0 || assignments.Any(_ => IsDefaultModelName(semanticModel.GetConstantValue(_.Right)));
     }
+
+    static bool IsDefaultModelName(Optional<object?> value) =>
+        value.HasValue && (value.Value is null || Equals(value.Value, "EventModel"));
 
     static INamedTypeSymbol? SelectedStoreType(AttributeSyntax attribute, SemanticModel semanticModel) =>
         attribute.ArgumentList?.Arguments.FirstOrDefault()?.Expression is TypeOfExpressionSyntax typeOf
@@ -80,7 +82,7 @@ static class MartenStoreScopeDiscovery
         return tree.GetRoot().DescendantNodes().OfType<AssignmentExpressionSyntax>()
             .Where(_ => IsModelName(_.Left, semanticModel))
             .All(_ => _.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.SimpleAssignmentExpression) &&
-                semanticModel.GetConstantValue(_.Right) is { HasValue: true, Value: null or "EventModel" });
+                IsDefaultModelName(semanticModel.GetConstantValue(_.Right)));
     });
 
     sealed class StoreScopeScan(DotNetProjectCompilation project, bool singleDefaultStore)
@@ -123,17 +125,28 @@ static class MartenStoreScopeDiscovery
             var value = assignment.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.SimpleAssignmentExpression)
                 ? semanticModel.GetConstantValue(assignment.Right)
                 : default;
-            var description = value is { HasValue: true, Value: string name }
-                ? $"event-model name '{name}'"
-                : value is { HasValue: true, Value: null } ? "the default event-model name" : "a computed event-model name; its value is unknown";
-            Report($"Marten has authored {description}", assignment.GetLocation(),
-                singleDefaultStore && value is { HasValue: true, Value: null or "EventModel" } ? GenerationDiagnosticSeverity.Information : GenerationDiagnosticSeverity.Warning);
+            var description = "a computed event-model name; its value is unknown";
+            if (value is { HasValue: true, Value: string name })
+            {
+                description = $"event-model name '{name}'";
+            }
+            else if (value is { HasValue: true, Value: null })
+            {
+                description = "the default event-model name";
+            }
+
+            Report(
+                $"Marten has authored {description}",
+                assignment.GetLocation(),
+                singleDefaultStore && IsDefaultModelName(value) ? GenerationDiagnosticSeverity.Information : GenerationDiagnosticSeverity.Warning);
         }
 
         void ReportStore(InvocationExpressionSyntax invocation, INamedTypeSymbol store, SemanticModel semanticModel)
         {
             var usesDefault = MayUseDefaultModelName(invocation, semanticModel);
-            Report($"Marten registers ancillary store '{store.ToDisplayString()}'", invocation.GetLocation(),
+            Report(
+                $"Marten registers ancillary store '{store.ToDisplayString()}'",
+                invocation.GetLocation(),
                 singleDefaultStore && usesDefault ? GenerationDiagnosticSeverity.Information : GenerationDiagnosticSeverity.Warning);
             if (usesDefault)
             {
@@ -145,7 +158,9 @@ static class MartenStoreScopeDiscovery
         {
             var type = SelectedStoreType(attribute, semanticModel);
             var selection = type is { TypeKind: not TypeKind.Error } ? $"'{type.ToDisplayString()}'" : "an unresolved store type";
-            Report($"MartenStore selects {selection}", attribute.GetLocation(),
+            Report(
+                $"MartenStore selects {selection}",
+                attribute.GetLocation(),
                 singleDefaultStore && type is { TypeKind: not TypeKind.Error } ? GenerationDiagnosticSeverity.Information : GenerationDiagnosticSeverity.Warning);
         }
 

@@ -15,7 +15,7 @@ public class when_analyzing_marten_evolve_overrides : given.a_marten_evolve_appl
     [Fact] void should_only_report_the_five_genuine_overrides_including_the_intermediate_chain() => _contribution.Diagnostics.Count.ShouldEqual(5);
     [Fact] void should_classify_untyped_processing_as_information() => _contribution.Diagnostics.All(_ => _.Severity == GenerationDiagnosticSeverity.Information).ShouldBeTrue();
     [Fact] void should_report_unsupported_processing_without_guessing_event_types() => _contribution.Diagnostics.All(_ => _.Code == MartenDiagnosticCodes.CustomProcessingOmitted && _.Outcome == GenerationDiagnosticOutcome.Unsupported).ShouldBeTrue();
-    [Fact] void should_locate_each_override_in_authored_source() => _contribution.Diagnostics.All(_ => _.Source is { Path: "Evolution/Projections.cs", StartLine: > 0, StartColumn: > 0 }).ShouldBeTrue();
+    [Fact] void should_locate_each_override_in_authored_source() => _contribution.Diagnostics.All(_ => _.Source is { StartLine: > 0, StartColumn: > 0 } && _.Source.Path == "Evolution/Projections.cs").ShouldBeTrue();
     [Fact] void should_name_each_unsupported_dispatch_method() => _contribution.Diagnostics.Select(_ => _.Message.Split('\'')[1]).ShouldContainOnly("Evolve", "Evolve", "EvolveAsync", "DetermineAction", "DetermineActionAsync");
     [Fact] void should_not_mistake_snapshot_identity_session_or_identity_setter_for_events() => Events.ShouldContainOnly("Applied", "Created", "Deleted", "RegisteredDelete", "ChainedDelete");
     [Fact] void should_ignore_typed_plain_hiding_private_and_unrelated_evolve_members() => Events.ShouldNotContain("NotAnEvent");

@@ -44,12 +44,9 @@ static class WolverineReturnConsequences
         WellKnownTypes.WolverineStartStream
     ];
 
-    static readonly HashSet<string> _responseContracts =
+    static readonly HashSet<string> _martenFactories =
     [
-        "Microsoft.AspNetCore.Http.IResult",
-        "Wolverine.IResponse",
-        WellKnownTypes.WolverineResponseAware,
-        WellKnownTypes.WolverineLegacyResponseAware
+        "Store", "Insert", "Update", "Delete", "StoreMany", "StartStream"
     ];
 
     public static IReadOnlyList<WolverineReturnConsequence> Classify(
@@ -69,9 +66,12 @@ static class WolverineReturnConsequences
             MartenOperation(method, project, type, slot) ?? Classify(type, slot, context))];
     }
 
+    public static bool IsTimeoutMessage(INamedTypeSymbol type) =>
+        WolverineReturnTypes.IsAssignableTo(type, WellKnownTypes.WolverineTimeoutMessage);
+
     static WolverineReturnConsequence? MartenOperation(IMethodSymbol method, DotNetProjectCompilation project, ITypeSymbol type, int slot)
     {
-        if (type is not INamedTypeSymbol named || !IsAssignableTo(named, WellKnownTypes.WolverineMartenOp))
+        if (type is not INamedTypeSymbol named || !WolverineReturnTypes.IsAssignableTo(named, WellKnownTypes.WolverineMartenOp))
         {
             return null;
         }
@@ -82,25 +82,25 @@ static class WolverineReturnConsequences
             return null;
         }
 
-        var operations = factories.OfType<IMethodSymbol>().Select(MartenOperation).ToArray();
-        var first = operations[0];
-        if (first is null || operations.Any(_ => _ is null || _.FactoryName != first.FactoryName ||
-            !SymbolEqualityComparer.Default.Equals(_.ModelType, first.ModelType)))
-        {
-            return null;
-        }
-
-        return new(slot, type, WolverineReturnConsequenceKind.StorageAction, MartenOperation: first);
+        var operation = SharedOperation(factories.OfType<IMethodSymbol>().Select(MartenOperation).ToArray());
+        return operation is null ? null : new(slot, type, WolverineReturnConsequenceKind.StorageAction, MartenOperation: operation);
     }
 
     static WolverineMartenOperation? MartenOperation(IMethodSymbol factory) =>
-        factory.Name is "Store" or "Insert" or "Update" or "Delete" or "StoreMany" or "StartStream" &&
+        _martenFactories.Contains(factory.Name) &&
         factory.TypeArguments is [INamedTypeSymbol modelType]
             ? new(factory.Name, modelType)
             : null;
 
-    public static bool IsTimeoutMessage(INamedTypeSymbol type) =>
-        IsAssignableTo(type, WellKnownTypes.WolverineTimeoutMessage);
+    static WolverineMartenOperation? SharedOperation(WolverineMartenOperation?[] operations)
+    {
+        var first = operations[0];
+        return first is not null && operations.All(operation => SameOperation(operation, first)) ? first : null;
+    }
+
+    static bool SameOperation(WolverineMartenOperation? operation, WolverineMartenOperation first) =>
+        operation is not null && operation.FactoryName == first.FactoryName &&
+        SymbolEqualityComparer.Default.Equals(operation.ModelType, first.ModelType);
 
     static WolverineReturnConsequence Classify(ITypeSymbol type, int slot, WolverineReturnContext context)
     {
@@ -145,7 +145,7 @@ static class WolverineReturnConsequences
             return WolverineReturnConsequenceKind.OutgoingMessages;
         }
 
-        return IsAssignableTo(named, WellKnownTypes.WolverineSideEffect) ? WolverineReturnConsequenceKind.SideEffect : null;
+        return WolverineReturnTypes.IsAssignableTo(named, WellKnownTypes.WolverineSideEffect) ? WolverineReturnConsequenceKind.SideEffect : null;
     }
 
     /// <summary>
@@ -162,7 +162,7 @@ static class WolverineReturnConsequences
             return WolverineReturnConsequenceKind.PersistenceOperation;
         }
 
-        if (IsResponse(named))
+        if (WolverineReturnTypes.IsHttpResponseType(named))
         {
             return WolverineReturnConsequenceKind.HttpResponse;
         }
@@ -200,17 +200,6 @@ static class WolverineReturnConsequences
             .TypeArguments[0];
     }
 
-    static bool IsResponse(INamedTypeSymbol type)
-    {
-        if (type.Name.StartsWith("CreationResponse", StringComparison.Ordinal) ||
-            type.Name.StartsWith("UpdatedAggregate", StringComparison.Ordinal))
-        {
-            return true;
-        }
-
-        return _responseContracts.Any(contract => IsAssignableTo(type, contract));
-    }
-
     static bool IsPayload(INamedTypeSymbol type) =>
         type.SpecialType == SpecialType.None &&
         !WolverineReturnTypes.IsSpecialReturn(type) &&
@@ -219,16 +208,4 @@ static class WolverineReturnConsequences
     static bool IsSagaState(INamedTypeSymbol type, DotNetProjectCompilation project) =>
         WolverineSagaTypes.IsSagaState(type, project);
 
-    static bool IsAssignableTo(INamedTypeSymbol type, string metadataName)
-    {
-        for (var current = type; current is not null; current = current.BaseType)
-        {
-            if (DotNetSubjectIds.MetadataName(current.OriginalDefinition) == metadataName)
-            {
-                return true;
-            }
-        }
-
-        return type.AllInterfaces.Any(@interface => DotNetSubjectIds.MetadataName(@interface.OriginalDefinition) == metadataName);
-    }
 }

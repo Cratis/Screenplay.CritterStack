@@ -10,10 +10,11 @@ namespace Cratis.CritterStack.Screenplay.Wolverine;
 internal static partial class WolverineFacts
 {
     static bool HasShortCircuitingStage(IReadOnlyList<WolverineCompoundStage> stages) => stages.Any(_ =>
-        _.StageKind is "before" or "load" && WolverineReturnTypes.CreatedValues(_.Method).Any(IsShortCircuitingResult));
+        (_.StageKind == "before" || _.StageKind == "load") && WolverineReturnTypes.CreatedValues(_.Method).Any(IsShortCircuitingResult));
 
     static bool IsShortCircuitingResult(ITypeSymbol type) => type is INamedTypeSymbol named &&
-        (DotNetSubjectIds.MetadataName(named.OriginalDefinition) is WellKnownTypes.WolverineHandlerContinuation or WellKnownTypes.WolverineRequirementResult ||
+        (DotNetSubjectIds.MetadataName(named.OriginalDefinition) == WellKnownTypes.WolverineHandlerContinuation ||
+         DotNetSubjectIds.MetadataName(named.OriginalDefinition) == WellKnownTypes.WolverineRequirementResult ||
          WolverineReturnTypes.IsHttpResponseType(named));
 
     static void AddResolvedCompoundStageConsequences(

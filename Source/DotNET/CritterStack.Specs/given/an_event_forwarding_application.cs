@@ -86,10 +86,12 @@ public class an_event_forwarding_application : Specification
     {
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
             .Split(Path.PathSeparator).Select(_ => MetadataReference.CreateFromFile(_));
-        var compilation = CSharpCompilation.Create("Forwarding",
+        var compilation = CSharpCompilation.Create(
+            "Forwarding",
             [CSharpSyntaxTree.ParseText(FrameworkSource, path: "/workspace/Framework.cs"),
              CSharpSyntaxTree.ParseText(ApplicationSource, path: "/workspace/Forwarding/Configuration.cs")],
-            references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
         Project = new()
         {
             Name = "Forwarding",

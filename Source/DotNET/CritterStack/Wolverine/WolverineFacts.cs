@@ -9,6 +9,12 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.CritterStack.Screenplay.Wolverine;
 
+enum SagaBusEmissionKind
+{
+    OutgoingMessages,
+    DirectBus
+}
+
 sealed record WolverineDiscoveryResult(
     IReadOnlyList<GenerationFact> Facts,
     IReadOnlyList<GenerationDiagnostic> Diagnostics,
@@ -30,12 +36,6 @@ sealed record HttpEndpoint(IMethodSymbol Method, string Verb, string? Route)
 }
 
 sealed record WolverineOutgoingMessageConsequence(INamedTypeSymbol MessageType, bool Delayed);
-
-enum SagaBusEmissionKind
-{
-    OutgoingMessages,
-    DirectBus
-}
 
 internal static partial class WolverineFacts
 {

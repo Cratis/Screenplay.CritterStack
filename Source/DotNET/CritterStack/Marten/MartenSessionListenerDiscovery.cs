@@ -78,10 +78,10 @@ static class MartenSessionListenerDiscovery
     static bool IsListenersAddCall(InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>
         invocation.Expression is MemberAccessExpressionSyntax
         {
-            Name.Identifier.ValueText: "Add",
+            Name.Identifier.ValueText: var name,
             Expression: MemberAccessExpressionSyntax listeners
-        } &&
-        semanticModel.GetSymbolInfo(listeners).Symbol is IPropertySymbol { Name: "Listeners" };
+        } && name == "Add" &&
+        semanticModel.GetSymbolInfo(listeners).Symbol is IPropertySymbol property && property.Name == "Listeners";
 
     static INamedTypeSymbol? ListenerTypeOf(ExpressionSyntax argument, SemanticModel semanticModel)
     {

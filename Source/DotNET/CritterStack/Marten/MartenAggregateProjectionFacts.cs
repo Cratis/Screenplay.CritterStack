@@ -322,14 +322,17 @@ static class MartenAggregateProjectionFacts
         return method.TypeArguments[0] is INamedTypeSymbol { TypeKind: not TypeKind.Error } eventType ? eventType : null;
     }
 
-    static bool IsAggregationStep(IMethodSymbol method) => DotNetSubjectIds.MetadataName(method.ContainingType.OriginalDefinition) is AggregationBase or AggregationSteps;
+    static bool IsAggregationStep(IMethodSymbol method) =>
+        DotNetSubjectIds.MetadataName(method.ContainingType.OriginalDefinition) == AggregationBase ||
+        DotNetSubjectIds.MetadataName(method.ContainingType.OriginalDefinition) == AggregationSteps;
 
     static bool IsSelfRegistration(InvocationExpressionSyntax invocation, SemanticModel semanticModel) => invocation.Expression switch
     {
         GenericNameSyntax => true,
         MemberAccessExpressionSyntax { Expression: ThisExpressionSyntax or BaseExpressionSyntax } => true,
         MemberAccessExpressionSyntax { Expression: InvocationExpressionSyntax receiver } =>
-            semanticModel.GetSymbolInfo(receiver).Symbol is IMethodSymbol { Name: "DeleteEvent" or "TransformsEvent", Parameters.Length: 0, TypeArguments.Length: 1 } method &&
+            semanticModel.GetSymbolInfo(receiver).Symbol is IMethodSymbol { Parameters.Length: 0, TypeArguments.Length: 1 } method &&
+            (method.Name == "DeleteEvent" || method.Name == "TransformsEvent") &&
             IsAggregationStep(method) && IsSelfRegistration(receiver, semanticModel),
         _ => false
     };

@@ -9,8 +9,8 @@ namespace Cratis.CritterStack.Screenplay.Canonical;
 /// Compares a generated canonical model and its diagnostics with checked-in golden fixtures.
 /// </summary>
 /// <remarks>
-/// A golden prefix names two fixtures: <c>&lt;prefix&gt;.play.txt</c> holds the normalized model and
-/// <c>&lt;prefix&gt;.diagnostics.txt</c> holds the stable diagnostic lines. Set <c>CRATIS_REGENERATE_GOLDEN=1</c> to rewrite them.
+/// A golden prefix names two fixtures: <c language="text">&lt;prefix&gt;.play.txt</c> holds the normalized model and
+/// <c language="text">&lt;prefix&gt;.diagnostics.txt</c> holds the stable diagnostic lines. Set <c language="text">CRATIS_REGENERATE_GOLDEN=1</c> to rewrite them.
 /// </remarks>
 static class CanonicalGolden
 {

@@ -17,7 +17,7 @@ public class when_analyzing_wolverine_marten_ops : given.a_wolverine_marten_ops_
     [Fact] void should_start_streams_for_both_tenant_forms() => Operations(RelationshipKind.StartsStream).Select(SourceName).ShouldContainOnly("StartRequested", "TenantStartRequested");
     [Fact] void should_recover_the_appended_events() => Relationships(RelationshipKind.Produces).Select(SourceName).ShouldContainOnly("StartRequested", "TenantStartRequested");
     [Fact] void should_not_cascade_operation_wrappers() => Relationships(RelationshipKind.Cascades).ShouldBeEmpty();
-    [Fact] void should_not_invent_operations_for_unknown_or_unreturned_values() => Operations().Select(SourceName).ShouldNotContain(_ => _ is "UnknownRequested" or "UnreturnedRequested");
+    [Fact] void should_not_invent_operations_for_unknown_or_unreturned_values() => Operations().Select(SourceName).ShouldNotContain(_ => _ == "UnknownRequested" || _ == "UnreturnedRequested");
     [Fact] void should_keep_exact_operation_evidence() => Operations().All(_ => _.Evidence.Strength == EvidenceStrength.Exact).ShouldBeTrue();
     [Fact] void should_not_create_operation_wrapper_events() => _graph.Artifacts.Where(_ => _.Key.Kind == ArtifactKind.Event).Select(_ => _.Variants.Single().Definition.Name).ShouldContainOnly("Started");
     [Fact] void should_classify_document_operations_as_commands() => _graph.Artifacts.Where(_ => _.Key.Kind == ArtifactKind.Command).Select(_ => _.Variants.Single().Definition.Name).ShouldContain("StoreRequested");

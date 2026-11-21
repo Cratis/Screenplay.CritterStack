@@ -77,7 +77,9 @@ internal static partial class WolverinePolicyDiscovery
         {
             if (!HasResolvedMiddlewareTypes(attribute, project))
             {
-                diagnostics.Add(Unresolved(AttributeSource(attribute, project), subject,
+                diagnostics.Add(Unresolved(
+                    AttributeSource(attribute, project),
+                    subject,
                     "Middleware attribute scope or type cannot be resolved as authored source"));
             }
         }
@@ -97,7 +99,17 @@ internal static partial class WolverinePolicyDiscovery
         _.AttributeClass is { } type && DotNetSubjectIds.MetadataName(type) == WellKnownTypes.WolverineMiddlewareAttribute);
 
     static IEnumerable<TypedConstant> MiddlewareValues(AttributeData attribute) =>
-        attribute.ConstructorArguments.SelectMany(_ => _.Kind == TypedConstantKind.Array ? (_.IsNull ? [] : _.Values) : [_]);
+        attribute.ConstructorArguments.SelectMany(ValuesOf);
+
+    static IEnumerable<TypedConstant> ValuesOf(TypedConstant value)
+    {
+        if (value.Kind != TypedConstantKind.Array)
+        {
+            return [value];
+        }
+
+        return value.IsNull ? [] : value.Values;
+    }
 
     static IEnumerable<INamedTypeSymbol> MiddlewareTypes(AttributeData attribute) =>
         MiddlewareValues(attribute).Select(_ => _.Value).OfType<INamedTypeSymbol>();

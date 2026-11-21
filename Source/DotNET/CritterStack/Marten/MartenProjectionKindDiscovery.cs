@@ -63,7 +63,8 @@ static class MartenProjectionKindDiscovery
         var types = new List<string>();
         foreach (var nested in invocation.DescendantNodes().OfType<InvocationExpressionSyntax>())
         {
-            if (semanticModel.GetSymbolInfo(nested).Symbol is IMethodSymbol { Name: "Snapshot" or "Add" or "AddProjectionWithServices" } method &&
+            if (semanticModel.GetSymbolInfo(nested).Symbol is IMethodSymbol method &&
+                (method.Name == "Snapshot" || method.Name == "Add" || method.Name == "AddProjectionWithServices") &&
                 IsComposite(method.ContainingType) && RegistrationType(nested, method, semanticModel) is { TypeKind: not TypeKind.Error } type)
             {
                 types.Add(type.ToDisplayString());

@@ -80,7 +80,11 @@ internal static partial class WolverinePolicyDiscovery
         }
 
         var type = MiddlewareType(invocation, method, model);
-        return new(type, owner, isHttpEndpoint, IsResolvedMiddleware(type, invocation, model, project),
+        return new(
+            type,
+            owner,
+            isHttpEndpoint,
+            IsResolvedMiddleware(type, invocation, model, project),
             CritterStackSource.RangeForProject(invocation.GetLocation(), project));
     }
 

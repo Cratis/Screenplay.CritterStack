@@ -78,12 +78,12 @@ static class WolverineEventForwardingDiscovery
 
     static bool HasTransformParent(InvocationExpressionSyntax invocation, SemanticModel model) =>
         invocation.Parent is MemberAccessExpressionSyntax { Parent: InvocationExpressionSyntax parent } &&
-        model.GetSymbolInfo(parent).Symbol is IMethodSymbol { Name: "TransformedTo" } method &&
+        model.GetSymbolInfo(parent).Symbol is IMethodSymbol method && method.Name == "TransformedTo" &&
         MetadataName(method.ContainingType) == WellKnownTypes.WolverineEventForwardingTransform;
 
     static string? FastForwardingDescription(AssignmentExpressionSyntax assignment, SemanticModel model)
     {
-        if (model.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol { Name: "UseFastEventForwarding" } property ||
+        if (model.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol property || property.Name != "UseFastEventForwarding" ||
             MetadataName(property.ContainingType) != WellKnownTypes.WolverineMartenIntegration)
         {
             return null;
@@ -99,7 +99,7 @@ static class WolverineEventForwardingDiscovery
         var events = calls.SelectMany(_ => RelayedEvents(_, model))
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
         var messages = calls.Select(_ => model.GetSymbolInfo(_).Symbol).OfType<IMethodSymbol>()
-            .Where(_ => _.Name is "PublishAsync" or "SendAsync" && MetadataName(_.ContainingType) == WellKnownTypes.WolverineMessageBus)
+            .Where(_ => (_.Name == "PublishAsync" || _.Name == "SendAsync") && MetadataName(_.ContainingType) == WellKnownTypes.WolverineMessageBus)
             .SelectMany(_ => _.TypeArguments).Select(Name).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
         if (events.Length > 0)
         {
@@ -107,14 +107,14 @@ static class WolverineEventForwardingDiscovery
         }
 
         var subscription = registration.ArgumentList.Arguments.LastOrDefault();
-        return model.GetSymbolInfo(registration).Symbol is IMethodSymbol { Name: "SubscribeToEvents" } && subscription is not null
+        return model.GetSymbolInfo(registration).Symbol is IMethodSymbol method && method.Name == "SubscribeToEvents" && subscription is not null
             ? model.GetTypeInfo(subscription.Expression).Type?.ToDisplayString() ?? "unresolved subscription"
             : "all subscribed event types";
     }
 
     static IEnumerable<string> RelayedEvents(InvocationExpressionSyntax invocation, SemanticModel model)
     {
-        if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol { Name: "PublishEvent" } method ||
+        if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method || method.Name != "PublishEvent" ||
             MetadataName(method.ContainingType) != WellKnownTypes.WolverinePublishingRelay)
         {
             return [];

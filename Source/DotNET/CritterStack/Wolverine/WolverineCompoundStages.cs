@@ -77,6 +77,14 @@ internal static partial class WolverineCompoundStages
             MatchesHandler(handler, requestType, _) && seen.Add(_.Method))];
     }
 
+    /// <summary>
+    /// Gets the parameter through which a failure stage receives the exception it handles.
+    /// </summary>
+    /// <param name="method">The failure stage method.</param>
+    /// <returns>The exception parameter, or null when the method does not accept an exception.</returns>
+    public static IParameterSymbol? ExceptionParameter(IMethodSymbol method) =>
+        method.Parameters.FirstOrDefault(_ => IsException(_.Type));
+
     static IEnumerable<WolverineCompoundStage> CandidatesFor(
         INamedTypeSymbol type,
         DotNetProjectCompilation project,
@@ -85,14 +93,6 @@ internal static partial class WolverineCompoundStages
             .Where(_ => !_handlerMethodNames.Contains(_.Name) && _.Name is not "Validate" and not "ValidateAsync")
             .Select(_ => StageFor(_, project, isHttpEndpoint))
             .OfType<WolverineCompoundStage>();
-
-    /// <summary>
-    /// Gets the parameter through which a failure stage receives the exception it handles.
-    /// </summary>
-    /// <param name="method">The failure stage method.</param>
-    /// <returns>The exception parameter, or null when the method does not accept an exception.</returns>
-    public static IParameterSymbol? ExceptionParameter(IMethodSymbol method) =>
-        method.Parameters.FirstOrDefault(_ => IsException(_.Type));
 
     static WolverineCompoundStage? StageFor(IMethodSymbol method, DotNetProjectCompilation project, bool isHttpEndpoint)
     {

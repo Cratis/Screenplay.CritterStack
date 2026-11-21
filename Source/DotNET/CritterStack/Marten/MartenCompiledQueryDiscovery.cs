@@ -57,32 +57,6 @@ static class MartenCompiledQueryDiscovery
         return new(links, diagnostics);
     }
 
-    static void DiscoverInDeclaration(
-        MethodDeclarationSyntax declaration,
-        QueryEntry entry,
-        QueryContext context,
-        List<MartenCompiledQueryLink> links,
-        List<GenerationDiagnostic> diagnostics)
-    {
-        var semanticModel = context.Project.Compilation.GetSemanticModel(declaration.SyntaxTree);
-        foreach (var invocation in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
-        {
-            if (!TryResolve(invocation, semanticModel, out var plan))
-            {
-                continue;
-            }
-
-            if (IsInProvenEndpointFlow(invocation, declaration, semanticModel))
-            {
-                links.Add(LinkFor(plan, invocation, entry, context));
-            }
-            else
-            {
-                diagnostics.Add(UnprovenFlowDiagnostic(plan, invocation, entry, context.Project));
-            }
-        }
-    }
-
     public static bool TryResolve(
         InvocationExpressionSyntax invocation,
         SemanticModel semanticModel,
@@ -117,6 +91,35 @@ static class MartenCompiledQueryDiscovery
         return true;
     }
 
+    public static bool IsCompiledQueryExecution(IMethodSymbol method) =>
+        IsCompiledQueryExecution(method, out _);
+
+    static void DiscoverInDeclaration(
+        MethodDeclarationSyntax declaration,
+        QueryEntry entry,
+        QueryContext context,
+        List<MartenCompiledQueryLink> links,
+        List<GenerationDiagnostic> diagnostics)
+    {
+        var semanticModel = context.Project.Compilation.GetSemanticModel(declaration.SyntaxTree);
+        foreach (var invocation in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
+        {
+            if (!TryResolve(invocation, semanticModel, out var plan))
+            {
+                continue;
+            }
+
+            if (IsInProvenEndpointFlow(invocation, declaration, semanticModel))
+            {
+                links.Add(LinkFor(plan, invocation, entry, context));
+            }
+            else
+            {
+                diagnostics.Add(UnprovenFlowDiagnostic(plan, invocation, entry, context.Project));
+            }
+        }
+    }
+
     static INamedTypeSymbol? CompiledInterfaceFor(
         INamedTypeSymbol planType,
         TypeInfo argumentType,
@@ -130,9 +133,6 @@ static class MartenCompiledQueryDiscovery
             ? compiledInterface
             : null;
     }
-
-    public static bool IsCompiledQueryExecution(IMethodSymbol method) =>
-        IsCompiledQueryExecution(method, out _);
 
     static GenerationDiagnostic UnprovenFlowDiagnostic(
         MartenCompiledQueryPlan plan,

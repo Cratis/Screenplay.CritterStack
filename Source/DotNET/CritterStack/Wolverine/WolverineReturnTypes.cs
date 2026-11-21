@@ -27,6 +27,14 @@ static class WolverineReturnTypes
         "Wolverine.Persistence.EventSourcing.UpdatedAggregate"
     ];
 
+    static readonly HashSet<string> _responseContracts =
+    [
+        "Microsoft.AspNetCore.Http.IResult",
+        "Wolverine.IResponse",
+        WellKnownTypes.WolverineResponseAware,
+        WellKnownTypes.WolverineLegacyResponseAware
+    ];
+
     public static IReadOnlyList<ITypeSymbol> CreatedValues(IMethodSymbol method)
     {
         var returnType = UnwrapTask(method.ReturnType);
@@ -49,92 +57,6 @@ static class WolverineReturnTypes
             .SelectMany(declaration => ReturnedExpressions(declaration.Declaration)
                 .Select(expression => MartenFactory(ReturnSlot(expression, declaration.SemanticModel, slot), declaration.SemanticModel, [])))
     ];
-
-    static IEnumerable<ExpressionSyntax> ReturnedExpressions(MethodDeclarationSyntax declaration)
-    {
-        if (declaration.ExpressionBody is { } body)
-        {
-            yield return body.Expression;
-        }
-
-        foreach (var returned in declaration.DescendantNodes().OfType<ReturnStatementSyntax>())
-        {
-            if (returned.Expression is { } expression &&
-                !returned.Ancestors().TakeWhile(_ => !ReferenceEquals(_, declaration)).Any(_ => _ is LocalFunctionStatementSyntax or AnonymousFunctionExpressionSyntax))
-            {
-                yield return expression;
-            }
-        }
-    }
-
-    static ExpressionSyntax? ReturnSlot(ExpressionSyntax expression, SemanticModel model, int slot)
-    {
-        expression = UnwrapExpression(expression, model);
-        return expression is TupleExpressionSyntax tuple
-            ? tuple.Arguments.ElementAtOrDefault(slot)?.Expression
-            : slot == 0 ? expression : null;
-    }
-
-    static IMethodSymbol? MartenFactory(ExpressionSyntax? expression, SemanticModel model, HashSet<ILocalSymbol> visited)
-    {
-        if (expression is null)
-        {
-            return null;
-        }
-
-        expression = UnwrapExpression(expression, model);
-        if (expression is InvocationExpressionSyntax invocation && model.GetSymbolInfo(invocation).Symbol is IMethodSymbol factory)
-        {
-            return factory.IsStatic && DotNetSubjectIds.MetadataName(factory.ContainingType) == WellKnownTypes.WolverineMartenOps
-                ? factory
-                : null;
-        }
-
-        if (model.GetSymbolInfo(expression).Symbol is not ILocalSymbol local || !visited.Add(local))
-        {
-            return null;
-        }
-
-        var declaration = expression.FirstAncestorOrSelf<MethodDeclarationSyntax>();
-        if (declaration?.DescendantNodes().OfType<AssignmentExpressionSyntax>()
-            .Any(_ => SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(_.Left).Symbol, local)) != false ||
-            declaration.DescendantNodes().OfType<ArgumentSyntax>()
-                .Any(_ => _.RefKindKeyword.RawKind != 0 && SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(_.Expression).Symbol, local)))
-        {
-            return null;
-        }
-
-        var initializer = local.DeclaringSyntaxReferences.Select(_ => _.GetSyntax())
-            .OfType<VariableDeclaratorSyntax>().Select(_ => _.Initializer?.Value).FirstOrDefault();
-        return MartenFactory(initializer, model, visited);
-    }
-
-    static ExpressionSyntax UnwrapExpression(ExpressionSyntax expression, SemanticModel model)
-    {
-        while (true)
-        {
-            switch (expression)
-            {
-                case ParenthesizedExpressionSyntax parenthesized:
-                    expression = parenthesized.Expression;
-                    break;
-                case CastExpressionSyntax cast:
-                    expression = cast.Expression;
-                    break;
-                case AwaitExpressionSyntax awaited:
-                    expression = awaited.Expression;
-                    break;
-                case InvocationExpressionSyntax invocation when model.GetSymbolInfo(invocation).Symbol is IMethodSymbol factory &&
-                    factory.Name == "FromResult" &&
-                    DotNetSubjectIds.MetadataName(factory.ContainingType) is "System.Threading.Tasks.Task" or "System.Threading.Tasks.ValueTask" &&
-                    invocation.ArgumentList.Arguments.Count == 1:
-                    expression = invocation.ArgumentList.Arguments[0].Expression;
-                    break;
-                default:
-                    return expression;
-            }
-        }
-    }
 
     public static ITypeSymbol? UnwrapTask(ITypeSymbol type)
     {
@@ -212,4 +134,126 @@ static class WolverineReturnTypes
 
         return (null, false, optional);
     }
+
+    public static bool IsHttpResponseType(INamedTypeSymbol type)
+    {
+        if (type.Name.StartsWith("CreationResponse", StringComparison.Ordinal) ||
+            type.Name.StartsWith("UpdatedAggregate", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return _responseContracts.Any(contract => IsAssignableTo(type, contract));
+    }
+
+    public static bool IsAssignableTo(INamedTypeSymbol type, string metadataName)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            if (DotNetSubjectIds.MetadataName(current.OriginalDefinition) == metadataName)
+            {
+                return true;
+            }
+        }
+
+        return type.AllInterfaces.Any(@interface => DotNetSubjectIds.MetadataName(@interface.OriginalDefinition) == metadataName);
+    }
+
+    static IEnumerable<ExpressionSyntax> ReturnedExpressions(MethodDeclarationSyntax declaration)
+    {
+        if (declaration.ExpressionBody is { } body)
+        {
+            yield return body.Expression;
+        }
+
+        foreach (var returned in declaration.DescendantNodes().OfType<ReturnStatementSyntax>())
+        {
+            if (returned.Expression is { } expression &&
+                !returned.Ancestors().TakeWhile(_ => !ReferenceEquals(_, declaration)).Any(_ => _ is LocalFunctionStatementSyntax or AnonymousFunctionExpressionSyntax))
+            {
+                yield return expression;
+            }
+        }
+    }
+
+    static ExpressionSyntax? ReturnSlot(ExpressionSyntax expression, SemanticModel model, int slot)
+    {
+        expression = UnwrapExpression(expression, model);
+        if (expression is TupleExpressionSyntax tuple)
+        {
+            return tuple.Arguments.ElementAtOrDefault(slot)?.Expression;
+        }
+
+        return slot == 0 ? expression : null;
+    }
+
+    static IMethodSymbol? MartenFactory(ExpressionSyntax? expression, SemanticModel model, HashSet<ILocalSymbol> visited)
+    {
+        if (expression is null)
+        {
+            return null;
+        }
+
+        expression = UnwrapExpression(expression, model);
+        if (expression is InvocationExpressionSyntax invocation && model.GetSymbolInfo(invocation).Symbol is IMethodSymbol factory)
+        {
+            return factory.IsStatic && DotNetSubjectIds.MetadataName(factory.ContainingType) == WellKnownTypes.WolverineMartenOps
+                ? factory
+                : null;
+        }
+
+        if (model.GetSymbolInfo(expression).Symbol is not ILocalSymbol local || !visited.Add(local))
+        {
+            return null;
+        }
+
+        if (HasReassignedLocal(expression, local, model))
+        {
+            return null;
+        }
+
+        var initializer = local.DeclaringSyntaxReferences.Select(_ => _.GetSyntax())
+            .OfType<VariableDeclaratorSyntax>().Select(_ => _.Initializer?.Value).FirstOrDefault();
+        return MartenFactory(initializer, model, visited);
+    }
+
+    static bool HasReassignedLocal(ExpressionSyntax expression, ILocalSymbol local, SemanticModel model)
+    {
+        var declaration = expression.FirstAncestorOrSelf<MethodDeclarationSyntax>();
+        return declaration is null || declaration.DescendantNodes().OfType<AssignmentExpressionSyntax>()
+            .Any(_ => SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(_.Left).Symbol, local)) ||
+            declaration.DescendantNodes().OfType<ArgumentSyntax>()
+                .Any(_ => _.RefKindKeyword.RawKind != 0 && SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(_.Expression).Symbol, local));
+    }
+
+    static ExpressionSyntax UnwrapExpression(ExpressionSyntax expression, SemanticModel model)
+    {
+        while (true)
+        {
+            switch (expression)
+            {
+                case ParenthesizedExpressionSyntax parenthesized:
+                    expression = parenthesized.Expression;
+                    break;
+                case CastExpressionSyntax cast:
+                    expression = cast.Expression;
+                    break;
+                case AwaitExpressionSyntax awaited:
+                    expression = awaited.Expression;
+                    break;
+                case InvocationExpressionSyntax invocation when IsTaskResult(invocation, model):
+                    expression = invocation.ArgumentList.Arguments[0].Expression;
+                    break;
+                default:
+                    return expression;
+            }
+        }
+    }
+
+    static bool IsTaskResult(InvocationExpressionSyntax invocation, SemanticModel model) =>
+        model.GetSymbolInfo(invocation).Symbol is IMethodSymbol factory &&
+        factory.Name == "FromResult" &&
+        (DotNetSubjectIds.MetadataName(factory.ContainingType) == "System.Threading.Tasks.Task" ||
+         DotNetSubjectIds.MetadataName(factory.ContainingType) == "System.Threading.Tasks.ValueTask") &&
+        invocation.ArgumentList.Arguments.Count == 1;
 }

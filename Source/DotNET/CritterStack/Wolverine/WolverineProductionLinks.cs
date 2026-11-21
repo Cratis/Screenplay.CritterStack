@@ -65,16 +65,6 @@ static class WolverineProductionLinks
         ];
     }
 
-    internal static IReadOnlyList<WolverineProduction> AuthoredSessionAppends(
-        IMethodSymbol method,
-        DotNetProjectCompilation project,
-        Func<IOperation, ISymbol?> identity) =>
-        [
-            .. WolverineMethodSyntax.Declarations(method, project)
-                .SelectMany(declaration => declaration.Declaration.DescendantNodes().OfType<InvocationExpressionSyntax>()
-                    .SelectMany(invocation => AppendProductions(invocation, new(declaration.Declaration, declaration.SemanticModel, project), null, identity)))
-        ];
-
     /// <summary>
     /// Discovers events an aggregate handler yields through yield return.
     /// </summary>
@@ -117,6 +107,39 @@ static class WolverineProductionLinks
         return @namespace.StartsWith("Marten", StringComparison.Ordinal) ||
                @namespace.StartsWith("JasperFx.Events", StringComparison.Ordinal);
     }
+
+    internal static IReadOnlyList<WolverineProduction> AuthoredSessionAppends(
+        IMethodSymbol method,
+        DotNetProjectCompilation project,
+        Func<IOperation, ISymbol?> identity) =>
+        [
+            .. WolverineMethodSyntax.Declarations(method, project)
+                .SelectMany(declaration => declaration.Declaration.DescendantNodes().OfType<InvocationExpressionSyntax>()
+                    .SelectMany(invocation => AppendProductions(invocation, new(declaration.Declaration, declaration.SemanticModel, project), null, identity)))
+        ];
+
+    internal static bool IsInHandlerBody(SyntaxNode node, MethodDeclarationSyntax declaration) =>
+        !node.Ancestors()
+            .TakeWhile(_ => _ != declaration)
+            .Any(_ => _ is LocalFunctionStatementSyntax or AnonymousFunctionExpressionSyntax);
+
+    internal static bool IsConditional(SyntaxNode node, MethodDeclarationSyntax declaration) =>
+        node.Ancestors()
+            .TakeWhile(_ => _ != declaration)
+            .Any(_ => _ is IfStatementSyntax
+                or ElseClauseSyntax
+                or SwitchStatementSyntax
+                or SwitchExpressionSyntax
+                or ConditionalExpressionSyntax
+                or ConditionalAccessExpressionSyntax
+                or CommonForEachStatementSyntax
+                or ForStatementSyntax
+                or WhileStatementSyntax
+                or DoStatementSyntax
+                or CatchClauseSyntax
+                or LocalFunctionStatementSyntax
+                or AnonymousFunctionExpressionSyntax) ||
+        HasEarlierExit(node, declaration);
 
     static IEnumerable<WolverineProduction> AppendProductions(
         InvocationExpressionSyntax invocationSyntax,
@@ -275,29 +298,6 @@ static class WolverineProductionLinks
         !WolverineReturnTypes.IsSpecialReturn(type) &&
         !WolverineSagaTypes.IsSagaState(type, project) &&
         !DotNetSubjectIds.MetadataName(type.OriginalDefinition).StartsWith("System.", StringComparison.Ordinal);
-
-    internal static bool IsInHandlerBody(SyntaxNode node, MethodDeclarationSyntax declaration) =>
-        !node.Ancestors()
-            .TakeWhile(_ => _ != declaration)
-            .Any(_ => _ is LocalFunctionStatementSyntax or AnonymousFunctionExpressionSyntax);
-
-    internal static bool IsConditional(SyntaxNode node, MethodDeclarationSyntax declaration) =>
-        node.Ancestors()
-            .TakeWhile(_ => _ != declaration)
-            .Any(_ => _ is IfStatementSyntax
-                or ElseClauseSyntax
-                or SwitchStatementSyntax
-                or SwitchExpressionSyntax
-                or ConditionalExpressionSyntax
-                or ConditionalAccessExpressionSyntax
-                or CommonForEachStatementSyntax
-                or ForStatementSyntax
-                or WhileStatementSyntax
-                or DoStatementSyntax
-                or CatchClauseSyntax
-                or LocalFunctionStatementSyntax
-                or AnonymousFunctionExpressionSyntax) ||
-        HasEarlierExit(node, declaration);
 
     static bool HasEarlierExit(SyntaxNode node, MethodDeclarationSyntax declaration) =>
         declaration.Body is { } body &&

@@ -27,6 +27,30 @@ enum ExpectationKind
     FanOut
 }
 
+/// <summary>
+/// A <c language="text">Kind:Name</c> reference to an artifact in an expectation value.
+/// </summary>
+/// <param name="Kind">The artifact kind.</param>
+/// <param name="Name">The artifact definition name.</param>
+readonly record struct ArtifactReference(ArtifactKind Kind, string Name)
+{
+    public static bool TryParse(string value, out ArtifactReference reference)
+    {
+        var parts = value.Split(':', 2);
+        if (parts.Length == 2 && Enum.TryParse<ArtifactKind>(parts[0], out var kind))
+        {
+            reference = new(kind, parts[1]);
+            return true;
+        }
+
+        reference = default;
+        return false;
+    }
+
+    public bool Matches(ResolvedArtifact artifact) =>
+        artifact.Key.Kind == Kind && artifact.Variants.Any(variant => variant.Definition.Name == Name);
+}
+
 sealed record Expectation(ExpectationKind Kind, string Value)
 {
     static readonly Dictionary<ExpectationKind, Func<GeneratedScreenplayDefinition, string, bool>> _checks = new()
@@ -198,30 +222,6 @@ sealed record Expectation(ExpectationKind Kind, string Value)
         .SelectMany(_ => _.Variants)
         .Select(_ => _.Definition.Name)
         .FirstOrDefault();
-}
-
-/// <summary>
-/// A <c>Kind:Name</c> reference to an artifact in an expectation value.
-/// </summary>
-/// <param name="Kind">The artifact kind.</param>
-/// <param name="Name">The artifact definition name.</param>
-readonly record struct ArtifactReference(ArtifactKind Kind, string Name)
-{
-    public static bool TryParse(string value, out ArtifactReference reference)
-    {
-        var parts = value.Split(':', 2);
-        if (parts.Length == 2 && Enum.TryParse<ArtifactKind>(parts[0], out var kind))
-        {
-            reference = new(kind, parts[1]);
-            return true;
-        }
-
-        reference = default;
-        return false;
-    }
-
-    public bool Matches(ResolvedArtifact artifact) =>
-        artifact.Key.Kind == Kind && artifact.Variants.Any(variant => variant.Definition.Name == Name);
 }
 
 static class Expectations
