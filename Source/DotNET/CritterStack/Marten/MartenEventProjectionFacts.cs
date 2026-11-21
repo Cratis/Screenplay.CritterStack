@@ -62,16 +62,16 @@ static class MartenEventProjectionFacts
             .ThenBy(_ => DotNetSubjectIds.MetadataName(_.DocumentType), StringComparer.Ordinal)
             .ThenBy(_ => _.Kind)
             .ToArray();
-        return BuildResult(project, subjects, registration, exactOperations, scan.TeardownTypes);
+        return BuildResult(project, subjects, registration, new(exactOperations, scan.TeardownTypes));
     }
 
     static MartenEventProjectionResult BuildResult(
         DotNetProjectCompilation project,
         CritterStackSubjectResolver subjects,
         ProjectionRegistration registration,
-        EventDocumentOperation[] exactOperations,
-        HashSet<INamedTypeSymbol> teardownTypes)
+        ExactOperations operations)
     {
+        var exactOperations = operations.Operations;
         var projection = registration.Projection!;
         var diagnostics = new List<GenerationDiagnostic>
         {
@@ -85,59 +85,63 @@ static class MartenEventProjectionFacts
         var projectionSubject = subjects.SubjectForType(project, projection);
         var facts = new List<GenerationFact>
         {
-            Artifact(
-                $"marten:event-projection:{projectionSubject.Value}",
-                projectionSubject,
-                ArtifactKind.Projection,
-                projection.Name,
-                SourceFileOf(projection, project),
-                [],
-                registration.Evidence)
+            new MartenArtifactFact
+            {
+                Id = $"marten:event-projection:{projectionSubject.Value}",
+                Subject = projectionSubject,
+                Kind = ArtifactKind.Projection,
+                Name = projection.Name,
+                File = MartenSourceFiles.FileOf(projection, project),
+                Evidence = registration.Evidence
+            }.ToFact()
         };
 
-        AddEventFacts(facts, project, subjects, projectionSubject, exactOperations);
-        var documents = AddDocumentFacts(facts, project, subjects, projectionSubject, exactOperations, teardownTypes);
-        AddOperationFacts(facts, project, subjects, projectionSubject, exactOperations);
+        var scope = new ProjectionFactScope(project, subjects, projectionSubject);
+        AddEventFacts(scope, facts, exactOperations);
+        var documents = AddDocumentFacts(scope, facts, operations);
+        AddOperationFacts(scope, facts, exactOperations);
         return new(facts, diagnostics, documents);
     }
 
     static void AddEventFacts(
+        ProjectionFactScope scope,
         List<GenerationFact> facts,
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        SubjectId projectionSubject,
         EventDocumentOperation[] exactOperations)
     {
+        var (project, subjects, projectionSubject) = (scope.Project, scope.Subjects, scope.ProjectionSubject);
         foreach (var eventGroup in exactOperations.GroupBy(_ => subjects.SubjectForType(project, _.EventType)))
         {
             var operation = eventGroup.First();
             var eventType = operation.EventType;
             var eventSubject = eventGroup.Key;
-            facts.Add(Artifact(
-                $"marten:event:{eventSubject.Value}",
-                eventSubject,
-                ArtifactKind.Event,
-                eventType.Name,
-                SourceFileOf(eventType, project),
-                DotNetTypeShapes.PropertiesOf(eventType),
-                operation.Evidence));
-            facts.Add(Relationship(
-                $"marten:event-projection:consumes:{projectionSubject.Value}:{eventSubject.Value}",
-                projectionSubject,
-                RelationshipKind.Consumes,
-                eventSubject,
-                operation.Evidence));
+            facts.Add(new MartenArtifactFact
+            {
+                Id = $"marten:event:{eventSubject.Value}",
+                Subject = eventSubject,
+                Kind = ArtifactKind.Event,
+                Name = eventType.Name,
+                File = MartenSourceFiles.FileOf(eventType, project),
+                Properties = DotNetTypeShapes.PropertiesOf(eventType),
+                Evidence = operation.Evidence
+            }.ToFact());
+            facts.Add(new MartenRelationshipFact
+            {
+                Id = $"marten:event-projection:consumes:{projectionSubject.Value}:{eventSubject.Value}",
+                Source = projectionSubject,
+                Kind = RelationshipKind.Consumes,
+                Target = eventSubject,
+                Evidence = operation.Evidence
+            }.ToFact());
         }
     }
 
     static List<MartenDocumentUsage> AddDocumentFacts(
+        ProjectionFactScope scope,
         List<GenerationFact> facts,
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        SubjectId projectionSubject,
-        EventDocumentOperation[] exactOperations,
-        HashSet<INamedTypeSymbol> teardownTypes)
+        ExactOperations operations)
     {
+        var (project, subjects, projectionSubject) = (scope.Project, scope.Subjects, scope.ProjectionSubject);
+        var (exactOperations, teardownTypes) = (operations.Operations, operations.TeardownTypes);
         var documents = new List<MartenDocumentUsage>();
         foreach (var documentGroup in exactOperations.GroupBy(_ => subjects.SubjectForType(project, _.DocumentType)))
         {
@@ -150,35 +154,37 @@ static class MartenEventProjectionFacts
                 }
                 : operation.Evidence;
             documents.Add(new(operation.DocumentType, evidence));
-            facts.Add(Relationship(
-                $"marten:event-projection:builds:{projectionSubject.Value}:{documentSubject.Value}",
-                projectionSubject,
-                RelationshipKind.Builds,
-                documentSubject,
-                evidence));
+            facts.Add(new MartenRelationshipFact
+            {
+                Id = $"marten:event-projection:builds:{projectionSubject.Value}:{documentSubject.Value}",
+                Source = projectionSubject,
+                Kind = RelationshipKind.Builds,
+                Target = documentSubject,
+                Evidence = evidence
+            }.ToFact());
         }
 
         return documents;
     }
 
     static void AddOperationFacts(
+        ProjectionFactScope scope,
         List<GenerationFact> facts,
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        SubjectId projectionSubject,
         EventDocumentOperation[] exactOperations)
     {
         foreach (var operation in exactOperations)
         {
-            var documentSubject = subjects.SubjectForType(project, operation.DocumentType);
-            var eventSubject = subjects.SubjectForType(project, operation.EventType);
-            facts.Add(Relationship(
-                $"marten:event-projection:{operation.Kind}:{projectionSubject.Value}:{eventSubject.Value}:{documentSubject.Value}",
-                projectionSubject,
-                operation.Kind,
-                documentSubject,
-                operation.Evidence,
-                discriminator: eventSubject.Value));
+            var documentSubject = scope.Subjects.SubjectForType(scope.Project, operation.DocumentType);
+            var eventSubject = scope.Subjects.SubjectForType(scope.Project, operation.EventType);
+            facts.Add(new MartenRelationshipFact
+            {
+                Id = $"marten:event-projection:{operation.Kind}:{scope.ProjectionSubject.Value}:{eventSubject.Value}:{documentSubject.Value}",
+                Source = scope.ProjectionSubject,
+                Kind = operation.Kind,
+                Target = documentSubject,
+                Evidence = operation.Evidence,
+                Discriminator = eventSubject.Value
+            }.ToFact());
         }
     }
 
@@ -318,47 +324,6 @@ static class MartenEventProjectionFacts
 
     static bool IsSourceType(INamedTypeSymbol type) => type.TypeKind != TypeKind.Error && type.Locations.Any(_ => _.IsInSource);
 
-    static string? SourceFileOf(ISymbol symbol, DotNetProjectCompilation project) =>
-        CritterStackSource.EvidenceFor(symbol, new AdapterIdentity { Id = "source", Version = "1" }, project, EvidenceStrength.Exact).Source?.Path;
-
-    static ArtifactFact Artifact(
-        string id,
-        SubjectId subject,
-        ArtifactKind kind,
-        string name,
-        string? file,
-        IReadOnlyList<PropertyDefinition> properties,
-        Evidence evidence) => new()
-        {
-            Id = new FactId { Value = id },
-            Subject = subject,
-            Definition = new ArtifactDefinition
-            {
-                Key = new ArtifactKey { Subject = subject, Kind = kind },
-                Name = name,
-                File = file,
-                Properties = properties
-            },
-            Evidence = evidence
-        };
-
-    static RelationshipFact Relationship(
-        string id,
-        SubjectId source,
-        RelationshipKind kind,
-        SubjectId target,
-        Evidence evidence,
-        string? discriminator = null) => new()
-        {
-            Id = new FactId { Value = id },
-            Subject = source,
-            Definition = new RelationshipDefinition
-            {
-                Key = new RelationshipKey { Kind = kind, Source = source, Target = target, Discriminator = discriminator }
-            },
-            Evidence = evidence
-        };
-
     static GenerationDiagnostic EventProjectionDiagnostic(
         DotNetProjectCompilation project,
         CritterStackSubjectResolver subjects,
@@ -381,6 +346,15 @@ static class MartenEventProjectionFacts
         RelationshipKind Kind,
         Evidence Evidence);
 
+    sealed record ProjectionFactScope(
+        DotNetProjectCompilation Project,
+        CritterStackSubjectResolver Subjects,
+        SubjectId ProjectionSubject);
+
+    sealed record ExactOperations(
+        EventDocumentOperation[] Operations,
+        HashSet<INamedTypeSymbol> TeardownTypes);
+
     sealed record OperationKey(SubjectId Event, SubjectId Document, RelationshipKind Kind);
 
     sealed class OperationScan(DotNetProjectCompilation project, AdapterIdentity adapter, INamedTypeSymbol projection)
@@ -393,25 +367,10 @@ static class MartenEventProjectionFacts
         {
             foreach (var declaration in tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>())
             {
-                if (semanticModel.GetDeclaredSymbol(declaration) is not IMethodSymbol method ||
-                    !IsProjectionMethod(method) ||
-                    method.Name is not ("Create" or "Transform"))
+                if (ConventionalOperationFor(declaration, semanticModel) is { } operation)
                 {
-                    continue;
+                    Operations.Add(operation);
                 }
-
-                var eventType = EventTypeFrom(method);
-                var documentType = DocumentReturnTypeFrom(method);
-                if (eventType is null || documentType is null)
-                {
-                    continue;
-                }
-
-                Operations.Add(new(
-                    eventType,
-                    documentType,
-                    RelationshipKind.Stores,
-                    CritterStackSource.EvidenceFor(method, adapter, project, EvidenceStrength.Exact, $"Marten EventProjection {method.Name} returns the '{documentType.Name}' document for '{eventType.Name}'")));
             }
         }
 
@@ -419,24 +378,51 @@ static class MartenEventProjectionFacts
         {
             foreach (var invocation in tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
-                if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method)
+                if (semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol method)
                 {
-                    continue;
+                    CollectInvocation(invocation, method, semanticModel);
                 }
+            }
+        }
 
-                var enclosingSymbol = semanticModel.GetEnclosingSymbol(invocation.SpanStart);
-                if (enclosingSymbol is IMethodSymbol teardownMethod &&
-                    IsProjectionMethod(teardownMethod) &&
-                    TryGetTeardownType(method, out var teardownType))
-                {
-                    TeardownTypes.Add(teardownType);
-                    continue;
-                }
+        EventDocumentOperation? ConventionalOperationFor(MethodDeclarationSyntax declaration, SemanticModel semanticModel)
+        {
+            if (semanticModel.GetDeclaredSymbol(declaration) is not IMethodSymbol method ||
+                !IsProjectionMethod(method) ||
+                method.Name is not ("Create" or "Transform"))
+            {
+                return null;
+            }
 
-                if (IsDocumentOperation(method) && enclosingSymbol is IMethodSymbol containingMethod && IsProjectionMethod(containingMethod))
-                {
-                    CollectDocumentOperation(invocation, method, containingMethod, semanticModel);
-                }
+            var eventType = EventTypeFrom(method);
+            var documentType = DocumentReturnTypeFrom(method);
+            if (eventType is null || documentType is null)
+            {
+                return null;
+            }
+
+            return new(
+                eventType,
+                documentType,
+                RelationshipKind.Stores,
+                CritterStackSource.EvidenceFor(method, adapter, project, EvidenceStrength.Exact, $"Marten EventProjection {method.Name} returns the '{documentType.Name}' document for '{eventType.Name}'"));
+        }
+
+        void CollectInvocation(InvocationExpressionSyntax invocation, IMethodSymbol method, SemanticModel semanticModel)
+        {
+            var enclosingSymbol = semanticModel.GetEnclosingSymbol(invocation.SpanStart);
+            if (enclosingSymbol is not IMethodSymbol containingMethod || !IsProjectionMethod(containingMethod))
+            {
+                return;
+            }
+
+            if (TryGetTeardownType(method, out var teardownType))
+            {
+                TeardownTypes.Add(teardownType);
+            }
+            else if (IsDocumentOperation(method))
+            {
+                CollectDocumentOperation(invocation, method, containingMethod, semanticModel);
             }
         }
 

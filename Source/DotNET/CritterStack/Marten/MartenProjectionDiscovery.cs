@@ -116,25 +116,33 @@ static class MartenProjectionDiscovery
             Explanation = $"Marten projection registration through {method.Name}"
         };
 
-        switch (method.Name)
+        return method.Name switch
         {
-            case "Snapshot":
-            case "LiveStreamAggregation":
-                return new(type, null, ProjectionKind.Snapshot, evidence)
-                {
-                    Lifecycle = string.Equals(method.Name, "LiveStreamAggregation", StringComparison.Ordinal)
-                        ? "Live"
-                        : LifecycleFrom(invocation, semanticModel)
-                };
-            case "Add":
-            case "AddProjectionWithServices":
-                return (ShapeOf(type) ?? CustomShapeOf(type)) is { } shape
-                    ? shape with { Evidence = evidence, Lifecycle = LifecycleFrom(invocation, semanticModel) }
-                    : null;
-            default:
-                return null;
-        }
+            "Snapshot" or "LiveStreamAggregation" => SnapshotRegistration(method, type, evidence, invocation, semanticModel),
+            "Add" or "AddProjectionWithServices" => AddedRegistration(type, evidence, invocation, semanticModel),
+            _ => null
+        };
     }
+
+    static ProjectionRegistration SnapshotRegistration(
+        IMethodSymbol method,
+        INamedTypeSymbol type,
+        Evidence evidence,
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel) => new(type, null, ProjectionKind.Snapshot, evidence)
+        {
+            Lifecycle = string.Equals(method.Name, "LiveStreamAggregation", StringComparison.Ordinal)
+                ? "Live"
+                : LifecycleFrom(invocation, semanticModel)
+        };
+
+    static ProjectionRegistration? AddedRegistration(
+        INamedTypeSymbol type,
+        Evidence evidence,
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel) => (ShapeOf(type) ?? CustomShapeOf(type)) is { } shape
+            ? shape with { Evidence = evidence, Lifecycle = LifecycleFrom(invocation, semanticModel) }
+            : null;
 
     static void AddConventionalRegistrations(
         List<ProjectionRegistration> registrations,
