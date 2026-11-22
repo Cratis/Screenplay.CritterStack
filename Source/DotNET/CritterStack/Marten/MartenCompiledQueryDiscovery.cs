@@ -94,6 +94,15 @@ static class MartenCompiledQueryDiscovery
     public static bool IsCompiledQueryExecution(IMethodSymbol method) =>
         IsCompiledQueryExecution(method, out _);
 
+    public static bool IsInProvenEndpointFlow(
+        InvocationExpressionSyntax invocation,
+        MethodDeclarationSyntax declaration,
+        SemanticModel semanticModel)
+    {
+        var boundary = ExecutableBoundaryOf(invocation, declaration);
+        return boundary is null || IsProvenBoundary(boundary, declaration, semanticModel, []);
+    }
+
     static void DiscoverInDeclaration(
         MethodDeclarationSyntax declaration,
         QueryEntry entry,
@@ -290,15 +299,6 @@ static class MartenCompiledQueryDiscovery
         IPropertySymbol property => property.Type,
         _ => throw new InvalidOperationException($"Unsupported compiled query parameter member '{member.Name}'")
     };
-
-    static bool IsInProvenEndpointFlow(
-        InvocationExpressionSyntax invocation,
-        MethodDeclarationSyntax declaration,
-        SemanticModel semanticModel)
-    {
-        var boundary = ExecutableBoundaryOf(invocation, declaration);
-        return boundary is null || IsProvenBoundary(boundary, declaration, semanticModel, []);
-    }
 
     static SyntaxNode? ExecutableBoundaryOf(SyntaxNode node, MethodDeclarationSyntax declaration) => node
         .Ancestors()

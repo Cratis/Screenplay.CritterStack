@@ -10,7 +10,6 @@ namespace Cratis.CritterStack.Screenplay.Marten;
 
 static class MartenDocumentFacts
 {
-    static readonly HashSet<string> _readMethods = ["Load", "LoadAsync", "LoadMany", "LoadManyAsync", "Query"];
     static readonly HashSet<string> _storeMethods = ["Insert", "Store"];
     static readonly HashSet<string> _updateMethods = ["Update"];
     static readonly HashSet<string> _deleteMethods = ["Delete", "DeleteWhere"];
@@ -451,7 +450,7 @@ static class MartenDocumentFacts
 
     static RelationshipKind? RelationshipKindFor(string methodName)
     {
-        if (_readMethods.Contains(methodName)) return RelationshipKind.Reads;
+        if (MartenSessionReadDiscovery.IsDocumentReadMethod(methodName)) return RelationshipKind.Reads;
         if (_storeMethods.Contains(methodName)) return RelationshipKind.Stores;
         if (_updateMethods.Contains(methodName)) return RelationshipKind.Updates;
         if (_deleteMethods.Contains(methodName)) return RelationshipKind.Deletes;
@@ -462,27 +461,9 @@ static class MartenDocumentFacts
         IMethodSymbol method,
         InvocationExpressionSyntax invocation,
         SemanticModel semanticModel)
-    {
-        var candidate = method.ReducedFrom ?? method;
-        var typeArgument = method.TypeArguments.Concat(candidate.TypeArguments)
-            .OfType<INamedTypeSymbol>()
-            .FirstOrDefault(IsSourceType);
-        return typeArgument ?? invocation.ArgumentList.Arguments
-            .Select(_ => semanticModel.GetTypeInfo(_.Expression).Type)
-            .OfType<INamedTypeSymbol>()
-            .FirstOrDefault(IsSourceType);
-    }
+        => MartenSessionReadDiscovery.DocumentTypeFrom(method, invocation, semanticModel);
 
-    static bool IsMarten(IMethodSymbol method, bool includeIntegrationApis)
-    {
-        var candidate = method.ReducedFrom ?? method;
-        var @namespace = candidate.ContainingNamespace.ToDisplayString();
-        return @namespace == "Marten" ||
-               @namespace.StartsWith("Marten.", StringComparison.Ordinal) ||
-               (includeIntegrationApis &&
-                (@namespace == "Wolverine.Marten" ||
-                 @namespace.StartsWith("Wolverine.Marten.", StringComparison.Ordinal)));
-    }
+    static bool IsMarten(IMethodSymbol method, bool includeIntegrationApis) => MartenSessionReadDiscovery.IsMarten(method, includeIntegrationApis);
 
     static bool IsInEventProjection(
         InvocationExpressionSyntax invocation,

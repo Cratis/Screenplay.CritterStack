@@ -303,16 +303,16 @@ internal static partial class WolverineFacts
             GenerationSliceKind.StateView);
 
         AddQueryFacts(scope, endpoint, querySubject, queryName, compatibilityPlacement, compiledQueries, evidence);
-        var queryScope = scope.WithOwnership(QueryResultOwnership(scope, endpoint.Method));
+        var sessionReads = new MartenSessionReadDiscovery(project, scope.Adapter, scope.Resolver).Discover(endpoint.Method, scope.Ownership);
+        var queryScope = scope.WithOwnership(QueryResultOwnership(scope, sessionReads));
         if (!queryScope.RequireOwnership(endpoint.Method))
         {
             return;
         }
 
         AddQueryModelFacts(queryScope, querySubject, model, evidence, isCollection, isOptional);
-        AddSessionQueryReads(queryScope, querySubject, endpoint.Method);
+        AddSessionQueryReads(scope, querySubject, sessionReads);
         AddPersistenceBoundReads(scope, querySubject, endpoint.Method, aggregateParameter: null, unscopedSource: true);
-        AddCompiledQueryReads(queryScope, querySubject, compiledQueries);
         AddResolvedCompoundStageConsequences(scope, querySubject, endpoint.Method, stages);
     }
 
@@ -395,27 +395,6 @@ internal static partial class WolverineFacts
             isCollection: isCollection,
             isOptional: isOptional,
             unscopedSource: true));
-    }
-
-    static void AddCompiledQueryReads(
-        WolverineFactScope scope,
-        SubjectId querySubject,
-        IReadOnlyList<MartenCompiledQueryLink> compiledQueries)
-    {
-        foreach (var compiledQuery in compiledQueries
-                     .GroupBy(_ => scope.Subjects.SubjectForType(scope.Project, _.DocumentType))
-                     .Select(_ => _.First()))
-        {
-            var documentSubject = scope.Subjects.SubjectForType(scope.Project, compiledQuery.DocumentType);
-            scope.Facts.Add(Relationship(
-                scope,
-                $"wolverine:reads:compiled:{querySubject.Value}:{documentSubject.Value}",
-                querySubject,
-                RelationshipKind.Reads,
-                documentSubject,
-                compiledQuery.Evidence,
-                unscopedSource: true));
-        }
     }
 
     static HttpEndpoint? EndpointFor(IMethodSymbol method)

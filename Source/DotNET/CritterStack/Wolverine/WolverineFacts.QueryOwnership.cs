@@ -3,18 +3,14 @@
 
 using Cratis.CritterStack.Screenplay.Marten;
 using Cratis.Screenplay.Generation;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.CritterStack.Screenplay.Wolverine;
 
 internal static partial class WolverineFacts
 {
-    static BackendOwnership QueryResultOwnership(WolverineFactScope scope, IMethodSymbol method)
+    static BackendOwnership QueryResultOwnership(WolverineFactScope scope, IReadOnlyList<MartenSessionRead> reads)
     {
-        var ownerships = SessionQueries(scope, method)
-            .Select(invocation => scope.Resolver?.ForInvocation(scope.Project, invocation, method) ?? scope.Ownership)
-            .Distinct().ToArray();
+        var ownerships = reads.Select(read => read.Ownership).Distinct().ToArray();
         return ownerships.Length switch
         {
             0 => scope.Ownership,
@@ -23,35 +19,26 @@ internal static partial class WolverineFacts
         };
     }
 
-    static void AddSessionQueryReads(WolverineFactScope scope, SubjectId querySubject, IMethodSymbol method)
+    static void AddSessionQueryReads(WolverineFactScope scope, SubjectId querySubject, IReadOnlyList<MartenSessionRead> reads)
     {
-        var documents = SessionQueries(scope, method)
-            .Select(invocation => DirectQueryDocument(invocation, scope.Project.Compilation.GetSemanticModel(invocation.SyntaxTree)))
-            .OfType<INamedTypeSymbol>().Where(IsSourceType)
-            .GroupBy(document => scope.Subjects.SubjectForType(scope.Project, document));
-        foreach (var document in documents)
+        var documents = reads.Where(read => read.DocumentType is not null)
+            .GroupBy(read => (
+                Document: BackendOccurrenceKeys.Artifact(scope.Subjects.SubjectForType(scope.Project, read.DocumentType!), ArtifactKind.Document, read.Ownership),
+                read.IsCompiledQuery))
+            .Select(group => group.First());
+        foreach (var read in documents)
         {
+            var documentSubject = scope.Subjects.SubjectForType(scope.Project, read.DocumentType!);
+            var kind = read.IsCompiledQuery ? "compiled" : "session";
             scope.Facts.Add(Relationship(
                 scope,
-                $"wolverine:reads:session:{querySubject.Value}:{document.Key.Value}",
+                $"wolverine:reads:{kind}:{querySubject.Value}:{documentSubject.Value}",
                 querySubject,
                 RelationshipKind.Reads,
-                document.Key,
-                MethodEvidence(method, scope.Project, scope.Adapter, EvidenceStrength.Exact, "Marten session query"),
-                unscopedSource: true));
+                documentSubject,
+                read.Evidence,
+                unscopedSource: true,
+                targetOwnership: read.Ownership));
         }
     }
-
-    static INamedTypeSymbol? DirectQueryDocument(InvocationExpressionSyntax invocation, SemanticModel model)
-    {
-        if (MartenCompiledQueryDiscovery.TryResolve(invocation, model, out _)) return null;
-        return (model.GetSymbolInfo(invocation).Symbol as IMethodSymbol)?.TypeArguments.FirstOrDefault() as INamedTypeSymbol;
-    }
-
-    static IEnumerable<InvocationExpressionSyntax> SessionQueries(WolverineFactScope scope, IMethodSymbol method) =>
-        WolverineMethodSyntax.Declarations(method, scope.Project).SelectMany(declaration => declaration.Declaration.DescendantNodes()
-            .OfType<InvocationExpressionSyntax>().Where(invocation => IsSessionQuery(invocation, declaration.SemanticModel)));
-
-    static bool IsSessionQuery(InvocationExpressionSyntax invocation, SemanticModel model) =>
-        model.GetSymbolInfo(invocation).Symbol is IMethodSymbol called && called.Name == "Query" && IsPersistenceNamespace(called);
 }
