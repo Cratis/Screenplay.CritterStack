@@ -108,7 +108,7 @@ internal static partial class WolverineFacts
             GenerationSliceKind.StateChange);
         var commandSourceOwner = command.CommandType is null
             ? scope.Subjects.SubjectForType(scope.Project, command.Endpoint.Method.ContainingType)
-            : (SubjectId?)null;
+            : null;
         return new(compatibilityPlacement, commandSourceOwner);
     }
 

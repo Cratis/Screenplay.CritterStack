@@ -45,23 +45,6 @@ sealed class MartenBackendOwnershipResolver(
         return OptionsOrEnclosingOwnership(project, invocation, model, owner);
     }
 
-    BackendOwnership OptionsOrEnclosingOwnership(
-        DotNetProjectCompilation project,
-        InvocationExpressionSyntax invocation,
-        SemanticModel model,
-        IMethodSymbol? owner)
-    {
-        var options = stores.ForOptions(project, invocation);
-        if (options.Kind != BackendOwnershipKind.Unknown || MartenStoreOptionsBinding.IsOptionsReceiver(invocation, model))
-        {
-            return options;
-        }
-
-        return (owner ?? model.GetEnclosingSymbol(invocation.SpanStart)) is IMethodSymbol method
-            ? ForMethod(project, method)
-            : BackendOwnership.Unknown;
-    }
-
     static INamedTypeSymbol? MarkerFor(INamedTypeSymbol type)
     {
         var candidates = type.AllInterfaces.Prepend(type);
@@ -72,11 +55,13 @@ sealed class MartenBackendOwnershipResolver(
     static bool IsAncillarySession(INamedTypeSymbol candidate) =>
         candidate.ContainingNamespace.ToDisplayString() == "Marten.Ancillary" &&
         candidate.TypeArguments.Length == 1 &&
-        candidate.Name is "IDocumentSession" or "IQuerySession";
+        (string.Equals(candidate.Name, "IDocumentSession", StringComparison.Ordinal) ||
+         string.Equals(candidate.Name, "IQuerySession", StringComparison.Ordinal));
 
     static bool IsStoreAttribute(AttributeData attribute) =>
         attribute.AttributeClass is { } type &&
-        DotNetSubjectIds.MetadataName(type) is "Wolverine.Marten.MartenStoreAttribute" or "Wolverine.Persistence.StorageAttribute";
+        (string.Equals(DotNetSubjectIds.MetadataName(type), "Wolverine.Marten.MartenStoreAttribute", StringComparison.Ordinal) ||
+         string.Equals(DotNetSubjectIds.MetadataName(type), "Wolverine.Persistence.StorageAttribute", StringComparison.Ordinal));
 
     static INamedTypeSymbol? ReceiverType(InvocationExpressionSyntax invocation, SemanticModel model)
     {
@@ -97,6 +82,23 @@ sealed class MartenBackendOwnershipResolver(
         }
 
         return model.GetTypeInfo(receiver).Type as INamedTypeSymbol;
+    }
+
+    BackendOwnership OptionsOrEnclosingOwnership(
+        DotNetProjectCompilation project,
+        InvocationExpressionSyntax invocation,
+        SemanticModel model,
+        IMethodSymbol? owner)
+    {
+        var options = stores.ForOptions(project, invocation);
+        if (options.Kind != BackendOwnershipKind.Unknown || MartenStoreOptionsBinding.IsOptionsReceiver(invocation, model))
+        {
+            return options;
+        }
+
+        return (owner ?? model.GetEnclosingSymbol(invocation.SpanStart)) is IMethodSymbol method
+            ? ForMethod(project, method)
+            : BackendOwnership.Unknown;
     }
 
     BackendOwnership? TypeOwnership(DotNetProjectCompilation project, INamedTypeSymbol? type)
