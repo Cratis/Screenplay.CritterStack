@@ -42,6 +42,15 @@ sealed class MartenBackendOwnershipResolver(
             return stores.ForMarker(project, marker);
         }
 
+        return OptionsOrEnclosingOwnership(project, invocation, model, owner);
+    }
+
+    BackendOwnership OptionsOrEnclosingOwnership(
+        DotNetProjectCompilation project,
+        InvocationExpressionSyntax invocation,
+        SemanticModel model,
+        IMethodSymbol? owner)
+    {
         var options = stores.ForOptions(project, invocation);
         if (options.Kind != BackendOwnershipKind.Unknown || MartenStoreOptionsBinding.IsOptionsReceiver(invocation, model))
         {
@@ -56,11 +65,18 @@ sealed class MartenBackendOwnershipResolver(
     static INamedTypeSymbol? MarkerFor(INamedTypeSymbol type)
     {
         var candidates = type.AllInterfaces.Prepend(type);
-        return candidates.Where(candidate => candidate.ContainingNamespace.ToDisplayString() == "Marten.Ancillary" &&
-                candidate.TypeArguments.Length == 1 &&
-                (candidate.Name == "IDocumentSession" || candidate.Name == "IQuerySession"))
+        return candidates.Where(IsAncillarySession)
             .Select(candidate => candidate.TypeArguments[0]).OfType<INamedTypeSymbol>().FirstOrDefault();
     }
+
+    static bool IsAncillarySession(INamedTypeSymbol candidate) =>
+        candidate.ContainingNamespace.ToDisplayString() == "Marten.Ancillary" &&
+        candidate.TypeArguments.Length == 1 &&
+        candidate.Name is "IDocumentSession" or "IQuerySession";
+
+    static bool IsStoreAttribute(AttributeData attribute) =>
+        attribute.AttributeClass is { } type &&
+        DotNetSubjectIds.MetadataName(type) is "Wolverine.Marten.MartenStoreAttribute" or "Wolverine.Persistence.StorageAttribute";
 
     static INamedTypeSymbol? ReceiverType(InvocationExpressionSyntax invocation, SemanticModel model)
     {
@@ -100,9 +116,7 @@ sealed class MartenBackendOwnershipResolver(
 
     BackendOwnership? AttributeOwnership(DotNetProjectCompilation project, IEnumerable<AttributeData> attributes)
     {
-        var selected = attributes.Where(attribute => attribute.AttributeClass is { } type &&
-            (DotNetSubjectIds.MetadataName(type) == "Wolverine.Marten.MartenStoreAttribute" ||
-             DotNetSubjectIds.MetadataName(type) == "Wolverine.Persistence.StorageAttribute")).ToArray();
+        var selected = attributes.Where(IsStoreAttribute).ToArray();
         if (selected.Length == 0)
         {
             return null;
