@@ -139,12 +139,7 @@ static class MartenDocumentFacts
         SemanticModel semanticModel)
     {
         var kind = RelationshipKindFor(method.Name);
-        if (IsIgnoredUsage(kind, invocation, semanticModel))
-        {
-            return;
-        }
-
-        if (kind is null && !_configurationMethods.Contains(method.Name))
+        if (!IsObservedUsage(kind, method, invocation, semanticModel))
         {
             return;
         }
@@ -165,9 +160,22 @@ static class MartenDocumentFacts
 
         var documentKey = BackendOccurrenceKeys.Artifact(documentSubject, ArtifactKind.Document, ownership);
         state.Documents.TryAdd(documentKey, new(documentType, evidence) { Ownership = ownership });
-        if (kind is not null && semanticModel.GetEnclosingSymbol(invocation.SpanStart) is IMethodSymbol containingMethod)
+        AddHandlerFactsWhenInMethod(state, new(invocation, documentSubject, evidence, ownership), kind, semanticModel);
+    }
+
+    static bool IsObservedUsage(RelationshipKind? kind, IMethodSymbol method, InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>
+        !IsIgnoredUsage(kind, invocation, semanticModel) &&
+        (kind is not null || _configurationMethods.Contains(method.Name));
+
+    static void AddHandlerFactsWhenInMethod(
+        DiscoveryState state,
+        DocumentUsageSite site,
+        RelationshipKind? kind,
+        SemanticModel semanticModel)
+    {
+        if (kind is not null && semanticModel.GetEnclosingSymbol(site.Invocation.SpanStart) is IMethodSymbol containingMethod)
         {
-            AddHandlerFacts(state, new(invocation, containingMethod, documentSubject, evidence, ownership), kind.Value);
+            AddHandlerFacts(state, new(site.Invocation, containingMethod, site.DocumentSubject, site.Evidence, site.Ownership), kind.Value);
         }
     }
 
@@ -508,6 +516,12 @@ static class MartenDocumentFacts
                 group => group.Key,
                 group => new DocumentObservation(group.First().Type, group.First().Evidence) { Ownership = group.First().Ownership });
     }
+
+    sealed record DocumentUsageSite(
+        InvocationExpressionSyntax Invocation,
+        SubjectId DocumentSubject,
+        Evidence Evidence,
+        BackendOwnership Ownership);
 
     sealed record HandlerUsage(
         InvocationExpressionSyntax Invocation,

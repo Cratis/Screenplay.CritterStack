@@ -233,15 +233,19 @@ static class MartenEventProjectionFacts
         SemanticModel semanticModel)
     {
         if (switchStatement.Expression is not MemberAccessExpressionSyntax memberAccess ||
-            semanticModel.GetSymbolInfo(memberAccess).Symbol is not IPropertySymbol { Name: "Data" } dataProperty ||
-            !_infrastructureParameterTypes.Contains(DotNetSubjectIds.MetadataName(dataProperty.ContainingType.OriginalDefinition)) ||
-            semanticModel.GetSymbolInfo(memberAccess.Expression).Symbol is not IParameterSymbol parameter)
+            !IsInfrastructureDataAccess(memberAccess, semanticModel))
         {
             return false;
         }
 
-        return SymbolEqualityComparer.Default.Equals(parameter.ContainingSymbol, containingMethod);
+        return semanticModel.GetSymbolInfo(memberAccess.Expression).Symbol is IParameterSymbol parameter &&
+               SymbolEqualityComparer.Default.Equals(parameter.ContainingSymbol, containingMethod);
     }
+
+    static bool IsInfrastructureDataAccess(MemberAccessExpressionSyntax memberAccess, SemanticModel semanticModel) =>
+        semanticModel.GetSymbolInfo(memberAccess).Symbol is IPropertySymbol dataProperty &&
+        dataProperty.Name == "Data" &&
+        _infrastructureParameterTypes.Contains(DotNetSubjectIds.MetadataName(dataProperty.ContainingType.OriginalDefinition));
 
     static INamedTypeSymbol? EventTypeFrom(IMethodSymbol method)
     {
@@ -277,9 +281,7 @@ static class MartenEventProjectionFacts
     static INamedTypeSymbol? DocumentReturnTypeFrom(IMethodSymbol method)
     {
         var returnType = method.ReturnType;
-        if (returnType is INamedTypeSymbol namedReturnType &&
-            namedReturnType.IsGenericType &&
-            _asyncReturnTypes.Contains(DotNetSubjectIds.MetadataName(namedReturnType.OriginalDefinition)))
+        if (returnType is INamedTypeSymbol namedReturnType && IsAsyncReturnType(namedReturnType))
         {
             return namedReturnType.TypeArguments[0] as INamedTypeSymbol is { } asyncDocument && IsSourceType(asyncDocument)
                 ? asyncDocument
@@ -290,6 +292,9 @@ static class MartenEventProjectionFacts
             ? documentType
             : null;
     }
+
+    static bool IsAsyncReturnType(INamedTypeSymbol type) =>
+        type.IsGenericType && _asyncReturnTypes.Contains(DotNetSubjectIds.MetadataName(type.OriginalDefinition));
 
     static INamedTypeSymbol? DocumentTypeFrom(IMethodSymbol method) => method.TypeArguments
         .OfType<INamedTypeSymbol>()
@@ -305,8 +310,7 @@ static class MartenEventProjectionFacts
     static bool TryGetTeardownType(IMethodSymbol method, out INamedTypeSymbol type)
     {
         var candidate = method.ReducedFrom ?? method;
-        if (candidate.Name == "DeleteViewTypeOnTeardown" &&
-            _teardownTypes.Contains(DotNetSubjectIds.MetadataName(candidate.ContainingType.OriginalDefinition)) &&
+        if (IsTeardownMethod(candidate) &&
             method.TypeArguments.OfType<INamedTypeSymbol>().FirstOrDefault(IsSourceType) is { } documentType)
         {
             type = documentType;
@@ -316,6 +320,10 @@ static class MartenEventProjectionFacts
         type = null!;
         return false;
     }
+
+    static bool IsTeardownMethod(IMethodSymbol candidate) =>
+        candidate.Name == "DeleteViewTypeOnTeardown" &&
+        _teardownTypes.Contains(DotNetSubjectIds.MetadataName(candidate.ContainingType.OriginalDefinition));
 
     static RelationshipKind? RelationshipKindFor(string methodName) => methodName switch
     {
@@ -391,9 +399,7 @@ static class MartenEventProjectionFacts
 
         EventDocumentOperation? ConventionalOperationFor(MethodDeclarationSyntax declaration, SemanticModel semanticModel)
         {
-            if (semanticModel.GetDeclaredSymbol(declaration) is not IMethodSymbol method ||
-                !IsProjectionMethod(method) ||
-                method.Name is not ("Create" or "Transform"))
+            if (semanticModel.GetDeclaredSymbol(declaration) is not IMethodSymbol method || !IsConventionalProjectionMethod(method))
             {
                 return null;
             }
@@ -438,8 +444,7 @@ static class MartenEventProjectionFacts
         {
             var eventType = EventTypeFor(invocation, containingMethod, semanticModel);
             var documentType = DocumentTypeFrom(method);
-            var relationshipKind = RelationshipKindFor(method.Name);
-            if (eventType is null || documentType is null || relationshipKind is null)
+            if (eventType is null || documentType is null || RelationshipKindFor(method.Name) is not { } relationshipKind)
             {
                 return;
             }
@@ -447,7 +452,7 @@ static class MartenEventProjectionFacts
             Operations.Add(new(
                 eventType,
                 documentType,
-                relationshipKind.Value,
+                relationshipKind,
                 new Evidence
                 {
                     Adapter = adapter,
@@ -456,6 +461,9 @@ static class MartenEventProjectionFacts
                     Explanation = $"Marten EventProjection '{eventType.Name}' operation uses IDocumentOperations.{method.Name} for '{documentType.Name}'"
                 }));
         }
+
+        bool IsConventionalProjectionMethod(IMethodSymbol method) =>
+            IsProjectionMethod(method) && (method.Name == "Create" || method.Name == "Transform");
 
         bool IsProjectionMethod(IMethodSymbol method) => SymbolEqualityComparer.Default.Equals(method.ContainingType, projection);
     }

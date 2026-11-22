@@ -55,14 +55,7 @@ static class MartenProjectionDiscovery
         var registrations = new List<ProjectionRegistration>();
         foreach (var tree in project.Compilation.SyntaxTrees.Where(tree => project.AuthoredSyntaxTrees.Contains(tree) && !DotNetGeneratedSource.IsGenerated(tree)))
         {
-            var semanticModel = project.Compilation.GetSemanticModel(tree);
-            foreach (var invocation in tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>())
-            {
-                if (RegistrationFrom(invocation, semanticModel, project, adapter) is { } registration)
-                {
-                    registrations.Add(registration with { Ownership = stores.ForOptions(project, invocation) });
-                }
-            }
+            registrations.AddRange(RegistrationsIn(tree, project, adapter, stores));
         }
 
         AddConventionalRegistrations(registrations, project, adapter, stores);
@@ -94,13 +87,9 @@ static class MartenProjectionDiscovery
             return new(multiStreamModel, projection, ProjectionKind.MultiStream, null!);
         }
 
-        if (DotNetSubjectIds.MetadataName(projection) != WellKnownTypes.MartenEventProjection &&
-            DotNetSymbols.IsOrInheritsFrom(projection, WellKnownTypes.MartenEventProjection))
-        {
-            return new(projection, projection, ProjectionKind.Event, null!);
-        }
-
-        return null;
+        return IsDerivedEventProjection(projection)
+            ? new(projection, projection, ProjectionKind.Event, null!)
+            : null;
     }
 
     internal static ProjectionRegistration? RegistrationFrom(
@@ -109,10 +98,7 @@ static class MartenProjectionDiscovery
         DotNetProjectCompilation project,
         AdapterIdentity adapter)
     {
-        if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
-            MartenProjectionKindDiscovery.IsComposite(method.ContainingType) ||
-            !IsMarten(method, invocation, semanticModel) ||
-            ProjectionTypeFrom(method, invocation, semanticModel) is not { } type)
+        if (MartenRegistrationCall(invocation, semanticModel) is not var (method, type))
         {
             return null;
         }
@@ -127,22 +113,58 @@ static class MartenProjectionDiscovery
 
         return method.Name switch
         {
-            "Snapshot" or "LiveStreamAggregation" => SnapshotRegistration(method, type, evidence, invocation, semanticModel),
+            "Snapshot" => SnapshotRegistration(type, evidence, LifecycleFrom(invocation, semanticModel)),
+            "LiveStreamAggregation" => SnapshotRegistration(type, evidence, "Live"),
             "Add" or "AddProjectionWithServices" => AddedRegistration(type, evidence, invocation, semanticModel),
             _ => null
         };
     }
 
+    static List<ProjectionRegistration> RegistrationsIn(
+        SyntaxTree tree,
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter,
+        MartenStoreIndex stores)
+    {
+        var semanticModel = project.Compilation.GetSemanticModel(tree);
+        return
+        [
+            .. tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>()
+                .Select(invocation => (Invocation: invocation, Registration: RegistrationFrom(invocation, semanticModel, project, adapter)))
+                .Where(_ => _.Registration is not null)
+                .Select(_ => _.Registration! with { Ownership = stores.ForOptions(project, _.Invocation) })
+        ];
+    }
+
+    static bool IsDerivedEventProjection(INamedTypeSymbol projection) =>
+        DotNetSubjectIds.MetadataName(projection) != WellKnownTypes.MartenEventProjection &&
+        DotNetSymbols.IsOrInheritsFrom(projection, WellKnownTypes.MartenEventProjection);
+
+    static (IMethodSymbol Method, INamedTypeSymbol Type)? MartenRegistrationCall(
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel)
+    {
+        if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
+            MartenProjectionKindDiscovery.IsComposite(method.ContainingType))
+        {
+            return null;
+        }
+
+        if (!IsMarten(method, invocation, semanticModel) ||
+            ProjectionTypeFrom(method, invocation, semanticModel) is not { } type)
+        {
+            return null;
+        }
+
+        return (method, type);
+    }
+
     static ProjectionRegistration SnapshotRegistration(
-        IMethodSymbol method,
         INamedTypeSymbol type,
         Evidence evidence,
-        InvocationExpressionSyntax invocation,
-        SemanticModel semanticModel) => new(type, null, ProjectionKind.Snapshot, evidence)
+        string? lifecycle) => new(type, null, ProjectionKind.Snapshot, evidence)
         {
-            Lifecycle = string.Equals(method.Name, "LiveStreamAggregation", StringComparison.Ordinal)
-                ? "Live"
-                : LifecycleFrom(invocation, semanticModel)
+            Lifecycle = lifecycle
         };
 
     static ProjectionRegistration? AddedRegistration(
@@ -162,13 +184,7 @@ static class MartenProjectionDiscovery
         var catalog = new DotNetArtifactCatalog(project.Compilation);
         foreach (var projection in catalog.Types.Select(ShapeOf).Where(_ => _ is not null).Cast<ProjectionRegistration>())
         {
-            if (registrations.Exists(_ => SymbolEqualityComparer.Default.Equals(_.Projection, projection.Projection)) ||
-                stores.IsConfiguredProjection(project, projection.Projection!))
-            {
-                continue;
-            }
-
-            if (!projection.Projection!.DeclaringSyntaxReferences.Any(reference => project.AuthoredSyntaxTrees.Contains(reference.SyntaxTree)))
+            if (IsAlreadyRegistered(registrations, projection, project, stores) || !IsAuthored(projection.Projection!, project))
             {
                 continue;
             }
@@ -185,6 +201,17 @@ static class MartenProjectionDiscovery
             });
         }
     }
+
+    static bool IsAlreadyRegistered(
+        List<ProjectionRegistration> registrations,
+        ProjectionRegistration projection,
+        DotNetProjectCompilation project,
+        MartenStoreIndex stores) =>
+        registrations.Exists(_ => SymbolEqualityComparer.Default.Equals(_.Projection, projection.Projection)) ||
+        stores.IsConfiguredProjection(project, projection.Projection!);
+
+    static bool IsAuthored(INamedTypeSymbol type, DotNetProjectCompilation project) =>
+        type.DeclaringSyntaxReferences.Any(reference => project.AuthoredSyntaxTrees.Contains(reference.SyntaxTree));
 
     static ProjectionRegistration? CustomShapeOf(INamedTypeSymbol projection) =>
         !MartenProjectionKindDiscovery.IsOpaqueProjection(projection) &&
@@ -231,8 +258,12 @@ static class MartenProjectionDiscovery
         }
 
         if (semanticModel.GetTypeInfo(expression).ConvertedType is not INamedTypeSymbol enumType ||
-            !_projectionLifecycleTypes.Contains(DotNetSubjectIds.MetadataName(enumType)) ||
-            semanticModel.GetConstantValue(expression) is not { HasValue: true, Value: not null } constant)
+            !_projectionLifecycleTypes.Contains(DotNetSubjectIds.MetadataName(enumType)))
+        {
+            return null;
+        }
+
+        if (semanticModel.GetConstantValue(expression) is not { HasValue: true, Value: not null } constant)
         {
             return null;
         }
