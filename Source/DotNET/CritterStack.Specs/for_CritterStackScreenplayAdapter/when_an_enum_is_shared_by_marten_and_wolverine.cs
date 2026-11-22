@@ -14,7 +14,8 @@ public class when_an_enum_is_shared_by_marten_and_wolverine : given.an_enum_appl
     [Fact] void should_emit_the_wolverine_event() => Artifacts.Any(_ => _.Definition.Key.Kind == ArtifactKind.Event && _.Definition.Name == "OrderPlaced").ShouldBeTrue();
     [Fact] void should_emit_one_concept() => Artifacts.Count(_ => _.Definition.Key.Kind == ArtifactKind.Concept).ShouldEqual(1);
     [Fact] void should_emit_one_representation() => _contribution.Facts.OfType<ConceptRepresentationFact>().Count().ShouldEqual(1);
-    [Fact] void should_retain_declaration_order_and_numeric_aliases() => Representation.Definition.EnumerationValues.SequenceEqual(["Urgent", "Normal", "Alias", "low"]).ShouldBeTrue();
+    [Fact] void should_retain_declaration_order_and_numbers() => Representation.Definition.EnumerationValues.SequenceEqual(["Urgent", "Normal", "Alias", "low"]).ShouldBeTrue();
+    [Fact] void should_retain_the_declared_numbers() => Representation.Definition.EnumerationNumbers!.SequenceEqual([9, 1, 5, 0]).ShouldBeTrue();
     [Fact] void should_emit_an_enumeration() => Representation.Definition.Kind.ShouldEqual(ConceptRepresentationKind.Enumeration);
     [Fact] void should_not_invent_a_primitive_backing() => Representation.Definition.Primitive.ShouldBeNull();
     [Fact] void should_use_exact_declaration_evidence() => Representation.Evidence.Strength.ShouldEqual(EvidenceStrength.Exact);

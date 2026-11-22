@@ -10,10 +10,7 @@ public class when_enum_numbers_are_sparse : given.an_explicit_enum_numbers_appli
     void Because() => Result = Generate(CreateProject(declaration: Declaration));
 
     [Fact] void should_succeed() => Result.IsSuccess.ShouldBeTrue();
-    [Fact] void should_keep_the_names_only_output_unchanged() => Result.Source.ShouldEqual(PositionalSource);
-    [Fact] void should_report_one_numbering_warning() => Result.Diagnostics.Count(_ => _.Code == CritterStackDiagnosticCodes.EnumNumbersNotPreserved).ShouldEqual(1);
-    [Fact] void should_report_an_unsupported_warning() => NumberingDiagnostic.Severity.ShouldEqual(GenerationDiagnosticSeverity.Warning);
-    [Fact] void should_report_the_loss_of_numeric_fidelity() => NumberingDiagnostic.Outcome.ShouldEqual(GenerationDiagnosticOutcome.Unsupported);
-    [Fact] void should_locate_the_full_enum_declaration() => NumberingDiagnostic.Source.ShouldEqual(DeclarationRange(Declaration));
-    [Fact] void should_explain_what_is_not_preserved() => NumberingDiagnostic.Message.ShouldEqual("Enum 'Priority': explicit member numbers are not preserved in the generated concept");
+    [Fact] void should_compile_without_undeclared_field_types() => new Cratis.Screenplay.ScreenplayCompiler().Compile(Result.Source).Diagnostics.Any(_ => _.Code == "PLAY0165").ShouldBeFalse();
+    [Fact] void should_emit_the_numbers_in_declaration_order() => Result.Source.ShouldEqual(WithNumbers(0, 10, 20));
+    [Fact] void should_not_report_a_numbering_warning() => Result.Diagnostics.Any(_ => _.Code == CritterStackDiagnosticCodes.EnumNumbersNotPreserved).ShouldBeFalse();
 }

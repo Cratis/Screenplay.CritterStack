@@ -46,20 +46,19 @@ static class EnumConceptFacts
                 EvidenceStrength.Exact,
                 $"Authored enum '{candidate.Type.Name}' declares its named values");
             var values = declaration.Members.Select(_ => _.Identifier.ValueText).ToArray();
-            if (OmissionOf(candidate.Type, subject, evidence, values) is { } omission)
+            var numbering = NumberingOf(candidate.Type, declaration);
+            if (OmissionOf(candidate.Type, subject, evidence, values, numbering) is { } omission)
             {
                 diagnostics.Add(omission);
                 continue;
             }
-
-            diagnostics.AddRange(NumberingDiagnostics(candidate.Type, declaration, subject, evidence));
 
             if (concepts.Add(subject))
             {
                 facts.Add(ConceptFact(contribution.Adapter, subject, candidate.Type.Name, evidence));
             }
 
-            facts.Add(RepresentationFact(contribution.Adapter, subject, evidence, values));
+            facts.Add(RepresentationFact(contribution.Adapter, subject, evidence, values, numbering.Numbers));
         }
 
         // Bind before resolving captured names, so uses of each enum carry its subject and only other types print its
@@ -135,21 +134,31 @@ static class EnumConceptFacts
         return Drop(contributions, captured);
     }
 
-    static IEnumerable<GenerationDiagnostic> NumberingDiagnostics(
-        INamedTypeSymbol type,
-        EnumDeclarationSyntax declaration,
-        SubjectId subject,
-        Evidence evidence)
+    // Positional numbering (0, 1, 2, ...) is left implicit so existing output stays byte-identical; any other valid numbering
+    // is carried in full. Numbers must be distinct int32 values, so aliases and wider values cannot be represented.
+    static EnumNumbering NumberingOf(INamedTypeSymbol type, EnumDeclarationSyntax declaration)
     {
-        var numbers = new EnumMemberNumbers([.. declaration.Members.Select(member => type
-            .GetMembers(member.Identifier.ValueText)
-            .OfType<IFieldSymbol>()
-            .Single()
-            .ConstantValue)]);
-        if (!numbers.IsPositional)
+        var constants = declaration.Members
+            .Select(member => type.GetMembers(member.Identifier.ValueText).OfType<IFieldSymbol>().Single().ConstantValue)
+            .ToArray();
+        if (constants.Any(_ => _ is null))
         {
-            yield return NumberingDiagnostic(type, subject, evidence);
+            return new(null, "a member has no constant value");
         }
+
+        var decimals = constants.Select(_ => Convert.ToDecimal(_, CultureInfo.InvariantCulture)).ToArray();
+        if (decimals.Any(_ => _ < int.MinValue || _ > int.MaxValue))
+        {
+            return new(null, "a member number is outside the 32-bit signed integer range");
+        }
+
+        var numbers = decimals.Select(_ => (int)_).ToArray();
+        if (numbers.Distinct().Count() != numbers.Length)
+        {
+            return new(null, "members share a number (aliases)");
+        }
+
+        return new(numbers.Select((number, index) => number == index).All(_ => _) ? null : numbers, null);
     }
 
     // Mirrors ScreenplayLowerer.TypeName (Screenplay.Generation 0.18): only a concept-targeted subject with a contributed
@@ -249,7 +258,7 @@ static class EnumConceptFacts
             : fact;
     }
 
-    static GenerationDiagnostic? OmissionOf(INamedTypeSymbol type, SubjectId subject, Evidence evidence, string[] values)
+    static GenerationDiagnostic? OmissionOf(INamedTypeSymbol type, SubjectId subject, Evidence evidence, string[] values, EnumNumbering numbering)
     {
         if (DotNetSymbols.HasAttribute(type, "System.FlagsAttribute"))
         {
@@ -262,7 +271,13 @@ static class EnumConceptFacts
 
         if (CanLower(values))
         {
-            return null;
+            return numbering.Problem is { } problem
+                ? OmittedEnum(
+                    CritterStackDiagnosticCodes.EnumNumbersNotPreserved,
+                    subject,
+                    evidence,
+                    $"Enum '{type.Name}' has numbering that cannot be preserved: {problem}; it is not declared as a concept and its uses keep the plain type name without a concept reference")
+                : null;
         }
 
         return OmittedEnum(
@@ -287,7 +302,7 @@ static class EnumConceptFacts
         }
     };
 
-    static ConceptRepresentationFact RepresentationFact(AdapterIdentity adapter, SubjectId subject, Evidence evidence, string[] values) => new()
+    static ConceptRepresentationFact RepresentationFact(AdapterIdentity adapter, SubjectId subject, Evidence evidence, string[] values, IReadOnlyList<int>? numbers) => new()
     {
         Id = new FactId { Value = RepresentationFactId(adapter, subject) },
         Subject = subject,
@@ -296,7 +311,8 @@ static class EnumConceptFacts
         {
             Concept = subject,
             Kind = ConceptRepresentationKind.Enumeration,
-            EnumerationValues = [.. values]
+            EnumerationValues = [.. values],
+            EnumerationNumbers = numbers
         }
     };
 
@@ -315,16 +331,6 @@ static class EnumConceptFacts
         Subject = subject,
         Source = evidence.Source,
         Message = message
-    };
-
-    static GenerationDiagnostic NumberingDiagnostic(INamedTypeSymbol type, SubjectId subject, Evidence evidence) => new()
-    {
-        Code = CritterStackDiagnosticCodes.EnumNumbersNotPreserved,
-        Severity = GenerationDiagnosticSeverity.Warning,
-        Outcome = GenerationDiagnosticOutcome.Unsupported,
-        Subject = subject,
-        Source = evidence.Source,
-        Message = $"Enum '{type.Name}': explicit member numbers are not preserved in the generated concept"
     };
 
     static GenerationDiagnostic ConflictDiagnostic(ArtifactFact concept, string message) => new()
@@ -369,10 +375,5 @@ static class EnumConceptFacts
         !string.Equals(value, "file", StringComparison.Ordinal) &&
         !string.Equals(value, "validate", StringComparison.Ordinal);
 
-    internal sealed record EnumMemberNumbers(IReadOnlyList<object?> Values)
-    {
-        public bool IsPositional => Values
-            .Select((value, index) => value is not null && Convert.ToDecimal(value, CultureInfo.InvariantCulture) == index)
-            .All(_ => _);
-    }
+    sealed record EnumNumbering(IReadOnlyList<int>? Numbers, string? Problem);
 }
