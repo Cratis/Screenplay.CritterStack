@@ -303,14 +303,16 @@ internal static partial class WolverineFacts
             GenerationSliceKind.StateView);
 
         AddQueryFacts(scope, endpoint, querySubject, queryName, compatibilityPlacement, compiledQueries, evidence);
-        if (!scope.RequireOwnership(endpoint.Method))
+        var queryScope = scope.WithOwnership(QueryResultOwnership(scope, endpoint.Method));
+        if (!queryScope.RequireOwnership(endpoint.Method))
         {
             return;
         }
 
-        AddQueryModelFacts(scope, querySubject, model, evidence, isCollection, isOptional);
+        AddQueryModelFacts(queryScope, querySubject, model, evidence, isCollection, isOptional);
+        AddSessionQueryReads(queryScope, querySubject, endpoint.Method);
         AddPersistenceBoundReads(scope, querySubject, endpoint.Method, aggregateParameter: null, unscopedSource: true);
-        AddCompiledQueryReads(scope, querySubject, compiledQueries);
+        AddCompiledQueryReads(queryScope, querySubject, compiledQueries);
         AddResolvedCompoundStageConsequences(scope, querySubject, endpoint.Method, stages);
     }
 

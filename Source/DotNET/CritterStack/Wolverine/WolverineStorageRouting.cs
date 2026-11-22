@@ -18,7 +18,10 @@ sealed record WolverineStoragePolicy(
     SyntaxNode? Block,
     ISymbol? Receiver,
     int Position,
-    bool IsKnown);
+    bool IsKnown)
+{
+    public bool HasUnknownOwnership => !IsKnown || Ownership.Kind == BackendOwnershipKind.Unknown;
+}
 
 sealed class WolverineStorageRouting(IReadOnlyList<WolverineStoragePolicy> policies)
 {
@@ -40,7 +43,7 @@ sealed class WolverineStorageRouting(IReadOnlyList<WolverineStoragePolicy> polic
             return null;
         }
 
-        if (matching.Any(policy => !policy.IsKnown))
+        if (matching.Any(policy => policy.HasUnknownOwnership))
         {
             return BackendOwnership.Unknown;
         }

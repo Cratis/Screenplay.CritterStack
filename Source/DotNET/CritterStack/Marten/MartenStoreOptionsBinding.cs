@@ -15,12 +15,11 @@ static class MartenStoreOptionsBinding
 {
     public static IReadOnlyList<ISymbol> OptionsFor(IInvocationOperation operation, SemanticModel model) =>
     [
-        .. operation.Arguments.SelectMany(argument => argument.Syntax.DescendantNodesAndSelf()
-                .OfType<LambdaExpressionSyntax>()
-                .SelectMany(lambda => Parameters(lambda).Select(parameter => model.GetDeclaredSymbol(parameter)))
-                .OfType<IParameterSymbol>()
-                .Where(parameter => IsOptions(parameter.Type))
-                .Cast<ISymbol>())
+        .. operation.Arguments.Select(argument => argument.Value.Syntax).OfType<LambdaExpressionSyntax>()
+            .SelectMany(lambda => Parameters(lambda).Select(parameter => model.GetDeclaredSymbol(parameter)))
+            .OfType<IParameterSymbol>()
+            .Where(parameter => IsOptions(parameter.Type))
+            .Cast<ISymbol>()
             .Concat(operation.Arguments.Select(argument => RootSymbol(argument.Value.Syntax, model)).OfType<ISymbol>())
             .Distinct(SymbolEqualityComparer.Default)
     ];
@@ -52,16 +51,10 @@ static class MartenStoreOptionsBinding
         IReadOnlyList<ISymbol> options,
         SemanticModel model)
     {
-        if (registration.Span.Contains(assignment.Span))
-        {
-            return true;
-        }
-
         var root = RootSymbol(assignment.Left, model);
-        var initialized = assignment.Ancestors().OfType<VariableDeclaratorSyntax>().FirstOrDefault();
-        var initializedSymbol = initialized is null ? null : model.GetDeclaredSymbol(initialized);
-        return options.Any(option => SymbolEqualityComparer.Default.Equals(option, root) ||
-            SymbolEqualityComparer.Default.Equals(option, initializedSymbol));
+        var initializedSymbol = InitializedOptions(assignment, model);
+        return IsRegisteredInitializer(assignment, registration) || options.Any(option =>
+            SymbolEqualityComparer.Default.Equals(option, root) || SymbolEqualityComparer.Default.Equals(option, initializedSymbol));
     }
 
     public static bool IsOptionsReceiver(InvocationExpressionSyntax invocation, SemanticModel model)
@@ -88,6 +81,18 @@ static class MartenStoreOptionsBinding
         model.GetSymbolInfo(assignment.Left).Symbol is IPropertySymbol property &&
         property.Name == "EventModelName" && IsOptions(property.ContainingType);
 
+    static ISymbol? InitializedOptions(AssignmentExpressionSyntax assignment, SemanticModel model)
+    {
+        var creation = assignment.Ancestors().OfType<BaseObjectCreationExpressionSyntax>().FirstOrDefault();
+        return creation?.Parent?.Parent is VariableDeclaratorSyntax variable ? model.GetDeclaredSymbol(variable) : null;
+    }
+
+    static bool IsRegisteredInitializer(AssignmentExpressionSyntax assignment, InvocationExpressionSyntax registration)
+    {
+        var creation = assignment.Ancestors().OfType<BaseObjectCreationExpressionSyntax>().FirstOrDefault();
+        return registration.ArgumentList.Arguments.Any(argument => argument.Expression.Span == creation?.Span);
+    }
+
     static bool IsOptions(ITypeSymbol type) => type is INamedTypeSymbol named &&
         DotNetSubjectIds.MetadataName(named) == WellKnownTypes.MartenStoreOptions;
 
@@ -111,7 +116,7 @@ static class MartenStoreOptionsBinding
     {
         var lambda = assignment.Ancestors().OfType<LambdaExpressionSyntax>().FirstOrDefault();
         if (lambda is not null && !registration.Span.Contains(lambda.Span)) return false;
-        if (lambda is null && assignment.SpanStart > registration.SpanStart) return false;
+        if (lambda is null && assignment.SpanStart > registration.Span.End) return false;
         return !assignment.Ancestors().TakeWhile(node => node != lambda && node is not MethodDeclarationSyntax)
             .Any(node => node is IfStatementSyntax or SwitchStatementSyntax or SwitchExpressionSyntax or
                 ConditionalExpressionSyntax or ForStatementSyntax or ForEachStatementSyntax or WhileStatementSyntax or
