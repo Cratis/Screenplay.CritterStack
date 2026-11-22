@@ -18,14 +18,28 @@ sealed record MartenStoreRegistration(
     SubjectId? Marker,
     IReadOnlyList<ISymbol> Options,
     BackendOwnership Ownership,
-    Evidence Evidence);
-
-sealed class MartenStoreRegistrations(DotNetAnalysisContext context, AdapterIdentity adapter, CritterStackSubjectResolver subjects)
+    SourceRange? Source,
+    string Explanation)
 {
-    public static IReadOnlyList<MartenStoreRegistration> Discover(
+    /// <summary>
+    /// Creates the provenance for this observation; the observation itself carries no adapter identity.
+    /// </summary>
+    /// <param name="adapter">The adapter taking responsibility for the emitted fact.</param>
+    /// <returns>The configured evidence.</returns>
+    public Evidence EvidenceFor(AdapterIdentity adapter) => new()
+    {
+        Adapter = adapter,
+        Strength = EvidenceStrength.Configured,
+        Source = Source,
+        Explanation = Explanation
+    };
+}
+
+sealed class MartenStoreRegistrations(DotNetAnalysisContext context, CritterStackSubjectResolver subjects)
+{
+    public static IReadOnlyList<MartenStoreRegistration> Observe(
         DotNetAnalysisContext context,
-        AdapterIdentity adapter,
-        CritterStackSubjectResolver subjects) => new MartenStoreRegistrations(context, adapter, subjects).Discover();
+        CritterStackSubjectResolver subjects) => new MartenStoreRegistrations(context, subjects).Discover();
 
     public static SubjectId MarkerSubject(DotNetAnalysisContext context, CritterStackSubjectResolver subjects, DotNetProjectCompilation project, INamedTypeSymbol marker) =>
         context.Projects.All(candidate => candidate.SourceContext is null)
@@ -94,13 +108,8 @@ sealed class MartenStoreRegistrations(DotNetAnalysisContext context, AdapterIden
             Marker(project, operation.TargetMethod),
             options,
             ownership,
-            new Evidence
-            {
-                Adapter = adapter,
-                Strength = EvidenceStrength.Configured,
-                Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
-                Explanation = $"Marten store registration through {operation.TargetMethod.Name}"
-            });
+            CritterStackSource.RangeForProject(invocation.GetLocation(), project),
+            $"Marten store registration through {operation.TargetMethod.Name}");
     }
 
     bool CanIdentify(DotNetProjectCompilation project) => project.SourceContext is not null || context.Projects.Count(candidate => candidate.Name == project.Name) == 1;

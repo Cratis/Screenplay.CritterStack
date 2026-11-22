@@ -11,6 +11,7 @@ namespace Cratis.CritterStack.Screenplay.Marten;
 sealed class MartenStoreIndex
 {
     readonly DotNetAnalysisContext _context;
+    readonly AdapterIdentity _adapter;
     readonly IReadOnlyList<MartenStoreRegistration> _registrations;
     readonly HashSet<SubjectId> _configuredProjections;
     readonly CritterStackSubjectResolver _subjects;
@@ -18,6 +19,7 @@ sealed class MartenStoreIndex
     MartenStoreIndex(DotNetAnalysisContext context, AdapterIdentity adapter, CritterStackSubjectResolver subjects, IReadOnlyList<MartenStoreRegistration> registrations)
     {
         _context = context;
+        _adapter = adapter;
         _registrations = registrations;
         HasExplicitScopes = UsesExplicitScopes(context, registrations);
         _configuredProjections = ConfiguredProjections(context, adapter, subjects);
@@ -28,7 +30,7 @@ sealed class MartenStoreIndex
             .. registrations.Where(registration => !registration.Ownership.CanEmit)
                 .Select(registration => registration.Ownership.Diagnostic(
                     registration.Subject,
-                    registration.Evidence.Source,
+                    registration.Source,
                     "Marten store registration identity or event-model configuration cannot be proved"))
         ];
     }
@@ -43,7 +45,7 @@ sealed class MartenStoreIndex
                 Id = new() { Value = $"marten:backend-scope:{registration.Subject.Value}" },
                 Subject = registration.Subject,
                 Definition = new() { Key = registration.Ownership.Scope! },
-                Evidence = registration.Evidence
+                Evidence = registration.EvidenceFor(_adapter)
             })
     ];
 
@@ -51,7 +53,7 @@ sealed class MartenStoreIndex
 
     public static MartenStoreIndex Create(DotNetAnalysisContext context, AdapterIdentity adapter, CritterStackSubjectResolver subjects)
     {
-        return new(context, adapter, subjects, MartenStoreRegistrations.Discover(context, adapter, subjects));
+        return new(context, adapter, subjects, MartenStoreRegistrations.Observe(context, subjects));
     }
 
     public bool IsConfiguredProjection(DotNetProjectCompilation project, INamedTypeSymbol projection) =>

@@ -24,6 +24,16 @@ public sealed class CritterStackScreenplayAdapter : IDotNetScreenplayAdapter
     /// <inheritdoc/>
     public AdapterIdentity Identity => _identity;
 
+    /// <summary>
+    /// Gets the atomic adapters under construction; not yet part of any public roster or of this adapter's analysis.
+    /// </summary>
+    internal static IReadOnlyList<IDescribedDotNetScreenplayAdapter> AtomicAdapters { get; } =
+    [
+        new MartenScreenplayAdapter(),
+        new WolverineScreenplayAdapter(),
+        new WolverineMartenScreenplayAdapter()
+    ];
+
     /// <inheritdoc/>
     public bool CanAnalyze(DotNetAnalysisContext context) => context.Projects.Any(project =>
         project.Compilation.GetTypeByMetadataName(WellKnownTypes.MartenStoreOptions) is not null ||
@@ -57,9 +67,7 @@ public sealed class CritterStackScreenplayAdapter : IDotNetScreenplayAdapter
         var placements = new List<CritterStackPlacementIntent>();
         var hasSourceContext = context.Projects.Any(_ => _.SourceContext is not null);
         var subjects = new CritterStackSubjectResolver(hasSourceContext ? context : null, context);
-        var stores = Marten.MartenStoreScopeDiscovery.Discover(context, Identity, subjects);
-        var routing = WolverineStorageRouting.Discover(context, stores);
-        var ownership = new Marten.MartenBackendOwnershipResolver(stores, routing);
+        var (stores, ownership) = Marten.MartenStoreScopeDiscovery.DiscoverOwnership(context, Identity, subjects);
         facts.AddRange(stores.Facts);
         diagnostics.AddRange(stores.Diagnostics);
 
