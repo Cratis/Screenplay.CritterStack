@@ -29,13 +29,28 @@ sealed class MartenCollectedFacts(
 
     public CritterStackSubjectResolver Subjects { get; } = subjects;
 
-    public List<GenerationFact> Facts { get; } = [];
+    public BackendOwnership Ownership { get; init; } = BackendOwnership.Legacy;
 
-    public List<GenerationDiagnostic> Diagnostics { get; } = [];
+    public List<GenerationFact> Facts { get; init; } = [];
 
-    public List<MartenDocumentUsage> Documents { get; } = [];
+    public List<GenerationDiagnostic> Diagnostics { get; init; } = [];
 
-    public List<CritterStackPlacementIntent> Placements { get; } = [];
+    public List<MartenDocumentUsage> Documents { get; init; } = [];
+
+    public List<CritterStackPlacementIntent> Placements { get; init; } = [];
+
+    public MartenCollectedFacts WithOwnership(BackendOwnership ownership) => new(Project, Options, Adapter, Subjects)
+    {
+        Ownership = ownership,
+        Facts = Facts,
+        Diagnostics = Diagnostics,
+        Documents = Documents,
+        Placements = Placements
+    };
+
+    public ArtifactKey Key(SubjectId subject, ArtifactKind kind) => BackendOccurrenceKeys.Artifact(subject, kind, Ownership);
+
+    public string PlacementId(string legacy) => BackendOccurrenceKeys.FactId(legacy, Ownership.Scope);
 }
 
 /// <summary>
@@ -87,7 +102,7 @@ static class MartenAggregateProjectionFacts
                 Kind = RelationshipKind.Consumes,
                 Target = eventSubject,
                 Evidence = evidence
-            }.ToFact());
+            }.ToFact(collected.Ownership.Scope, collected.Ownership.Scope));
         }
 
         MartenMultiStreamFacts.Add(collected, scope.ModelSubject, scope.ProjectionSubject, multiStreamConfiguration);
@@ -107,10 +122,10 @@ static class MartenAggregateProjectionFacts
             File = MartenSourceFiles.FileOf(site.EventType, project),
             Properties = DotNetTypeShapes.PropertiesOf(site.EventType),
             Evidence = site.Evidence
-        }.ToFact());
+        }.ToFact(collected.Ownership));
         collected.Placements.Add(new(
-            $"marten:placement:event:{eventSubject.Value}:{modelSubject.Value}{suffix}",
-            new ArtifactKey { Subject = eventSubject, Kind = ArtifactKind.Event },
+            collected.PlacementId($"marten:placement:event:{eventSubject.Value}:{modelSubject.Value}{suffix}"),
+            collected.Key(eventSubject, ArtifactKind.Event),
             null,
             CritterStackSourcePlacement.CompatibilityPlacement(
                 project,
@@ -174,12 +189,12 @@ static class MartenAggregateProjectionFacts
                 File = scope.File,
                 Properties = DotNetTypeShapes.PropertiesOf(model),
                 Evidence = registration.Evidence
-            }.ToFact());
+            }.ToFact(collected.Ownership));
         }
 
         collected.Placements.Add(new(
-            $"marten:placement:read-model:{scope.ModelSubject.Value}",
-            new ArtifactKey { Subject = scope.ModelSubject, Kind = ArtifactKind.ReadModel },
+            collected.PlacementId($"marten:placement:read-model:{scope.ModelSubject.Value}"),
+            collected.Key(scope.ModelSubject, ArtifactKind.ReadModel),
             null,
             scope.CompatibilityPlacement,
             scope.PlacementEvidence));
@@ -195,10 +210,10 @@ static class MartenAggregateProjectionFacts
             Name = registration.Projection?.Name ?? $"{registration.Model.Name}Snapshot",
             File = MartenSourceFiles.FileOf(scope.Projection, collected.Project) ?? scope.File,
             Evidence = registration.Evidence
-        }.ToFact());
+        }.ToFact(collected.Ownership));
         collected.Placements.Add(new(
-            $"marten:placement:reducer:{scope.ProjectionSubject.Value}",
-            new ArtifactKey { Subject = scope.ProjectionSubject, Kind = ArtifactKind.Reducer },
+            collected.PlacementId($"marten:placement:reducer:{scope.ProjectionSubject.Value}"),
+            collected.Key(scope.ProjectionSubject, ArtifactKind.Reducer),
             scope.ReducerSourceOwner,
             scope.CompatibilityPlacement,
             scope.PlacementEvidence));
@@ -209,7 +224,7 @@ static class MartenAggregateProjectionFacts
             Kind = RelationshipKind.Builds,
             Target = scope.ModelSubject,
             Evidence = registration.Evidence
-        }.ToFact());
+        }.ToFact(collected.Ownership.Scope, collected.Ownership.Scope));
     }
 
     static IEnumerable<(INamedTypeSymbol EventType, Evidence Evidence)> EvolutionEvents(

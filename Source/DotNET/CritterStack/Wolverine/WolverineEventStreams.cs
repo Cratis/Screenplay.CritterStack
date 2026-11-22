@@ -34,6 +34,8 @@ sealed record WolverineStateBinding(
 {
     public WolverineFetchedStreamBinding? Fetched { get; init; }
 
+    public BackendOwnership? Ownership { get; init; }
+
     public bool LoadsModel => Kind is WolverineStateBindingKind.LoadedEventStream or WolverineStateBindingKind.FetchedEventStream;
 
     public string Discriminator => Fetched is { } fetched

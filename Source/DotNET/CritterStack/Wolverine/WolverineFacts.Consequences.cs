@@ -166,7 +166,7 @@ internal static partial class WolverineFacts
         };
         emission.Facts.Add(Artifact(
             $"wolverine:marten-op:{(startsStream ? "aggregate" : "document")}:{targetSubject.Value}",
-            new ArtifactKey { Subject = targetSubject, Kind = startsStream ? ArtifactKind.Aggregate : ArtifactKind.ReadModel },
+            BackendOccurrenceKeys.Artifact(targetSubject, startsStream ? ArtifactKind.Aggregate : ArtifactKind.ReadModel, emission.Ownership),
             operation.ModelType.Name,
             SourceFileOf(operation.ModelType, emission.Project),
             DotNetTypeShapes.PropertiesOf(operation.ModelType),
@@ -185,7 +185,9 @@ internal static partial class WolverineFacts
             targetSubject,
             evidence,
             discriminator: $"marten-op:{consequence.Slot}",
-            isCollection: operation.FactoryName == "StoreMany"));
+            isCollection: operation.FactoryName == "StoreMany",
+            sourceScope: emission.Ownership.Scope,
+            targetScope: emission.Ownership.Scope));
     }
 
     static void AddCompoundStageConsequences(
@@ -350,20 +352,30 @@ internal static partial class WolverineFacts
             relationshipKind,
             messageSubject,
             emission.Evidence,
-            discriminator: discriminator));
+            discriminator: discriminator,
+            sourceScope: emission.Ownership.Scope));
     }
 
-    static void AddDocumentDeletes(MessageEmission emission, IMethodSymbol method)
+    static void AddDocumentDeletes(WolverineFactScope scope, MessageEmission emission, IMethodSymbol method)
     {
-        foreach (var documentType in DocumentDeletes(method, emission.Project))
+        foreach (var (documentType, invocation) in DocumentDeletes(method, emission.Project))
         {
+            var ownership = scope.Resolver?.ForInvocation(scope.Project, invocation, method) ?? scope.Ownership;
+            if (!ownership.CanEmit)
+            {
+                scope.Diagnostics.Add(ownership.Diagnostic(emission.SourceSubject, CritterStackSource.RangeForProject(invocation.GetLocation(), scope.Project), "The backend owning this document deletion could not be proven"));
+                continue;
+            }
+
             var documentSubject = emission.Subjects.SubjectForType(emission.Project, documentType);
             emission.Facts.Add(Relationship(
                 $"wolverine:deletes:{emission.SourceSubject.Value}:{documentSubject.Value}",
                 emission.SourceSubject,
                 RelationshipKind.Deletes,
                 documentSubject,
-                emission.Evidence));
+                emission.Evidence,
+                sourceScope: emission.Ownership.Scope,
+                targetScope: ownership.Scope));
         }
     }
 
@@ -373,7 +385,8 @@ internal static partial class WolverineFacts
         Subjects = scope.Subjects,
         SourceSubject = sourceSubject,
         Evidence = evidence,
-        Facts = scope.Facts
+        Facts = scope.Facts,
+        Ownership = scope.Ownership
     };
 
     static MessageEmission SagaEmissionFor(WolverineSagaEmissionContext context) => new()
@@ -383,6 +396,7 @@ internal static partial class WolverineFacts
         SourceSubject = context.SourceSubject,
         Evidence = context.Evidence,
         Facts = context.Facts,
+        Ownership = context.Ownership,
         SagaAnalysis = true
     };
 
@@ -397,6 +411,8 @@ internal static partial class WolverineFacts
         public required Evidence Evidence { get; init; }
 
         public required List<GenerationFact> Facts { get; init; }
+
+        public BackendOwnership Ownership { get; init; } = BackendOwnership.Legacy;
 
         public bool SagaAnalysis { get; init; }
     }

@@ -29,7 +29,7 @@ internal static partial class WolverineFacts
 
             var entitySubject = scope.Subjects.SubjectForType(scope.Project, entityType);
             AddStoredEntityArtifact(scope, artifactIds, entitySubject, entityType);
-            scope.Facts.Add(Relationship(new WolverineRelationshipFact(
+            scope.Facts.Add(Relationship(scope, new WolverineRelationshipFact(
                 $"wolverine:stores:{sourceSubject.Value}:{entitySubject.Value}:{consequence.Slot}",
                 sourceSubject,
                 relationshipKind,
@@ -64,7 +64,7 @@ internal static partial class WolverineFacts
 
         scope.Facts.Add(Artifact(new WolverineArtifactFact(
             artifactId,
-            new ArtifactKey { Subject = entitySubject, Kind = ArtifactKind.ReadModel },
+            scope.Key(entitySubject, ArtifactKind.ReadModel),
             entityType.Name,
             SourceFileOf(entityType, scope.Project),
             DotNetTypeShapes.PropertiesOf(entityType),

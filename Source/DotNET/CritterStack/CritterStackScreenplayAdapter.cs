@@ -57,6 +57,11 @@ public sealed class CritterStackScreenplayAdapter : IDotNetScreenplayAdapter
         var placements = new List<CritterStackPlacementIntent>();
         var hasSourceContext = context.Projects.Any(_ => _.SourceContext is not null);
         var subjects = new CritterStackSubjectResolver(hasSourceContext ? context : null, context);
+        var stores = Marten.MartenStoreScopeDiscovery.Discover(context, Identity, subjects);
+        var routing = WolverineStorageRouting.Discover(context, stores);
+        var ownership = new Marten.MartenBackendOwnershipResolver(stores, routing);
+        facts.AddRange(stores.Facts);
+        diagnostics.AddRange(stores.Diagnostics);
 
         foreach (var project in context.Projects)
         {
@@ -65,13 +70,13 @@ public sealed class CritterStackScreenplayAdapter : IDotNetScreenplayAdapter
             var projectDiagnostics = new List<GenerationDiagnostic>();
             var projectPlacements = new List<CritterStackPlacementIntent>();
 
-            var marten = Marten.MartenFacts.Discover(project, options, Identity, subjects);
+            var marten = Marten.MartenFacts.Discover(project, options, Identity, subjects, stores);
             projectFacts.AddRange(marten.Facts);
             projectDiagnostics.AddRange(marten.Diagnostics);
             projectPlacements.AddRange(marten.Placements ?? []);
 
-            var wolverine = WolverineFacts.Discover(project, options, Identity, subjects, implementations);
-            var documents = Marten.MartenDocumentFacts.Discover(project, Identity, subjects, marten.Documents, failureStageMethods: wolverine.FailureStageMethods);
+            var wolverine = WolverineFacts.Discover(project, options, Identity, subjects, ownership, implementations);
+            var documents = Marten.MartenDocumentFacts.Discover(project, Identity, subjects, marten.Documents, ownership, failureStageMethods: wolverine.FailureStageMethods);
             projectFacts.AddRange(documents.Facts);
             projectDiagnostics.AddRange(documents.Diagnostics);
 

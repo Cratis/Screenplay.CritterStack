@@ -20,7 +20,7 @@ internal static partial class WolverineFacts
                                 _documentPersistenceMethods.Contains(invoked.Name) &&
                                 IsPersistenceNamespace(invoked)));
 
-    static IEnumerable<INamedTypeSymbol> DocumentDeletes(IMethodSymbol method, DotNetProjectCompilation project)
+    static IEnumerable<(INamedTypeSymbol Type, InvocationExpressionSyntax Invocation)> DocumentDeletes(IMethodSymbol method, DotNetProjectCompilation project)
     {
         foreach (var (declaration, semanticModel) in WolverineMethodSyntax.Declarations(method, project))
         {
@@ -28,7 +28,7 @@ internal static partial class WolverineFacts
             {
                 if (DeletedDocumentType(invocation, semanticModel) is { } documentType)
                 {
-                    yield return documentType;
+                    yield return (documentType, invocation);
                 }
             }
         }

@@ -76,6 +76,7 @@ internal static partial class WolverineFacts
         DotNetAdapterOptions options,
         AdapterIdentity adapter,
         CritterStackSubjectResolver subjects,
+        MartenBackendOwnershipResolver? ownership = null,
         AuthoredImplementationManifest? implementations = null)
     {
         if (project.Compilation.GetTypeByMetadataName(WellKnownTypes.WolverineOptions) is null)
@@ -91,7 +92,7 @@ internal static partial class WolverineFacts
         var diagnostics = new List<GenerationDiagnostic>(discovery.Diagnostics);
         diagnostics.AddRange(validationAuthorization.Diagnostics);
         diagnostics.AddRange(WolverineEventForwardingDiscovery.Discover(project));
-        var sagaDiscovery = WolverineSagaFacts.Discover(project, adapter, subjects, discovery.Policy);
+        var sagaDiscovery = WolverineSagaFacts.Discover(project, adapter, subjects, discovery.Policy, ownership);
         facts.AddRange(sagaDiscovery.Facts);
         diagnostics.AddRange(sagaDiscovery.Diagnostics);
         var scope = new WolverineFactScope
@@ -100,6 +101,7 @@ internal static partial class WolverineFacts
             Options = options,
             Adapter = adapter,
             Subjects = subjects,
+            Resolver = ownership,
             Implementations = implementations,
             MiddlewareRegistrations = middlewareRegistrations,
             Facts = facts,
@@ -198,7 +200,7 @@ internal static partial class WolverineFacts
             }
             else if (IsHandler(type, method, policy))
             {
-                AnalyzeWithSlicePattern(scope, method, null, () => AnalyzeHandler(scope, method, validationAuthorization));
+                AnalyzeWithSlicePattern(scope, method, null, owned => AnalyzeHandler(owned, method, validationAuthorization));
             }
         }
 
@@ -214,11 +216,11 @@ internal static partial class WolverineFacts
         var handledCommands = scope.Facts
             .OfType<ArtifactFact>()
             .Where(_ => _.Definition.Key.Kind == ArtifactKind.Command)
-            .Select(_ => _.Definition.Key.Subject)
+            .Select(_ => _.Definition.Key)
             .ToHashSet();
         foreach (var endpoint in endpoints)
         {
-            AnalyzeWithSlicePattern(scope, endpoint.Method, endpoint, () => AnalyzeEndpoint(scope, endpoint, validationAuthorization, handledCommands));
+            AnalyzeWithSlicePattern(scope, endpoint.Method, endpoint, owned => AnalyzeEndpoint(owned, endpoint, validationAuthorization, handledCommands));
         }
     }
 
@@ -237,7 +239,7 @@ internal static partial class WolverineFacts
     static bool IsCandidateType(INamedTypeSymbol type, DotNetProjectCompilation project) =>
         IsPublicSourceType(type, project) && !IsIgnored(type) && !WolverineSagaFacts.IsSagaType(type, project);
 
-    static void AnalyzeWithSlicePattern(WolverineFactScope scope, IMethodSymbol method, HttpEndpoint? endpoint, Action analyze)
+    static void AnalyzeWithSlicePattern(WolverineFactScope scope, IMethodSymbol method, HttpEndpoint? endpoint, Action<WolverineFactScope> analyze)
     {
         var request = RequestParameter(method, scope.Project);
         var slicePattern = WolverineSlicePatterns.Resolve(
@@ -246,13 +248,16 @@ internal static partial class WolverineFacts
             request is not null ? MessageElementType(request.Type) : null,
             endpoint);
         var firstPlacement = scope.Placements.Count;
-        analyze();
+        var ownership = scope.Resolver?.ForMethod(scope.Project, method) ?? BackendOwnership.Legacy;
+        analyze(scope.WithOwnership(ownership));
         WolverineSlicePatterns.Apply(slicePattern, scope, method, firstPlacement);
     }
 }
 
 sealed class WolverineSagaEmissionContext
 {
+    public BackendOwnership Ownership { get; init; } = BackendOwnership.Legacy;
+
     public required DotNetProjectCompilation Project { get; init; }
 
     public required CritterStackSubjectResolver Subjects { get; init; }
@@ -287,5 +292,43 @@ sealed class WolverineFactScope
 
     public required List<GenerationDiagnostic> Diagnostics { get; init; }
 
-    public HashSet<IMethodSymbol> FailureStageMethods { get; } = [with(SymbolEqualityComparer.Default)];
+    public MartenBackendOwnershipResolver? Resolver { get; init; }
+
+    public BackendOwnership Ownership { get; init; } = BackendOwnership.Legacy;
+
+    public HashSet<IMethodSymbol> FailureStageMethods { get; init; } = [with(SymbolEqualityComparer.Default)];
+
+    public WolverineFactScope WithOwnership(BackendOwnership ownership) => new()
+    {
+        Project = Project,
+        Options = Options,
+        Adapter = Adapter,
+        Subjects = Subjects,
+        Implementations = Implementations,
+        Resolver = Resolver,
+        Ownership = ownership,
+        MiddlewareRegistrations = MiddlewareRegistrations,
+        Facts = Facts,
+        Placements = Placements,
+        Diagnostics = Diagnostics,
+        FailureStageMethods = FailureStageMethods
+    };
+
+    public ArtifactKey Key(SubjectId subject, ArtifactKind kind) => BackendOccurrenceKeys.Artifact(subject, kind, Ownership);
+
+    public string PlacementId(string legacy) => BackendOccurrenceKeys.FactId(legacy, Ownership.Scope);
+
+    public bool RequireOwnership(IMethodSymbol method)
+    {
+        if (Ownership.CanEmit)
+        {
+            return true;
+        }
+
+        Diagnostics.Add(Ownership.Diagnostic(
+            DotNetMethodIdentity.SubjectFor(Project, method),
+            CritterStackSource.EvidenceFor(method, Adapter, Project, EvidenceStrength.Exact).Source,
+            "Marten-backed handler ownership cannot be proved"));
+        return false;
+    }
 }

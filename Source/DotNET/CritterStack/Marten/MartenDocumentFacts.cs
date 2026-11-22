@@ -10,7 +10,6 @@ namespace Cratis.CritterStack.Screenplay.Marten;
 
 static class MartenDocumentFacts
 {
-    static readonly HashSet<string> _readMethods = ["Load", "LoadAsync", "LoadMany", "LoadManyAsync", "Query"];
     static readonly HashSet<string> _storeMethods = ["Insert", "Store"];
     static readonly HashSet<string> _updateMethods = ["Update"];
     static readonly HashSet<string> _deleteMethods = ["Delete", "DeleteWhere"];
@@ -21,10 +20,11 @@ static class MartenDocumentFacts
         AdapterIdentity adapter,
         CritterStackSubjectResolver subjects,
         IReadOnlyList<MartenDocumentUsage> projectedDocuments,
+        MartenBackendOwnershipResolver ownership,
         bool includeIntegrationApis = true,
         IReadOnlySet<IMethodSymbol>? failureStageMethods = null)
     {
-        var state = new DiscoveryState(project, adapter, subjects, projectedDocuments);
+        var state = new DiscoveryState(project, adapter, subjects, projectedDocuments, ownership);
         foreach (var tree in project.AuthoredSyntaxTrees.Where(_ => !DotNetGeneratedSource.IsGenerated(_)))
         {
             var semanticModel = project.Compilation.GetSemanticModel(tree);
@@ -39,13 +39,13 @@ static class MartenDocumentFacts
             }
         }
 
-        foreach (var (subject, observed) in state.Documents.OrderBy(_ => _.Key.Value, StringComparer.Ordinal))
+        foreach (var (key, observed) in state.Documents.OrderBy(_ => _.Key.Subject.Value, StringComparer.Ordinal))
         {
-            AddDocumentFacts(state, subject, observed);
+            AddDocumentFacts(state, key.Subject, observed);
         }
 
         state.Diagnostics.AddRange(state.Documents
-            .OrderBy(_ => _.Key.Value, StringComparer.Ordinal)
+            .OrderBy(_ => _.Key.Subject.Value, StringComparer.Ordinal)
             .Select(_ => new GenerationDiagnostic
             {
                 Code = MartenDiagnosticCodes.DocumentModelOmitted,
@@ -53,7 +53,7 @@ static class MartenDocumentFacts
                 Outcome = GenerationDiagnosticOutcome.Unsupported,
                 Message = $"Marten document '{_.Value.Type.Name}' is persisted, queried, or explicitly configured, but the current Screenplay language has no ordinary document-state declaration",
                 Source = _.Value.RegistrationEvidence.Source,
-                Subject = _.Key
+                Subject = _.Key.Subject
             }));
 
         return new(state.Facts, state.Diagnostics, []);
@@ -122,7 +122,14 @@ static class MartenDocumentFacts
         }
 
         var compiledEvidence = UsageEvidence(state.Project, state.Adapter, invocation, method.Name);
-        state.Documents.TryAdd(state.Subjects.SubjectForType(state.Project, plan.DocumentType), new(plan.DocumentType, compiledEvidence));
+        var ownership = state.Ownership.ForInvocation(state.Project, invocation);
+        if (!RequireOwnership(state, invocation, ownership))
+        {
+            return;
+        }
+
+        var key = BackendOccurrenceKeys.Artifact(state.Subjects.SubjectForType(state.Project, plan.DocumentType), ArtifactKind.Document, ownership);
+        state.Documents.TryAdd(key, new(plan.DocumentType, compiledEvidence) { Ownership = ownership });
     }
 
     static void ObserveDocumentUsage(
@@ -150,11 +157,36 @@ static class MartenDocumentFacts
 
         var evidence = UsageEvidence(state.Project, state.Adapter, invocation, method.Name);
         var documentSubject = state.Subjects.SubjectForType(state.Project, documentType);
-        state.Documents.TryAdd(documentSubject, new(documentType, evidence));
+        var ownership = state.Ownership.ForInvocation(state.Project, invocation);
+        if (!RequireOwnership(state, invocation, ownership))
+        {
+            return;
+        }
+
+        var documentKey = BackendOccurrenceKeys.Artifact(documentSubject, ArtifactKind.Document, ownership);
+        state.Documents.TryAdd(documentKey, new(documentType, evidence) { Ownership = ownership });
         if (kind is not null && semanticModel.GetEnclosingSymbol(invocation.SpanStart) is IMethodSymbol containingMethod)
         {
-            AddHandlerFacts(state, new(invocation, containingMethod, documentSubject, evidence), kind.Value);
+            AddHandlerFacts(state, new(invocation, containingMethod, documentSubject, evidence, ownership), kind.Value);
         }
+    }
+
+    static bool RequireOwnership(DiscoveryState state, InvocationExpressionSyntax invocation, BackendOwnership ownership)
+    {
+        if (ownership.CanEmit)
+        {
+            return true;
+        }
+
+        var model = state.Project.Compilation.GetSemanticModel(invocation.SyntaxTree);
+        var subject = model.GetEnclosingSymbol(invocation.SpanStart) is IMethodSymbol method
+            ? DotNetMethodIdentity.SubjectFor(state.Project, method)
+            : new SubjectId { Value = state.Project.Name };
+        state.Diagnostics.Add(ownership.Diagnostic(
+            subject,
+            CritterStackSource.RangeForProject(invocation.GetLocation(), state.Project),
+            "Marten document operation ownership cannot be proved"));
+        return false;
     }
 
     static bool IsIgnoredUsage(RelationshipKind? kind, InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>
@@ -164,6 +196,8 @@ static class MartenDocumentFacts
 
     static void AddHandlerFacts(DiscoveryState state, HandlerUsage usage, RelationshipKind kind)
     {
+        var handlerOwnership = state.Ownership.ForMethod(state.Project, usage.ContainingMethod);
+        if (!RequireOwnership(state, usage.Invocation, handlerOwnership)) return;
         var methodSubject = DotNetMethodIdentity.SubjectFor(state.Project, usage.ContainingMethod);
         state.Facts.Add(new MartenArtifactFact
         {
@@ -173,7 +207,7 @@ static class MartenDocumentFacts
             Name = DotNetMethodIdentity.DisplayName(usage.ContainingMethod),
             File = MartenSourceFiles.FileOf(usage.ContainingMethod, state.Project),
             Evidence = usage.Evidence
-        }.ToFact());
+        }.ToFact(handlerOwnership));
         state.Facts.Add(new MartenRelationshipFact
         {
             Id = $"marten:{kind}:{methodSubject.Value}:{usage.DocumentSubject.Value}:{usage.Invocation.SpanStart}",
@@ -181,7 +215,7 @@ static class MartenDocumentFacts
             Kind = kind,
             Target = usage.DocumentSubject,
             Evidence = usage.Evidence
-        }.ToFact());
+        }.ToFact(handlerOwnership.Scope, usage.Ownership.Scope));
     }
 
     static void AddDocumentFacts(DiscoveryState state, SubjectId subject, DocumentObservation observed)
@@ -215,7 +249,7 @@ static class MartenDocumentFacts
             File = MartenSourceFiles.FileOf(observed.Type, state.Project),
             Properties = [.. properties.Select(_ => _.Definition with { IsIdentifier = _ == identityProperty })],
             Evidence = observed.RegistrationEvidence
-        }.ToFact());
+        }.ToFact(observed.Ownership));
     }
 
     static void ObserveIdentityConfiguration(
@@ -239,9 +273,16 @@ static class MartenDocumentFacts
             Explanation = $"Marten document identity configured through Schema.For<{documentType.Name}>().Identity(...)"
         };
         var subject = state.Subjects.SubjectForType(state.Project, documentType);
-        state.Documents.TryAdd(subject, new(documentType, evidence));
+        var ownership = state.Ownership.ForInvocation(state.Project, invocation);
+        if (!RequireOwnership(state, invocation, ownership))
+        {
+            return;
+        }
+
+        var key = BackendOccurrenceKeys.Artifact(subject, ArtifactKind.Document, ownership);
+        state.Documents.TryAdd(key, new(documentType, evidence) { Ownership = ownership });
         var identityMember = ResolveIdentityMember(invocation, semanticModel, documentType);
-        state.Documents[subject] = state.Documents[subject] with
+        state.Documents[key] = state.Documents[key] with
         {
             RegistrationEvidence = evidence,
             IdentityMember = identityMember,
@@ -409,7 +450,7 @@ static class MartenDocumentFacts
 
     static RelationshipKind? RelationshipKindFor(string methodName)
     {
-        if (_readMethods.Contains(methodName)) return RelationshipKind.Reads;
+        if (MartenSessionReadDiscovery.IsDocumentReadMethod(methodName)) return RelationshipKind.Reads;
         if (_storeMethods.Contains(methodName)) return RelationshipKind.Stores;
         if (_updateMethods.Contains(methodName)) return RelationshipKind.Updates;
         if (_deleteMethods.Contains(methodName)) return RelationshipKind.Deletes;
@@ -420,27 +461,9 @@ static class MartenDocumentFacts
         IMethodSymbol method,
         InvocationExpressionSyntax invocation,
         SemanticModel semanticModel)
-    {
-        var candidate = method.ReducedFrom ?? method;
-        var typeArgument = method.TypeArguments.Concat(candidate.TypeArguments)
-            .OfType<INamedTypeSymbol>()
-            .FirstOrDefault(IsSourceType);
-        return typeArgument ?? invocation.ArgumentList.Arguments
-            .Select(_ => semanticModel.GetTypeInfo(_.Expression).Type)
-            .OfType<INamedTypeSymbol>()
-            .FirstOrDefault(IsSourceType);
-    }
+        => MartenSessionReadDiscovery.DocumentTypeFrom(method, invocation, semanticModel);
 
-    static bool IsMarten(IMethodSymbol method, bool includeIntegrationApis)
-    {
-        var candidate = method.ReducedFrom ?? method;
-        var @namespace = candidate.ContainingNamespace.ToDisplayString();
-        return @namespace == "Marten" ||
-               @namespace.StartsWith("Marten.", StringComparison.Ordinal) ||
-               (includeIntegrationApis &&
-                (@namespace == "Wolverine.Marten" ||
-                 @namespace.StartsWith("Wolverine.Marten.", StringComparison.Ordinal)));
-    }
+    static bool IsMarten(IMethodSymbol method, bool includeIntegrationApis) => MartenSessionReadDiscovery.IsMarten(method, includeIntegrationApis);
 
     static bool IsInEventProjection(
         InvocationExpressionSyntax invocation,
@@ -464,7 +487,8 @@ static class MartenDocumentFacts
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
         CritterStackSubjectResolver subjects,
-        IReadOnlyList<MartenDocumentUsage> projectedDocuments)
+        IReadOnlyList<MartenDocumentUsage> projectedDocuments,
+        MartenBackendOwnershipResolver ownership)
     {
         public DotNetProjectCompilation Project { get; } = project;
 
@@ -472,22 +496,25 @@ static class MartenDocumentFacts
 
         public CritterStackSubjectResolver Subjects { get; } = subjects;
 
+        public MartenBackendOwnershipResolver Ownership { get; } = ownership;
+
         public List<GenerationFact> Facts { get; } = [];
 
         public List<GenerationDiagnostic> Diagnostics { get; } = [];
 
-        public Dictionary<SubjectId, DocumentObservation> Documents { get; } = projectedDocuments
-            .GroupBy(_ => subjects.SubjectForType(project, _.Type))
+        public Dictionary<ArtifactKey, DocumentObservation> Documents { get; } = projectedDocuments
+            .GroupBy(usage => BackendOccurrenceKeys.Artifact(subjects.SubjectForType(project, usage.Type), ArtifactKind.Document, usage.Ownership))
             .ToDictionary(
-                _ => _.Key,
-                _ => new DocumentObservation(_.First().Type, _.First().Evidence));
+                group => group.Key,
+                group => new DocumentObservation(group.First().Type, group.First().Evidence) { Ownership = group.First().Ownership });
     }
 
     sealed record HandlerUsage(
         InvocationExpressionSyntax Invocation,
         IMethodSymbol ContainingMethod,
         SubjectId DocumentSubject,
-        Evidence Evidence);
+        Evidence Evidence,
+        BackendOwnership Ownership);
 
     sealed record DocumentProperty(IPropertySymbol Member, PropertyDefinition Definition);
 
@@ -496,5 +523,8 @@ static class MartenDocumentFacts
         Evidence RegistrationEvidence,
         ISymbol? IdentityMember = null,
         Evidence? IdentityEvidence = null,
-        bool IdentityConfigurationUnresolved = false);
+        bool IdentityConfigurationUnresolved = false)
+    {
+        public BackendOwnership Ownership { get; init; } = BackendOwnership.Legacy;
+    }
 }

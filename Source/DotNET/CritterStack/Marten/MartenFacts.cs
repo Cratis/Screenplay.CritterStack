@@ -19,7 +19,8 @@ static class MartenFacts
         DotNetProjectCompilation project,
         DotNetAdapterOptions options,
         AdapterIdentity adapter,
-        CritterStackSubjectResolver subjects)
+        CritterStackSubjectResolver subjects,
+        MartenStoreIndex stores)
     {
         if (project.Compilation.GetTypeByMetadataName(WellKnownTypes.MartenStoreOptions) is null &&
             project.Compilation.GetTypeByMetadataName(WellKnownTypes.MartenDocumentStore) is null)
@@ -28,18 +29,27 @@ static class MartenFacts
         }
 
         var collected = new MartenCollectedFacts(project, options, adapter, subjects);
-        var registrations = MartenProjectionDiscovery.Discover(project, adapter);
+        var registrations = MartenProjectionDiscovery.Discover(project, adapter, stores);
         var configuration = MartenConfigurationDiscovery.Discover(project, adapter, subjects, registrations);
         collected.Facts.AddRange(configuration.Facts);
         collected.Diagnostics.AddRange(configuration.Diagnostics);
         collected.Diagnostics.AddRange(MartenEventSchemaConfigurationDiscovery.Discover(project, subjects));
         collected.Diagnostics.AddRange(MartenTenancyConfigurationDiscovery.Discover(project, subjects));
-        collected.Diagnostics.AddRange(MartenStoreScopeDiscovery.Discover(project));
         collected.Diagnostics.AddRange(MartenProjectionKindDiscovery.Discover(project));
         HashSet<INamedTypeSymbol> sideEffectProjections = [with(SymbolEqualityComparer.Default)];
 
         foreach (var registration in registrations)
         {
+            if (!registration.Ownership.CanEmit)
+            {
+                collected.Diagnostics.Add(registration.Ownership.Diagnostic(
+                    subjects.SubjectForType(project, registration.Projection ?? registration.Model),
+                    registration.Evidence.Source,
+                    "Marten projection ownership cannot be proved"));
+                continue;
+            }
+
+            var owned = collected.WithOwnership(registration.Ownership);
             var sideEffectProjection = registration.Projection ?? registration.Model;
             if (registration.Kind != ProjectionKind.Custom && sideEffectProjections.Add(sideEffectProjection))
             {
@@ -51,7 +61,7 @@ static class MartenFacts
                 collected.Diagnostics.Add(ProjectionLifecycleDiagnostic(project, subjects, registration));
             }
 
-            AddRegistrationFacts(collected, registration);
+            AddRegistrationFacts(owned, registration);
         }
 
         return new(collected.Facts, collected.Diagnostics, collected.Documents, collected.Placements);
@@ -119,7 +129,7 @@ static class MartenFacts
             Name = projection.Name,
             File = MartenSourceFiles.FileOf(projection, project),
             Evidence = registration.Evidence
-        }.ToFact());
+        }.ToFact(registration.Ownership));
     }
 
     static GenerationDiagnostic MultiStreamDiagnostic(

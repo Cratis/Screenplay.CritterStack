@@ -60,6 +60,15 @@ internal static partial class WolverineFacts
         WolverineValidationAuthorizationDiscoveryResult validationAuthorization)
     {
         var method = handler.Method;
+        if (!HasMartenOperations(scope, method))
+        {
+            scope = scope.WithOwnership(BackendOwnership.Legacy);
+        }
+        else if (!scope.RequireOwnership(method))
+        {
+            return;
+        }
+
         var hasDocumentPersistence = HasDocumentPersistence(method, scope.Project);
         var automationReturns = hasDocumentPersistence ? [] : handler.Shape.ReturnConsequences;
         var automationOutgoingMessages = hasDocumentPersistence ? [] : handler.Shape.OutgoingMessages;
@@ -105,6 +114,19 @@ internal static partial class WolverineFacts
     {
         var project = scope.Project;
         var method = handler.Method;
+        if (!handler.Shape.AggregateWorkflow && handler.Shape.Dcb is null && handler.Shape.StreamBindings.Count == 0 &&
+            handler.Shape.SessionAppends.Count == 0 && handler.Shape.BodyEvents.Length == 0 &&
+            !handler.Shape.ReturnConsequences.Any(consequence => consequence.MartenOperation is not null) &&
+            !HasMartenOperations(scope, method))
+        {
+            scope = scope.WithOwnership(BackendOwnership.Legacy);
+        }
+
+        if (!scope.RequireOwnership(method))
+        {
+            return;
+        }
+
         var requestType = handler.RequestType;
         var shape = handler.Shape;
         var commandSubject = scope.Subjects.SubjectForType(project, requestType);
@@ -148,7 +170,7 @@ internal static partial class WolverineFacts
         Evidence evidence)
     {
         var shape = handler.Shape;
-        var key = new ArtifactKey { Subject = commandSubject, Kind = ArtifactKind.Command };
+        var key = scope.Key(commandSubject, ArtifactKind.Command);
         scope.Facts.Add(Artifact(
             $"wolverine:command:{commandSubject.Value}",
             key,
@@ -157,7 +179,7 @@ internal static partial class WolverineFacts
             CommandProperties(handler.RequestType, shape, productions),
             evidence));
         scope.Placements.Add(new(
-            $"wolverine:placement:command:{commandSubject.Value}",
+            scope.PlacementId($"wolverine:placement:command:{commandSubject.Value}"),
             key,
             null,
             compatibilityPlacement,
@@ -211,8 +233,8 @@ internal static partial class WolverineFacts
             requestType.Name,
             reactionName,
             GenerationSliceKind.Automation);
-        var requestKey = new ArtifactKey { Subject = requestSubject, Kind = ArtifactKind.Message };
-        var reactionKey = new ArtifactKey { Subject = reactionSubject, Kind = ArtifactKind.Reaction };
+        var requestKey = scope.Key(requestSubject, ArtifactKind.Message);
+        var reactionKey = scope.Key(reactionSubject, ArtifactKind.Reaction);
         scope.Facts.Add(Artifact(
             $"wolverine:message:{requestSubject.Value}",
             requestKey,
@@ -228,12 +250,13 @@ internal static partial class WolverineFacts
             [],
             evidence));
         scope.Placements.Add(new(
-            $"wolverine:placement:reaction:{reactionSubject.Value}",
+            scope.PlacementId($"wolverine:placement:reaction:{reactionSubject.Value}"),
             reactionKey,
             scope.Subjects.SubjectForType(project, handler.Method.ContainingType),
             compatibilityPlacement,
             evidence));
         scope.Facts.Add(Relationship(
+            scope,
             $"wolverine:handles:{reactionSubject.Value}:{requestSubject.Value}",
             reactionSubject,
             RelationshipKind.Handles,

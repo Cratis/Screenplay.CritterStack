@@ -77,7 +77,7 @@ The compatibility plan uses:
 
 ## Supported conventions and versions
 
-The [conventions and diagnostics reference](Documentation/goals.md#conventions-and-diagnostics) covers projection deletion registrations, Wolverine reference reads, returned `MartenOps` factories, and authored middleware. It also distinguishes detected but unrepresented store scope, event forwarding, response policies, natural-key identity, and enum numbering. Failure-only messages stay in diagnostics rather than becoming success-path consequences.
+The [conventions and diagnostics reference](Documentation/goals.md#conventions-and-diagnostics) covers projection deletion registrations, Wolverine reference reads, returned `MartenOps` factories, and authored middleware. Proven Marten backend ownership keeps store-owned occurrences distinct, including stores with equal event-model names. The reference also describes unrepresented event forwarding, response policies, natural-key identity, and enum numbering. Failure-only messages stay in diagnostics rather than becoming success-path consequences.
 
 [Authored persistence abstraction analysis](Documentation/goals.md#opt-in-authored-persistence-abstractions) is opt-in through `CritterStackScreenplayOptions.FollowAuthoredAbstractions`, which defaults to `false`. It requires selected authored implementations to agree; incomplete or conflicting dispatch produces `WOLVERINE0029` rather than guessed persistence. A standalone `BoundaryAggregate` marker produces `WOLVERINE0014`, not an inferred aggregate workflow.
 
