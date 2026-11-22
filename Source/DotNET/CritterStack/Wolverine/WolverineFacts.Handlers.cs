@@ -73,38 +73,43 @@ internal static partial class WolverineFacts
         var automationReturns = hasDocumentPersistence ? [] : handler.Shape.ReturnConsequences;
         var automationOutgoingMessages = hasDocumentPersistence ? [] : handler.Shape.OutgoingMessages;
         var busConsequences = handler.Shape.BusConsequences;
-        if (!HasReadModelHandlerConsequences(scope, method, HasAutomationConsequences(handler.Batched, compoundStages, busConsequences, automationReturns, automationOutgoingMessages)))
+        var automation = new AutomationHandler
+        {
+            Method = method,
+            RequestType = handler.RequestType,
+            Batched = handler.Batched,
+            CompoundStages = compoundStages,
+            ReturnConsequences = automationReturns,
+            OutgoingMessages = automationOutgoingMessages,
+            BusConsequences = busConsequences
+        };
+        if (!HasReadModelHandlerConsequences(scope, method, HasAutomationConsequences(automation)))
         {
             AddHandlerChainConfigurationDiagnostics(scope, MethodSubject(scope.Project, method, "handler"), method);
             return;
         }
 
-        AnalyzeAutomation(
-            scope,
-            new AutomationHandler
-            {
-                Method = method,
-                RequestType = handler.RequestType,
-                Batched = handler.Batched,
-                CompoundStages = compoundStages,
-                ReturnConsequences = automationReturns,
-                OutgoingMessages = automationOutgoingMessages,
-                BusConsequences = busConsequences
-            },
-            validationAuthorization);
+        AnalyzeAutomation(scope, automation, validationAuthorization);
     }
 
-    static bool HasAutomationConsequences(
-        bool batched,
-        IReadOnlyList<WolverineCompoundStage> compoundStages,
-        IReadOnlyList<WolverineBusConsequence> busConsequences,
-        IReadOnlyList<WolverineReturnConsequence> returnConsequences,
-        List<WolverineOutgoingMessageConsequence> outgoingMessages) =>
-        batched ||
-        compoundStages.Count > 0 ||
-        busConsequences.Count > 0 ||
-        returnConsequences.Any(IsCascadeConsequence) ||
-        outgoingMessages.Count > 0;
+    static bool HasAutomationConsequences(AutomationHandler handler) =>
+        handler.Batched ||
+        handler.CompoundStages.Count > 0 ||
+        handler.BusConsequences.Count > 0 ||
+        handler.ReturnConsequences.Any(IsCascadeConsequence) ||
+        handler.OutgoingMessages.Count > 0;
+
+    static bool IsLegacyPersistingShape(WolverineFactScope scope, IMethodSymbol method, StateChangeShape shape) =>
+        !HasEventSourcingShape(shape) &&
+        !shape.ReturnConsequences.Any(consequence => consequence.MartenOperation is not null) &&
+        !HasMartenOperations(scope, method);
+
+    static bool HasEventSourcingShape(StateChangeShape shape) =>
+        shape.AggregateWorkflow ||
+        shape.Dcb is not null ||
+        shape.StreamBindings.Count > 0 ||
+        shape.SessionAppends.Count > 0 ||
+        shape.BodyEvents.Length > 0;
 
     static void AnalyzePersistingHandler(
         WolverineFactScope scope,
@@ -114,10 +119,7 @@ internal static partial class WolverineFacts
     {
         var project = scope.Project;
         var method = handler.Method;
-        if (!handler.Shape.AggregateWorkflow && handler.Shape.Dcb is null && handler.Shape.StreamBindings.Count == 0 &&
-            handler.Shape.SessionAppends.Count == 0 && handler.Shape.BodyEvents.Length == 0 &&
-            !handler.Shape.ReturnConsequences.Any(consequence => consequence.MartenOperation is not null) &&
-            !HasMartenOperations(scope, method))
+        if (IsLegacyPersistingShape(scope, method, handler.Shape))
         {
             scope = scope.WithOwnership(BackendOwnership.Legacy);
         }
@@ -148,7 +150,7 @@ internal static partial class WolverineFacts
             requestType.Name,
             GenerationSliceKind.StateChange);
 
-        AddHandlerCommandFacts(scope, handler, commandSubject, productions, compatibilityPlacement, evidence);
+        AddHandlerCommandFacts(scope, new(handler, commandSubject, productions, compatibilityPlacement, evidence));
         if (shape.AggregateType is { } aggregateType)
         {
             AddReadModelAndRelationship(scope, commandSubject, requestType, aggregateType, evidence);
@@ -161,14 +163,9 @@ internal static partial class WolverineFacts
         AddHandlerChainConfigurationDiagnostics(scope, commandSubject, method);
     }
 
-    static void AddHandlerCommandFacts(
-        WolverineFactScope scope,
-        HandlerCommand handler,
-        SubjectId commandSubject,
-        IReadOnlyList<WolverineProductionDecision> productions,
-        ArtifactPlacement compatibilityPlacement,
-        Evidence evidence)
+    static void AddHandlerCommandFacts(WolverineFactScope scope, HandlerCommandPlan plan)
     {
+        var (handler, commandSubject, productions, compatibilityPlacement, evidence) = plan;
         var shape = handler.Shape;
         var key = scope.Key(commandSubject, ArtifactKind.Command);
         scope.Facts.Add(Artifact(
@@ -207,7 +204,7 @@ internal static partial class WolverineFacts
             ? method.ContainingType.Name[..^"Handler".Length]
             : method.ContainingType.Name;
 
-        AddReactionFacts(scope, handler, requestSubject, reactionSubject, reactionName, evidence);
+        AddReactionFacts(scope, handler, new(requestSubject, reactionSubject, reactionName), evidence);
         AddReadModelParameterFacts(scope, reactionSubject, method);
         var emission = EmissionFor(scope, reactionSubject, evidence);
         AddReturnConsequences(emission, handler.ReturnConsequences);
@@ -220,11 +217,10 @@ internal static partial class WolverineFacts
     static void AddReactionFacts(
         WolverineFactScope scope,
         AutomationHandler handler,
-        SubjectId requestSubject,
-        SubjectId reactionSubject,
-        string reactionName,
+        ReactionIdentity identity,
         Evidence evidence)
     {
+        var (requestSubject, reactionSubject, reactionName) = identity;
         var project = scope.Project;
         var requestType = handler.RequestType;
         var compatibilityPlacement = CritterStackSourcePlacement.CompatibilityPlacement(
@@ -283,6 +279,15 @@ internal static partial class WolverineFacts
     static bool IsHandlerCandidateType(INamedTypeSymbol type, WolverineHandlerDiscoveryPolicy discovery) =>
         !type.IsGenericType && !(type.IsAbstract && !type.IsStatic) && discovery.Includes(type);
 
+    sealed record HandlerCommandPlan(
+        HandlerCommand Handler,
+        SubjectId CommandSubject,
+        IReadOnlyList<WolverineProductionDecision> Productions,
+        ArtifactPlacement CompatibilityPlacement,
+        Evidence Evidence);
+
+    sealed record ReactionIdentity(SubjectId RequestSubject, SubjectId ReactionSubject, string ReactionName);
+
     sealed class HandlerCommand
     {
         public required IMethodSymbol Method { get; init; }
@@ -306,7 +311,7 @@ internal static partial class WolverineFacts
 
         public required IReadOnlyList<WolverineReturnConsequence> ReturnConsequences { get; init; }
 
-        public required IReadOnlyList<WolverineOutgoingMessageConsequence> OutgoingMessages { get; init; }
+        public required List<WolverineOutgoingMessageConsequence> OutgoingMessages { get; init; }
 
         public required IReadOnlyList<WolverineBusConsequence> BusConsequences { get; init; }
     }
