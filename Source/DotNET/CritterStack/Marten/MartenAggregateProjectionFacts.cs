@@ -234,34 +234,9 @@ static class MartenAggregateProjectionFacts
     {
         foreach (var method in projection.GetMembers().OfType<IMethodSymbol>())
         {
-            var conventional = _evolutionMethodNames.Contains(method.Name, StringComparer.Ordinal);
-            if (!conventional && !IsDispatchOverride(method))
+            if (EvolutionEventOf(method, projection, model, collected) is { } evolution)
             {
-                continue;
-            }
-
-            var evidence = CritterStackSource.EvidenceFor(method, collected.Adapter, collected.Project, EvidenceStrength.Conventional, $"Marten treats {method.Name} as an event evolution method");
-            if (!conventional && evidence.Source is null)
-            {
-                continue;
-            }
-
-            var eventType = conventional ? EventTypeFrom(method, model) : DispatchEventTypeFrom(method);
-            if (eventType is not null)
-            {
-                yield return (eventType, evidence);
-            }
-            else if (!conventional)
-            {
-                collected.Diagnostics.Add(new()
-                {
-                    Code = MartenDiagnosticCodes.CustomProcessingOmitted,
-                    Severity = GenerationDiagnosticSeverity.Information,
-                    Outcome = GenerationDiagnosticOutcome.Unsupported,
-                    Message = $"Marten evolution override '{method.Name}' processes untyped events; no event type or processing consequences were inferred",
-                    Source = evidence.Source,
-                    Subject = collected.Subjects.SubjectForType(collected.Project, projection)
-                });
+                yield return evolution;
             }
         }
 
@@ -270,6 +245,52 @@ static class MartenAggregateProjectionFacts
             yield return registration;
         }
     }
+
+    static (INamedTypeSymbol EventType, Evidence Evidence)? EvolutionEventOf(
+        IMethodSymbol method,
+        INamedTypeSymbol projection,
+        INamedTypeSymbol model,
+        MartenCollectedFacts collected)
+    {
+        var conventional = _evolutionMethodNames.Contains(method.Name, StringComparer.Ordinal);
+        if (!conventional && !IsDispatchOverride(method))
+        {
+            return null;
+        }
+
+        var evidence = CritterStackSource.EvidenceFor(method, collected.Adapter, collected.Project, EvidenceStrength.Conventional, $"Marten treats {method.Name} as an event evolution method");
+        if (!conventional && evidence.Source is null)
+        {
+            return null;
+        }
+
+        var eventType = conventional ? EventTypeFrom(method, model) : DispatchEventTypeFrom(method);
+        if (eventType is not null)
+        {
+            return (eventType, evidence);
+        }
+
+        if (!conventional)
+        {
+            AddUntypedEvolutionDiagnostic(method, projection, evidence, collected);
+        }
+
+        return null;
+    }
+
+    static void AddUntypedEvolutionDiagnostic(
+        IMethodSymbol method,
+        INamedTypeSymbol projection,
+        Evidence evidence,
+        MartenCollectedFacts collected) => collected.Diagnostics.Add(new()
+        {
+            Code = MartenDiagnosticCodes.CustomProcessingOmitted,
+            Severity = GenerationDiagnosticSeverity.Information,
+            Outcome = GenerationDiagnosticOutcome.Unsupported,
+            Message = $"Marten evolution override '{method.Name}' processes untyped events; no event type or processing consequences were inferred",
+            Source = evidence.Source,
+            Subject = collected.Subjects.SubjectForType(collected.Project, projection)
+        });
 
     static bool IsDispatchOverride(IMethodSymbol method)
     {
@@ -327,8 +348,12 @@ static class MartenAggregateProjectionFacts
     static INamedTypeSymbol? DeleteEventType(InvocationExpressionSyntax invocation, SemanticModel semanticModel)
     {
         if (!IsSelfRegistration(invocation, semanticModel) ||
-            semanticModel.GetEnclosingSymbol(invocation.SpanStart) is not IMethodSymbol { MethodKind: MethodKind.Constructor } ||
-            semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol { Name: "DeleteEvent", Parameters.Length: 0, TypeArguments.Length: 1 } method ||
+            semanticModel.GetEnclosingSymbol(invocation.SpanStart) is not IMethodSymbol { MethodKind: MethodKind.Constructor })
+        {
+            return null;
+        }
+
+        if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol { Name: "DeleteEvent", Parameters.Length: 0, TypeArguments.Length: 1 } method ||
             !IsAggregationStep(method))
         {
             return null;
@@ -361,7 +386,7 @@ static class MartenAggregateProjectionFacts
                 continue;
             }
 
-            if (type.IsGenericType && _eventWrapperTypes.Contains(DotNetSubjectIds.MetadataName(type.OriginalDefinition), StringComparer.Ordinal))
+            if (IsEventWrapper(type))
             {
                 return type.TypeArguments[0] as INamedTypeSymbol;
             }
@@ -377,6 +402,9 @@ static class MartenAggregateProjectionFacts
 
         return null;
     }
+
+    static bool IsEventWrapper(INamedTypeSymbol type) =>
+        type.IsGenericType && _eventWrapperTypes.Contains(DotNetSubjectIds.MetadataName(type.OriginalDefinition), StringComparer.Ordinal);
 
     static bool IsInfrastructureParameter(string metadataName) => _infrastructureParameterTypes.Contains(metadataName);
 
