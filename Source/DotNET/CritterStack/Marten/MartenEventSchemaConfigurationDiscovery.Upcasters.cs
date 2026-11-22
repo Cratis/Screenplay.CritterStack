@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
@@ -259,6 +260,10 @@ internal sealed partial class MartenEventSchemaConfigurationDiscovery
         return false;
     }
 
+    static bool IsUnresolved(
+        [NotNullWhen(false)] INamedTypeSymbol? first,
+        [NotNullWhen(false)] INamedTypeSymbol? second) => first is null || second is null;
+
     void DiscoverUpcastConfiguration(InvocationExpressionSyntax invocation, IMethodSymbol method)
     {
         if (IsDirectUpcast(method))
@@ -335,7 +340,7 @@ internal sealed partial class MartenEventSchemaConfigurationDiscovery
         var oldEvent = NamedType(method.TypeArguments[0]);
         var newEvent = NamedType(method.TypeArguments[1]);
         var hasAlias = TryOptionalBaseAlias(invocation, method, out var alias);
-        if (oldEvent is null || newEvent is null || !hasAlias)
+        if (IsUnresolved(oldEvent, newEvent) || !hasAlias)
         {
             diagnostics.Add(UnresolvedUpcastConfiguration(invocation.GetLocation(), newEvent));
             return;
@@ -402,7 +407,7 @@ internal sealed partial class MartenEventSchemaConfigurationDiscovery
     {
         var oldEvent = NamedType(method.TypeArguments[0]);
         var newEvent = NamedType(method.TypeArguments[1]);
-        if (oldEvent is null || newEvent is null || version is null)
+        if (IsUnresolved(oldEvent, newEvent) || version is null)
         {
             diagnostics.Add(UnresolvedUpcastConfiguration(invocation.GetLocation(), newEvent));
             return;
@@ -436,9 +441,12 @@ internal sealed partial class MartenEventSchemaConfigurationDiscovery
 
     InlineRegistration? InlineRegistrationOf(ArgumentSyntax argument)
     {
-        if (argument.Expression is not ObjectCreationExpressionSyntax creation ||
-            semanticModel.GetTypeInfo(creation).Type is not INamedTypeSymbol upcasterType ||
-            HasOnlyGeneratedSource(upcasterType, project))
+        if (argument.Expression is not ObjectCreationExpressionSyntax creation)
+        {
+            return null;
+        }
+
+        if (semanticModel.GetTypeInfo(creation).Type is not INamedTypeSymbol upcasterType || HasOnlyGeneratedSource(upcasterType, project))
         {
             return null;
         }
