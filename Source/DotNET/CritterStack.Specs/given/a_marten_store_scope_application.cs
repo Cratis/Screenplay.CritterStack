@@ -9,7 +9,6 @@ public class a_marten_store_scope_application : Specification
 {
     const string FrameworkSource =
         """
-        namespace Microsoft.Extensions.DependencyInjection { public interface IServiceCollection; }
         namespace Marten
         {
             public interface IDocumentStore;
@@ -18,9 +17,42 @@ public class a_marten_store_scope_application : Specification
                 public string? EventModelName { get; set; }
                 public Marten.Events.Projections.ProjectionOptions Projections { get; } = new();
             }
+            public interface IQuerySession { System.Linq.IQueryable<T> Query<T>(); }
+            public interface IDocumentSession : IQuerySession { Marten.Events.IEventStoreOperations Events { get; } void Store<T>(T document); }
             public static class MartenServiceCollectionExtensions
             {
+                public static void AddMarten(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<StoreOptions> configure) { }
+                public static void AddMarten(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, StoreOptions options) { }
                 public static void AddMartenStore<T>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<StoreOptions> configure) where T : class, IDocumentStore { }
+            }
+        }
+        namespace Marten.Events { public interface IEventStoreOperations { void Append(System.Guid id, params object[] events); } }
+        namespace Marten.Ancillary
+        {
+            public interface IQuerySession<T> : Marten.IQuerySession { }
+            public interface IDocumentSession<T> : Marten.IDocumentSession, IQuerySession<T> { }
+        }
+        namespace Wolverine.Http
+        {
+            public abstract class WolverineHttpMethodAttribute(string route) : System.Attribute;
+            public sealed class WolverineGetAttribute(string route) : WolverineHttpMethodAttribute(route);
+        }
+        namespace Wolverine.Persistence
+        {
+            public sealed class EntityAttribute : System.Attribute;
+            [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method)]
+            public sealed class StorageAttribute(System.Type storeType) : System.Attribute { }
+        }
+        namespace Wolverine
+        {
+            public class WolverineOptions;
+            public abstract class Saga { public System.Guid Id { get; set; } public void MarkCompleted() { } }
+            public class IPolicies
+            {
+                public void UseAncillaryStorageFromNamespaceContaining<T>(System.Type storeType) { }
+                public void UseAncillaryStorageFromNamespace(string namespaceName, System.Type storeType) { }
+                public void UseAncillaryStorageFromAssemblyContaining<T>(System.Type storeType) { }
+                public void UseAncillaryStorageFromAssembly(System.Reflection.Assembly assembly, System.Type storeType) { }
             }
         }
         namespace Wolverine.Marten
@@ -63,6 +95,9 @@ public class a_marten_store_scope_application : Specification
         var framework = CSharpSyntaxTree.ParseText(FrameworkSource, path: "/workspace/Framework.cs");
         var application = CSharpSyntaxTree.ParseText(source, path: "/workspace/StoreScope/Configuration.cs");
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path));
+        var frameworkCompilation = CSharpCompilation.Create("StoreScope.Framework", [framework], references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+        using var image = new MemoryStream();
+        frameworkCompilation.Emit(image).Success.ShouldBeTrue();
         return new DotNetProjectCompilation
         {
             Name = "StoreScope",
@@ -83,7 +118,7 @@ public class a_marten_store_scope_application : Specification
                         WorkspaceRelativePath = "StoreScope/Configuration.cs"
                     }
                 ]),
-            Compilation = CSharpCompilation.Create("StoreScope", [framework, application], references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable)),
+            Compilation = CSharpCompilation.Create("StoreScope", [application], [.. references, MetadataReference.CreateFromImage(image.ToArray())], new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable)),
             AuthoredSyntaxTrees = new HashSet<SyntaxTree> { application }
         };
     }

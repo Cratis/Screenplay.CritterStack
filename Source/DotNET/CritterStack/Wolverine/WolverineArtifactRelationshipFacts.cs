@@ -61,4 +61,8 @@ sealed record WolverineRelationshipFact(
     /// Gets whether the relationship is optional.
     /// </summary>
     public bool IsOptional { get; init; }
+
+    public BackendScopeKey? SourceScope { get; init; }
+
+    public BackendScopeKey? TargetScope { get; init; }
 }

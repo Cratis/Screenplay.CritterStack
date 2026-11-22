@@ -57,7 +57,7 @@ static class MartenMultiStreamFacts
             TargetMember = identity.TargetMember,
             Discriminator = discriminator,
             IsCollection = identity.IsOneToMany
-        }.ToFact());
+        }.ToFact(collected.Ownership.Scope, collected.Ownership.Scope));
     }
 
     static void AddFanOutFacts(
@@ -84,7 +84,7 @@ static class MartenMultiStreamFacts
             Target = parentSubject,
             Evidence = fanOut.Evidence,
             Discriminator = $"marten:fan-out-source:{childSubject.Value}"
-        }.ToFact());
+        }.ToFact(collected.Ownership.Scope, collected.Ownership.Scope));
         collected.Facts.Add(new MartenRelationshipFact
         {
             Id = $"marten:fan-out-child:{projectionSubject.Value}:{parentSubject.Value}:{childSubject.Value}:{evidenceId}",
@@ -95,6 +95,6 @@ static class MartenMultiStreamFacts
             SourceMember = fanOut.SourceMember,
             Discriminator = $"marten:fan-out-child:{parentSubject.Value}:{fanOut.Mode}:{fanOut.SourceMember}",
             IsCollection = true
-        }.ToFact());
+        }.ToFact(collected.Ownership.Scope, collected.Ownership.Scope));
     }
 }

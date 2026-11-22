@@ -14,18 +14,32 @@ internal static partial class WolverineFacts
         WolverineFactScope scope,
         HttpEndpoint endpoint,
         WolverineValidationAuthorizationDiscoveryResult validationAuthorization,
-        HashSet<SubjectId> handledCommands)
+        HashSet<ArtifactKey> handledCommands)
     {
         var stageRequestType = RequestParameter(endpoint.Method, scope.Project)?.Type ?? endpoint.Method.ContainingType;
         var stages = WolverineCompoundStages.StagesFor(endpoint.Method, stageRequestType, scope, isHttpEndpoint: true);
         if (endpoint.IsQuery)
         {
+            if (!HasMartenOperations(scope, endpoint.Method) && !endpoint.Method.Parameters.Any(IsPersistenceBoundParameter))
+            {
+                scope = scope.WithOwnership(BackendOwnership.Legacy);
+            }
+
             AnalyzeQuery(scope, endpoint, validationAuthorization, stages);
             return;
         }
 
         var command = DescribeEndpointCommand(scope, endpoint);
         var shape = command.Shape;
+        if (HasNoPersistenceEffects(shape, scope.Project) && !HasMartenOperations(scope, endpoint.Method))
+        {
+            scope = scope.WithOwnership(BackendOwnership.Legacy);
+        }
+        else if (!scope.RequireOwnership(endpoint.Method))
+        {
+            return;
+        }
+
         var productionDiagnostics = new List<GenerationDiagnostic>();
         var productions = WolverineProductionPlan.Decide(
             shape.ToProductionSources(
@@ -99,9 +113,9 @@ internal static partial class WolverineFacts
         WolverineFactScope scope,
         EndpointCommand command,
         IReadOnlyList<WolverineProductionDecision> productions,
-        HashSet<SubjectId> handledCommands) =>
+        HashSet<ArtifactKey> handledCommands) =>
         command.CommandType is not null &&
-        handledCommands.Contains(command.CommandSubject) &&
+        handledCommands.Contains(scope.Key(command.CommandSubject, ArtifactKind.Command)) &&
         IsHandlerForwarder(scope.Project, command.Shape, command.CommandType, productions);
 
     static bool IsHandlerForwarder(
@@ -179,7 +193,7 @@ internal static partial class WolverineFacts
         ArtifactPlacement compatibilityPlacement,
         SubjectId? commandSourceOwner)
     {
-        var commandKey = new ArtifactKey { Subject = command.CommandSubject, Kind = ArtifactKind.Command };
+        var commandKey = scope.Key(command.CommandSubject, ArtifactKind.Command);
         scope.Facts.Add(Artifact(
             $"wolverine:command:{command.CommandSubject.Value}",
             commandKey,
@@ -188,7 +202,7 @@ internal static partial class WolverineFacts
             EndpointCommandProperties(scope, command, productions),
             command.Evidence));
         scope.Placements.Add(new(
-            $"wolverine:placement:command:{command.CommandSubject.Value}",
+            scope.PlacementId($"wolverine:placement:command:{command.CommandSubject.Value}"),
             commandKey,
             commandSourceOwner,
             compatibilityPlacement,
@@ -289,8 +303,13 @@ internal static partial class WolverineFacts
             GenerationSliceKind.StateView);
 
         AddQueryFacts(scope, endpoint, querySubject, queryName, compatibilityPlacement, compiledQueries, evidence);
+        if (!scope.RequireOwnership(endpoint.Method))
+        {
+            return;
+        }
+
         AddQueryModelFacts(scope, querySubject, model, evidence, isCollection, isOptional);
-        AddPersistenceBoundReads(scope, querySubject, endpoint.Method, aggregateParameter: null);
+        AddPersistenceBoundReads(scope, querySubject, endpoint.Method, aggregateParameter: null, unscopedSource: true);
         AddCompiledQueryReads(scope, querySubject, compiledQueries);
         AddResolvedCompoundStageConsequences(scope, querySubject, endpoint.Method, stages);
     }
@@ -341,7 +360,7 @@ internal static partial class WolverineFacts
         bool isOptional)
     {
         var modelSubject = scope.Subjects.SubjectForType(scope.Project, model);
-        var modelKey = new ArtifactKey { Subject = modelSubject, Kind = ArtifactKind.ReadModel };
+        var modelKey = scope.Key(modelSubject, ArtifactKind.ReadModel);
         scope.Facts.Add(Artifact(
             $"wolverine:read-model:{modelSubject.Value}",
             modelKey,
@@ -350,7 +369,7 @@ internal static partial class WolverineFacts
             DotNetTypeShapes.PropertiesOf(model),
             evidence));
         scope.Placements.Add(new(
-            $"wolverine:placement:read-model:{modelSubject.Value}",
+            scope.PlacementId($"wolverine:placement:read-model:{modelSubject.Value}"),
             modelKey,
             null,
             CritterStackSourcePlacement.CompatibilityPlacement(
@@ -365,13 +384,15 @@ internal static partial class WolverineFacts
                 Explanation = "The returned model name provides the default Screenplay placement"
             }));
         scope.Facts.Add(Relationship(
+            scope,
             $"wolverine:returns:{querySubject.Value}:{modelSubject.Value}",
             querySubject,
             RelationshipKind.Returns,
             modelSubject,
             evidence,
             isCollection: isCollection,
-            isOptional: isOptional));
+            isOptional: isOptional,
+            unscopedSource: true));
     }
 
     static void AddCompiledQueryReads(
@@ -385,11 +406,13 @@ internal static partial class WolverineFacts
         {
             var documentSubject = scope.Subjects.SubjectForType(scope.Project, compiledQuery.DocumentType);
             scope.Facts.Add(Relationship(
+                scope,
                 $"wolverine:reads:compiled:{querySubject.Value}:{documentSubject.Value}",
                 querySubject,
                 RelationshipKind.Reads,
                 documentSubject,
-                compiledQuery.Evidence));
+                compiledQuery.Evidence,
+                unscopedSource: true));
         }
     }
 

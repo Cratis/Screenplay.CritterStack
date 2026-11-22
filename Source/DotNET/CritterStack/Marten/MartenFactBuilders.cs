@@ -26,13 +26,13 @@ sealed record MartenArtifactFact
 
     public required Evidence Evidence { get; init; }
 
-    public ArtifactFact ToFact() => new()
+    public ArtifactFact ToFact(BackendOwnership? ownership = null) => new()
     {
-        Id = new FactId { Value = Id },
+        Id = new FactId { Value = BackendOccurrenceKeys.FactId(Id, BackendOccurrenceKeys.Artifact(Subject, Kind, ownership ?? BackendOwnership.Legacy).Scope) },
         Subject = Subject,
         Definition = new ArtifactDefinition
         {
-            Key = new ArtifactKey { Subject = Subject, Kind = Kind },
+            Key = BackendOccurrenceKeys.Artifact(Subject, Kind, ownership ?? BackendOwnership.Legacy),
             Name = Name,
             File = File,
             Properties = Properties
@@ -64,9 +64,9 @@ sealed record MartenRelationshipFact
 
     public bool IsCollection { get; init; }
 
-    public RelationshipFact ToFact() => new()
+    public RelationshipFact ToFact(BackendScopeKey? sourceScope = null, BackendScopeKey? targetScope = null) => new()
     {
-        Id = new FactId { Value = Id },
+        Id = new FactId { Value = BackendOccurrenceKeys.RelationshipId(Id, sourceScope, targetScope) },
         Subject = Source,
         Definition = new RelationshipDefinition
         {
@@ -75,7 +75,9 @@ sealed record MartenRelationshipFact
                 Kind = Kind,
                 Source = Source,
                 Target = Target,
-                Discriminator = Discriminator
+                Discriminator = Discriminator,
+                SourceScope = sourceScope,
+                TargetScope = targetScope
             },
             SourceMember = SourceMember,
             TargetMember = TargetMember,

@@ -24,6 +24,8 @@ sealed record ProjectionRegistration(
     Evidence Evidence)
 {
     public string? Lifecycle { get; init; }
+
+    public BackendOwnership Ownership { get; init; } = BackendOwnership.Legacy;
 }
 
 static class MartenProjectionDiscovery
@@ -47,22 +49,23 @@ static class MartenProjectionDiscovery
 
     public static IReadOnlyList<ProjectionRegistration> Discover(
         DotNetProjectCompilation project,
-        AdapterIdentity adapter)
+        AdapterIdentity adapter,
+        MartenStoreIndex stores)
     {
         var registrations = new List<ProjectionRegistration>();
-        foreach (var tree in project.Compilation.SyntaxTrees.Where(_ => !DotNetGeneratedSource.IsGenerated(_)))
+        foreach (var tree in project.Compilation.SyntaxTrees.Where(tree => project.AuthoredSyntaxTrees.Contains(tree) && !DotNetGeneratedSource.IsGenerated(tree)))
         {
             var semanticModel = project.Compilation.GetSemanticModel(tree);
             foreach (var invocation in tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
                 if (RegistrationFrom(invocation, semanticModel, project, adapter) is { } registration)
                 {
-                    registrations.Add(registration);
+                    registrations.Add(registration with { Ownership = stores.ForOptions(project, invocation) });
                 }
             }
         }
 
-        AddConventionalRegistrations(registrations, project, adapter);
+        AddConventionalRegistrations(registrations, project, adapter, stores);
         return
         [
             .. registrations
@@ -100,7 +103,7 @@ static class MartenProjectionDiscovery
         return null;
     }
 
-    static ProjectionRegistration? RegistrationFrom(
+    internal static ProjectionRegistration? RegistrationFrom(
         InvocationExpressionSyntax invocation,
         SemanticModel semanticModel,
         DotNetProjectCompilation project,
@@ -153,18 +156,26 @@ static class MartenProjectionDiscovery
     static void AddConventionalRegistrations(
         List<ProjectionRegistration> registrations,
         DotNetProjectCompilation project,
-        AdapterIdentity adapter)
+        AdapterIdentity adapter,
+        MartenStoreIndex stores)
     {
         var catalog = new DotNetArtifactCatalog(project.Compilation);
         foreach (var projection in catalog.Types.Select(ShapeOf).Where(_ => _ is not null).Cast<ProjectionRegistration>())
         {
-            if (registrations.Exists(_ => SymbolEqualityComparer.Default.Equals(_.Projection, projection.Projection)))
+            if (registrations.Exists(_ => SymbolEqualityComparer.Default.Equals(_.Projection, projection.Projection)) ||
+                stores.IsConfiguredProjection(project, projection.Projection!))
+            {
+                continue;
+            }
+
+            if (!projection.Projection!.DeclaringSyntaxReferences.Any(reference => project.AuthoredSyntaxTrees.Contains(reference.SyntaxTree)))
             {
                 continue;
             }
 
             registrations.Add(projection with
             {
+                Ownership = stores.HasExplicitScopes ? BackendOwnership.Unknown : BackendOwnership.Legacy,
                 Evidence = CritterStackSource.EvidenceFor(
                     projection.Projection!,
                     adapter,

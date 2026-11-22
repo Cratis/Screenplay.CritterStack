@@ -43,7 +43,7 @@ internal static partial class WolverineFacts
         var aggregateWorkflow = HasWritableAggregateWorkflow(method, project);
         var dcb = WolverineDcb.Discover(method, request, project, isHttpEndpoint);
         var parameterBindings = WolverineEventStreams.ParameterBindings(method, messageType, project);
-        var fetchedBindings = WolverineFetchedEventStreams.Bindings(method, messageType, project);
+        var fetchedBindings = OwnedFetchedBindings(scope, method, WolverineFetchedEventStreams.Bindings(method, messageType, project));
         IReadOnlyList<WolverineStateBinding> streamBindings = [.. parameterBindings, .. fetchedBindings];
         var aggregate = dcb is null ? AggregateParameter(method, request, aggregateWorkflow, project) : null;
         var yieldsAggregateEvents = dcb is null && aggregateWorkflow && parameterBindings.Count == 0;
@@ -136,9 +136,18 @@ internal static partial class WolverineFacts
     {
         foreach (var production in productions)
         {
-            var firstFact = scope.Facts.Count;
-            AddEventAndProduction(scope, commandSubject, eventOwner, production, compatibilityPlacement, evidence);
-            AddAuthoredProductionEvidence(scope, production, firstFact);
+            foreach (var ownership in ProductionOwnerships(scope, shape, production))
+            {
+                if (!ownership.CanEmit)
+                {
+                    scope.Diagnostics.Add(ownership.Diagnostic(commandSubject, evidence.Source, "The backend owning this event production could not be proven"));
+                    continue;
+                }
+
+                var firstFact = scope.Facts.Count;
+                AddEventAndProduction(scope, commandSubject, eventOwner, production, compatibilityPlacement, evidence, ownership);
+                AddAuthoredProductionEvidence(scope, production, firstFact);
+            }
         }
 
         AddEventStreamAppendFacts(scope, commandSubject, eventOwner, compatibilityPlacement, shape.AppendDiscovery);
@@ -179,7 +188,7 @@ internal static partial class WolverineFacts
     {
         var emission = EmissionFor(scope, commandSubject, evidence);
         var method = shape.Method;
-        AddDocumentDeletes(emission, method);
+        AddDocumentDeletes(scope, emission, method);
         AddReturnConsequences(emission, shape.ReturnConsequences);
         AddStorageActionConsequences(scope, commandSubject, method, shape.ReturnConsequences, evidence);
         AddDirectBusConsequences(emission, method, scope.Diagnostics, shape.BusConsequences);
@@ -198,12 +207,13 @@ internal static partial class WolverineFacts
         WolverineNaturalKeyDiscovery.AddDiagnostics(scope, aggregateType);
         scope.Facts.Add(Artifact(
             $"wolverine:read-model:{aggregateSubject.Value}",
-            new ArtifactKey { Subject = aggregateSubject, Kind = ArtifactKind.ReadModel },
+            scope.Key(aggregateSubject, ArtifactKind.ReadModel),
             aggregateType.Name,
             SourceFileOf(aggregateType, project),
             DotNetTypeShapes.PropertiesOf(aggregateType),
             CritterStackSource.EvidenceFor(aggregateType, scope.Adapter, project, EvidenceStrength.Conventional, "Wolverine loads this model as aggregate decision state")));
         scope.Facts.Add(Relationship(
+            scope,
             $"wolverine:reads:{commandSubject.Value}:{aggregateSubject.Value}",
             commandSubject,
             RelationshipKind.Reads,
@@ -216,7 +226,8 @@ internal static partial class WolverineFacts
         WolverineFactScope scope,
         SubjectId sourceSubject,
         IMethodSymbol method,
-        IParameterSymbol? aggregateParameter)
+        IParameterSymbol? aggregateParameter,
+        bool unscopedSource = false)
     {
         var artifactIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var parameter in method.Parameters.Where(IsPersistenceBoundParameter))
@@ -239,7 +250,7 @@ internal static partial class WolverineFacts
             {
                 scope.Facts.Add(Artifact(
                     artifactId,
-                    new ArtifactKey { Subject = documentSubject, Kind = ArtifactKind.ReadModel },
+                    scope.Key(documentSubject, ArtifactKind.ReadModel),
                     binding.DocumentType.Name,
                     SourceFileOf(binding.DocumentType, scope.Project),
                     DotNetTypeShapes.PropertiesOf(binding.DocumentType),
@@ -247,6 +258,7 @@ internal static partial class WolverineFacts
             }
 
             scope.Facts.Add(Relationship(
+                scope,
                 $"wolverine:reads:{sourceSubject.Value}:{documentSubject.Value}:{parameter.Name}",
                 sourceSubject,
                 RelationshipKind.Reads,
@@ -254,7 +266,8 @@ internal static partial class WolverineFacts
                 evidence,
                 discriminator: binding.Discriminator,
                 isCollection: binding.IsCollection,
-                isOptional: binding.IsOptional));
+                isOptional: binding.IsOptional,
+                unscopedSource: unscopedSource));
         }
     }
 

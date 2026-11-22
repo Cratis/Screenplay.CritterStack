@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.CritterStack.Screenplay.Marten;
 using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
@@ -37,7 +38,9 @@ sealed record WolverineSagaFactScope(
     AdapterIdentity Adapter,
     CritterStackSubjectResolver Subjects,
     List<GenerationFact> Facts,
-    List<GenerationDiagnostic> Diagnostics);
+    List<GenerationDiagnostic> Diagnostics,
+    MartenBackendOwnershipResolver? Resolver,
+    BackendOwnership Ownership);
 
 sealed record WolverineSagaRoleScope(
     INamedTypeSymbol SagaType,
@@ -51,9 +54,10 @@ static class WolverineSagaFacts
         DotNetProjectCompilation project,
         AdapterIdentity adapter,
         CritterStackSubjectResolver subjects,
-        WolverineHandlerDiscoveryPolicy discovery)
+        WolverineHandlerDiscoveryPolicy discovery,
+        MartenBackendOwnershipResolver? resolver = null)
     {
-        var scope = new WolverineSagaFactScope(project, adapter, subjects, [], []);
+        var scope = new WolverineSagaFactScope(project, adapter, subjects, [], [], resolver, BackendOwnership.Legacy);
         var catalog = new DotNetArtifactCatalog(project.Compilation);
         foreach (var sagaType in catalog.Types
                      .Where(type => IsAdmissibleType(type, project, discovery))
@@ -121,18 +125,29 @@ static class WolverineSagaFacts
             scope.Project,
             EvidenceStrength.Exact,
             "Authored public concrete type derived from Wolverine.Saga");
-        scope.Facts.Add(Artifact(
-            $"wolverine:saga:{sagaSubject.Value}",
-            sagaSubject,
-            ArtifactKind.Saga,
-            sagaType.Name,
-            sagaEvidence.Source?.Path,
-            SagaProperties(sagaType, scope.Project),
-            sagaEvidence));
-
-        foreach (var role in roles)
+        var scopedRoles = roles.Select(role => (Role: role, Ownership: scope.Resolver?.ForSaga(scope.Project, role.Method) ?? BackendOwnership.Legacy)).ToArray();
+        foreach (var ownership in scopedRoles.Select(item => item.Ownership).Where(ownership => ownership.CanEmit).Distinct())
         {
-            AddRoleFacts(scope, sagaType, role, roles);
+            scope.Facts.Add(Artifact(
+                $"wolverine:saga:{sagaSubject.Value}",
+                sagaSubject,
+                ArtifactKind.Saga,
+                sagaType.Name,
+                sagaEvidence.Source?.Path,
+                SagaProperties(sagaType, scope.Project),
+                sagaEvidence,
+                ownership));
+        }
+
+        foreach (var (role, ownership) in scopedRoles)
+        {
+            if (!ownership.CanEmit)
+            {
+                scope.Diagnostics.Add(ownership.Diagnostic(HandlerSubject(scope.Project, role.Method), sagaEvidence.Source, "The backend owning this saga role could not be proven"));
+                continue;
+            }
+
+            AddRoleFacts(scope with { Ownership = ownership }, sagaType, role, roles);
         }
 
         var completion = CompletionInvocation(roles, scope.Project);
@@ -204,7 +219,8 @@ static class WolverineSagaFacts
             HandlerName(method),
             roleEvidence.Source?.Path,
             [],
-            roleEvidence));
+            roleEvidence,
+            scope.Ownership));
         facts.Add(Artifact(
             $"wolverine:message:{messageSubject.Value}",
             messageSubject,
@@ -220,7 +236,8 @@ static class WolverineSagaFacts
             messageSubject,
             relationshipEvidence,
             targetMember: correlation.TargetMember,
-            discriminator: discriminator));
+            discriminator: discriminator,
+            sourceScope: scope.Ownership.Scope));
     }
 
     static void AddConsequenceFacts(WolverineSagaFactScope scope, WolverineSagaRoleScope roleScope)
@@ -234,7 +251,8 @@ static class WolverineSagaFacts
             Subjects = scope.Subjects,
             SourceSubject = roleScope.HandlerSubject,
             Evidence = roleScope.RoleEvidence,
-            Facts = scope.Facts
+            Facts = scope.Facts,
+            Ownership = scope.Ownership
         };
         var returnConsequences = WolverineReturnConsequences.Classify(
             method,
@@ -380,13 +398,14 @@ static class WolverineSagaFacts
         string name,
         string? file,
         IReadOnlyList<PropertyDefinition> properties,
-        Evidence evidence) => new()
+        Evidence evidence,
+        BackendOwnership? ownership = null) => new()
         {
-            Id = new FactId { Value = id },
+            Id = new FactId { Value = BackendOccurrenceKeys.FactId(id, ownership?.Scope) },
             Subject = subject,
             Definition = new ArtifactDefinition
             {
-                Key = new ArtifactKey { Subject = subject, Kind = kind },
+                Key = BackendOccurrenceKeys.Artifact(subject, kind, ownership ?? BackendOwnership.Legacy),
                 Name = name,
                 File = file,
                 Properties = properties
@@ -401,9 +420,10 @@ static class WolverineSagaFacts
         SubjectId target,
         Evidence evidence,
         string? targetMember = null,
-        string? discriminator = null) => new()
+        string? discriminator = null,
+        BackendScopeKey? sourceScope = null) => new()
         {
-            Id = new FactId { Value = id },
+            Id = new FactId { Value = BackendOccurrenceKeys.RelationshipId(id, sourceScope, null) },
             Subject = source,
             Definition = new RelationshipDefinition
             {
@@ -411,6 +431,7 @@ static class WolverineSagaFacts
                 {
                     Kind = kind,
                     Source = source,
+                    SourceScope = sourceScope,
                     Target = target,
                     Discriminator = discriminator
                 },

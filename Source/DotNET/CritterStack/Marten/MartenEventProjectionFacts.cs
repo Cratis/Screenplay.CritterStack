@@ -8,7 +8,10 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.CritterStack.Screenplay.Marten;
 
-sealed record MartenDocumentUsage(INamedTypeSymbol Type, Evidence Evidence);
+sealed record MartenDocumentUsage(INamedTypeSymbol Type, Evidence Evidence)
+{
+    public BackendOwnership Ownership { get; init; } = BackendOwnership.Legacy;
+}
 
 sealed record MartenEventProjectionResult(
     IReadOnlyList<GenerationFact> Facts,
@@ -93,10 +96,10 @@ static class MartenEventProjectionFacts
                 Name = projection.Name,
                 File = MartenSourceFiles.FileOf(projection, project),
                 Evidence = registration.Evidence
-            }.ToFact()
+            }.ToFact(registration.Ownership)
         };
 
-        var scope = new ProjectionFactScope(project, subjects, projectionSubject);
+        var scope = new ProjectionFactScope(project, subjects, projectionSubject, registration.Ownership);
         AddEventFacts(scope, facts, exactOperations);
         var documents = AddDocumentFacts(scope, facts, operations);
         AddOperationFacts(scope, facts, exactOperations);
@@ -123,7 +126,7 @@ static class MartenEventProjectionFacts
                 File = MartenSourceFiles.FileOf(eventType, project),
                 Properties = DotNetTypeShapes.PropertiesOf(eventType),
                 Evidence = operation.Evidence
-            }.ToFact());
+            }.ToFact(scope.Ownership));
             facts.Add(new MartenRelationshipFact
             {
                 Id = $"marten:event-projection:consumes:{projectionSubject.Value}:{eventSubject.Value}",
@@ -131,7 +134,7 @@ static class MartenEventProjectionFacts
                 Kind = RelationshipKind.Consumes,
                 Target = eventSubject,
                 Evidence = operation.Evidence
-            }.ToFact());
+            }.ToFact(scope.Ownership.Scope, scope.Ownership.Scope));
         }
     }
 
@@ -153,7 +156,7 @@ static class MartenEventProjectionFacts
                     Explanation = $"{operation.Evidence.Explanation}; DeleteViewTypeOnTeardown corroborates the document target"
                 }
                 : operation.Evidence;
-            documents.Add(new(operation.DocumentType, evidence));
+            documents.Add(new(operation.DocumentType, evidence) { Ownership = scope.Ownership });
             facts.Add(new MartenRelationshipFact
             {
                 Id = $"marten:event-projection:builds:{projectionSubject.Value}:{documentSubject.Value}",
@@ -161,7 +164,7 @@ static class MartenEventProjectionFacts
                 Kind = RelationshipKind.Builds,
                 Target = documentSubject,
                 Evidence = evidence
-            }.ToFact());
+            }.ToFact(scope.Ownership.Scope, scope.Ownership.Scope));
         }
 
         return documents;
@@ -184,7 +187,7 @@ static class MartenEventProjectionFacts
                 Target = documentSubject,
                 Evidence = operation.Evidence,
                 Discriminator = eventSubject.Value
-            }.ToFact());
+            }.ToFact(scope.Ownership.Scope, scope.Ownership.Scope));
         }
     }
 
@@ -349,7 +352,8 @@ static class MartenEventProjectionFacts
     sealed record ProjectionFactScope(
         DotNetProjectCompilation Project,
         CritterStackSubjectResolver Subjects,
-        SubjectId ProjectionSubject);
+        SubjectId ProjectionSubject,
+        BackendOwnership Ownership);
 
     sealed record ExactOperations(
         EventDocumentOperation[] Operations,

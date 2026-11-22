@@ -74,7 +74,11 @@ Genuine overrides of `Evolve`, `EvolveAsync`, `DetermineAction` and `DetermineAc
 
 Composite and flat-table registrations remain opaque. `MARTEN0018` and `MARTEN0019` report them at the registration site, with composite constituent types when directly resolvable. The registration itself contributes no artifacts, relationships or subprojection ordering. Independently discovered conventional projections retain their facts.
 
-`StoreOptions.EventModelName`, `AddMartenStore<TStore>` and Wolverine `[MartenStore(typeof(TStore))]` retain store-scope evidence under `MARTEN0020`. Constant names can be reported; computed names remain unknown. Facts are not scoped by store, and store ownership is not represented. Store interfaces do not create model or module boundaries. Equal eventual event-model names can coalesce, and multiple ancillary stores with default names receive a possible-coalescing warning. There is no inferred runtime store selection, tenancy or store-to-module mapping.
+Proven Marten backend ownership distinguishes store-owned artifact occurrences and relationship endpoints without changing their .NET type or method subjects. A store is identified by its registration's mapped project, file and source span—not its marker interface or event-model name. Distinct registrations remain distinct even when their names are equal or null. A single unnamed default `AddMarten` retains legacy unscoped output. Ancillary, named or multiple-store configurations use explicit backend keys.
+
+Projection registrations bind to their exact `StoreOptions` receiver. `EventModelName` accepts null or a nonblank, control-free constant string, including constant concatenation and `nameof`; dynamic, conditional or unbound assignments do not establish ownership. Cross-project marker references resolve to the defining project. Method-level Wolverine `[MartenStore]` or `[Storage]` selection takes precedence over inherited type-level selection. Supported namespace and assembly ancillary-storage policies use source order only inside one proven configuration context. Conflicting or unproved ownership produces Generation SDK backend-ownership diagnostics and omits the affected store-owned occurrence rather than emitting an unscoped substitute.
+
+An explicit ancillary session scopes operations on that session, not the handler's transaction chain. Persistence-backed handlers, commands, events, streams, documents and read targets carry proven ownership. HTTP Query identity, reusable payload concepts and generic outgoing messages stay neutral; their backend-bound relationship targets remain scoped. Native Wolverine sagas remain neutral unless attributes or routing prove a Marten backend. Backend keys are not rendered model or module names, runtime store selection, tenancy or a store-to-module mapping. The legacy `MARTEN0020` code is reserved and is no longer emitted for represented ownership.
 
 ### Wolverine reads, consistency and returned operations
 
@@ -129,7 +133,7 @@ These entries describe the cases above, not every use of a diagnostic code. Revi
 | `MARTEN0010` | `CustomProcessingOmitted` | Information / Unsupported for genuine untyped evolution/dispatch overrides. |
 | `MARTEN0018` | `CompositeProjectionOmitted` | Warning / Unsupported. |
 | `MARTEN0019` | `FlatTableProjectionOmitted` | Warning / Unsupported. |
-| `MARTEN0020` | `StoreScopeNotRepresented` | Information / Unsupported for one unambiguous default store; Warning / Unsupported for nondefault, unknown or multiple-store scope. |
+| `MARTEN0020` | `StoreScopeNotRepresented` | Reserved legacy code; represented ownership uses backend keys, and unknown or conflicting ownership uses Generation SDK diagnostics. |
 | `WOLVERINE0003` | `StreamVersionOmitted` | Information / Unsupported for consistency-only declarations. |
 | `WOLVERINE0007` | `HandlerDiscoveryConfigurationUnresolved` | Warning / Unknown for unresolved middleware application. |
 | `WOLVERINE0014` | `DcbBoundaryOmitted` | Information / Unsupported for a standalone BoundaryAggregate marker; the marker alone contributes no aggregate workflow facts. |

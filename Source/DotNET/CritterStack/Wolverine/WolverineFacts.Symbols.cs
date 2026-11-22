@@ -78,7 +78,7 @@ internal static partial class WolverineFacts
 
     static ArtifactFact Artifact(WolverineArtifactFact artifact) => new()
     {
-        Id = new FactId { Value = artifact.Id },
+        Id = new FactId { Value = BackendOccurrenceKeys.FactId(artifact.Id, artifact.Key.Scope) },
         Subject = artifact.Key.Subject,
         Definition = new ArtifactDefinition
         {
@@ -100,18 +100,22 @@ internal static partial class WolverineFacts
         string? targetMember = null,
         string? discriminator = null,
         bool isCollection = false,
-        bool isOptional = false) => Relationship(new WolverineRelationshipFact(id, source, kind, target, evidence)
+        bool isOptional = false,
+        BackendScopeKey? sourceScope = null,
+        BackendScopeKey? targetScope = null) => Relationship(new WolverineRelationshipFact(id, source, kind, target, evidence)
         {
             SourceMember = sourceMember,
             TargetMember = targetMember,
             Discriminator = discriminator,
             IsCollection = isCollection,
-            IsOptional = isOptional
+            IsOptional = isOptional,
+            SourceScope = sourceScope,
+            TargetScope = targetScope
         });
 
     static RelationshipFact Relationship(WolverineRelationshipFact relationship) => new()
     {
-        Id = new FactId { Value = relationship.Id },
+        Id = new FactId { Value = BackendOccurrenceKeys.RelationshipId(relationship.Id, relationship.SourceScope, relationship.TargetScope) },
         Subject = relationship.Source,
         Definition = new RelationshipDefinition
         {
@@ -120,7 +124,9 @@ internal static partial class WolverineFacts
                 Kind = relationship.Kind,
                 Source = relationship.Source,
                 Target = relationship.Target,
-                Discriminator = relationship.Discriminator
+                Discriminator = relationship.Discriminator,
+                SourceScope = relationship.SourceScope,
+                TargetScope = relationship.TargetScope
             },
             SourceMember = relationship.SourceMember,
             TargetMember = relationship.TargetMember,

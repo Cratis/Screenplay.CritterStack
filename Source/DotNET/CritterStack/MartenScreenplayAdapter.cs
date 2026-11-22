@@ -96,16 +96,22 @@ public sealed class MartenScreenplayAdapter : IDescribedDotNetScreenplayAdapter,
         var diagnostics = new List<GenerationDiagnostic>();
         var placements = new List<CritterStackPlacementIntent>();
         var subjects = new CritterStackSubjectResolver(context);
+        var stores = MartenStoreScopeDiscovery.Discover(context, Identity, subjects);
+        var routing = Wolverine.WolverineStorageRouting.Discover(context, stores);
+        var ownership = new MartenBackendOwnershipResolver(stores, routing);
+        facts.AddRange(stores.Facts);
+        diagnostics.AddRange(stores.Diagnostics);
 
         foreach (var project in context.Projects)
         {
             var subjectCheckpoint = subjects.Checkpoint();
-            var marten = MartenFacts.Discover(project, options, Identity, subjects);
+            var marten = MartenFacts.Discover(project, options, Identity, subjects, stores);
             var documents = MartenDocumentFacts.Discover(
                 project,
                 Identity,
                 subjects,
                 marten.Documents,
+                ownership,
                 includeIntegrationApis: false);
             if (subjects.HasBlockingDiagnosticsSince(subjectCheckpoint))
             {
