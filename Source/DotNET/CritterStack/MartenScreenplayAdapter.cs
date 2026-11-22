@@ -27,7 +27,7 @@ public sealed class MartenScreenplayAdapter : IDescribedDotNetScreenplayAdapter,
         Category = AdapterCategory.EventStore,
         CompatibleGenerationVersions = new GenerationVersionRange
         {
-            MinimumInclusive = new Version(0, 18, 0)
+            MinimumInclusive = new Version(0, 23, 0)
         },
         RequiredHostCapabilities =
         [
@@ -51,42 +51,22 @@ public sealed class MartenScreenplayAdapter : IDescribedDotNetScreenplayAdapter,
     /// <inheritdoc/>
     public AdapterProbeResult Probe(DotNetAnalysisContext context)
     {
-        var evidence = new List<AdapterProbeEvidence>();
         try
         {
-            foreach (var project in context.Projects)
-            {
-                evidence.AddRange(AuthoredMartenUsesIn(project));
-            }
+            return CritterStackAdapterProbe.Applicable(
+                CritterStackAdapterProbe.EvidenceFor(
+                    context,
+                    CritterStackAdapterProbe.IsMartenApi,
+                    CritterStackAdapterApiCapabilities.MartenApplication,
+                    "Marten",
+                    includeAttributes: false),
+                MartenDiagnosticCodes.UnsafeSourceMapping,
+                "Marten");
         }
         catch (DotNetSourceTreeNotMapped)
         {
-            return UnsafeSourceMapping();
+            return CritterStackAdapterProbe.UnsafeSourceMapping(MartenDiagnosticCodes.UnsafeSourceMapping, "Marten");
         }
-
-        if (evidence.Count == 0)
-        {
-            return new AdapterProbeNotApplicable();
-        }
-
-        if (evidence.Exists(item => item.Source?.FileIdentity is null))
-        {
-            return UnsafeSourceMapping();
-        }
-
-        return new AdapterProbeApplicable
-        {
-            Evidence =
-            [
-                .. evidence
-                    .OrderBy(item => item.Subject?.Value, StringComparer.Ordinal)
-                    .ThenBy(item => item.Source?.FileIdentity?.Project, StringComparer.Ordinal)
-                    .ThenBy(item => item.Source?.FileIdentity?.Path, StringComparer.Ordinal)
-                    .ThenBy(item => item.Source?.StartLine)
-                    .ThenBy(item => item.Source?.StartColumn)
-                    .ThenBy(item => item.Description, StringComparer.Ordinal)
-            ]
-        };
     }
 
     /// <inheritdoc/>
@@ -96,9 +76,7 @@ public sealed class MartenScreenplayAdapter : IDescribedDotNetScreenplayAdapter,
         var diagnostics = new List<GenerationDiagnostic>();
         var placements = new List<CritterStackPlacementIntent>();
         var subjects = new CritterStackSubjectResolver(context);
-        var stores = MartenStoreScopeDiscovery.Discover(context, Identity, subjects);
-        var routing = Wolverine.WolverineStorageRouting.Discover(context, stores);
-        var ownership = new MartenBackendOwnershipResolver(stores, routing);
+        var (stores, ownership) = MartenStoreScopeDiscovery.DiscoverOwnership(context, Identity, subjects);
         facts.AddRange(stores.Facts);
         diagnostics.AddRange(stores.Diagnostics);
 
@@ -135,53 +113,4 @@ public sealed class MartenScreenplayAdapter : IDescribedDotNetScreenplayAdapter,
             Diagnostics = diagnostics
         });
     }
-
-    static IEnumerable<AdapterProbeEvidence> AuthoredMartenUsesIn(DotNetProjectCompilation project)
-    {
-        foreach (var tree in project.AuthoredSyntaxTrees.Where(tree => !DotNetGeneratedSource.IsGenerated(tree)))
-        {
-            var semanticModel = project.Compilation.GetSemanticModel(tree);
-            foreach (var invocation in DotNetSource.AuthoredInvocationsIn(tree.GetRoot(), project))
-            {
-                if (DotNetInvocations.MethodFor(invocation, semanticModel) is not { } method || !IsOwnedMartenMethod(method))
-                {
-                    continue;
-                }
-
-                var source = DotNetSource.RangeForProject(invocation.GetLocation(), project);
-                var containingSymbol = semanticModel.GetEnclosingSymbol(invocation.SpanStart);
-                yield return new AdapterProbeEvidence
-                {
-                    Description = $"Authored source invokes exact Marten API '{DotNetMethodSignatures.From(method).Name}'",
-                    ApiCapability = CritterStackAdapterApiCapabilities.MartenApplication,
-                    Source = source,
-                    Subject = containingSymbol is IMethodSymbol containingMethod
-                        ? DotNetMethodIdentity.SubjectFor(project, containingMethod)
-                        : null
-                };
-            }
-        }
-    }
-
-    static bool IsOwnedMartenMethod(IMethodSymbol method)
-    {
-        var candidate = method.ReducedFrom ?? method;
-        var @namespace = candidate.ContainingNamespace.ToDisplayString();
-        return string.Equals(@namespace, "Marten", StringComparison.Ordinal) ||
-               @namespace.StartsWith("Marten.", StringComparison.Ordinal);
-    }
-
-    static AdapterProbeBlocked UnsafeSourceMapping() => new()
-    {
-        Diagnostics =
-        [
-            new GenerationDiagnostic
-            {
-                Code = MartenDiagnosticCodes.UnsafeSourceMapping,
-                Severity = GenerationDiagnosticSeverity.Error,
-                Outcome = GenerationDiagnosticOutcome.Unknown,
-                Message = "Applicable authored Marten source does not have authoritative stable source mapping"
-            }
-        ]
-    };
 }
