@@ -17,6 +17,7 @@ sealed record WolverineMiddlewareRegistration(
 /// <summary>
 /// The immutable middleware registrations discovered for one project in one analysis pass.
 /// </summary>
+/// <param name="registrations">The discovered middleware registrations.</param>
 sealed class WolverineMiddlewareRegistrations(IEnumerable<WolverineMiddlewareRegistration> registrations)
 {
     readonly ImmutableArray<WolverineMiddlewareRegistration> _registrations = [.. registrations];

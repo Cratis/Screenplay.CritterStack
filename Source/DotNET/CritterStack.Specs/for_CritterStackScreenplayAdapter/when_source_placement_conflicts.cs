@@ -29,127 +29,13 @@ public class when_source_placement_conflicts : given.a_shared_source_placement_a
         var command = baseline.Facts
             .OfType<ArtifactFact>()
             .Single(_ => _.Definition.Key.Kind == ArtifactKind.Command && _.Definition.Name == "SubmitOrder");
-        var compatibilityPlacement = CritterStackSourcePlacement.CompatibilityPlacement(
-            Project,
-            AdapterOptions,
-            "SubmitOrder",
-            "SubmitOrder",
-            GenerationSliceKind.StateChange);
-        var intents = new[]
-        {
-            new CritterStackPlacementIntent(
-                "test:placement:state-change",
-                command.Definition.Key,
-                null,
-                compatibilityPlacement,
-                command.Evidence),
-            new CritterStackPlacementIntent(
-                "test:placement:automation",
-                command.Definition.Key,
-                null,
-                compatibilityPlacement with { SliceKind = GenerationSliceKind.Automation },
-                command.Evidence)
-        };
-        var conflictingRequestDiagnostics = new List<GenerationDiagnostic>();
-        _conflictingRequestFacts = CritterStackSourcePlacement.Derive(
-            context,
-            AdapterOptions,
-            intents,
-            conflictingRequestDiagnostics);
-        _conflictingRequestDiagnostics = conflictingRequestDiagnostics;
-        var reversedConflictingRequestDiagnostics = new List<GenerationDiagnostic>();
-        _reversedConflictingRequestFacts = CritterStackSourcePlacement.Derive(
-            context,
-            AdapterOptions,
-            intents.AsEnumerable().Reverse(),
-            reversedConflictingRequestDiagnostics);
-        _reversedConflictingRequestDiagnostics = reversedConflictingRequestDiagnostics;
-
-        var strongerEvidenceDiagnostics = new List<GenerationDiagnostic>();
-        _strongerEvidenceFacts = CritterStackSourcePlacement.Derive(
-            context,
-            AdapterOptions,
-            [
-                new CritterStackPlacementIntent(
-                    "test:marten-like:placement:state-view",
-                    command.Definition.Key,
-                    null,
-                    compatibilityPlacement with { SliceKind = GenerationSliceKind.StateView },
-                    command.Evidence with { Strength = EvidenceStrength.Heuristic }),
-                new CritterStackPlacementIntent(
-                    "test:wolverine-like:placement:state-change",
-                    command.Definition.Key,
-                    null,
-                    compatibilityPlacement,
-                    command.Evidence with { Strength = EvidenceStrength.Exact })
-            ],
-            strongerEvidenceDiagnostics);
-        _strongerEvidenceDiagnostics = strongerEvidenceDiagnostics;
-
         var query = baseline.Facts
             .OfType<ArtifactFact>()
             .Single(_ => _.Definition.Key.Kind == ArtifactKind.Query && _.Definition.Name == "GetOrder");
-        var modelOwner = Project.SubjectForType(Project.Compilation.GetTypeByMetadataName("Application.Orders.Summary.OrderSummary"));
-        var endpointOwner = Project.SubjectForType(Project.Compilation.GetTypeByMetadataName("Application.Orders.Summary.OrderEndpoints"));
-        var queryCompatibilityPlacement = CritterStackSourcePlacement.CompatibilityPlacement(
-            Project,
-            AdapterOptions,
-            "OrderSummary",
-            "GetOrder",
-            GenerationSliceKind.StateView);
-        var validCommandIntent = new CritterStackPlacementIntent(
-            "test:placement:valid-command",
-            command.Definition.Key,
-            null,
-            compatibilityPlacement,
-            command.Evidence);
-        CritterStackPlacementIntent[] conflictingOwnerIntents =
-        [
-            validCommandIntent,
-            new CritterStackPlacementIntent(
-                "test:placement:query:model-owner",
-                query.Definition.Key,
-                modelOwner,
-                queryCompatibilityPlacement,
-                query.Evidence),
-            new CritterStackPlacementIntent(
-                "test:placement:query:endpoint-owner",
-                query.Definition.Key,
-                endpointOwner,
-                queryCompatibilityPlacement,
-                query.Evidence)
-        ];
-        var conflictingOwnerDiagnostics = new List<GenerationDiagnostic>();
-        _conflictingOwnerFacts = CritterStackSourcePlacement.Derive(
-            context,
-            AdapterOptions,
-            conflictingOwnerIntents,
-            conflictingOwnerDiagnostics);
-        _conflictingOwnerDiagnostics = conflictingOwnerDiagnostics;
-        var reversedConflictingOwnerDiagnostics = new List<GenerationDiagnostic>();
-        _reversedConflictingOwnerFacts = CritterStackSourcePlacement.Derive(
-            context,
-            AdapterOptions,
-            conflictingOwnerIntents.AsEnumerable().Reverse(),
-            reversedConflictingOwnerDiagnostics);
-        _reversedConflictingOwnerDiagnostics = reversedConflictingOwnerDiagnostics;
 
-        _missingOwner = new SubjectId { Value = $"{query.Subject.Value}#missing-owner" };
-        var missingOwnerDiagnostics = new List<GenerationDiagnostic>();
-        _missingOwnerFacts = CritterStackSourcePlacement.Derive(
-            context,
-            AdapterOptions,
-            [
-                validCommandIntent,
-                new CritterStackPlacementIntent(
-                    "test:placement:query:missing-owner",
-                    query.Definition.Key,
-                    _missingOwner,
-                    queryCompatibilityPlacement,
-                    query.Evidence)
-            ],
-            missingOwnerDiagnostics);
-        _missingOwnerDiagnostics = missingOwnerDiagnostics;
+        DeriveConflictingRequests(context, command);
+        DeriveStrongerEvidence(context, command);
+        DeriveOwnerPlacements(context, command, query);
 
         var partialProject = CreateProject(conflictingPartial: true);
         _conflictingPartial = Adapter.Analyze(new([partialProject]), AdapterOptions);
@@ -185,4 +71,115 @@ public class when_source_placement_conflicts : given.a_shared_source_placement_a
     [
         .. diagnostics.Select(_ => $"{_.Code}|{_.Outcome}|{_.Subject?.Value}|{_.Source?.Path}|{_.Message}")
     ];
+
+    (IReadOnlyList<GenerationFact> Facts, IReadOnlyList<GenerationDiagnostic> Diagnostics) Derive(
+        DotNetAnalysisContext context,
+        IEnumerable<CritterStackPlacementIntent> intents)
+    {
+        var diagnostics = new List<GenerationDiagnostic>();
+        var facts = CritterStackSourcePlacement.Derive(context, AdapterOptions, intents, diagnostics);
+        return (facts, diagnostics);
+    }
+
+    void DeriveConflictingRequests(DotNetAnalysisContext context, ArtifactFact command)
+    {
+        var compatibilityPlacement = CritterStackSourcePlacement.CompatibilityPlacement(
+            Project,
+            AdapterOptions,
+            "SubmitOrder",
+            "SubmitOrder",
+            GenerationSliceKind.StateChange);
+        var intents = new[]
+        {
+            new CritterStackPlacementIntent(
+                "test:placement:state-change",
+                command.Definition.Key,
+                null,
+                compatibilityPlacement,
+                command.Evidence),
+            new CritterStackPlacementIntent(
+                "test:placement:automation",
+                command.Definition.Key,
+                null,
+                compatibilityPlacement with { SliceKind = GenerationSliceKind.Automation },
+                command.Evidence)
+        };
+        (_conflictingRequestFacts, _conflictingRequestDiagnostics) = Derive(context, intents);
+        (_reversedConflictingRequestFacts, _reversedConflictingRequestDiagnostics) = Derive(context, intents.AsEnumerable().Reverse());
+    }
+
+    void DeriveStrongerEvidence(DotNetAnalysisContext context, ArtifactFact command)
+    {
+        var compatibilityPlacement = CritterStackSourcePlacement.CompatibilityPlacement(
+            Project,
+            AdapterOptions,
+            "SubmitOrder",
+            "SubmitOrder",
+            GenerationSliceKind.StateChange);
+        (_strongerEvidenceFacts, _strongerEvidenceDiagnostics) = Derive(
+            context,
+            [
+                new CritterStackPlacementIntent(
+                    "test:marten-like:placement:state-view",
+                    command.Definition.Key,
+                    null,
+                    compatibilityPlacement with { SliceKind = GenerationSliceKind.StateView },
+                    command.Evidence with { Strength = EvidenceStrength.Heuristic }),
+                new CritterStackPlacementIntent(
+                    "test:wolverine-like:placement:state-change",
+                    command.Definition.Key,
+                    null,
+                    compatibilityPlacement,
+                    command.Evidence with { Strength = EvidenceStrength.Exact })
+            ]);
+    }
+
+    void DeriveOwnerPlacements(DotNetAnalysisContext context, ArtifactFact command, ArtifactFact query)
+    {
+        var modelOwner = Project.SubjectForType(Project.Compilation.GetTypeByMetadataName("Application.Orders.Summary.OrderSummary"));
+        var endpointOwner = Project.SubjectForType(Project.Compilation.GetTypeByMetadataName("Application.Orders.Summary.OrderEndpoints"));
+        var queryCompatibilityPlacement = CritterStackSourcePlacement.CompatibilityPlacement(
+            Project,
+            AdapterOptions,
+            "OrderSummary",
+            "GetOrder",
+            GenerationSliceKind.StateView);
+        var validCommandIntent = new CritterStackPlacementIntent(
+            "test:placement:valid-command",
+            command.Definition.Key,
+            null,
+            CritterStackSourcePlacement.CompatibilityPlacement(Project, AdapterOptions, "SubmitOrder", "SubmitOrder", GenerationSliceKind.StateChange),
+            command.Evidence);
+        CritterStackPlacementIntent[] conflictingOwnerIntents =
+        [
+            validCommandIntent,
+            new CritterStackPlacementIntent(
+                "test:placement:query:model-owner",
+                query.Definition.Key,
+                modelOwner,
+                queryCompatibilityPlacement,
+                query.Evidence),
+            new CritterStackPlacementIntent(
+                "test:placement:query:endpoint-owner",
+                query.Definition.Key,
+                endpointOwner,
+                queryCompatibilityPlacement,
+                query.Evidence)
+        ];
+        (_conflictingOwnerFacts, _conflictingOwnerDiagnostics) = Derive(context, conflictingOwnerIntents);
+        (_reversedConflictingOwnerFacts, _reversedConflictingOwnerDiagnostics) = Derive(context, conflictingOwnerIntents.AsEnumerable().Reverse());
+
+        _missingOwner = new SubjectId { Value = $"{query.Subject.Value}#missing-owner" };
+        (_missingOwnerFacts, _missingOwnerDiagnostics) = Derive(
+            context,
+            [
+                validCommandIntent,
+                new CritterStackPlacementIntent(
+                    "test:placement:query:missing-owner",
+                    query.Definition.Key,
+                    _missingOwner,
+                    queryCompatibilityPlacement,
+                    query.Evidence)
+            ]);
+    }
 }

@@ -15,65 +15,34 @@ static class EnumConceptFacts
 
     public static AdapterContribution AddTo(DotNetAnalysisContext context, AdapterContribution contribution)
     {
-        var facts = contribution.Facts.ToList();
-        var diagnostics = contribution.Diagnostics.ToList();
-        var artifacts = facts.OfType<ArtifactFact>().ToArray();
+        var artifacts = contribution.Facts.OfType<ArtifactFact>().ToArray();
         var referencedSubjects = ConceptTypeReferenceBinder.ReferencedSubjects(context, artifacts);
         var concepts = artifacts
             .Where(_ => _.Definition.Key.Kind == ArtifactKind.Concept)
             .Select(_ => _.Subject)
             .ToHashSet();
+        var collector = new EnumFactCollector(contribution, concepts);
         var candidates = context.Projects
             .SelectMany(project => new DotNetArtifactCatalog(project.Compilation).Types
                 .Where(type => type.TypeKind == TypeKind.Enum)
                 .Select(type => new { Project = project, Type = type, Subject = context.SubjectForType(type) }))
             .Where(_ => _.Subject is not null && referencedSubjects.Contains(_.Subject))
             .OrderBy(_ => _.Subject!.Value, StringComparer.Ordinal);
-        Dictionary<SubjectId, string> unnumberable = [];
 
         foreach (var candidate in candidates)
         {
-            var declaration = AuthoredDeclaration(candidate.Type, candidate.Project);
-            if (declaration is null)
-            {
-                continue;
-            }
-
-            var subject = candidate.Subject!;
-            var evidence = CritterStackSource.EvidenceFor(
-                candidate.Type,
-                contribution.Adapter,
-                candidate.Project,
-                EvidenceStrength.Exact,
-                $"Authored enum '{candidate.Type.Name}' declares its named values");
-            var values = declaration.Members.Select(_ => _.Identifier.ValueText).ToArray();
-            var numbering = NumberingOf(candidate.Type, declaration);
-            if (OmissionOf(candidate.Type, subject, evidence, values, numbering) is { } omission)
-            {
-                diagnostics.Add(omission);
-                if (omission.Code == CritterStackDiagnosticCodes.EnumNumbersNotPreserved)
-                {
-                    unnumberable[subject] = omission.Message;
-                }
-
-                continue;
-            }
-
-            if (concepts.Add(subject))
-            {
-                facts.Add(ConceptFact(contribution.Adapter, subject, candidate.Type.Name, evidence));
-            }
-
-            facts.Add(RepresentationFact(contribution.Adapter, subject, evidence, values, numbering.Numbers));
+            collector.Add(candidate.Project, candidate.Type, candidate.Subject!);
         }
+
+        var unnumberable = collector.Unnumberable;
 
         // An enum whose numbering cannot be preserved is not a concept from any source (for example Marten
         // RegisterValueType), whatever the order the facts were contributed in; its uses keep the plain type name.
-        facts = [.. facts.Where(fact => KeepFact(fact, unnumberable)).Select(fact => WithoutDroppedReferences(fact, unnumberable))];
+        List<GenerationFact> facts = [.. collector.Facts.Where(fact => KeepFact(fact, unnumberable)).Select(fact => WithoutDroppedReferences(fact, unnumberable))];
 
         // Bind before resolving captured names, so uses of each enum carry its subject and only other types print its
         // plain name; the generator also binds independently contributed Vogen concepts and normalizes again.
-        var bound = ConceptTypeReferenceBinder.Bind(context, WithoutConflictingNames([contribution with { Facts = facts, Diagnostics = diagnostics }]));
+        var bound = ConceptTypeReferenceBinder.Bind(context, WithoutConflictingNames([contribution with { Facts = facts, Diagnostics = collector.Diagnostics }]));
         return WithoutCapturedNames(bound)[0];
     }
 
@@ -268,8 +237,9 @@ static class EnumConceptFacts
             : fact;
     }
 
-    static GenerationDiagnostic? OmissionOf(INamedTypeSymbol type, SubjectId subject, Evidence evidence, string[] values, EnumNumbering numbering)
+    static GenerationDiagnostic? OmissionOf(INamedTypeSymbol type, SubjectId subject, Evidence evidence, EnumValues enumValues)
     {
+        var (values, numbering) = (enumValues.Values, enumValues.Numbering);
         if (DotNetSymbols.HasAttribute(type, "System.FlagsAttribute"))
         {
             return OmittedEnum(
@@ -312,7 +282,7 @@ static class EnumConceptFacts
         }
     };
 
-    static ConceptRepresentationFact RepresentationFact(AdapterIdentity adapter, SubjectId subject, Evidence evidence, string[] values, IReadOnlyList<int>? numbers) => new()
+    static ConceptRepresentationFact RepresentationFact(AdapterIdentity adapter, SubjectId subject, Evidence evidence, EnumValues enumValues) => new()
     {
         Id = new FactId { Value = RepresentationFactId(adapter, subject) },
         Subject = subject,
@@ -321,8 +291,8 @@ static class EnumConceptFacts
         {
             Concept = subject,
             Kind = ConceptRepresentationKind.Enumeration,
-            EnumerationValues = [.. values],
-            EnumerationNumbers = numbers
+            EnumerationValues = [.. enumValues.Values],
+            EnumerationNumbers = enumValues.Numbering.Numbers
         }
     };
 
@@ -386,4 +356,55 @@ static class EnumConceptFacts
         !string.Equals(value, "validate", StringComparison.Ordinal);
 
     sealed record EnumNumbering(IReadOnlyList<int>? Numbers, string? Problem);
+
+    sealed record EnumValues(string[] Values, EnumNumbering Numbering);
+
+    sealed class EnumFactCollector(AdapterContribution contribution, HashSet<SubjectId> concepts)
+    {
+        public List<GenerationFact> Facts { get; } = [.. contribution.Facts];
+
+        public List<GenerationDiagnostic> Diagnostics { get; } = [.. contribution.Diagnostics];
+
+        public Dictionary<SubjectId, string> Unnumberable { get; } = [];
+
+        public void Add(DotNetProjectCompilation project, INamedTypeSymbol type, SubjectId subject)
+        {
+            var declaration = AuthoredDeclaration(type, project);
+            if (declaration is null)
+            {
+                return;
+            }
+
+            var evidence = CritterStackSource.EvidenceFor(
+                type,
+                contribution.Adapter,
+                project,
+                EvidenceStrength.Exact,
+                $"Authored enum '{type.Name}' declares its named values");
+            var enumValues = new EnumValues(
+                [.. declaration.Members.Select(_ => _.Identifier.ValueText)],
+                NumberingOf(type, declaration));
+            if (OmissionOf(type, subject, evidence, enumValues) is { } omission)
+            {
+                RecordOmission(subject, omission);
+                return;
+            }
+
+            if (concepts.Add(subject))
+            {
+                Facts.Add(ConceptFact(contribution.Adapter, subject, type.Name, evidence));
+            }
+
+            Facts.Add(RepresentationFact(contribution.Adapter, subject, evidence, enumValues));
+        }
+
+        void RecordOmission(SubjectId subject, GenerationDiagnostic omission)
+        {
+            Diagnostics.Add(omission);
+            if (omission.Code == CritterStackDiagnosticCodes.EnumNumbersNotPreserved)
+            {
+                Unnumberable[subject] = omission.Message;
+            }
+        }
+    }
 }
