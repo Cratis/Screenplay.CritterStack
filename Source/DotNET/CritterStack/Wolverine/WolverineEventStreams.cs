@@ -147,8 +147,12 @@ static class WolverineEventStreams
     {
         var method = scope.Method;
         if (!IsInDirectHandlerBody(invocationSyntax, method.Declaration) ||
-            DotNetInvocations.MethodFor(invocationSyntax, method.Model) is not { } invocationMethod ||
-            method.Model.GetOperation(invocationSyntax) is not IInvocationOperation invocation ||
+            DotNetInvocations.MethodFor(invocationSyntax, method.Model) is not { } invocationMethod)
+        {
+            return null;
+        }
+
+        if (method.Model.GetOperation(invocationSyntax) is not IInvocationOperation invocation ||
             !TryGetAppendModel(invocation, method.Project, out var invokedModel))
         {
             return null;
@@ -267,9 +271,12 @@ static class WolverineEventStreams
         modelType = null!;
         var method = invocation.TargetMethod;
         var streamMetadataName = DotNetSubjectIds.MetadataName(method.ContainingType.OriginalDefinition);
-        if (method.ReducedFrom is not null ||
-            !_eventStreamTypes.Contains(streamMetadataName) ||
-            project.Compilation.GetTypeByMetadataName(streamMetadataName) is not { } streamDefinition ||
+        if (method.ReducedFrom is not null || !_eventStreamTypes.Contains(streamMetadataName))
+        {
+            return false;
+        }
+
+        if (project.Compilation.GetTypeByMetadataName(streamMetadataName) is not { } streamDefinition ||
             !WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(streamDefinition, project))
         {
             return false;
@@ -373,9 +380,29 @@ static class WolverineEventStreams
         parameter.GetAttributes().FirstOrDefault(attribute =>
             attribute.AttributeClass is not null &&
             IsAuthoredWriteModelAttribute(attribute.AttributeClass, project) &&
-            attribute.ApplicationSyntaxReference?.SyntaxTree is { } tree &&
-            project.AuthoredSyntaxTrees.Contains(tree) &&
-            !DotNetGeneratedSource.IsGenerated(tree));
+            IsAuthoredTree(attribute.ApplicationSyntaxReference?.SyntaxTree, project));
+
+    static bool IsAuthoredTree(SyntaxTree? tree, DotNetProjectCompilation project) =>
+        tree is not null &&
+        project.AuthoredSyntaxTrees.Contains(tree) &&
+        !DotNetGeneratedSource.IsGenerated(tree);
+
+    static bool IsAuthoredSourceLocation(Location location, DotNetProjectCompilation project) =>
+        location.IsInSource && IsAuthoredTree(location.SourceTree, project);
+
+    static bool IsAdmittedWriteModelBase(
+        string metadataName,
+        INamedTypeSymbol attributeType,
+        DotNetProjectCompilation project)
+    {
+        if (project.Compilation.GetTypeByMetadataName(metadataName) is not { } admitted ||
+            !WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(admitted, project))
+        {
+            return false;
+        }
+
+        return DotNetSymbols.IsOrInheritsFrom(attributeType, metadataName);
+    }
 
     static bool IsAuthoredWriteModelAttribute(
         INamedTypeSymbol attributeType,
@@ -387,10 +414,7 @@ static class WolverineEventStreams
             WellKnownTypes.WolverineLegacyWriteAggregateAttribute,
             WellKnownTypes.WolverineHttpAggregateAttribute
         };
-        if (!admittedBases.Any(metadataName =>
-                project.Compilation.GetTypeByMetadataName(metadataName) is { } admitted &&
-                WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(admitted, project) &&
-                DotNetSymbols.IsOrInheritsFrom(attributeType, metadataName)))
+        if (!admittedBases.Any(metadataName => IsAdmittedWriteModelBase(metadataName, attributeType, project)))
         {
             return false;
         }
@@ -458,11 +482,7 @@ static class WolverineEventStreams
         SourceRange? fallback,
         DotNetProjectCompilation project)
     {
-        var location = symbol?.Locations.FirstOrDefault(location =>
-            location.IsInSource &&
-            location.SourceTree is not null &&
-            project.AuthoredSyntaxTrees.Contains(location.SourceTree) &&
-            !DotNetGeneratedSource.IsGenerated(location.SourceTree));
+        var location = symbol?.Locations.FirstOrDefault(location => IsAuthoredSourceLocation(location, project));
         return location is null ? fallback : CritterStackSource.RangeForProject(location, project);
     }
 
@@ -472,17 +492,12 @@ static class WolverineEventStreams
         DotNetProjectCompilation project)
     {
         if (attribute?.ApplicationSyntaxReference?.GetSyntax() is { } syntax &&
-            project.AuthoredSyntaxTrees.Contains(syntax.SyntaxTree) &&
-            !DotNetGeneratedSource.IsGenerated(syntax.SyntaxTree))
+            IsAuthoredTree(syntax.SyntaxTree, project))
         {
             return CritterStackSource.RangeForProject(syntax.GetLocation(), project);
         }
 
-        var location = parameter.Locations.FirstOrDefault(candidate =>
-            candidate.IsInSource &&
-            candidate.SourceTree is not null &&
-            project.AuthoredSyntaxTrees.Contains(candidate.SourceTree) &&
-            !DotNetGeneratedSource.IsGenerated(candidate.SourceTree));
+        var location = parameter.Locations.FirstOrDefault(candidate => IsAuthoredSourceLocation(candidate, project));
         return location is null ? null : CritterStackSource.RangeForProject(location, project);
     }
 
@@ -573,9 +588,7 @@ static class WolverineEventStreams
 
     static bool TryGetSinglePayload(IOperation operation, List<INamedTypeSymbol> eventTypes)
     {
-        if (operation is not IObjectCreationOperation objectCreation ||
-            IsObjectCollection(objectCreation.Type) ||
-            !IsEventPayloadType(objectCreation.Type))
+        if (operation is not IObjectCreationOperation objectCreation || !IsSingleEventPayload(objectCreation.Type))
         {
             return false;
         }
@@ -583,6 +596,8 @@ static class WolverineEventStreams
         eventTypes.Add((INamedTypeSymbol)objectCreation.Type!);
         return true;
     }
+
+    static bool IsSingleEventPayload(ITypeSymbol? type) => !IsObjectCollection(type) && IsEventPayloadType(type);
 
     static bool TryGetContainerPayloads(IOperation operation, List<INamedTypeSymbol> eventTypes, bool allowEmpty) => operation switch
     {
@@ -610,15 +625,23 @@ static class WolverineEventStreams
 
         foreach (var operation in initializer.Initializers)
         {
-            if (operation is not IInvocationOperation invocation ||
-                !IsCollectionAdd(invocation) ||
-                !invocation.Arguments.All(argument => TryGetPayloads(argument.Value, eventTypes, allowContainer: false)))
+            if (!TryGetAddPayloads(operation, eventTypes))
             {
                 return false;
             }
         }
 
         return true;
+    }
+
+    static bool TryGetAddPayloads(IOperation operation, List<INamedTypeSymbol> eventTypes)
+    {
+        if (operation is not IInvocationOperation invocation || !IsCollectionAdd(invocation))
+        {
+            return false;
+        }
+
+        return invocation.Arguments.All(argument => TryGetPayloads(argument.Value, eventTypes, allowContainer: false));
     }
 
     static bool IsCollectionAdd(IInvocationOperation invocation) =>
