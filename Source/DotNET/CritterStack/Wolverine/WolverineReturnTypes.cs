@@ -110,27 +110,12 @@ static class WolverineReturnTypes
             optional = true;
         }
 
-        if (unwrapped is IArrayTypeSymbol array)
+        return unwrapped switch
         {
-            return (array.ElementType as INamedTypeSymbol, true, optional);
-        }
-
-        if (unwrapped is INamedTypeSymbol named)
-        {
-            var enumerable = named.AllInterfaces
-                .Concat([named])
-                .FirstOrDefault(_ =>
-                    _.IsGenericType &&
-                    DotNetSubjectIds.MetadataName(_.OriginalDefinition) == "System.Collections.Generic.IEnumerable`1");
-            if (enumerable is not null)
-            {
-                return (enumerable.TypeArguments[0] as INamedTypeSymbol, true, optional);
-            }
-
-            return (named, false, optional);
-        }
-
-        return (null, false, optional);
+            IArrayTypeSymbol array => (array.ElementType as INamedTypeSymbol, true, optional),
+            INamedTypeSymbol named => NamedQueryModel(named, optional),
+            _ => (null, false, optional)
+        };
     }
 
     public static bool IsHttpResponseType(INamedTypeSymbol type)
@@ -156,6 +141,27 @@ static class WolverineReturnTypes
         return type.AllInterfaces.Any(@interface => DotNetSubjectIds.MetadataName(@interface.OriginalDefinition) == metadataName);
     }
 
+    static (INamedTypeSymbol? Model, bool IsCollection, bool IsOptional) NamedQueryModel(INamedTypeSymbol named, bool optional)
+    {
+        var enumerable = named.AllInterfaces
+            .Concat([named])
+            .FirstOrDefault(_ =>
+                _.IsGenericType &&
+                DotNetSubjectIds.MetadataName(_.OriginalDefinition) == "System.Collections.Generic.IEnumerable`1");
+        return enumerable is null
+            ? (named, false, optional)
+            : (enumerable.TypeArguments[0] as INamedTypeSymbol, true, optional);
+    }
+
+    static bool IsInNestedFunction(SyntaxNode node, MethodDeclarationSyntax declaration) =>
+        node.Ancestors().TakeWhile(_ => !ReferenceEquals(_, declaration)).Any(_ => _ is LocalFunctionStatementSyntax or AnonymousFunctionExpressionSyntax);
+
+    static bool IsTaskType(INamedTypeSymbol type)
+    {
+        var metadataName = DotNetSubjectIds.MetadataName(type);
+        return metadataName == "System.Threading.Tasks.Task" || metadataName == "System.Threading.Tasks.ValueTask";
+    }
+
     static bool HasResponseName(INamedTypeSymbol type) =>
         type.Name.StartsWith("UpdatedAggregate", StringComparison.Ordinal) ||
         type.Name.StartsWith("CreationResponse", StringComparison.Ordinal);
@@ -167,13 +173,10 @@ static class WolverineReturnTypes
             yield return body.Expression;
         }
 
-        foreach (var returned in declaration.DescendantNodes().OfType<ReturnStatementSyntax>())
+        var returns = declaration.DescendantNodes().OfType<ReturnStatementSyntax>().Where(returned => !IsInNestedFunction(returned, declaration));
+        foreach (var expression in returns.Select(returned => returned.Expression).OfType<ExpressionSyntax>())
         {
-            if (returned.Expression is { } expression &&
-                !returned.Ancestors().TakeWhile(_ => !ReferenceEquals(_, declaration)).Any(_ => _ is LocalFunctionStatementSyntax or AnonymousFunctionExpressionSyntax))
-            {
-                yield return expression;
-            }
+            yield return expression;
         }
     }
 
@@ -260,7 +263,6 @@ static class WolverineReturnTypes
     static bool IsTaskResult(InvocationExpressionSyntax invocation, SemanticModel model) =>
         model.GetSymbolInfo(invocation).Symbol is IMethodSymbol factory &&
         factory.Name == "FromResult" &&
-        (DotNetSubjectIds.MetadataName(factory.ContainingType) == "System.Threading.Tasks.Task" ||
-         DotNetSubjectIds.MetadataName(factory.ContainingType) == "System.Threading.Tasks.ValueTask") &&
+        IsTaskType(factory.ContainingType) &&
         invocation.ArgumentList.Arguments.Count == 1;
 }
