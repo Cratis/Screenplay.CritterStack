@@ -30,15 +30,16 @@ internal static partial class WolverineFacts
         {
             var documentSubject = scope.Subjects.SubjectForType(scope.Project, read.DocumentType!);
             var kind = read.IsCompiledQuery ? "compiled" : "session";
-            scope.Facts.Add(Relationship(
-                scope,
+            scope.Facts.Add(Relationship(scope, new WolverineRelationshipFact(
                 $"wolverine:reads:{kind}:{querySubject.Value}:{documentSubject.Value}",
                 querySubject,
                 RelationshipKind.Reads,
                 documentSubject,
-                read.Evidence,
-                unscopedSource: true,
-                targetOwnership: read.Ownership));
+                read.Evidence)
+            {
+                UnscopedSource = true,
+                TargetOwnership = read.Ownership
+            }));
         }
     }
 }

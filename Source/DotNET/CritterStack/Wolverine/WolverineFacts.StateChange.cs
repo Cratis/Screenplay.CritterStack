@@ -121,7 +121,7 @@ internal static partial class WolverineFacts
         AddPersistenceBoundReads(scope, commandSubject, shape.Method, shape.Aggregate);
         AddReadModelParameterFacts(scope, commandSubject, shape.Method);
         AddConsistentAggregateDiagnostics(scope, shape);
-        AddEventStreamBindingFacts(scope, commandSubject, commandName, shape.StreamBindings, isHttpEndpoint);
+        AddEventStreamBindingFacts(scope, new CommandRef(commandSubject, commandName), shape.StreamBindings, isHttpEndpoint);
         AddDcbFacts(scope, commandSubject, commandName, shape.Dcb);
     }
 
@@ -134,6 +134,7 @@ internal static partial class WolverineFacts
         ArtifactPlacement compatibilityPlacement,
         Evidence evidence)
     {
+        var writer = new EventWriteContext(commandSubject, eventOwner, compatibilityPlacement);
         foreach (var production in productions)
         {
             foreach (var ownership in ProductionOwnerships(scope, shape, production))
@@ -145,12 +146,12 @@ internal static partial class WolverineFacts
                 }
 
                 var firstFact = scope.Facts.Count;
-                AddEventAndProduction(scope, commandSubject, eventOwner, production, compatibilityPlacement, evidence, ownership);
+                AddEventAndProduction(scope, writer with { TargetOwnership = ownership }, production, evidence);
                 AddAuthoredProductionEvidence(scope, production, firstFact);
             }
         }
 
-        AddEventStreamAppendFacts(scope, commandSubject, eventOwner, compatibilityPlacement, shape.AppendDiscovery);
+        AddEventStreamAppendFacts(scope, writer, shape.AppendDiscovery);
     }
 
     static void AddAuthoredProductionEvidence(WolverineFactScope scope, WolverineProductionDecision production, int firstFact)
@@ -212,14 +213,15 @@ internal static partial class WolverineFacts
             SourceFileOf(aggregateType, project),
             DotNetTypeShapes.PropertiesOf(aggregateType),
             CritterStackSource.EvidenceFor(aggregateType, scope.Adapter, project, EvidenceStrength.Conventional, "Wolverine loads this model as aggregate decision state")));
-        scope.Facts.Add(Relationship(
-            scope,
+        scope.Facts.Add(Relationship(scope, new WolverineRelationshipFact(
             $"wolverine:reads:{commandSubject.Value}:{aggregateSubject.Value}",
             commandSubject,
             RelationshipKind.Reads,
             aggregateSubject,
-            evidence,
-            sourceMember: commandType is null ? null : IdentityPropertyName(commandType, aggregateType)));
+            evidence)
+        {
+            SourceMember = commandType is null ? null : IdentityPropertyName(commandType, aggregateType)
+        }));
     }
 
     static void AddPersistenceBoundReads(
@@ -257,17 +259,18 @@ internal static partial class WolverineFacts
                     evidence));
             }
 
-            scope.Facts.Add(Relationship(
-                scope,
+            scope.Facts.Add(Relationship(scope, new WolverineRelationshipFact(
                 $"wolverine:reads:{sourceSubject.Value}:{documentSubject.Value}:{parameter.Name}",
                 sourceSubject,
                 RelationshipKind.Reads,
                 documentSubject,
-                evidence,
-                discriminator: binding.Discriminator,
-                isCollection: binding.IsCollection,
-                isOptional: binding.IsOptional,
-                unscopedSource: unscopedSource));
+                evidence)
+            {
+                Discriminator = binding.Discriminator,
+                IsCollection = binding.IsCollection,
+                IsOptional = binding.IsOptional,
+                UnscopedSource = unscopedSource
+            }));
         }
     }
 

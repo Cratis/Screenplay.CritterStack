@@ -40,41 +40,44 @@ static class MartenFacts
 
         foreach (var registration in registrations)
         {
-            if (!registration.Ownership.CanEmit)
-            {
-                collected.Diagnostics.Add(registration.Ownership.Diagnostic(
-                    subjects.SubjectForType(project, registration.Projection ?? registration.Model),
-                    registration.Evidence.Source,
-                    "Marten projection ownership cannot be proved"));
-                continue;
-            }
-
-            var owned = collected.WithOwnership(registration.Ownership);
-            var sideEffectProjection = registration.Projection ?? registration.Model;
-            if (registration.Kind != ProjectionKind.Custom && sideEffectProjections.Add(sideEffectProjection))
-            {
-                AddSideEffectFacts(collected, registration, configuration.SideEffectsEnabled);
-            }
-
-            if (HasUnmodeledLifecycle(registration))
-            {
-                collected.Diagnostics.Add(ProjectionLifecycleDiagnostic(project, subjects, registration));
-            }
-
-            AddRegistrationFacts(owned, registration);
+            AddProjectionRegistration(collected, registration, sideEffectProjections, configuration.SideEffectsEnabled);
         }
 
         return new(collected.Facts, collected.Diagnostics, collected.Documents, collected.Placements);
     }
 
+    static void AddProjectionRegistration(
+        MartenCollectedFacts collected,
+        ProjectionRegistration registration,
+        HashSet<INamedTypeSymbol> sideEffectProjections,
+        bool sideEffectsEnabled)
+    {
+        if (!registration.Ownership.CanEmit)
+        {
+            collected.Diagnostics.Add(registration.Ownership.Diagnostic(
+                collected.Subjects.SubjectForType(collected.Project, registration.Projection ?? registration.Model),
+                registration.Evidence.Source,
+                "Marten projection ownership cannot be proved"));
+            return;
+        }
+
+        var sideEffectProjection = registration.Projection ?? registration.Model;
+        if (registration.Kind != ProjectionKind.Custom && sideEffectProjections.Add(sideEffectProjection))
+        {
+            AddSideEffectFacts(collected, registration, sideEffectsEnabled);
+        }
+
+        if (HasUnmodeledLifecycle(registration))
+        {
+            collected.Diagnostics.Add(ProjectionLifecycleDiagnostic(collected.Project, collected.Subjects, registration));
+        }
+
+        AddRegistrationFacts(collected.WithOwnership(registration.Ownership), registration);
+    }
+
     static void AddSideEffectFacts(MartenCollectedFacts collected, ProjectionRegistration registration, bool sideEffectsEnabled)
     {
-        var sideEffects = MartenProjectionSideEffects.Discover(
-            collected.Project,
-            collected.Adapter,
-            collected.Subjects,
-            registration,
-            sideEffectsEnabled);
+        var sideEffects = MartenProjectionSideEffects.Discover(collected, registration, sideEffectsEnabled);
         collected.Facts.AddRange(sideEffects.Facts);
         collected.Diagnostics.AddRange(sideEffects.Diagnostics);
     }

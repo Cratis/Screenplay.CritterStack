@@ -65,4 +65,14 @@ sealed record WolverineRelationshipFact(
     public BackendScopeKey? SourceScope { get; init; }
 
     public BackendScopeKey? TargetScope { get; init; }
+
+    /// <summary>
+    /// Gets whether the source is not bound to the owning backend scope.
+    /// </summary>
+    public bool UnscopedSource { get; init; }
+
+    /// <summary>
+    /// Gets the ownership of the target, when it differs from the owning backend.
+    /// </summary>
+    public BackendOwnership? TargetOwnership { get; init; }
 }

@@ -16,37 +16,28 @@ internal static partial class WolverineFacts
         WolverineValidationAuthorizationDiscoveryResult validationAuthorization,
         HashSet<ArtifactKey> handledCommands)
     {
-        var stageRequestType = RequestParameter(endpoint.Method, scope.Project)?.Type ?? endpoint.Method.ContainingType;
-        var stages = WolverineCompoundStages.StagesFor(endpoint.Method, stageRequestType, scope, isHttpEndpoint: true);
+        var stages = EndpointStages(scope, endpoint);
         if (endpoint.IsQuery)
         {
-            if (!HasMartenOperations(scope, endpoint.Method) && !endpoint.Method.Parameters.Any(IsPersistenceBoundParameter))
-            {
-                scope = scope.WithOwnership(BackendOwnership.Legacy);
-            }
-
-            AnalyzeQuery(scope, endpoint, validationAuthorization, stages);
+            AnalyzeQueryEndpoint(scope, endpoint, validationAuthorization, stages);
             return;
         }
 
         var command = DescribeEndpointCommand(scope, endpoint);
         var shape = command.Shape;
-        if (HasNoPersistenceEffects(shape, scope.Project) && !HasMartenOperations(scope, endpoint.Method))
-        {
-            scope = scope.WithOwnership(BackendOwnership.Legacy);
-        }
-        else if (!scope.RequireOwnership(endpoint.Method))
+        if (EndpointCommandScope(scope, command) is not { } commandScope)
         {
             return;
         }
 
+        scope = commandScope;
         var productionDiagnostics = new List<GenerationDiagnostic>();
         var productions = WolverineProductionPlan.Decide(
             shape.ToProductionSources(
                 command.CommandName,
                 command.CommandSubject,
                 command.Evidence.Source,
-                validationAuthorization.HasCompoundValidation(endpoint.Method) || HasShortCircuitingStage(stages)),
+                ShortCircuitsEndpoint(validationAuthorization, endpoint, stages)),
             productionDiagnostics);
         if (IsForwardedCommand(scope, command, productions, handledCommands))
         {
@@ -56,6 +47,58 @@ internal static partial class WolverineFacts
         }
 
         scope.Diagnostics.AddRange(productionDiagnostics);
+        var placement = EndpointPlacementFor(scope, command);
+
+        AddEndpointCommandFacts(scope, command, productions, placement);
+        AddEndpointAggregateFacts(scope, command);
+        AddStateReadFacts(scope, command.CommandSubject, command.CommandName, shape, isHttpEndpoint: true);
+        AddEndpointValidationDiagnostics(scope, command, validationAuthorization);
+
+        var eventOwner = placement.SourceOwner ?? command.CommandSubject;
+        AddProductionFacts(scope, command.CommandSubject, eventOwner, productions, shape, placement.Compatibility, command.Evidence);
+        AddEffectFacts(scope, command.CommandSubject, shape, command.Evidence);
+        AddResolvedCompoundStageConsequences(scope, command.CommandSubject, endpoint.Method, stages);
+    }
+
+    static IReadOnlyList<WolverineCompoundStage> EndpointStages(WolverineFactScope scope, HttpEndpoint endpoint)
+    {
+        var stageRequestType = RequestParameter(endpoint.Method, scope.Project)?.Type ?? endpoint.Method.ContainingType;
+        return WolverineCompoundStages.StagesFor(endpoint.Method, stageRequestType, scope, isHttpEndpoint: true);
+    }
+
+    static bool ShortCircuitsEndpoint(
+        WolverineValidationAuthorizationDiscoveryResult validationAuthorization,
+        HttpEndpoint endpoint,
+        IReadOnlyList<WolverineCompoundStage> stages) =>
+        validationAuthorization.HasCompoundValidation(endpoint.Method) || HasShortCircuitingStage(stages);
+
+    static void AnalyzeQueryEndpoint(
+        WolverineFactScope scope,
+        HttpEndpoint endpoint,
+        WolverineValidationAuthorizationDiscoveryResult validationAuthorization,
+        IReadOnlyList<WolverineCompoundStage> stages)
+    {
+        if (!HasMartenOperations(scope, endpoint.Method) && !endpoint.Method.Parameters.Any(IsPersistenceBoundParameter))
+        {
+            scope = scope.WithOwnership(BackendOwnership.Legacy);
+        }
+
+        AnalyzeQuery(scope, endpoint, validationAuthorization, stages);
+    }
+
+    static WolverineFactScope? EndpointCommandScope(WolverineFactScope scope, EndpointCommand command)
+    {
+        if (HasNoPersistenceEffects(command.Shape, scope.Project) && !HasMartenOperations(scope, command.Endpoint.Method))
+        {
+            return scope.WithOwnership(BackendOwnership.Legacy);
+        }
+
+        return scope.RequireOwnership(command.Endpoint.Method) ? scope : null;
+    }
+
+    static EndpointPlacement EndpointPlacementFor(WolverineFactScope scope, EndpointCommand command)
+    {
+        var shape = command.Shape;
         var feature = StateFeature(command.CommandName, shape.AggregateType, shape.StreamBindings, shape.Dcb?.ModelType);
         var compatibilityPlacement = CritterStackSourcePlacement.CompatibilityPlacement(
             scope.Project,
@@ -64,18 +107,9 @@ internal static partial class WolverineFacts
             command.CommandName,
             GenerationSliceKind.StateChange);
         var commandSourceOwner = command.CommandType is null
-            ? scope.Subjects.SubjectForType(scope.Project, endpoint.Method.ContainingType)
+            ? scope.Subjects.SubjectForType(scope.Project, command.Endpoint.Method.ContainingType)
             : null;
-
-        AddEndpointCommandFacts(scope, command, productions, compatibilityPlacement, commandSourceOwner);
-        AddEndpointAggregateFacts(scope, command);
-        AddStateReadFacts(scope, command.CommandSubject, command.CommandName, shape, isHttpEndpoint: true);
-        AddEndpointValidationDiagnostics(scope, command, validationAuthorization);
-
-        var eventOwner = commandSourceOwner ?? command.CommandSubject;
-        AddProductionFacts(scope, command.CommandSubject, eventOwner, productions, shape, compatibilityPlacement, command.Evidence);
-        AddEffectFacts(scope, command.CommandSubject, shape, command.Evidence);
-        AddResolvedCompoundStageConsequences(scope, command.CommandSubject, endpoint.Method, stages);
+        return new(compatibilityPlacement, commandSourceOwner);
     }
 
     static EndpointCommand DescribeEndpointCommand(WolverineFactScope scope, HttpEndpoint endpoint)
@@ -190,8 +224,7 @@ internal static partial class WolverineFacts
         WolverineFactScope scope,
         EndpointCommand command,
         IReadOnlyList<WolverineProductionDecision> productions,
-        ArtifactPlacement compatibilityPlacement,
-        SubjectId? commandSourceOwner)
+        EndpointPlacement placement)
     {
         var commandKey = scope.Key(command.CommandSubject, ArtifactKind.Command);
         scope.Facts.Add(Artifact(
@@ -204,8 +237,8 @@ internal static partial class WolverineFacts
         scope.Placements.Add(new(
             scope.PlacementId($"wolverine:placement:command:{command.CommandSubject.Value}"),
             commandKey,
-            commandSourceOwner,
-            compatibilityPlacement,
+            placement.SourceOwner,
+            placement.Compatibility,
             command.Evidence));
         scope.Diagnostics.Add(new GenerationDiagnostic
         {
@@ -302,7 +335,8 @@ internal static partial class WolverineFacts
             queryName,
             GenerationSliceKind.StateView);
 
-        AddQueryFacts(scope, endpoint, querySubject, queryName, compatibilityPlacement, compiledQueries, evidence);
+        var query = new EndpointQuery(endpoint, querySubject, queryName, evidence);
+        AddQueryFacts(scope, query, compatibilityPlacement, compiledQueries);
         var sessionReads = new MartenSessionReadDiscovery(project, scope.Adapter, scope.Resolver).Discover(endpoint.Method, scope.Ownership);
         var queryScope = scope.WithOwnership(QueryResultOwnership(scope, sessionReads));
         if (!queryScope.RequireOwnership(endpoint.Method))
@@ -310,7 +344,7 @@ internal static partial class WolverineFacts
             return;
         }
 
-        AddQueryModelFacts(queryScope, querySubject, model, evidence, isCollection, isOptional);
+        AddQueryModelFacts(queryScope, query, new QueryResultModel(model, isCollection, isOptional));
         AddSessionQueryReads(scope, querySubject, sessionReads);
         AddPersistenceBoundReads(scope, querySubject, endpoint.Method, aggregateParameter: null, unscopedSource: true);
         AddResolvedCompoundStageConsequences(scope, querySubject, endpoint.Method, stages);
@@ -321,13 +355,11 @@ internal static partial class WolverineFacts
 
     static void AddQueryFacts(
         WolverineFactScope scope,
-        HttpEndpoint endpoint,
-        SubjectId querySubject,
-        string queryName,
+        EndpointQuery query,
         ArtifactPlacement compatibilityPlacement,
-        IReadOnlyList<MartenCompiledQueryLink> compiledQueries,
-        Evidence evidence)
+        IReadOnlyList<MartenCompiledQueryLink> compiledQueries)
     {
+        var (endpoint, querySubject, queryName, evidence) = query;
         var queryKey = new ArtifactKey { Subject = querySubject, Kind = ArtifactKind.Query };
         scope.Facts.Add(Artifact(
             $"wolverine:query:{querySubject.Value}",
@@ -353,14 +385,10 @@ internal static partial class WolverineFacts
         });
     }
 
-    static void AddQueryModelFacts(
-        WolverineFactScope scope,
-        SubjectId querySubject,
-        INamedTypeSymbol model,
-        Evidence evidence,
-        bool isCollection,
-        bool isOptional)
+    static void AddQueryModelFacts(WolverineFactScope scope, EndpointQuery query, QueryResultModel result)
     {
+        var (_, querySubject, _, evidence) = query;
+        var (model, isCollection, isOptional) = result;
         var modelSubject = scope.Subjects.SubjectForType(scope.Project, model);
         var modelKey = scope.Key(modelSubject, ArtifactKind.ReadModel);
         scope.Facts.Add(Artifact(
@@ -385,16 +413,17 @@ internal static partial class WolverineFacts
                 Strength = EvidenceStrength.Heuristic,
                 Explanation = "The returned model name provides the default Screenplay placement"
             }));
-        scope.Facts.Add(Relationship(
-            scope,
+        scope.Facts.Add(Relationship(scope, new WolverineRelationshipFact(
             $"wolverine:returns:{querySubject.Value}:{modelSubject.Value}",
             querySubject,
             RelationshipKind.Returns,
             modelSubject,
-            evidence,
-            isCollection: isCollection,
-            isOptional: isOptional,
-            unscopedSource: true));
+            evidence)
+        {
+            IsCollection = isCollection,
+            IsOptional = isOptional,
+            UnscopedSource = true
+        }));
     }
 
     static HttpEndpoint? EndpointFor(IMethodSymbol method)
@@ -417,6 +446,12 @@ internal static partial class WolverineFacts
         var route = attribute.ConstructorArguments.FirstOrDefault().Value as string;
         return new(method, verb, route);
     }
+
+    sealed record EndpointPlacement(ArtifactPlacement Compatibility, SubjectId? SourceOwner);
+
+    sealed record EndpointQuery(HttpEndpoint Endpoint, SubjectId Subject, string Name, Evidence Evidence);
+
+    sealed record QueryResultModel(INamedTypeSymbol Model, bool IsCollection, bool IsOptional);
 
     sealed class EndpointCommand
     {

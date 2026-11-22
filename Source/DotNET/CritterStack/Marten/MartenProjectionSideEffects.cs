@@ -15,12 +15,11 @@ sealed record MartenProjectionSideEffectResult(
 static class MartenProjectionSideEffects
 {
     public static MartenProjectionSideEffectResult Discover(
-        DotNetProjectCompilation project,
-        AdapterIdentity adapter,
-        CritterStackSubjectResolver subjects,
+        MartenCollectedFacts collected,
         ProjectionRegistration registration,
         bool sideEffectsEnabled)
     {
+        var (project, adapter, subjects) = (collected.Project, collected.Adapter, collected.Subjects);
         var projection = registration.Projection ?? registration.Model;
         var projectionSubject = registration.Kind == ProjectionKind.Event
             ? subjects.SubjectForType(project, projection)
@@ -63,9 +62,7 @@ static class MartenProjectionSideEffects
             }
 
             var argument = invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression;
-            if (argument is not (ObjectCreationExpressionSyntax or ImplicitObjectCreationExpressionSyntax) ||
-                semanticModel.GetTypeInfo(argument).Type is not INamedTypeSymbol messageType ||
-                messageType.TypeKind == TypeKind.Error)
+            if (PayloadType(argument, semanticModel) is not { } messageType)
             {
                 Diagnostics.Add(Unresolved(
                     invocation,
@@ -84,6 +81,17 @@ static class MartenProjectionSideEffects
             }
 
             AddPublication(invocation, messageType);
+        }
+
+        static INamedTypeSymbol? PayloadType(ExpressionSyntax? argument, SemanticModel semanticModel)
+        {
+            if (argument is not (ObjectCreationExpressionSyntax or ImplicitObjectCreationExpressionSyntax))
+            {
+                return null;
+            }
+
+            var type = semanticModel.GetTypeInfo(argument).Type as INamedTypeSymbol;
+            return type?.TypeKind == TypeKind.Error ? null : type;
         }
 
         bool IsProjectionPublishMessage(InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>

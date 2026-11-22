@@ -251,14 +251,15 @@ internal static partial class WolverineFacts
             scope.Subjects.SubjectForType(project, handler.Method.ContainingType),
             compatibilityPlacement,
             evidence));
-        scope.Facts.Add(Relationship(
-            scope,
+        scope.Facts.Add(Relationship(scope, new WolverineRelationshipFact(
             $"wolverine:handles:{reactionSubject.Value}:{requestSubject.Value}",
             reactionSubject,
             RelationshipKind.Handles,
             requestSubject,
-            evidence,
-            isCollection: handler.Batched));
+            evidence)
+        {
+            IsCollection = handler.Batched
+        }));
     }
 
     static bool IsHandler(

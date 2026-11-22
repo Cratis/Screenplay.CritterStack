@@ -29,18 +29,19 @@ internal static partial class WolverineFacts
             Explanation = $"Authored Wolverine DCB model parameter '{dcb.Parameter.Name}' with an EventTagQuery companion"
         };
         AddAggregateArtifact(scope, aggregateSubject, dcb.ModelType, evidence);
-        scope.Facts.Add(Relationship(
-            scope,
+        scope.Facts.Add(Relationship(scope, new WolverineRelationshipFact(
             $"wolverine:reads:{commandSubject.Value}:{dcb.Discriminator}:{aggregateSubject.Value}",
             commandSubject,
             RelationshipKind.Reads,
             aggregateSubject,
-            evidence,
-            sourceMember: dcb.SourceMember,
-            discriminator: dcb.Discriminator));
+            evidence)
+        {
+            SourceMember = dcb.SourceMember,
+            Discriminator = dcb.Discriminator
+        }));
 
-        AddDcbConditionFacts(scope, commandSubject, dcb, aggregateSubject, evidence);
-        AddDcbQueryEventFacts(scope, commandSubject, commandName, dcb, evidence);
+        AddDcbConditionFacts(scope, commandSubject, dcb, new StateRead(aggregateSubject, evidence));
+        AddDcbQueryEventFacts(scope, new CommandRef(commandSubject, commandName), dcb, evidence);
         AddDcbDiagnostics(scope, commandSubject, commandName, dcb);
     }
 
@@ -48,9 +49,9 @@ internal static partial class WolverineFacts
         WolverineFactScope scope,
         SubjectId commandSubject,
         WolverineDcbDiscovery dcb,
-        SubjectId aggregateSubject,
-        Evidence evidence)
+        StateRead read)
     {
+        var (aggregateSubject, evidence) = read;
         foreach (var condition in dcb.Conditions.Where(condition =>
                      condition.EventType is null || !WolverineSagaTypes.IsSagaState(condition.EventType, scope.Project)))
         {
@@ -64,22 +65,22 @@ internal static partial class WolverineFacts
                     ? $"Exact DCB condition {condition.Ordinal} matches any event tagged with '{condition.TagType.Name}'"
                     : $"Exact DCB condition {condition.Ordinal} matches '{condition.EventType.Name}' tagged with '{condition.TagType.Name}'"
             };
-            scope.Facts.Add(Relationship(
-                scope,
+            scope.Facts.Add(Relationship(scope, new WolverineRelationshipFact(
                 $"wolverine:reads:{commandSubject.Value}:{discriminator}:{aggregateSubject.Value}",
                 commandSubject,
                 RelationshipKind.Reads,
                 aggregateSubject,
-                conditionEvidence,
-                sourceMember: condition.SourceMember,
-                discriminator: discriminator));
+                conditionEvidence)
+            {
+                SourceMember = condition.SourceMember,
+                Discriminator = discriminator
+            }));
         }
     }
 
     static void AddDcbQueryEventFacts(
         WolverineFactScope scope,
-        SubjectId commandSubject,
-        string commandName,
+        CommandRef command,
         WolverineDcbDiscovery dcb,
         Evidence evidence)
     {
@@ -89,10 +90,10 @@ internal static partial class WolverineFacts
             var eventEvidence = evidence with
             {
                 Source = dcb.QuerySource,
-                Explanation = $"Explicit historical event type in the authored DCB EventTagQuery for '{commandName}'"
+                Explanation = $"Explicit historical event type in the authored DCB EventTagQuery for '{command.Name}'"
             };
             scope.Facts.Add(Artifact(
-                $"wolverine:dcb:query-event:{commandSubject.Value}:{eventSubject.Value}",
+                $"wolverine:dcb:query-event:{command.Subject.Value}:{eventSubject.Value}",
                 scope.Key(eventSubject, ArtifactKind.Event),
                 eventType.Name,
                 SourceFileOf(eventType, scope.Project),
@@ -133,8 +134,7 @@ internal static partial class WolverineFacts
 
     static void AddEventStreamBindingFacts(
         WolverineFactScope scope,
-        SubjectId commandSubject,
-        string commandName,
+        CommandRef command,
         IReadOnlyList<WolverineStateBinding> bindings,
         bool isHttpEndpoint)
     {
@@ -144,24 +144,24 @@ internal static partial class WolverineFacts
         {
             if (binding.Fetched is not null)
             {
-                AddFetchedStreamBindingFacts(scope, commandSubject, commandName, binding);
+                AddFetchedStreamBindingFacts(scope, command, binding);
                 continue;
             }
 
-            AddStreamParameterRead(scope, commandSubject, binding, aggregateSubjects);
+            AddStreamParameterRead(scope, command.Subject, binding, aggregateSubjects);
             if (isHttpEndpoint && binding.IdentityMember is null)
             {
-                scope.Diagnostics.Add(RouteIdentityOmitted(commandSubject, commandName, binding));
+                scope.Diagnostics.Add(RouteIdentityOmitted(command.Subject, command.Name, binding));
             }
 
             if (OmitsVersionMetadata(binding))
             {
-                scope.Diagnostics.Add(StreamVersionOmitted(commandSubject, commandName, binding));
+                scope.Diagnostics.Add(StreamVersionOmitted(command.Subject, command.Name, binding));
             }
 
             if (hasMultipleStreams)
             {
-                scope.Diagnostics.Add(MultipleStreamMetadataOmitted(commandSubject, commandName, binding));
+                scope.Diagnostics.Add(MultipleStreamMetadataOmitted(command.Subject, command.Name, binding));
             }
         }
     }
@@ -182,15 +182,16 @@ internal static partial class WolverineFacts
             AddAggregateArtifact(scope, aggregateSubject, binding.ModelType, evidence);
         }
 
-        scope.Facts.Add(Relationship(
-            scope,
+        scope.Facts.Add(Relationship(scope, new WolverineRelationshipFact(
             $"wolverine:reads:{commandSubject.Value}:{binding.Discriminator}:{aggregateSubject.Value}",
             commandSubject,
             RelationshipKind.Reads,
             aggregateSubject,
-            evidence,
-            sourceMember: binding.IdentityMember is null ? null : LowerFirst(binding.IdentityMember.Name),
-            discriminator: binding.Discriminator));
+            evidence)
+        {
+            SourceMember = binding.IdentityMember is null ? null : LowerFirst(binding.IdentityMember.Name),
+            Discriminator = binding.Discriminator
+        }));
     }
 
     static bool OmitsVersionMetadata(WolverineStateBinding binding) =>
@@ -233,56 +234,66 @@ internal static partial class WolverineFacts
         Subject = commandSubject
     };
 
-    static void AddFetchedStreamBindingFacts(
-        WolverineFactScope scope,
-        SubjectId commandSubject,
-        string commandName,
-        WolverineStateBinding binding)
+    static void AddFetchedStreamBindingFacts(WolverineFactScope scope, CommandRef command, WolverineStateBinding binding)
     {
         var fetched = binding.Fetched!;
         var ownership = binding.Ownership ?? scope.Ownership;
         if (!ownership.CanEmit)
         {
-            scope.Diagnostics.Add(ownership.Diagnostic(commandSubject, binding.Source, "The backend owning this fetched stream could not be proven"));
+            scope.Diagnostics.Add(ownership.Diagnostic(command.Subject, binding.Source, "The backend owning this fetched stream could not be proven"));
             return;
         }
 
+        if (!fetched.IsEmpty)
+        {
+            AddFetchedStreamRead(scope, command.Subject, binding);
+        }
+
+        scope.Diagnostics.Add(FetchedStreamMetadataOmitted(command, binding));
+    }
+
+    static void AddFetchedStreamRead(WolverineFactScope scope, SubjectId commandSubject, WolverineStateBinding binding)
+    {
+        var fetched = binding.Fetched!;
+        var ownership = binding.Ownership ?? scope.Ownership;
         var evidence = StateBindingEvidence(
             scope.Adapter,
             binding,
             $"Exact FetchManyForWriting<{binding.ModelType.Name}> loading at '{fetched.Site}', identity expression '{fetched.IdentityExpression}'");
-        if (!fetched.IsEmpty)
+        var aggregateSubject = scope.Subjects.SubjectForType(scope.Project, binding.ModelType);
+        AddAggregateArtifact(scope.WithOwnership(ownership), aggregateSubject, binding.ModelType, evidence);
+        scope.Facts.Add(Relationship(scope, new WolverineRelationshipFact(
+            $"wolverine:reads:{commandSubject.Value}:{binding.Discriminator}:{aggregateSubject.Value}",
+            commandSubject,
+            RelationshipKind.Reads,
+            aggregateSubject,
+            evidence)
         {
-            var aggregateSubject = scope.Subjects.SubjectForType(scope.Project, binding.ModelType);
-            AddAggregateArtifact(scope.WithOwnership(ownership), aggregateSubject, binding.ModelType, evidence);
-            scope.Facts.Add(Relationship(
-                scope,
-                $"wolverine:reads:{commandSubject.Value}:{binding.Discriminator}:{aggregateSubject.Value}",
-                commandSubject,
-                RelationshipKind.Reads,
-                aggregateSubject,
-                evidence,
-                sourceMember: binding.IdentityMember is null ? null : LowerFirst(binding.IdentityMember.Name),
-                discriminator: binding.Discriminator,
-                isCollection: fetched.IsCollection,
-                targetOwnership: ownership));
-        }
+            SourceMember = binding.IdentityMember is null ? null : LowerFirst(binding.IdentityMember.Name),
+            Discriminator = binding.Discriminator,
+            IsCollection = fetched.IsCollection,
+            TargetOwnership = ownership
+        }));
+    }
 
+    static GenerationDiagnostic FetchedStreamMetadataOmitted(CommandRef command, WolverineStateBinding binding)
+    {
+        var fetched = binding.Fetched!;
         var boundary = fetched switch
         {
             { IsEmpty: true } => "the statically empty input establishes no stream instances",
             { IsCollection: true } => "unknown runtime cardinality and quantified identity correspondence are retained as collection relationship metadata",
             _ => $"target and identity for slot {fetched.Index} are retained as neutral relationship metadata"
         };
-        scope.Diagnostics.Add(new()
+        return new()
         {
             Code = WolverineDiagnosticCodes.MultipleStreamMetadataOmitted,
             Severity = GenerationDiagnosticSeverity.Warning,
             Outcome = GenerationDiagnosticOutcome.Unsupported,
-            Message = $"Handler '{commandName}' uses FetchManyForWriting; {boundary}, but per-stream loading and optimistic version semantics cannot be lowered faithfully to the current Screenplay language{DistinctnessLoss(fetched)}",
+            Message = $"Handler '{command.Name}' uses FetchManyForWriting; {boundary}, but per-stream loading and optimistic version semantics cannot be lowered faithfully to the current Screenplay language{DistinctnessLoss(fetched)}",
             Source = binding.Source,
-            Subject = commandSubject
-        });
+            Subject = command.Subject
+        };
     }
 
     static string DistinctnessLoss(WolverineFetchedStreamBinding fetched) => fetched switch
@@ -294,9 +305,7 @@ internal static partial class WolverineFacts
 
     static void AddEventStreamAppendFacts(
         WolverineFactScope scope,
-        SubjectId commandSubject,
-        SubjectId eventOwner,
-        ArtifactPlacement compatibilityPlacement,
+        EventWriteContext writer,
         WolverineEventStreamAppendDiscovery discovery)
     {
         foreach (var unresolved in discovery.Unresolved)
@@ -308,16 +317,11 @@ internal static partial class WolverineFacts
                 Outcome = GenerationDiagnosticOutcome.Unknown,
                 Message = $"An exact IEventStream<T> append was not represented because {unresolved.Reason}",
                 Source = unresolved.Source,
-                Subject = commandSubject
+                Subject = writer.CommandSubject
             });
         }
 
-        var context = new AppendContext
-        {
-            CommandSubject = commandSubject,
-            EventOwner = eventOwner,
-            CompatibilityPlacement = compatibilityPlacement
-        };
+        var context = new AppendContext { Writer = writer };
         foreach (var append in discovery.Appends)
         {
             AddAppendFacts(scope, context, append);
@@ -330,7 +334,7 @@ internal static partial class WolverineFacts
         var ownership = binding.Ownership ?? scope.Ownership;
         if (!ownership.CanEmit)
         {
-            scope.Diagnostics.Add(ownership.Diagnostic(context.CommandSubject, append.Source, "The backend owning this stream append could not be proven"));
+            scope.Diagnostics.Add(ownership.Diagnostic(context.Writer.CommandSubject, append.Source, "The backend owning this stream append could not be proven"));
             return;
         }
 
@@ -351,18 +355,17 @@ internal static partial class WolverineFacts
 
         foreach (var eventType in append.EventTypes)
         {
-            AddAppendedEvent(scope, context, append, aggregateSubject, evidence, eventType);
+            AddAppendedEvent(scope, context, new AppendTarget(append, aggregateSubject, evidence), eventType);
         }
     }
 
     static void AddAppendedEvent(
         WolverineFactScope scope,
         AppendContext context,
-        WolverineEventStreamAppend append,
-        SubjectId aggregateSubject,
-        Evidence evidence,
+        AppendTarget target,
         INamedTypeSymbol eventType)
     {
+        var (append, aggregateSubject, evidence) = target;
         var binding = append.Binding;
         var eventSubject = scope.Subjects.SubjectForType(scope.Project, eventType);
         var ownership = binding.Ownership ?? scope.Ownership;
@@ -370,12 +373,9 @@ internal static partial class WolverineFacts
         {
             AddEventAndProduction(
                 scope,
-                context.CommandSubject,
-                context.EventOwner,
+                context.Writer with { TargetOwnership = ownership },
                 new WolverineProductionDecision(eventType, Declarative: false, StreamIdentity: null),
-                context.CompatibilityPlacement,
-                evidence,
-                ownership);
+                evidence);
         }
 
         var relationshipDiscriminator = $"{binding.Discriminator}:event:{eventSubject.Value}";
@@ -384,17 +384,18 @@ internal static partial class WolverineFacts
             return;
         }
 
-        scope.Facts.Add(Relationship(
-            scope,
-            $"wolverine:appends:{context.CommandSubject.Value}:{relationshipDiscriminator}:{aggregateSubject.Value}",
-            context.CommandSubject,
+        scope.Facts.Add(Relationship(scope, new WolverineRelationshipFact(
+            $"wolverine:appends:{context.Writer.CommandSubject.Value}:{relationshipDiscriminator}:{aggregateSubject.Value}",
+            context.Writer.CommandSubject,
             RelationshipKind.Appends,
             aggregateSubject,
-            evidence,
-            sourceMember: binding.IdentityMember is null ? null : LowerFirst(binding.IdentityMember.Name),
-            discriminator: relationshipDiscriminator,
-            isCollection: binding.Fetched?.IsCollection ?? false,
-            targetOwnership: ownership));
+            evidence)
+        {
+            SourceMember = binding.IdentityMember is null ? null : LowerFirst(binding.IdentityMember.Name),
+            Discriminator = relationshipDiscriminator,
+            IsCollection = binding.Fetched?.IsCollection ?? false,
+            TargetOwnership = ownership
+        }));
     }
 
     static void AddAggregateArtifact(
@@ -426,14 +427,12 @@ internal static partial class WolverineFacts
 
     static void AddEventAndProduction(
         WolverineFactScope scope,
-        SubjectId commandSubject,
-        SubjectId eventOwner,
+        EventWriteContext writer,
         WolverineProductionDecision production,
-        ArtifactPlacement compatibilityPlacement,
-        Evidence evidence,
-        BackendOwnership? targetOwnership = null)
+        Evidence evidence)
     {
-        var ownership = targetOwnership ?? scope.Ownership;
+        var commandSubject = writer.CommandSubject;
+        var ownership = writer.TargetOwnership ?? scope.Ownership;
         var eventType = production.EventType;
         if (WolverineSagaTypes.IsSagaState(eventType, scope.Project))
         {
@@ -452,19 +451,20 @@ internal static partial class WolverineFacts
         scope.Placements.Add(new(
             BackendOccurrenceKeys.FactId($"wolverine:placement:event:{eventSubject.Value}:{commandSubject.Value}", ownership.Scope),
             eventKey,
-            eventOwner,
-            compatibilityPlacement,
+            writer.EventOwner,
+            writer.CompatibilityPlacement,
             evidence));
-        scope.Facts.Add(Relationship(
-            scope,
+        scope.Facts.Add(Relationship(scope, new WolverineRelationshipFact(
             $"wolverine:produces:{commandSubject.Value}:{eventSubject.Value}",
             commandSubject,
             RelationshipKind.Produces,
             eventSubject,
-            evidence,
-            sourceMember: production.StreamIdentity is null ? null : LowerFirst(production.StreamIdentity.Name),
-            discriminator: production.Declarative ? "declarative" : "imperative",
-            targetOwnership: ownership));
+            evidence)
+        {
+            SourceMember = production.StreamIdentity is null ? null : LowerFirst(production.StreamIdentity.Name),
+            Discriminator = production.Declarative ? "declarative" : "imperative",
+            TargetOwnership = ownership
+        }));
     }
 
     static IPropertySymbol? LinkedStreamIdentity(IReadOnlyList<WolverineProductionDecision> productions)
@@ -479,13 +479,20 @@ internal static partial class WolverineFacts
         return identities.Length == 1 ? identities[0] : null;
     }
 
+    sealed record CommandRef(SubjectId Subject, string Name);
+
+    sealed record StateRead(SubjectId Aggregate, Evidence Evidence);
+
+    sealed record AppendTarget(WolverineEventStreamAppend Append, SubjectId Aggregate, Evidence Evidence);
+
+    sealed record EventWriteContext(SubjectId CommandSubject, SubjectId EventOwner, ArtifactPlacement CompatibilityPlacement)
+    {
+        public BackendOwnership? TargetOwnership { get; init; }
+    }
+
     sealed class AppendContext
     {
-        public required SubjectId CommandSubject { get; init; }
-
-        public required SubjectId EventOwner { get; init; }
-
-        public required ArtifactPlacement CompatibilityPlacement { get; init; }
+        public required EventWriteContext Writer { get; init; }
 
         public HashSet<ArtifactKey> AggregateSubjects { get; } = [];
 
