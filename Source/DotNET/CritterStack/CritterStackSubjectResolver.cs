@@ -79,7 +79,9 @@ sealed class CritterStackSubjectResolver(DotNetAnalysisContext? context, DotNetA
         SymbolEqualityComparer.Default.Equals(type.ContainingModule, discoveringProject.Compilation.SourceModule) ||
         discoveringProject.Compilation.References
             .OfType<CompilationReference>()
-            .Any(reference => SymbolEqualityComparer.Default.Equals(reference.Compilation.Assembly, type.ContainingAssembly));
+            .Any(reference => SymbolEqualityComparer.Default.Equals(
+                discoveringProject.Compilation.GetAssemblyOrModuleSymbol(reference),
+                type.ContainingAssembly));
 
     IReadOnlyList<SubjectId> ExactOwners(INamedTypeSymbol inputType, string metadataName) =>
     [
