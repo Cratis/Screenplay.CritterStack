@@ -21,8 +21,7 @@ internal static partial class WolverineFacts
         var factoryMethodsBySlot = StorageFactoryMethodsBySlot(method, scope.Project);
         foreach (var consequence in consequences)
         {
-            if (StoredEntityType(consequence) is not { } entityType ||
-                StorageActionRelationshipKind(consequence.Slot, entityType, factoryMethodsBySlot) is not { } relationshipKind)
+            if (StoredRelationship(consequence, factoryMethodsBySlot) is not (INamedTypeSymbol entityType, RelationshipKind relationshipKind))
             {
                 continue;
             }
@@ -43,6 +42,20 @@ internal static partial class WolverineFacts
                 Discriminator = $"storage-action:{consequence.Slot}"
             }));
         }
+    }
+
+    static (INamedTypeSymbol EntityType, RelationshipKind Kind)? StoredRelationship(
+        WolverineReturnConsequence consequence,
+        Dictionary<int, List<IMethodSymbol?>> factoryMethodsBySlot)
+    {
+        if (StoredEntityType(consequence) is not { } entityType)
+        {
+            return null;
+        }
+
+        return StorageActionRelationshipKind(consequence.Slot, entityType, factoryMethodsBySlot) is { } kind
+            ? (entityType, kind)
+            : null;
     }
 
     static INamedTypeSymbol? StoredEntityType(WolverineReturnConsequence consequence) =>
@@ -85,11 +98,14 @@ internal static partial class WolverineFacts
             .OfType<IMethodSymbol>()
             .Where(_ => _.TypeArguments.Any(typeArgument => SymbolEqualityComparer.Default.Equals(typeArgument, entityType)))
             .ToArray();
-        if (slotMethods.Exists(_ => _ is null) || factoryMethods.Length != slotMethods.Count)
-        {
-            return RelationshipKind.Stores;
-        }
+        return AllResolved(slotMethods, factoryMethods) ? DistinctKind(factoryMethods) : RelationshipKind.Stores;
+    }
 
+    static bool AllResolved(List<IMethodSymbol?> slotMethods, IMethodSymbol[] factoryMethods) =>
+        !slotMethods.Exists(_ => _ is null) && factoryMethods.Length == slotMethods.Count;
+
+    static RelationshipKind? DistinctKind(IMethodSymbol[] factoryMethods)
+    {
         var kinds = factoryMethods
             .Select(FactoryRelationshipKind)
             .Where(_ => _ is not null)
@@ -137,13 +153,8 @@ internal static partial class WolverineFacts
             : [expression];
         for (var slot = 0; slot < slotExpressions.Length; slot++)
         {
-            if (!methodsBySlot.TryGetValue(slot, out var methods))
-            {
-                methods = [];
-                methodsBySlot.Add(slot, methods);
-            }
-
-            methods.Add(StorageFactoryMethod(slotExpressions[slot], semanticModel, []));
+            methodsBySlot.TryAdd(slot, []);
+            methodsBySlot[slot].Add(StorageFactoryMethod(slotExpressions[slot], semanticModel, []));
         }
     }
 
@@ -161,15 +172,17 @@ internal static partial class WolverineFacts
 
         foreach (var returnStatement in declaration.Body.DescendantNodes().OfType<ReturnStatementSyntax>())
         {
-            var nestedExecutable = returnStatement.Ancestors()
-                .TakeWhile(_ => !ReferenceEquals(_, declaration))
-                .Any(_ => _ is LocalFunctionStatementSyntax or AnonymousFunctionExpressionSyntax);
-            if (!nestedExecutable && returnStatement.Expression is { } expression)
+            if (!IsInNestedFunction(returnStatement, declaration) && returnStatement.Expression is { } expression)
             {
                 yield return expression;
             }
         }
     }
+
+    static bool IsInNestedFunction(SyntaxNode node, MethodDeclarationSyntax declaration) =>
+        node.Ancestors()
+            .TakeWhile(_ => !ReferenceEquals(_, declaration))
+            .Any(_ => _ is LocalFunctionStatementSyntax or AnonymousFunctionExpressionSyntax);
 
     static ExpressionSyntax UnwrapReturnedExpression(ExpressionSyntax expression, SemanticModel semanticModel)
     {
@@ -202,9 +215,11 @@ internal static partial class WolverineFacts
     static bool IsTaskFromResult(IMethodSymbol method) =>
         string.Equals(method.Name, "FromResult", StringComparison.Ordinal) &&
         method.ContainingType is { } containingType &&
-        DotNetSubjectIds.MetadataName(containingType.OriginalDefinition) is { } taskType &&
-        (string.Equals(taskType, "System.Threading.Tasks.Task", StringComparison.Ordinal) ||
-         string.Equals(taskType, "System.Threading.Tasks.ValueTask", StringComparison.Ordinal));
+        IsTaskTypeName(DotNetSubjectIds.MetadataName(containingType.OriginalDefinition));
+
+    static bool IsTaskTypeName(string typeName) =>
+        string.Equals(typeName, "System.Threading.Tasks.Task", StringComparison.Ordinal) ||
+        string.Equals(typeName, "System.Threading.Tasks.ValueTask", StringComparison.Ordinal);
 
     static IMethodSymbol? StorageFactoryMethod(
         ExpressionSyntax expression,
