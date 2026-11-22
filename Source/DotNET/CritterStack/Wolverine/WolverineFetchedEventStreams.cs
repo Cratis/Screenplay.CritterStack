@@ -119,26 +119,26 @@ static class WolverineFetchedEventStreams
     // The stable collection a foreach loop over `local` iterates, or null when the loop does not bind it.
     static ILocalSymbol? LoopCollection(ForEachStatementSyntax loop, ILocalSymbol local, WolverineMethodScope scope)
     {
-        if (!SymbolEqualityComparer.Default.Equals(scope.Model.GetDeclaredSymbol(loop), local) ||
-            Unwrap(scope.Model.GetOperation(loop.Expression)) is not ILocalReferenceOperation collection ||
-            !IsStable(collection.Local, scope))
+        if (!SymbolEqualityComparer.Default.Equals(scope.Model.GetDeclaredSymbol(loop), local))
         {
             return null;
         }
 
-        return collection.Local;
+        return Unwrap(scope.Model.GetOperation(loop.Expression)) is ILocalReferenceOperation collection && IsStable(collection.Local, scope)
+            ? collection.Local
+            : null;
     }
 
     static FetchSite? FetchSiteOf(VariableDeclaratorSyntax variable, WolverineMethodScope scope)
     {
-        if (variable.Initializer is not { } initializer ||
-            !IsDirect(variable, scope.Declaration) ||
-            scope.Model.GetDeclaredSymbol(variable) is not ILocalSymbol local)
+        if (variable.Initializer is not { } initializer || !IsDirect(variable, scope.Declaration))
         {
             return null;
         }
 
-        return FetchSiteFor(local, AwaitedFetch(initializer, scope.Model), scope.Project);
+        return scope.Model.GetDeclaredSymbol(variable) is ILocalSymbol local
+            ? FetchSiteFor(local, AwaitedFetch(initializer, scope.Model), scope.Project)
+            : null;
     }
 
     static FetchSite? FetchSiteFor(ILocalSymbol local, IInvocationOperation? fetch, DotNetProjectCompilation project) =>
@@ -241,10 +241,7 @@ static class WolverineFetchedEventStreams
     static IInvocationOperation? FetchInvocation(IOperation operation)
     {
         var invocation = Unwrap(operation) as IInvocationOperation;
-        if (invocation?.TargetMethod is { IsStatic: false, Parameters.Length: 1 } configure &&
-            string.Equals(configure.Name, "ConfigureAwait", StringComparison.Ordinal) &&
-            DotNetSubjectIds.MetadataName(configure.ContainingType.OriginalDefinition) == "System.Threading.Tasks.Task`1" &&
-            configure.Parameters[0].Type.SpecialType == SpecialType.System_Boolean)
+        if (invocation?.TargetMethod is { } target && IsConfigureAwait(target))
         {
             invocation = Unwrap(invocation.Instance) as IInvocationOperation;
         }
@@ -252,12 +249,16 @@ static class WolverineFetchedEventStreams
         return invocation;
     }
 
+    static bool IsConfigureAwait(IMethodSymbol method) =>
+        method is { IsStatic: false, Parameters.Length: 1 } &&
+        string.Equals(method.Name, "ConfigureAwait", StringComparison.Ordinal) &&
+        DotNetSubjectIds.MetadataName(method.ContainingType.OriginalDefinition) == "System.Threading.Tasks.Task`1" &&
+        method.Parameters[0].Type.SpecialType == SpecialType.System_Boolean;
+
     static bool TryModel(IMethodSymbol method, DotNetProjectCompilation project, out INamedTypeSymbol model)
     {
         model = null!;
-        if (!IsFetchManyShape(method) ||
-            method.TypeArguments[0] is not INamedTypeSymbol { TypeKind: not TypeKind.Error } modelType ||
-            !IsFetchManyContract(method, modelType, project))
+        if (ModelTypeOf(method) is not { } modelType || !IsFetchManyContract(method, modelType, project))
         {
             return false;
         }
@@ -265,6 +266,11 @@ static class WolverineFetchedEventStreams
         model = modelType;
         return true;
     }
+
+    static INamedTypeSymbol? ModelTypeOf(IMethodSymbol method) =>
+        IsFetchManyShape(method) && method.TypeArguments[0] is INamedTypeSymbol { TypeKind: not TypeKind.Error } modelType
+            ? modelType
+            : null;
 
     static bool IsFetchManyContract(IMethodSymbol method, INamedTypeSymbol modelType, DotNetProjectCompilation project) =>
         IsDeclaredOnEventStoreOperations(method, project) &&
@@ -405,14 +411,12 @@ static class WolverineFetchedEventStreams
             return true;
         }
 
-        if (operation.Parent is IPropertyReferenceOperation { Property.IsIndexer: true, Arguments: [{ Value.ConstantValue: { HasValue: true, Value: int } }] } indexer &&
-            indexer.Instance == operation)
+        if (ConstantIndexer(operation) is { } indexer)
         {
             return IsSupportedIndexedSlotUse(Outermost(indexer), scope);
         }
 
-        if (operation.Parent is IForEachLoopOperation loop && loop.Collection == operation &&
-            loop.Syntax is ForEachStatementSyntax syntax && model.GetDeclaredSymbol(syntax) is ILocalSymbol element)
+        if (LoopElement(operation, model) is { } element)
         {
             return IsStable(element, scope);
         }
@@ -421,6 +425,17 @@ static class WolverineFetchedEventStreams
         // receivers, arguments, captures and non-append member access are not safe uses.
         return false;
     }
+
+    static IPropertyReferenceOperation? ConstantIndexer(IOperation operation) =>
+        operation.Parent is IPropertyReferenceOperation { Property.IsIndexer: true, Arguments: [{ Value.ConstantValue: { HasValue: true, Value: int } }] } indexer &&
+        indexer.Instance == operation
+            ? indexer
+            : null;
+
+    static ILocalSymbol? LoopElement(IOperation operation, SemanticModel model) =>
+        operation.Parent is IForEachLoopOperation loop && loop.Collection == operation && loop.Syntax is ForEachStatementSyntax syntax
+            ? model.GetDeclaredSymbol(syntax) as ILocalSymbol
+            : null;
 
     static bool IsSupportedIndexedSlotUse(IOperation slot, WolverineMethodScope scope) =>
         IsDirectAppendReceiver(slot, scope.Project) ||
