@@ -81,7 +81,7 @@ The [conventions and diagnostics reference](Documentation/goals.md#conventions-a
 
 [Authored persistence abstraction analysis](Documentation/goals.md#opt-in-authored-persistence-abstractions) is opt-in through `CritterStackScreenplayOptions.FollowAuthoredAbstractions`, which defaults to `false`. It requires selected authored implementations to agree; incomplete or conflicting dispatch produces `WOLVERINE0029` rather than guessed persistence. A standalone `BoundaryAggregate` marker produces `WOLVERINE0014`, not an inferred aggregate workflow.
 
-The main dependency pins are Cratis Screenplay 6.36.0, Generation SDK 0.21.2, Marten 9.62.0, and Wolverine 6.64.2. IncidentService uses Marten.AspNetCore 9.62.0 and Wolverine HTTP integration packages 6.64.2; legacy fixtures keep their own versions.
+The main dependency pins are Cratis Screenplay 6.36.0, Generation SDK 0.23.0, Marten 9.62.0, and Wolverine 6.64.2. IncidentService uses Marten.AspNetCore 9.62.0 and Wolverine HTTP integration packages 6.64.2; legacy fixtures keep their own versions.
 
 These pinned samples and focused source-shape specs provide compatibility evidence for the versions and behaviors they exercise. They do not establish a broad support promise or replace the requirement for a wholly Cratis-owned deterministic release fixture.
 

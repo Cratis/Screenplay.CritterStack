@@ -11,6 +11,11 @@ public class an_explicit_enum_numbers_application : an_enum_application
 
     void Establish() => PositionalSource = Generate(CreateProject(declaration: PositionalDeclaration)).Source;
 
+    protected string WithNumbers(params int[] numbers) => PositionalSource
+        .Replace("\n  first\n", $"\n  first = {numbers[0]}\n")
+        .Replace("\n  second\n", $"\n  second = {numbers[1]}\n")
+        .Replace("\n  third\n", $"\n  third = {numbers[2]}\n");
+
     protected GenerationDiagnostic NumberingDiagnostic => Result.Diagnostics.Single(_ => _.Code == CritterStackDiagnosticCodes.EnumNumbersNotPreserved);
 
     protected static SourceRange DeclarationRange(string declaration) => new()

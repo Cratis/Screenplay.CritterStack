@@ -33,7 +33,7 @@ public static class CritterStackDiagnosticCodes
     public const string MixedSliceKindsSplit = "CRITTERSTACK0004";
 
     /// <summary>
-    /// An enum's explicit member numbers are not preserved in the generated enumeration concept.
+    /// An enum's member numbers cannot be represented as distinct 32-bit signed integers (for example aliases or wider values), so the enum is not declared as a concept.
     /// </summary>
     public const string EnumNumbersNotPreserved = "CRITTERSTACK0005";
 }

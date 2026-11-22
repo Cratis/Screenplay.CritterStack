@@ -24,7 +24,7 @@ public class an_enum_application : Specification
         }
         """;
 
-    protected const string EnumDeclaration = "public enum Priority : ulong { Urgent = ulong.MaxValue, Normal = 1, Alias = 1, @low = 0 }";
+    protected const string EnumDeclaration = "public enum Priority : ulong { Urgent = 9, Normal = 1, Alias = 5, @low = 0 }";
     protected DotNetProjectCompilation Project = null!;
 
     void Establish() => Project = CreateProject();

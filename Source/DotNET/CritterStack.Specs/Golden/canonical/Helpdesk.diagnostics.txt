@@ -1,4 +1,3 @@
-CRITTERSTACK0005 Warning Unsupported | Helpdesk.Api/Incident.cs | Enum 'IncidentStatus': explicit member numbers are not preserved in the generated concept
 GEN0004 Warning Unsupported | Helpdesk.Api/CategoriseIncident.cs | The recognized Message artifact 'CategoriseIncident' cannot yet be represented by the Screenplay lowerer and was omitted
 GEN0004 Warning Unsupported | Helpdesk.Api/CategoriseIncident.cs | The recognized Message artifact 'TryAssignPriority' cannot yet be represented by the Screenplay lowerer and was omitted
 GEN0004 Warning Unsupported | Helpdesk.Api/CategoriseIncident.cs | The recognized Reaction artifact 'CategoriseIncident' cannot yet be represented by the Screenplay lowerer and was omitted

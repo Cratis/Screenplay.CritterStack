@@ -16,10 +16,10 @@ concept IncidentPriority : Enum
 
 concept IncidentStatus : Enum
   file Helpdesk.Api/Incident.cs
-  pending
-  resolved
-  resolutionAcknowledgedByCustomer
-  closed
+  pending = 1
+  resolved = 8
+  resolutionAcknowledgedByCustomer = 16
+  closed = 32
 
 concept ResolutionType : Enum
   file Helpdesk.Api/Incident.cs

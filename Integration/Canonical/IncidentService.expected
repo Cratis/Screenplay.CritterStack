@@ -1,5 +1,5 @@
 # JasperFx/wolverine @ af4807b5fb225ce7535c67785b74007fdad2dd9f
-source-sha256: c7092c2026eee0d55fb9d64c305d8ee4bbb28e6a104ba310e94e86bfc9ba26c7
+source-sha256: 90105fad7a9f8e5acd7fe77c39714eb762e0c30d657ca4199fad12af979ea55a
 source: concept IncidentCategory : Enum
 source: concept IncidentStatus : Enum
 source: concept ResolutionType : Enum
@@ -21,7 +21,6 @@ artifact: Aggregate:Incident
 relationship: StartsStream
 relationship: Cascades
 relationship: Deletes
-diagnostic: CRITTERSTACK0005
 diagnostic: WOLVERINE0001
 diagnostic: WOLVERINE0002
 diagnostic: WOLVERINE0003
