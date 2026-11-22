@@ -43,18 +43,17 @@ static class MartenCompiledQueryDiscovery
     {
         var entry = new QueryEntry(entryPoint, entryPointSubject);
         var context = new QueryContext(project, adapter, subjects);
-        var links = new List<MartenCompiledQueryLink>();
-        var diagnostics = new List<GenerationDiagnostic>();
+        var run = new DiscoveryRun(entry, context);
         foreach (var syntaxReference in entryPoint.DeclaringSyntaxReferences)
         {
             if (syntaxReference.GetSyntax() is MethodDeclarationSyntax declaration &&
                 !DotNetGeneratedSource.IsGenerated(declaration.SyntaxTree))
             {
-                DiscoverInDeclaration(declaration, entry, context, links, diagnostics);
+                run.Visit(declaration);
             }
         }
 
-        return new(links, diagnostics);
+        return new(run.Links, run.Diagnostics);
     }
 
     public static bool TryResolve(
@@ -77,8 +76,7 @@ static class MartenCompiledQueryDiscovery
         }
 
         if (CompiledInterfaceFor(planType, argumentType, compiledParameter) is not { } compiledInterface ||
-            compiledInterface.TypeArguments[0] is not INamedTypeSymbol documentType ||
-            !IsSourceDocumentType(documentType))
+            SourceDocumentTypeOf(compiledInterface) is not { } documentType)
         {
             return false;
         }
@@ -103,31 +101,13 @@ static class MartenCompiledQueryDiscovery
         return boundary is null || IsProvenBoundary(boundary, declaration, semanticModel, []);
     }
 
-    static void DiscoverInDeclaration(
-        MethodDeclarationSyntax declaration,
-        QueryEntry entry,
-        QueryContext context,
-        List<MartenCompiledQueryLink> links,
-        List<GenerationDiagnostic> diagnostics)
-    {
-        var semanticModel = context.Project.Compilation.GetSemanticModel(declaration.SyntaxTree);
-        foreach (var invocation in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
-        {
-            if (!TryResolve(invocation, semanticModel, out var plan))
-            {
-                continue;
-            }
+    static INamedTypeSymbol? SourceDocumentTypeOf(INamedTypeSymbol compiledInterface) =>
+        compiledInterface.TypeArguments[0] is INamedTypeSymbol documentType && IsSourceDocumentType(documentType)
+            ? documentType
+            : null;
 
-            if (IsInProvenEndpointFlow(invocation, declaration, semanticModel))
-            {
-                links.Add(LinkFor(plan, invocation, entry, context));
-            }
-            else
-            {
-                diagnostics.Add(UnprovenFlowDiagnostic(plan, invocation, entry, context.Project));
-            }
-        }
-    }
+    static bool IsPublicInstance(ISymbol member) =>
+        !member.IsStatic && member.DeclaredAccessibility == Accessibility.Public;
 
     static INamedTypeSymbol? CompiledInterfaceFor(
         INamedTypeSymbol planType,
@@ -275,7 +255,7 @@ static class MartenCompiledQueryDiscovery
 
     static bool IsReadableParameter(ISymbol member)
     {
-        if (member.IsStatic || member.DeclaredAccessibility != Accessibility.Public || HasMartenIgnore(member))
+        if (!IsPublicInstance(member) || HasMartenIgnore(member))
         {
             return false;
         }
@@ -376,6 +356,34 @@ static class MartenCompiledQueryDiscovery
     static string LowerFirst(string value) => value.Length == 0
         ? value
         : $"{char.ToLowerInvariant(value[0])}{value[1..]}";
+
+    sealed class DiscoveryRun(QueryEntry entry, QueryContext context)
+    {
+        public List<MartenCompiledQueryLink> Links { get; } = [];
+
+        public List<GenerationDiagnostic> Diagnostics { get; } = [];
+
+        public void Visit(MethodDeclarationSyntax declaration)
+        {
+            var semanticModel = context.Project.Compilation.GetSemanticModel(declaration.SyntaxTree);
+            foreach (var invocation in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            {
+                if (!TryResolve(invocation, semanticModel, out var plan))
+                {
+                    continue;
+                }
+
+                if (IsInProvenEndpointFlow(invocation, declaration, semanticModel))
+                {
+                    Links.Add(LinkFor(plan, invocation, entry, context));
+                }
+                else
+                {
+                    Diagnostics.Add(UnprovenFlowDiagnostic(plan, invocation, entry, context.Project));
+                }
+            }
+        }
+    }
 
     sealed record QueryEntry(IMethodSymbol Method, SubjectId Subject);
 
