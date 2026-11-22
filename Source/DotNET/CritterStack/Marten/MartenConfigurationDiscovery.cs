@@ -489,14 +489,19 @@ static class MartenConfigurationDiscovery
 
     static string? SequenceStartingPosition(InvocationExpressionSyntax invocation, SemanticModel semanticModel)
     {
-        if (invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is not { } sequenceExpression ||
-            ConstantLong(sequenceExpression, semanticModel) is not { } sequence ||
-            DatabaseSuffix(invocation, semanticModel) is not { } sequenceDatabase)
+        if (invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is not { } sequenceExpression)
         {
             return null;
         }
 
-        return $"starting sequence '{sequence}'{sequenceDatabase}";
+        if (ConstantLong(sequenceExpression, semanticModel) is not { } sequence)
+        {
+            return null;
+        }
+
+        return DatabaseSuffix(invocation, semanticModel) is { } sequenceDatabase
+            ? $"starting sequence '{sequence}'{sequenceDatabase}"
+            : null;
     }
 
     static INamedTypeSymbol? TypeFromTypeOfArgument(
@@ -711,9 +716,17 @@ static class MartenConfigurationDiscovery
         SemanticModel semanticModel,
         IReadOnlySet<string> declaringTypes)
     {
-        if (semanticModel.GetTypeInfo(expression).ConvertedType is not INamedTypeSymbol enumType ||
-            !declaringTypes.Contains(DotNetSubjectIds.MetadataName(enumType)) ||
-            semanticModel.GetConstantValue(expression) is not { HasValue: true, Value: not null } constant)
+        if (semanticModel.GetTypeInfo(expression).ConvertedType is not INamedTypeSymbol enumType)
+        {
+            return null;
+        }
+
+        if (!declaringTypes.Contains(DotNetSubjectIds.MetadataName(enumType)))
+        {
+            return null;
+        }
+
+        if (semanticModel.GetConstantValue(expression) is not { HasValue: true, Value: not null } constant)
         {
             return null;
         }
