@@ -29,6 +29,7 @@ static class EnumConceptFacts
                 .Select(type => new { Project = project, Type = type, Subject = context.SubjectForType(type) }))
             .Where(_ => _.Subject is not null && referencedSubjects.Contains(_.Subject))
             .OrderBy(_ => _.Subject!.Value, StringComparer.Ordinal);
+        Dictionary<SubjectId, string> unnumberable = [];
 
         foreach (var candidate in candidates)
         {
@@ -50,6 +51,11 @@ static class EnumConceptFacts
             if (OmissionOf(candidate.Type, subject, evidence, values, numbering) is { } omission)
             {
                 diagnostics.Add(omission);
+                if (omission.Code == CritterStackDiagnosticCodes.EnumNumbersNotPreserved)
+                {
+                    unnumberable[subject] = omission.Message;
+                }
+
                 continue;
             }
 
@@ -60,6 +66,10 @@ static class EnumConceptFacts
 
             facts.Add(RepresentationFact(contribution.Adapter, subject, evidence, values, numbering.Numbers));
         }
+
+        // An enum whose numbering cannot be preserved is not a concept from any source (for example Marten
+        // RegisterValueType), whatever the order the facts were contributed in; its uses keep the plain type name.
+        facts = [.. facts.Where(fact => KeepFact(fact, unnumberable)).Select(fact => WithoutDroppedReferences(fact, unnumberable))];
 
         // Bind before resolving captured names, so uses of each enum carry its subject and only other types print its
         // plain name; the generator also binds independently contributed Vogen concepts and normalizes again.
