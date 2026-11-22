@@ -9,37 +9,10 @@ namespace Cratis.CritterStack.Screenplay.Wolverine;
 
 internal static partial class WolverineFacts
 {
-    static RelationshipFact Relationship(
-        WolverineFactScope scope,
-        string id,
-        SubjectId source,
-        RelationshipKind kind,
-        SubjectId target,
-        Evidence evidence,
-        string? sourceMember = null,
-        string? targetMember = null,
-        string? discriminator = null,
-        bool isCollection = false,
-        bool isOptional = false,
-        bool unscopedSource = false,
-        BackendOwnership? targetOwnership = null) => Relationship(
-            id,
-            source,
-            kind,
-            target,
-            evidence,
-            sourceMember,
-            targetMember,
-            discriminator,
-            isCollection,
-            isOptional,
-            unscopedSource ? null : scope.Ownership.Scope,
-            targetOwnership is null ? scope.Ownership.Scope : targetOwnership.Scope);
-
     static RelationshipFact Relationship(WolverineFactScope scope, WolverineRelationshipFact relationship) => Relationship(relationship with
     {
-        SourceScope = scope.Ownership.Scope,
-        TargetScope = scope.Ownership.Scope
+        SourceScope = relationship.UnscopedSource ? null : scope.Ownership.Scope,
+        TargetScope = relationship.TargetOwnership is null ? scope.Ownership.Scope : relationship.TargetOwnership.Scope
     });
 
     static BackendOwnership OwnershipAtSource(WolverineFactScope scope, IMethodSymbol method, SourceRange? source)

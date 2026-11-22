@@ -385,16 +385,17 @@ internal static partial class WolverineFacts
                 Strength = EvidenceStrength.Heuristic,
                 Explanation = "The returned model name provides the default Screenplay placement"
             }));
-        scope.Facts.Add(Relationship(
-            scope,
+        scope.Facts.Add(Relationship(scope, new WolverineRelationshipFact(
             $"wolverine:returns:{querySubject.Value}:{modelSubject.Value}",
             querySubject,
             RelationshipKind.Returns,
             modelSubject,
-            evidence,
-            isCollection: isCollection,
-            isOptional: isOptional,
-            unscopedSource: true));
+            evidence)
+        {
+            IsCollection = isCollection,
+            IsOptional = isOptional,
+            UnscopedSource = true
+        }));
     }
 
     static HttpEndpoint? EndpointFor(IMethodSymbol method)
