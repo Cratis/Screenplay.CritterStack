@@ -94,27 +94,30 @@ internal sealed partial class MartenEventSchemaConfigurationDiscovery
     void DiscoverNameSuffix(InvocationExpressionSyntax invocation, IMethodSymbol method, INamedTypeSymbol eventType)
     {
         var suffix = ConstantString(ArgumentForParameter(invocation, method, "suffix")?.Expression, semanticModel);
-        var hasBaseAlias = TryOptionalBaseAlias(invocation, method, out var baseAlias);
-        if (suffix is null || !hasBaseAlias)
-        {
-            diagnostics.Add(UnresolvedEventConfiguration(invocation.GetLocation(), eventType));
-            return;
-        }
-
-        diagnostics.Add(EventConfiguration(eventType, NameSuffixMessage(eventType, suffix, baseAlias), invocation.GetLocation()));
+        ReportBaseAliasedConfiguration(invocation, method, eventType, suffix is not null, baseAlias => NameSuffixMessage(eventType, suffix!, baseAlias));
     }
 
     void DiscoverSchemaVersion(InvocationExpressionSyntax invocation, IMethodSymbol method, INamedTypeSymbol eventType)
     {
         var version = ConstantUnsigned(ArgumentForParameter(invocation, method, "schemaVersion")?.Expression, semanticModel);
+        ReportBaseAliasedConfiguration(invocation, method, eventType, version is not null, baseAlias => SchemaVersionMessage(eventType, version!.Value, baseAlias));
+    }
+
+    void ReportBaseAliasedConfiguration(
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol method,
+        INamedTypeSymbol eventType,
+        bool hasValue,
+        Func<string?, string> message)
+    {
         var hasBaseAlias = TryOptionalBaseAlias(invocation, method, out var baseAlias);
-        if (version is null || !hasBaseAlias)
+        if (!hasValue || !hasBaseAlias)
         {
             diagnostics.Add(UnresolvedEventConfiguration(invocation.GetLocation(), eventType));
             return;
         }
 
-        diagnostics.Add(EventConfiguration(eventType, SchemaVersionMessage(eventType, version.Value, baseAlias), invocation.GetLocation()));
+        diagnostics.Add(EventConfiguration(eventType, message(baseAlias), invocation.GetLocation()));
     }
 
     void DiscoverDirectEventTypeAlias(InvocationExpressionSyntax invocation, IMethodSymbol method)
@@ -154,9 +157,7 @@ internal sealed partial class MartenEventSchemaConfigurationDiscovery
 
     void DiscoverEventAliasAttribute(AttributeSyntax attribute)
     {
-        if (!IsMartenEventAttribute(attribute) ||
-            AuthoredAlias(attribute) is not { Length: > 0 } alias ||
-            DeclaredEventType(attribute) is not { } eventType)
+        if (AuthoredEventAlias(attribute) is not var (alias, eventType))
         {
             return;
         }
@@ -165,6 +166,21 @@ internal sealed partial class MartenEventSchemaConfigurationDiscovery
             eventType,
             $"Marten event type '{eventType.Name}' has authored MartenEvent alias '{DiagnosticValue(alias)}'; the alias only applies when Marten AutoRegister discovers the type",
             attribute.GetLocation()));
+    }
+
+    (string Alias, INamedTypeSymbol EventType)? AuthoredEventAlias(AttributeSyntax attribute)
+    {
+        if (!IsMartenEventAttribute(attribute))
+        {
+            return null;
+        }
+
+        if (AuthoredAlias(attribute) is not { Length: > 0 } alias)
+        {
+            return null;
+        }
+
+        return DeclaredEventType(attribute) is { } eventType ? (alias, eventType) : null;
     }
 
     bool IsMartenEventAttribute(AttributeSyntax attribute) =>
