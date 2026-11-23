@@ -19,7 +19,7 @@ public class when_a_member_uses_an_unowned_source_type : Specification
         var project = CreateProject();
         var context = new DotNetAnalysisContext([project]);
         _compatibility = new CritterStackScreenplayGenerator().Generate([project], new CritterStackScreenplayOptions { Domain = "Ordering" });
-        _details = context.SubjectForType(project.Compilation.GetTypeByMetadataName("Ordering.Details")!)!;
+        _details = context.SubjectForType(project.Compilation.GetTypeByMetadataName("Ordering.Details"));
         var contribution = CommandContribution(context, project);
         _typeUse = contribution.Facts.OfType<ArtifactMemberTypeUseFact>().Single();
         var generator = new ScreenplayDefinitionGenerator();
@@ -98,8 +98,8 @@ public class when_a_member_uses_an_unowned_source_type : Specification
     static AdapterContribution CommandContribution(DotNetAnalysisContext context, DotNetProjectCompilation project)
     {
         var adapter = new AdapterIdentity { Id = "command-vector", Version = "1.0.0" };
-        var command = project.Compilation.GetTypeByMetadataName("Ordering.PlaceOrder")!;
-        var key = new ArtifactKey { Subject = context.SubjectForType(command)!, Kind = ArtifactKind.Command };
+        var command = project.Compilation.GetTypeByMetadataName("Ordering.PlaceOrder");
+        var key = new ArtifactKey { Subject = context.SubjectForType(command), Kind = ArtifactKind.Command };
         var evidence = CritterStackSource.EvidenceFor(command, adapter, project, EvidenceStrength.Exact, "Authored command declaration");
         return new AdapterContribution
         {

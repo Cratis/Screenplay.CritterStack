@@ -18,13 +18,13 @@ public class when_a_member_uses_an_omitted_flags_enum : given.an_enum_applicatio
     {
         _compatibility = Generate(Project);
         var adapter = new AdapterIdentity { Id = "flags-vector", Version = "1.0.0" };
-        var command = Project.Compilation.GetTypeByMetadataName("Ordering.PlaceOrder.PlaceOrder")!;
+        var command = Project.Compilation.GetTypeByMetadataName("Ordering.PlaceOrder.PlaceOrder");
         var context = new DotNetAnalysisContext([Project]);
-        var key = new ArtifactKey { Subject = context.SubjectForType(command)!, Kind = ArtifactKind.Command };
+        var key = new ArtifactKey { Subject = context.SubjectForType(command), Kind = ArtifactKind.Command };
         var evidence = new Evidence { Adapter = adapter, Strength = EvidenceStrength.Exact };
         var typeUses = DotNetTypeUseFacts.Emit(command, key, context, evidence).ToArray();
         var memberType = typeUses.OfType<ArtifactMemberTypeUseFact>().Single();
-        var enumeration = Project.Compilation.GetTypeByMetadataName("Ordering.Priority")!;
+        var enumeration = Project.Compilation.GetTypeByMetadataName("Ordering.Priority");
         var enumEvidence = CritterStackSource.EvidenceFor(enumeration, adapter, Project, EvidenceStrength.Exact, "Authored flags enum");
         _facts =
         [
@@ -78,7 +78,7 @@ public class when_a_member_uses_an_omitted_flags_enum : given.an_enum_applicatio
     [Fact] void should_keep_the_compatibility_candidate_compiler_verified() => _compatibility.IsSuccess.ShouldBeTrue();
     [Fact] void should_keep_the_compatibility_flags_warning() => _compatibility.Diagnostics.Count(_ => _.Code == CritterStackDiagnosticCodes.FlagsEnumOmitted).ShouldEqual(1);
     [Fact] void should_keep_the_compatibility_property_without_a_concept() => _compatibility.Graph.Artifacts.Single(_ => _.Key.Kind == ArtifactKind.Command).Variants.Single().Definition.Properties.Single().Type.Subject.ShouldBeNull();
-    [Fact] void should_observe_the_exact_enum_subject_in_the_neutral_facts() => _facts.OfType<ArtifactMemberTypeUseFact>().Single().Definition.Type.ObservedTypeSubject.ShouldEqual(new DotNetAnalysisContext([Project]).SubjectForType(Project.Compilation.GetTypeByMetadataName("Ordering.Priority")!));
+    [Fact] void should_observe_the_exact_enum_subject_in_the_neutral_facts() => _facts.OfType<ArtifactMemberTypeUseFact>().Single().Definition.Type.ObservedTypeSubject.ShouldEqual(new DotNetAnalysisContext([Project]).SubjectForType(Project.Compilation.GetTypeByMetadataName("Ordering.Priority")));
     [Fact] void should_keep_the_neutral_candidate_compiler_verified() => _neutral.IsSuccess.ShouldBeTrue();
     [Fact] void should_not_invent_a_concept_for_the_omitted_flags_enum() => _neutral.Graph.Artifacts.Any(_ => _.Key.Kind == ArtifactKind.Concept).ShouldBeFalse();
     [Fact] void should_keep_the_neutral_command_and_its_unbound_property() => _neutral.Graph.Artifacts.Single(_ => _.Key.Kind == ArtifactKind.Command).Variants.Single().Definition.Properties.Single().Type.Subject.ShouldBeNull();

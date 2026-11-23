@@ -16,6 +16,8 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
     GeneratedScreenplayDefinition _yielding = null!;
     GeneratedScreenplayDefinition _yieldingReversed = null!;
     GeneratedScreenplayDefinition _yieldingWithoutVogen = null!;
+    GeneratedScreenplayDefinition _coowned = null!;
+    GeneratedScreenplayDefinition _coownedReversed = null!;
 
     void Because()
     {
@@ -33,6 +35,10 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
         _yielding = new ScreenplayDefinitionGenerator().Generate([yielding, vogen], options);
         _yieldingReversed = new ScreenplayDefinitionGenerator().Generate([vogen, yielding], options);
         _yieldingWithoutVogen = new ScreenplayDefinitionGenerator().Generate([yielding], options);
+        var second = EnumContribution(context, project, GenerationDiagnosticOutcome.Conflict, "second-enum-vector");
+        second = second with { Facts = [.. second.Facts.Take(2)] };
+        _coowned = new ScreenplayDefinitionGenerator().Generate([yielding, second, vogen], options);
+        _coownedReversed = new ScreenplayDefinitionGenerator().Generate([vogen, second, yielding], options);
     }
 
     [Fact] void should_keep_the_compatibility_candidate_verified() => _compatibility.IsSuccess.ShouldBeTrue();
@@ -62,6 +68,14 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
     [Fact] void should_not_report_a_shared_concept_conflict_after_yielding() => _yielding.Diagnostics.Any(_ => _.Code == GenerationDiagnosticCodes.ConflictingConceptName).ShouldBeFalse();
     [Fact] void should_keep_the_yielding_enum_when_no_concept_competes() => _yieldingWithoutVogen.Source.ShouldContain("concept Status : Enum");
     [Fact] void should_not_report_an_omission_when_no_concept_competes() => _yieldingWithoutVogen.Diagnostics.Any(_ => _.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict).ShouldBeFalse();
+
+    [Fact] void should_verify_the_coowned_yielding_candidate() => _coowned.Diagnostics.Where(_ => _.Severity == GenerationDiagnosticSeverity.Error).Select(_ => $"{_.Code}: {_.Message}").ShouldBeEmpty();
+    [Fact] void should_keep_the_coowned_yielding_source() => _coowned.Source.ShouldEqual(_yielding.Source);
+    [Fact] void should_characterize_the_warning_per_coowned_declaration() => _coowned.Diagnostics.Count(_ => _.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict).ShouldEqual(2);
+    [Fact] void should_characterize_the_same_warning_count_in_reverse_order() => _coownedReversed.Diagnostics.Count(_ => _.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict).ShouldEqual(2);
+    [Fact] void should_keep_the_coowned_source_in_reverse_order() => _coownedReversed.Source.ShouldEqual(_coowned.Source);
+    [Fact] void should_keep_the_same_message_on_both_coowned_warnings() => _coowned.Diagnostics.Where(_ => _.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict).Select(_ => _.Message).Distinct().Single().ShouldEqual(Omission(_compatibility).Message);
+    [Fact] void should_keep_the_same_location_on_both_coowned_warnings() => _coowned.Diagnostics.Where(_ => _.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict).Select(_ => _.Source).Distinct().Single().ShouldEqual(Omission(_compatibility).Source);
 
     static GenerationDiagnostic Omission(GeneratedScreenplayDefinition result) => result.Diagnostics.Single(_ => _.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict);
 
@@ -110,14 +124,14 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
         };
     }
 
-    static AdapterContribution EnumContribution(DotNetAnalysisContext context, DotNetProjectCompilation project, GenerationDiagnosticOutcome? yieldOutcome = null)
+    static AdapterContribution EnumContribution(DotNetAnalysisContext context, DotNetProjectCompilation project, GenerationDiagnosticOutcome? yieldOutcome = null, string adapterId = "enum-vector")
     {
-        var adapter = new AdapterIdentity { Id = "enum-vector", Version = "1.0.0" };
-        var enumeration = project.Compilation.GetTypeByMetadataName("Ordering.Status")!;
-        var subject = context.SubjectForType(enumeration)!;
+        var adapter = new AdapterIdentity { Id = adapterId, Version = "1.0.0" };
+        var enumeration = project.Compilation.GetTypeByMetadataName("Ordering.Status");
+        var subject = context.SubjectForType(enumeration);
         var evidence = CritterStackSource.EvidenceFor(enumeration, adapter, project, EvidenceStrength.Exact, "Authored enum declaration");
-        var command = project.Compilation.GetTypeByMetadataName("Ordering.PlaceOrder")!;
-        var key = new ArtifactKey { Subject = context.SubjectForType(command)!, Kind = ArtifactKind.Command };
+        var command = project.Compilation.GetTypeByMetadataName("Ordering.PlaceOrder");
+        var key = new ArtifactKey { Subject = context.SubjectForType(command), Kind = ArtifactKind.Command };
         var commandEvidence = CritterStackSource.EvidenceFor(command, adapter, project, EvidenceStrength.Exact, "Authored command declaration");
         return new AdapterContribution
         {
@@ -126,7 +140,7 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
             [
                 new ArtifactDeclarationFact
                 {
-                    Id = new FactId { Value = "enum-vector:concept" },
+                    Id = new FactId { Value = $"{adapter.Id}:concept" },
                     Subject = subject,
                     Evidence = evidence,
                     Definition = new ArtifactDeclarationDefinition
@@ -139,7 +153,7 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
                 },
                 new ConceptRepresentationFact
                 {
-                    Id = new FactId { Value = "enum-vector:representation" },
+                    Id = new FactId { Value = $"{adapter.Id}:representation" },
                     Subject = subject,
                     Evidence = evidence,
                     Definition = new ConceptRepresentationDefinition
@@ -151,14 +165,14 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
                 },
                 new ArtifactDeclarationFact
                 {
-                    Id = new FactId { Value = "enum-vector:command" },
+                    Id = new FactId { Value = $"{adapter.Id}:command" },
                     Subject = key.Subject,
                     Evidence = commandEvidence,
                     Definition = new ArtifactDeclarationDefinition { Artifact = key, Name = command.Name, File = commandEvidence.Source?.Path }
                 },
                 new ArtifactPlacementFact
                 {
-                    Id = new FactId { Value = "enum-vector:command-placement" },
+                    Id = new FactId { Value = $"{adapter.Id}:command-placement" },
                     Subject = key.Subject,
                     Artifact = key,
                     Evidence = commandEvidence,
@@ -178,7 +192,7 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
             Outcome = outcome.Value,
             Subject = subject,
             Source = evidence.Source,
-            Facts = [new FactId { Value = "enum-vector:concept" }],
+            Facts = [new FactId { Value = $"{evidence.Adapter.Id}:concept" }],
             Message = "Enum 'Status' shares its name with another source type or concept; it is not declared as a concept and its uses keep the plain type name without a concept reference"
         }
     };

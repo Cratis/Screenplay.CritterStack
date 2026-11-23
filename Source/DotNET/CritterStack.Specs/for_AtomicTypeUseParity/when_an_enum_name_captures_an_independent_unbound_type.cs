@@ -99,8 +99,8 @@ public class when_an_enum_name_captures_an_independent_unbound_type : Specificat
     static AdapterContribution EnumContribution(DotNetAnalysisContext context, DotNetProjectCompilation project, GenerationDiagnostic diagnostic)
     {
         var adapter = new AdapterIdentity { Id = "enum-vector", Version = "1.0.0" };
-        var enumeration = project.Compilation.GetTypeByMetadataName("Ordering.Status")!;
-        var subject = context.SubjectForType(enumeration)!;
+        var enumeration = project.Compilation.GetTypeByMetadataName("Ordering.Status");
+        var subject = context.SubjectForType(enumeration);
         var evidence = CritterStackSource.EvidenceFor(enumeration, adapter, project, EvidenceStrength.Exact, "Authored enum declaration");
         var declarationId = new FactId { Value = "enum-vector:concept" };
         return new AdapterContribution
@@ -140,8 +140,8 @@ public class when_an_enum_name_captures_an_independent_unbound_type : Specificat
     static AdapterContribution CommandContribution(DotNetAnalysisContext context, DotNetProjectCompilation project)
     {
         var adapter = new AdapterIdentity { Id = "command-vector", Version = "1.0.0" };
-        var command = project.Compilation.GetTypeByMetadataName("Ordering.PlaceOrder")!;
-        var key = new ArtifactKey { Subject = context.SubjectForType(command)!, Kind = ArtifactKind.Command };
+        var command = project.Compilation.GetTypeByMetadataName("Ordering.PlaceOrder");
+        var key = new ArtifactKey { Subject = context.SubjectForType(command), Kind = ArtifactKind.Command };
         var evidence = CritterStackSource.EvidenceFor(command, adapter, project, EvidenceStrength.Exact, "Authored command declaration");
         return new AdapterContribution
         {
