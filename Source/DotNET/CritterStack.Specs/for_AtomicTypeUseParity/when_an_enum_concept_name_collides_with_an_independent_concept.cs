@@ -4,7 +4,7 @@
 namespace Cratis.CritterStack.Screenplay.for_AtomicTypeUseParity;
 
 /// <summary>
-/// Exercises published concept-name yielding and characterizes the remaining diagnostic-outcome parity gap.
+/// Preserves compatibility output and Conflict diagnostics through published concept-name yielding.
 /// </summary>
 public class when_an_enum_concept_name_collides_with_an_independent_concept : Specification
 {
@@ -15,7 +15,7 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
     GeneratedScreenplayDefinition _neutralWithoutVogen = null!;
     GeneratedScreenplayDefinition _yielding = null!;
     GeneratedScreenplayDefinition _yieldingReversed = null!;
-    GeneratedScreenplayDefinition _preservingOutcome = null!;
+    GeneratedScreenplayDefinition _yieldingWithoutVogen = null!;
 
     void Because()
     {
@@ -29,11 +29,10 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
         _reversed = new ScreenplayDefinitionGenerator().Generate([vogen, enumeration], options);
         _withoutVogen = new CritterStackScreenplayGenerator([new CritterStackScreenplayAdapter()]).Generate([project], new CritterStackScreenplayOptions { Domain = "Ordering" });
         _neutralWithoutVogen = new ScreenplayDefinitionGenerator().Generate([enumeration], options);
-        var yielding = EnumContribution(context, project, GenerationDiagnosticOutcome.Unsupported);
+        var yielding = EnumContribution(context, project, GenerationDiagnosticOutcome.Conflict);
         _yielding = new ScreenplayDefinitionGenerator().Generate([yielding, vogen], options);
         _yieldingReversed = new ScreenplayDefinitionGenerator().Generate([vogen, yielding], options);
-        var preservingOutcome = EnumContribution(context, project, GenerationDiagnosticOutcome.Conflict);
-        _preservingOutcome = new ScreenplayDefinitionGenerator().Generate([preservingOutcome, vogen], options);
+        _yieldingWithoutVogen = new ScreenplayDefinitionGenerator().Generate([yielding], options);
     }
 
     [Fact] void should_keep_the_compatibility_candidate_verified() => _compatibility.IsSuccess.ShouldBeTrue();
@@ -58,11 +57,11 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
     [Fact] void should_preserve_the_omission_message() => Omission(_yielding).Message.ShouldEqual(Omission(_compatibility).Message);
     [Fact] void should_preserve_the_omission_subject() => Omission(_yielding).Subject.ShouldEqual(Omission(_compatibility).Subject);
     [Fact] void should_preserve_the_omission_severity() => Omission(_yielding).Severity.ShouldEqual(Omission(_compatibility).Severity);
-    [Fact] void should_characterize_the_compatibility_conflict_outcome() => Omission(_compatibility).Outcome.ShouldEqual(GenerationDiagnosticOutcome.Conflict);
-    [Fact] void should_characterize_the_required_yielding_outcome() => Omission(_yielding).Outcome.ShouldEqual(GenerationDiagnosticOutcome.Unsupported);
-    [Fact] void should_not_claim_diagnostic_parity() => Omission(_yielding).Outcome.ShouldNotEqual(Omission(_compatibility).Outcome);
-    [Fact] void should_not_yield_with_the_unchanged_compatibility_outcome() => _preservingOutcome.Diagnostics.Count(_ => _.Code == GenerationDiagnosticCodes.ConflictingConceptName).ShouldEqual(1);
-    [Fact] void should_not_verify_with_the_unchanged_compatibility_outcome() => _preservingOutcome.IsSuccess.ShouldBeFalse();
+    [Fact] void should_keep_the_compatibility_conflict_outcome() => Omission(_compatibility).Outcome.ShouldEqual(GenerationDiagnosticOutcome.Conflict);
+    [Fact] void should_preserve_the_omission_outcome() => Omission(_yielding).Outcome.ShouldEqual(Omission(_compatibility).Outcome);
+    [Fact] void should_not_report_a_shared_concept_conflict_after_yielding() => _yielding.Diagnostics.Any(_ => _.Code == GenerationDiagnosticCodes.ConflictingConceptName).ShouldBeFalse();
+    [Fact] void should_keep_the_yielding_enum_when_no_concept_competes() => _yieldingWithoutVogen.Source.ShouldContain("concept Status : Enum");
+    [Fact] void should_not_report_an_omission_when_no_concept_competes() => _yieldingWithoutVogen.Diagnostics.Any(_ => _.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict).ShouldBeFalse();
 
     static GenerationDiagnostic Omission(GeneratedScreenplayDefinition result) => result.Diagnostics.Single(_ => _.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict);
 
