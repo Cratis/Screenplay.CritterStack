@@ -71,11 +71,19 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
 
     [Fact] void should_verify_the_coowned_yielding_candidate() => _coowned.Diagnostics.Where(_ => _.Severity == GenerationDiagnosticSeverity.Error).Select(_ => $"{_.Code}: {_.Message}").ShouldBeEmpty();
     [Fact] void should_keep_the_coowned_yielding_source() => _coowned.Source.ShouldEqual(_yielding.Source);
-    [Fact] void should_characterize_the_warning_per_coowned_declaration() => _coowned.Diagnostics.Count(_ => _.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict).ShouldEqual(2);
-    [Fact] void should_characterize_the_same_warning_count_in_reverse_order() => _coownedReversed.Diagnostics.Count(_ => _.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict).ShouldEqual(2);
+    [Fact] void should_report_one_warning_for_coowned_declarations() => _coowned.Diagnostics.Count(_ => _.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict).ShouldEqual(1);
+    [Fact] void should_report_one_warning_for_coowned_declarations_in_reverse_order() => _coownedReversed.Diagnostics.Count(_ => _.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict).ShouldEqual(1);
     [Fact] void should_keep_the_coowned_source_in_reverse_order() => _coownedReversed.Source.ShouldEqual(_coowned.Source);
-    [Fact] void should_keep_the_same_message_on_both_coowned_warnings() => _coowned.Diagnostics.Where(_ => _.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict).Select(_ => _.Message).Distinct().Single().ShouldEqual(Omission(_compatibility).Message);
-    [Fact] void should_keep_the_same_location_on_both_coowned_warnings() => _coowned.Diagnostics.Where(_ => _.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict).Select(_ => _.Source).Distinct().Single().ShouldEqual(Omission(_compatibility).Source);
+    [Fact] void should_preserve_the_coowned_warning_message() => Omission(_coowned).Message.ShouldEqual(Omission(_compatibility).Message);
+    [Fact] void should_preserve_the_coowned_warning_location() => Omission(_coowned).Source.ShouldEqual(Omission(_compatibility).Source);
+    [Fact] void should_preserve_the_coowned_warning_subject() => Omission(_coowned).Subject.ShouldEqual(Omission(_compatibility).Subject);
+    [Fact] void should_preserve_the_coowned_warning_severity() => Omission(_coowned).Severity.ShouldEqual(Omission(_compatibility).Severity);
+    [Fact] void should_preserve_the_coowned_warning_outcome() => Omission(_coowned).Outcome.ShouldEqual(Omission(_compatibility).Outcome);
+    [Fact] void should_preserve_the_reversed_coowned_warning_message() => Omission(_coownedReversed).Message.ShouldEqual(Omission(_compatibility).Message);
+    [Fact] void should_preserve_the_reversed_coowned_warning_location() => Omission(_coownedReversed).Source.ShouldEqual(Omission(_compatibility).Source);
+    [Fact] void should_preserve_the_reversed_coowned_warning_subject() => Omission(_coownedReversed).Subject.ShouldEqual(Omission(_compatibility).Subject);
+    [Fact] void should_preserve_the_reversed_coowned_warning_severity() => Omission(_coownedReversed).Severity.ShouldEqual(Omission(_compatibility).Severity);
+    [Fact] void should_preserve_the_reversed_coowned_warning_outcome() => Omission(_coownedReversed).Outcome.ShouldEqual(Omission(_compatibility).Outcome);
 
     static GenerationDiagnostic Omission(GeneratedScreenplayDefinition result) => result.Diagnostics.Single(_ => _.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict);
 
