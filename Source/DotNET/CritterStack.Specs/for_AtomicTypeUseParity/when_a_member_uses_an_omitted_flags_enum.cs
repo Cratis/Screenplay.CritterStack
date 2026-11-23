@@ -4,13 +4,12 @@
 namespace Cratis.CritterStack.Screenplay.for_AtomicTypeUseParity;
 
 /// <summary>
-/// Characterizes the released neutral type-use fallback gap before enabling atomic emission.
-/// Exact observation of an intentionally undeclared enum adds a diagnostic that the compatibility path does not emit.
+/// Preserves the compatibility fallback for an intentionally omitted enum through neutral omission facts.
 /// </summary>
 public class when_a_member_uses_an_omitted_flags_enum : given.an_enum_application
 {
     GeneratedScreenplayDefinition _compatibility = null!;
-    ResolvedApplicationGraph _neutral = null!;
+    GeneratedScreenplayDefinition _neutral = null!;
     IReadOnlyList<GenerationFact> _facts = null!;
 
     void Establish() => Project = CreateProject(declaration: "[System.Flags] public enum Priority { First = 1, Second = 2 }");
@@ -23,6 +22,10 @@ public class when_a_member_uses_an_omitted_flags_enum : given.an_enum_applicatio
         var context = new DotNetAnalysisContext([Project]);
         var key = new ArtifactKey { Subject = context.SubjectForType(command)!, Kind = ArtifactKind.Command };
         var evidence = new Evidence { Adapter = adapter, Strength = EvidenceStrength.Exact };
+        var typeUses = DotNetTypeUseFacts.Emit(command, key, context, evidence).ToArray();
+        var memberType = typeUses.OfType<ArtifactMemberTypeUseFact>().Single();
+        var enumeration = Project.Compilation.GetTypeByMetadataName("Ordering.Priority")!;
+        var enumEvidence = CritterStackSource.EvidenceFor(enumeration, adapter, Project, EvidenceStrength.Exact, "Authored flags enum");
         _facts =
         [
             new ArtifactDeclarationFact
@@ -32,19 +35,55 @@ public class when_a_member_uses_an_omitted_flags_enum : given.an_enum_applicatio
                 Evidence = evidence,
                 Definition = new ArtifactDeclarationDefinition { Artifact = key, Name = command.Name }
             },
-            .. DotNetTypeUseFacts.Emit(command, key, context, evidence)
+            new ArtifactPlacementFact
+            {
+                Id = new FactId { Value = "flags-vector:command-placement" },
+                Subject = key.Subject,
+                Artifact = key,
+                Evidence = evidence,
+                Placement = new ArtifactPlacement
+                {
+                    Module = "Ordering",
+                    Features = ["PlaceOrder"],
+                    Slice = "PlaceOrder",
+                    SliceKind = GenerationSliceKind.StateChange
+                }
+            },
+            .. typeUses,
+            new TypeUseTargetOmittedFact
+            {
+                Id = new FactId { Value = "flags-vector:omitted-priority" },
+                Subject = memberType.Subject,
+                Evidence = enumEvidence,
+                Definition = new TypeUseTargetOmittedDefinition
+                {
+                    Member = memberType.Definition.Member,
+                    Diagnostic = new GenerationDiagnostic
+                    {
+                        Code = CritterStackDiagnosticCodes.FlagsEnumOmitted,
+                        Severity = GenerationDiagnosticSeverity.Warning,
+                        Outcome = GenerationDiagnosticOutcome.Unsupported,
+                        Subject = context.SubjectForType(enumeration),
+                        Source = enumEvidence.Source,
+                        Message = "Flags enum 'Priority' permits combinations that cannot be represented by an enumeration concept; it is not declared as a concept and its uses keep the plain type name without a concept reference"
+                    }
+                }
+            }
         ];
         _neutral = new ScreenplayDefinitionGenerator().Generate(
             [new AdapterContribution { Adapter = adapter, Facts = _facts }],
-            new ScreenplayGenerationOptions { Domain = "Ordering" }).Graph;
+            new ScreenplayGenerationOptions { Domain = "Ordering" });
     }
 
     [Fact] void should_keep_the_compatibility_candidate_compiler_verified() => _compatibility.IsSuccess.ShouldBeTrue();
     [Fact] void should_keep_the_compatibility_flags_warning() => _compatibility.Diagnostics.Count(_ => _.Code == CritterStackDiagnosticCodes.FlagsEnumOmitted).ShouldEqual(1);
     [Fact] void should_keep_the_compatibility_property_without_a_concept() => _compatibility.Graph.Artifacts.Single(_ => _.Key.Kind == ArtifactKind.Command).Variants.Single().Definition.Properties.Single().Type.Subject.ShouldBeNull();
     [Fact] void should_observe_the_exact_enum_subject_in_the_neutral_facts() => _facts.OfType<ArtifactMemberTypeUseFact>().Single().Definition.Type.ObservedTypeSubject.ShouldEqual(new DotNetAnalysisContext([Project]).SubjectForType(Project.Compilation.GetTypeByMetadataName("Ordering.Priority")!));
-    [Fact] void should_not_invent_a_concept_for_the_omitted_flags_enum() => _neutral.Artifacts.Any(_ => _.Key.Kind == ArtifactKind.Concept).ShouldBeFalse();
-    [Fact] void should_characterize_the_neutral_omission_of_the_command() => _neutral.Artifacts.Any(_ => _.Key.Kind == ArtifactKind.Command).ShouldBeFalse();
-    [Fact] void should_characterize_the_released_neutral_missing_target_diagnostic() => _neutral.Diagnostics.Count(_ => _.Code == GenerationDiagnosticCodes.MissingTypeUseTarget).ShouldEqual(1);
-    [Fact] void should_characterize_the_absence_of_that_diagnostic_in_compatibility() => _compatibility.Diagnostics.Any(_ => _.Code == GenerationDiagnosticCodes.MissingTypeUseTarget).ShouldBeFalse();
+    [Fact] void should_keep_the_neutral_candidate_compiler_verified() => _neutral.IsSuccess.ShouldBeTrue();
+    [Fact] void should_not_invent_a_concept_for_the_omitted_flags_enum() => _neutral.Graph.Artifacts.Any(_ => _.Key.Kind == ArtifactKind.Concept).ShouldBeFalse();
+    [Fact] void should_keep_the_neutral_command_and_its_unbound_property() => _neutral.Graph.Artifacts.Single(_ => _.Key.Kind == ArtifactKind.Command).Variants.Single().Definition.Properties.Single().Type.Subject.ShouldBeNull();
+    [Fact] void should_preserve_the_neutral_property_type_name() => _neutral.Graph.Artifacts.Single(_ => _.Key.Kind == ArtifactKind.Command).Variants.Single().Definition.Properties.Single().Type.Name.ShouldEqual("Priority");
+    [Fact] void should_report_exactly_the_original_flags_warning() => _neutral.Diagnostics.Single(_ => _.Code == CritterStackDiagnosticCodes.FlagsEnumOmitted).ShouldEqual(_compatibility.Diagnostics.Single(_ => _.Code == CritterStackDiagnosticCodes.FlagsEnumOmitted));
+    [Fact] void should_lower_the_neutral_command() => _neutral.Source.ShouldContain("command PlaceOrder");
+    [Fact] void should_not_report_a_missing_target() => _neutral.Diagnostics.Any(_ => _.Code == GenerationDiagnosticCodes.MissingTypeUseTarget).ShouldBeFalse();
 }
