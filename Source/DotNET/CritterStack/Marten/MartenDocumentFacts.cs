@@ -160,6 +160,16 @@ static class MartenDocumentFacts
 
         var documentKey = BackendOccurrenceKeys.Artifact(documentSubject, ArtifactKind.Document, ownership);
         state.Documents.TryAdd(documentKey, new(documentType, evidence) { Ownership = ownership });
+        if (_configurationMethods.Contains(method.Name) &&
+            state.Documents[documentKey].RegistrationPreference == OmissionDiagnosticEvidencePreference.UseSite)
+        {
+            state.Documents[documentKey] = state.Documents[documentKey] with
+            {
+                RegistrationEvidence = evidence,
+                RegistrationPreference = OmissionDiagnosticEvidencePreference.ExplicitRegistration
+            };
+        }
+
         AddHandlerFactsWhenInMethod(state, new(invocation, documentSubject, evidence, ownership), kind, semanticModel);
     }
 
@@ -293,6 +303,7 @@ static class MartenDocumentFacts
         state.Documents[key] = state.Documents[key] with
         {
             RegistrationEvidence = evidence,
+            RegistrationPreference = OmissionDiagnosticEvidencePreference.IdentityConfiguration,
             IdentityMember = identityMember,
             IdentityEvidence = evidence,
             IdentityConfigurationUnresolved = identityMember is null
@@ -540,5 +551,7 @@ static class MartenDocumentFacts
         bool IdentityConfigurationUnresolved = false)
     {
         public BackendOwnership Ownership { get; init; } = BackendOwnership.Legacy;
+
+        public OmissionDiagnosticEvidencePreference RegistrationPreference { get; init; } = OmissionDiagnosticEvidencePreference.UseSite;
     }
 }

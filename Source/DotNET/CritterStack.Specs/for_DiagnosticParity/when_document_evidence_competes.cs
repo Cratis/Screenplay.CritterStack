@@ -6,10 +6,10 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace Cratis.CritterStack.Screenplay.for_DiagnosticParity;
 
 /// <summary>
-/// Compatibility keeps a document's first use unless identity is configured. Neutral preference ranks
-/// explicit registration above a use site. Pin that source-location difference rather than changing it.
+/// Identity configuration outranks explicit registration, which outranks an ordinary use site.
+/// Both pipelines retain one omission warning per document and the same preferred source location.
 /// </summary>
-public class when_document_evidence_competes_characterizes_registration_precedence_gap : Specification
+public class when_document_evidence_competes : Specification
 {
     const string Source =
         """
@@ -64,9 +64,9 @@ public class when_document_evidence_competes_characterizes_registration_preceden
     [Fact] void should_keep_both_candidates_verified() => (_compatibility.IsSuccess && _forward.IsSuccess).ShouldBeTrue();
     [Fact] void should_keep_one_warning_per_document_in_both_pipelines() => new[] { _compatibility, _forward, _reverse }.All(result => Warnings(result).Count() == 2).ShouldBeTrue();
     [Fact] void should_keep_identity_configuration_as_the_alpha_winner() => Warning(_forward, "Alpha").Source.ShouldEqual(Warning(_compatibility, "Alpha").Source);
-    [Fact] void should_locate_the_compatibility_beta_warning_at_its_first_store() => Warning(_compatibility, "Beta").Source.StartLine.ShouldEqual(9);
-    [Fact] void should_characterize_the_neutral_beta_warning_at_explicit_registration() => Warning(_forward, "Beta").Source.StartLine.ShouldEqual(18);
-    [Fact] void should_preserve_every_beta_payload_field_except_the_characterized_location() => given.diagnostic_parity.Meaning([Warning(_forward, "Beta") with { Source = Warning(_compatibility, "Beta").Source }]).ShouldEqual(given.diagnostic_parity.Meaning([Warning(_compatibility, "Beta")]));
+    [Fact] void should_locate_the_compatibility_beta_warning_at_explicit_registration() => Warning(_compatibility, "Beta").Source.StartLine.ShouldEqual(18);
+    [Fact] void should_locate_the_neutral_beta_warning_at_explicit_registration() => Warning(_forward, "Beta").Source.StartLine.ShouldEqual(18);
+    [Fact] void should_preserve_every_beta_payload_field_including_its_source() => given.diagnostic_parity.Meaning([Warning(_forward, "Beta")]).ShouldEqual(given.diagnostic_parity.Meaning([Warning(_compatibility, "Beta")]));
     [Fact] void should_resolve_the_same_winners_in_reverse_order() => given.diagnostic_parity.Meaning(_reverse.Diagnostics).ShouldEqual(given.diagnostic_parity.Meaning(_forward.Diagnostics));
     [Fact] void should_not_change_source_or_create_a_read_model() => _forward.Source.ShouldEqual(_compatibility.Source);
 
