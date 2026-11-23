@@ -57,7 +57,7 @@ public class and_the_other_type_is_a_metadata_enum : given.an_application_printi
     [Fact] void should_report_only_the_dropped_enum() => Conflicts(_result).Single().Subject.Value.ShouldContain("Domain");
     [Fact] void should_report_only_the_dropped_enum_for_direct_adapter_consumers() => Conflicts(_direct).Single().Subject.Value.ShouldContain("Domain");
     [Fact] void should_locate_the_conflict() => Conflicts(_result).All(diagnostic => diagnostic.Source?.Path == "Ordering/Application.cs" && diagnostic.Source.StartLine > 0).ShouldBeTrue();
-    [Fact] void should_explain_that_a_different_type_uses_the_name() => Conflicts(_result).All(diagnostic => diagnostic.Message.Contains("a different type", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_explain_that_another_source_type_or_concept_uses_the_name() => Conflicts(_result).Single().Message.ShouldEqual("Enum 'DayOfWeek' shares its name with another source type or concept; it is not declared as a concept and its uses keep the plain type name without a concept reference");
     [Fact] void should_not_report_name_collisions_or_missing_concepts() => _result.Diagnostics.Concat(_direct.Diagnostics).Where(diagnostic => string.Equals(diagnostic.Code, "GEN0015", StringComparison.Ordinal) || string.Equals(diagnostic.Code, "GEN0016", StringComparison.Ordinal)).ShouldBeEmpty();
 
     static IEnumerable<GenerationDiagnostic> Conflicts(GeneratedScreenplayDefinition result) => result.Diagnostics.Where(diagnostic => diagnostic.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict);

@@ -179,7 +179,7 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
             Subject = subject,
             Source = evidence.Source,
             Facts = [new FactId { Value = "enum-vector:concept" }],
-            Message = "Enum 'Status' shares its Screenplay concept name with 1 other source subject; it is not declared as a concept and its uses keep the plain type name without a concept reference"
+            Message = "Enum 'Status' shares its name with another source type or concept; it is not declared as a concept and its uses keep the plain type name without a concept reference"
         }
     };
 }

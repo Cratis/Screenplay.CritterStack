@@ -4,7 +4,7 @@
 namespace Cratis.CritterStack.Screenplay.for_AtomicTypeUseParity;
 
 /// <summary>
-/// Characterizes diagnostic-message parity when the same enum yields for different independently contributed reasons.
+/// Preserves diagnostic parity when the same enum yields for different independently contributed reasons.
 /// </summary>
 public class when_one_yield_marker_meets_different_conflict_reasons : Specification
 {
@@ -42,10 +42,13 @@ public class when_one_yield_marker_meets_different_conflict_reasons : Specificat
     [Fact] void should_verify_the_neutral_unbound_name_capture() => _neutralCapture.Diagnostics.Where(_ => _.Severity == GenerationDiagnosticSeverity.Error).Select(_ => $"{_.Code}: {_.Message}").ShouldBeEmpty();
     [Fact] void should_keep_the_concept_conflict_source() => _neutralConflict.Source.ShouldEqual(_legacyConflict.Source);
     [Fact] void should_keep_the_unbound_name_capture_source() => _neutralCapture.Source.ShouldEqual(_legacyCapture.Source);
-    [Fact] void should_characterize_the_distinct_compatibility_messages() => Omission(_legacyCapture).Message.ShouldNotEqual(Omission(_legacyConflict).Message);
+    [Fact] void should_use_the_same_compatibility_message_for_both_reasons() => Omission(_legacyCapture).Message.ShouldEqual(Omission(_legacyConflict).Message);
     [Fact] void should_keep_the_configured_message_for_a_concept_conflict() => Omission(_neutralConflict).Message.ShouldEqual(Omission(_legacyConflict).Message);
-    [Fact] void should_characterize_the_same_configured_message_for_name_capture() => Omission(_neutralCapture).Message.ShouldEqual(Omission(_neutralConflict).Message);
-    [Fact] void should_characterize_the_name_capture_message_parity_gap() => Omission(_neutralCapture).Message.ShouldNotEqual(Omission(_legacyCapture).Message);
+    [Fact] void should_keep_the_same_configured_message_for_name_capture() => Omission(_neutralCapture).Message.ShouldEqual(Omission(_neutralConflict).Message);
+    [Fact] void should_preserve_the_name_capture_message() => Omission(_neutralCapture).Message.ShouldEqual(Omission(_legacyCapture).Message);
+    [Fact] void should_use_the_approved_warning_message() => Omission(_legacyCapture).Message.ShouldEqual("Enum 'Status' shares its name with another source type or concept; it is not declared as a concept and its uses keep the plain type name without a concept reference");
+    [Fact] void should_preserve_the_warning_severity() => Omission(_neutralCapture).Severity.ShouldEqual(Omission(_legacyCapture).Severity);
+    [Fact] void should_preserve_the_enum_subject() => Omission(_neutralCapture).Subject.ShouldEqual(Omission(_legacyCapture).Subject);
     [Fact] void should_keep_the_conflict_outcome_for_both_reasons() => Omission(_neutralCapture).Outcome.ShouldEqual(GenerationDiagnosticOutcome.Conflict);
     [Fact] void should_keep_the_diagnostic_location_for_both_reasons() => Omission(_neutralCapture).Source.ShouldEqual(Omission(_legacyCapture).Source);
 

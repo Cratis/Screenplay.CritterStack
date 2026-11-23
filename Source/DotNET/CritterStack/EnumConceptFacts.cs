@@ -75,7 +75,7 @@ static class EnumConceptFacts
             contributions,
             conflicts.ToDictionary(
                 _ => _.Key,
-                _ => $"Enum '{_.Value.Name}' shares its Screenplay concept name with {_.Value.Others} other source subject{(_.Value.Others == 1 ? string.Empty : "s")}; it is not declared as a concept and its uses keep the plain type name without a concept reference"));
+                _ => ConflictMessage(_.Value.Name)));
     }
 
     /// <summary>
@@ -108,7 +108,7 @@ static class EnumConceptFacts
             .GroupBy(_ => _.Subject)
             .ToDictionary(
                 _ => _.Key,
-                _ => $"Enum '{_.OrderBy(fact => fact.Definition.Name, StringComparer.Ordinal).First().Definition.Name}' shares its Screenplay type name with a different type used without a concept reference, which would resolve to this enumeration; it is not declared as a concept and its uses keep the plain type name without a concept reference");
+                _ => ConflictMessage(_.OrderBy(fact => fact.Definition.Name, StringComparer.Ordinal).First().Definition.Name));
 
         return Drop(contributions, captured);
     }
@@ -312,6 +312,8 @@ static class EnumConceptFacts
         Source = evidence.Source,
         Message = message
     };
+
+    static string ConflictMessage(string name) => $"Enum '{name}' shares its name with another source type or concept; it is not declared as a concept and its uses keep the plain type name without a concept reference";
 
     static GenerationDiagnostic ConflictDiagnostic(ArtifactFact concept, string message) => new()
     {
