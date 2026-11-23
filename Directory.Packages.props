@@ -6,10 +6,10 @@
   <ItemGroup>
     <!-- Cratis -->
     <PackageVersion Include="Cratis.Screenplay" Version="6.37.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.26.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.26.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.26.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet.Vogen" Version="0.26.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.32.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.32.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.32.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet.Vogen" Version="0.32.0" />
     <PackageVersion Include="Cratis.Screenplay.Generation.DotNet.Dunet" Version="0.26.0" />
     <!-- Canonical fixtures -->
     <PackageVersion Include="Marten" Version="9.62.0" />
