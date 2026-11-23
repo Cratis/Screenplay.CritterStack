@@ -4,7 +4,7 @@
 namespace Cratis.CritterStack.Screenplay.for_AtomicTypeUseParity;
 
 /// <summary>
-/// Characterizes the cross-contribution enum-name policy required before atomic emission can preserve compatibility.
+/// Exercises published concept-name yielding and characterizes the remaining diagnostic-outcome parity gap.
 /// </summary>
 public class when_an_enum_concept_name_collides_with_an_independent_concept : Specification
 {
@@ -13,6 +13,9 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
     GeneratedScreenplayDefinition _reversed = null!;
     GeneratedScreenplayDefinition _withoutVogen = null!;
     GeneratedScreenplayDefinition _neutralWithoutVogen = null!;
+    GeneratedScreenplayDefinition _yielding = null!;
+    GeneratedScreenplayDefinition _yieldingReversed = null!;
+    GeneratedScreenplayDefinition _preservingOutcome = null!;
 
     void Because()
     {
@@ -26,6 +29,11 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
         _reversed = new ScreenplayDefinitionGenerator().Generate([vogen, enumeration], options);
         _withoutVogen = new CritterStackScreenplayGenerator([new CritterStackScreenplayAdapter()]).Generate([project], new CritterStackScreenplayOptions { Domain = "Ordering" });
         _neutralWithoutVogen = new ScreenplayDefinitionGenerator().Generate([enumeration], options);
+        var yielding = EnumContribution(context, project, GenerationDiagnosticOutcome.Unsupported);
+        _yielding = new ScreenplayDefinitionGenerator().Generate([yielding, vogen], options);
+        _yieldingReversed = new ScreenplayDefinitionGenerator().Generate([vogen, yielding], options);
+        var preservingOutcome = EnumContribution(context, project, GenerationDiagnosticOutcome.Conflict);
+        _preservingOutcome = new ScreenplayDefinitionGenerator().Generate([preservingOutcome, vogen], options);
     }
 
     [Fact] void should_keep_the_compatibility_candidate_verified() => _compatibility.IsSuccess.ShouldBeTrue();
@@ -40,6 +48,23 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
     [Fact] void should_keep_the_enum_in_compatibility_when_vogen_is_not_registered() => _withoutVogen.Source.ShouldContain("concept Status : Enum");
     [Fact] void should_verify_the_neutral_facts_when_no_concept_competes() => _neutralWithoutVogen.IsSuccess.ShouldBeTrue();
     [Fact] void should_keep_the_neutral_enum_when_no_concept_competes() => _neutralWithoutVogen.Source.ShouldContain("concept Status : Enum");
+    [Fact] void should_verify_the_published_yielding_candidate() => _yielding.IsSuccess.ShouldBeTrue();
+    [Fact] void should_keep_the_independent_concept_after_yielding() => _yielding.Source.ShouldContain("concept Status : Uuid");
+    [Fact] void should_omit_the_yielding_enum_concept() => _yielding.Source.ShouldNotContain("concept Status : Enum");
+    [Fact] void should_keep_the_enum_using_command_after_yielding() => _yielding.Source.ShouldContain("command PlaceOrder");
+    [Fact] void should_keep_the_same_yielding_source_in_reverse_order() => _yieldingReversed.Source.ShouldEqual(_yielding.Source);
+    [Fact] void should_report_one_yielding_warning() => _yielding.Diagnostics.Count(_ => _.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict).ShouldEqual(1);
+    [Fact] void should_preserve_the_omission_source() => Omission(_yielding).Source.ShouldEqual(Omission(_compatibility).Source);
+    [Fact] void should_preserve_the_omission_message() => Omission(_yielding).Message.ShouldEqual(Omission(_compatibility).Message);
+    [Fact] void should_preserve_the_omission_subject() => Omission(_yielding).Subject.ShouldEqual(Omission(_compatibility).Subject);
+    [Fact] void should_preserve_the_omission_severity() => Omission(_yielding).Severity.ShouldEqual(Omission(_compatibility).Severity);
+    [Fact] void should_characterize_the_compatibility_conflict_outcome() => Omission(_compatibility).Outcome.ShouldEqual(GenerationDiagnosticOutcome.Conflict);
+    [Fact] void should_characterize_the_required_yielding_outcome() => Omission(_yielding).Outcome.ShouldEqual(GenerationDiagnosticOutcome.Unsupported);
+    [Fact] void should_not_claim_diagnostic_parity() => Omission(_yielding).Outcome.ShouldNotEqual(Omission(_compatibility).Outcome);
+    [Fact] void should_not_yield_with_the_unchanged_compatibility_outcome() => _preservingOutcome.Diagnostics.Count(_ => _.Code == GenerationDiagnosticCodes.ConflictingConceptName).ShouldEqual(1);
+    [Fact] void should_not_verify_with_the_unchanged_compatibility_outcome() => _preservingOutcome.IsSuccess.ShouldBeFalse();
+
+    static GenerationDiagnostic Omission(GeneratedScreenplayDefinition result) => result.Diagnostics.Single(_ => _.Code == CritterStackDiagnosticCodes.EnumConceptNameConflict);
 
     static DotNetProjectCompilation CreateProject()
     {
@@ -86,7 +111,7 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
         };
     }
 
-    static AdapterContribution EnumContribution(DotNetAnalysisContext context, DotNetProjectCompilation project)
+    static AdapterContribution EnumContribution(DotNetAnalysisContext context, DotNetProjectCompilation project, GenerationDiagnosticOutcome? yieldOutcome = null)
     {
         var adapter = new AdapterIdentity { Id = "enum-vector", Version = "1.0.0" };
         var enumeration = project.Compilation.GetTypeByMetadataName("Ordering.Status")!;
@@ -109,7 +134,8 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
                     {
                         Artifact = new ArtifactKey { Subject = subject, Kind = ArtifactKind.Concept },
                         Name = enumeration.Name,
-                        File = evidence.Source?.Path
+                        File = evidence.Source?.Path,
+                        NameConflictYield = YieldMarker(yieldOutcome, subject, evidence)
                     }
                 },
                 new ConceptRepresentationFact
@@ -143,4 +169,18 @@ public class when_an_enum_concept_name_collides_with_an_independent_concept : Sp
             ]
         };
     }
+
+    static ConceptNameYieldDefinition? YieldMarker(GenerationDiagnosticOutcome? outcome, SubjectId subject, Evidence evidence) => outcome is null ? null : new()
+    {
+        Diagnostic = new GenerationDiagnostic
+        {
+            Code = CritterStackDiagnosticCodes.EnumConceptNameConflict,
+            Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = outcome.Value,
+            Subject = subject,
+            Source = evidence.Source,
+            Facts = [new FactId { Value = "enum-vector:concept" }],
+            Message = "Enum 'Status' shares its Screenplay concept name with 1 other source subject; it is not declared as a concept and its uses keep the plain type name without a concept reference"
+        }
+    };
 }
