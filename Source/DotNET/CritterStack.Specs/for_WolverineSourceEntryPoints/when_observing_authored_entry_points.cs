@@ -106,8 +106,8 @@ public class when_observing_authored_entry_points : Specification
     [Fact] void should_keep_the_explicit_nonconventional_method() => _entries.Single(entry => entry.Method.ContainingType.Name == "ExplicitActions").Method.Name.ShouldEqual("Process");
     [Fact] void should_keep_both_overloads_across_partial_declarations() => _entries.Where(entry => entry.Method.ContainingType.Name == "OverloadedHandler").Select(entry => entry.Method.Parameters[0].Type.Name).Order(StringComparer.Ordinal).ShouldEqual(["OtherRequest", "Request"]);
     [Fact] void should_observe_an_http_method_only_once() => _entries.Count(entry => entry.Method.ContainingType.Name == "MixedHandler").ShouldEqual(1);
-    [Fact] void should_keep_the_http_verb() => _entries.Single(entry => entry.Endpoint is not null).Endpoint!.Verb.ShouldEqual("POST");
-    [Fact] void should_keep_the_http_route() => _entries.Single(entry => entry.Endpoint is not null).Endpoint!.Route.ShouldEqual("/requests");
-    [Fact] void should_keep_the_same_method_symbol_for_the_http_observation() => _entries.Single(entry => entry.Endpoint is not null).Endpoint!.Method.ShouldEqual(_entries.Single(entry => entry.Endpoint is not null).Method);
+    [Fact] void should_keep_the_http_verb() => _entries.Single(entry => entry.Endpoint is not null).Endpoint.Verb.ShouldEqual("POST");
+    [Fact] void should_keep_the_http_route() => _entries.Single(entry => entry.Endpoint is not null).Endpoint.Route.ShouldEqual("/requests");
+    [Fact] void should_keep_the_same_method_symbol_for_the_http_observation() => _entries.Single(entry => entry.Endpoint is not null).Endpoint.Method.ShouldEqual(_entries.Single(entry => entry.Endpoint is not null).Method);
     [Fact] void should_exclude_ignored_nonhandler_and_unselected_source() => _entries.Count.ShouldEqual(5);
 }
