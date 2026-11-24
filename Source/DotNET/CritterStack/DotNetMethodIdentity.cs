@@ -9,10 +9,8 @@ namespace Cratis.CritterStack.Screenplay;
 
 static class DotNetMethodIdentity
 {
-    public static SubjectId SubjectFor(DotNetProjectCompilation project, IMethodSymbol method) => new()
-    {
-        Value = $"{project.SubjectForType(method.ContainingType).Value}#method:{Uri.EscapeDataString(DocumentationId(method))}"
-    };
+    public static SubjectId SubjectFor(DotNetProjectCompilation project, IMethodSymbol method) =>
+        CritterStackMethodFacts.CompatibilitySubjectFor(project, method);
 
     public static string DisplayName(IMethodSymbol method)
     {
@@ -22,9 +20,6 @@ static class DotNetMethodIdentity
 
         return $"{containingType}.{method.Name}{arity}({parameters})";
     }
-
-    static string DocumentationId(IMethodSymbol method) =>
-        method.GetDocumentationCommentId() ?? DisplayName(method);
 
     static string ParameterName(IParameterSymbol parameter, INamespaceSymbol localNamespace)
     {
