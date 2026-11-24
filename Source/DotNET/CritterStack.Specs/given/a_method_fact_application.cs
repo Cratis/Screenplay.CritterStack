@@ -67,10 +67,10 @@ public class a_method_fact_application : Specification
         };
         var model = compilation.GetSemanticModel(tree);
         var nodes = tree.GetRoot().DescendantNodes().ToArray();
-        var handlers = compilation.GetTypeByMetadataName("Methods.Handler")!.GetMembers("Handle").OfType<IMethodSymbol>().ToArray();
+        var handlers = compilation.GetTypeByMetadataName("Methods.Handler").GetMembers("Handle").OfType<IMethodSymbol>().ToArray();
         IntegerHandler = handlers.Single(method => method.Parameters[0].Type.SpecialType == SpecialType.System_Int32);
         StringHandler = handlers.Single(method => method.Parameters[0].Type.SpecialType == SpecialType.System_String);
-        Locals = [.. nodes.OfType<LocalFunctionStatementSyntax>().Select(node => model.GetDeclaredSymbol(node)!)];
-        Lambdas = [.. nodes.OfType<LambdaExpressionSyntax>().Select(node => ((IAnonymousFunctionOperation)model.GetOperation(node)!).Symbol)];
+        Locals = [.. nodes.OfType<LocalFunctionStatementSyntax>().Select(node => model.GetDeclaredSymbol(node))];
+        Lambdas = [.. nodes.OfType<LambdaExpressionSyntax>().Select(node => ((IAnonymousFunctionOperation)model.GetOperation(node)).Symbol)];
     }
 }

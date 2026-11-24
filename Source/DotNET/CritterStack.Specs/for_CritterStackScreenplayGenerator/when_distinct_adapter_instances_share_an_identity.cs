@@ -13,5 +13,5 @@ public class when_distinct_adapter_instances_share_an_identity : given.a_generat
 
     [Fact] void should_probe_neither_instance() => (_first.ProbeCount + _second.ProbeCount).ShouldEqual(0);
     [Fact] void should_analyze_neither_instance() => (_first.AnalyzeCount + _second.AnalyzeCount).ShouldEqual(0);
-    [Fact] void should_reject_every_duplicate_record() => _result.AdapterRun!.Adapters.All(record => !record.Probed && !record.Executed && record.Disposition == AdapterRunDisposition.RosterRejected).ShouldBeTrue();
+    [Fact] void should_reject_every_duplicate_record() => _result.AdapterRun.Adapters.All(record => !record.Probed && !record.Executed && record.Disposition == AdapterRunDisposition.RosterRejected).ShouldBeTrue();
 }

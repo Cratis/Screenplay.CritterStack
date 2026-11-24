@@ -93,10 +93,13 @@ public class when_document_diagnostics_depend_on_success_support : given.a_wolve
         }
         facts.Add(new MethodExecutionClassificationFact
         {
-            Id = new FactId { Value = "document-support:failure" }, Subject = failure, Evidence = evidence,
+            Id = new FactId { Value = "document-support:failure" },
+            Subject = failure,
+            Evidence = evidence,
             Definition = new MethodExecutionClassificationDefinition
             {
-                Method = failure, Kind = MethodExecutionKind.FailureOnly,
+                Method = failure,
+                Kind = MethodExecutionKind.FailureOnly,
                 OmissionReason = combined.Diagnostics.Single(diagnostic => diagnostic.Code == WolverineDiagnosticCodes.FailureStageConditionOmitted)
             }
         });
@@ -123,12 +126,15 @@ public class when_document_diagnostics_depend_on_success_support : given.a_wolve
             var subject = DotNetMethodIdentity.SubjectFor(project, method);
             var candidate = new OccurrenceOmissionDiagnosticFact
             {
-                Id = new FactId { Value = $"{evidence.Adapter.Id}:warning:{invocation.SpanStart}" }, Subject = document.Subject,
+                Id = new FactId { Value = $"{evidence.Adapter.Id}:warning:{invocation.SpanStart}" },
+                Subject = document.Subject,
                 Evidence = evidence with { Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project) },
                 Definition = new OccurrenceOmissionDiagnosticDefinition
                 {
-                    Family = new DiagnosticFamilyId { Value = warning.Code }, Occurrence = document,
-                    Policy = OccurrenceOmissionDiagnosticPolicy.OnePerOccurrence, Preference = OmissionDiagnosticEvidencePreference.UseSite,
+                    Family = new DiagnosticFamilyId { Value = warning.Code },
+                    Occurrence = document,
+                    Policy = OccurrenceOmissionDiagnosticPolicy.OnePerOccurrence,
+                    Preference = OmissionDiagnosticEvidencePreference.UseSite,
                     Diagnostic = warning with { Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project), Facts = [documentFact.Id] }
                 }
             };
@@ -139,10 +145,13 @@ public class when_document_diagnostics_depend_on_success_support : given.a_wolve
 
     static MethodFactSupportFact Support(GenerationFact candidate, SubjectId[] methods, Evidence evidence) => new()
     {
-        Id = new FactId { Value = $"document-support:{candidate.Id.Value}" }, Subject = candidate.Subject, Evidence = evidence,
+        Id = new FactId { Value = $"document-support:{candidate.Id.Value}" },
+        Subject = candidate.Subject,
+        Evidence = evidence,
         Definition = new MethodFactSupportDefinition
         {
-            Candidate = candidate.Id, Alternatives = [.. methods.Select(method => new MethodFactSupportAlternative { Method = method })]
+            Candidate = candidate.Id,
+            Alternatives = [.. methods.Select(method => new MethodFactSupportAlternative { Method = method })]
         }
     };
 }

@@ -44,8 +44,11 @@ static class diagnostic_parity
         var tree = CSharpSyntaxTree.ParseText(source, path: "/workspace/Diagnostics/ApplicationSource.cs");
         return new DotNetProjectCompilation
         {
-            Name = framework.Name, ProjectPath = framework.ProjectPath, SourceRoot = framework.SourceRoot,
-            Compilation = framework.Compilation.AddSyntaxTrees(tree), AuthoredSyntaxTrees = framework.AuthoredSyntaxTrees.Append(tree).ToHashSet()
+            Name = framework.Name,
+            ProjectPath = framework.ProjectPath,
+            SourceRoot = framework.SourceRoot,
+            Compilation = framework.Compilation.AddSyntaxTrees(tree),
+            AuthoredSyntaxTrees = framework.AuthoredSyntaxTrees.Append(tree).ToHashSet()
         };
     }
 
@@ -112,6 +115,8 @@ static class diagnostic_parity
 
     public static Evidence Evidence(AdapterIdentity adapter, SourceRange? source = null) => new()
     {
-        Adapter = adapter, Strength = EvidenceStrength.Exact, Source = source
+        Adapter = adapter,
+        Strength = EvidenceStrength.Exact,
+        Source = source
     };
 }

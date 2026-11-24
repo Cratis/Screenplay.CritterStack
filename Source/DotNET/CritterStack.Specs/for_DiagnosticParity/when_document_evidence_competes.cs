@@ -86,7 +86,8 @@ public class when_document_evidence_competes : Specification
         var adapter = given.diagnostic_parity.Identity(owner);
         var declaration = new ArtifactDeclarationFact
         {
-            Id = new FactId { Value = $"{owner}:document" }, Subject = document.Subject,
+            Id = new FactId { Value = $"{owner}:document" },
+            Subject = document.Subject,
             Evidence = given.diagnostic_parity.Evidence(adapter, diagnostic.Source),
             Definition = new ArtifactDeclarationDefinition { Artifact = document.Definition.Key, Name = document.Definition.Name }
         };

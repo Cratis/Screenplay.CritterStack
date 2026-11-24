@@ -89,21 +89,27 @@ public class when_compiled_query_diagnostics_are_projected_to_an_entry_point : S
     {
         var marker = new MethodDiagnosticProjectionFact
         {
-            Id = new FactId { Value = $"compiled-query-bridge:warning:{index}" }, Subject = _method,
+            Id = new FactId { Value = $"compiled-query-bridge:warning:{index}" },
+            Subject = _method,
             Evidence = given.diagnostic_parity.Evidence(bridge, diagnostic.Source),
             Definition = new MethodDiagnosticProjectionDefinition
             {
-                Method = _method, EntryPointRole = ArtifactKind.Query, Mode = MethodDiagnosticProjectionMode.EntryPointArtifact,
+                Method = _method,
+                EntryPointRole = ArtifactKind.Query,
+                Mode = MethodDiagnosticProjectionMode.EntryPointArtifact,
                 Diagnostic = diagnostic with { Facts = [new FactId { Value = "compiled-query-bridge:observation" }] }
             }
         };
         yield return marker;
         yield return new MethodFactSupportFact
         {
-            Id = new FactId { Value = $"compiled-query-bridge:support:{index}" }, Subject = _method, Evidence = marker.Evidence,
+            Id = new FactId { Value = $"compiled-query-bridge:support:{index}" },
+            Subject = _method,
+            Evidence = marker.Evidence,
             Definition = new MethodFactSupportDefinition
             {
-                Candidate = marker.Id, Alternatives = [new MethodFactSupportAlternative { Method = _method }]
+                Candidate = marker.Id,
+                Alternatives = [new MethodFactSupportAlternative { Method = _method }]
             }
         };
     }

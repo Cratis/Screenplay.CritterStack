@@ -16,8 +16,11 @@ public class when_source_local_command_identity_precedence_is_emitted_as_roles :
     {
         _project = new()
         {
-            Name = "Members", ProjectPath = "/workspace/Members/Members.csproj", SourceRoot = "/workspace",
-            Compilation = Compilation, AuthoredSyntaxTrees = Compilation.SyntaxTrees.ToHashSet()
+            Name = "Members",
+            ProjectPath = "/workspace/Members/Members.csproj",
+            SourceRoot = "/workspace",
+            Compilation = Compilation,
+            AuthoredSyntaxTrees = Compilation.SyntaxTrees.ToHashSet()
         };
         Observe(Input("Attributed", "Aggregate"), "key");
         Observe(Input("Conventional", "Aggregate"), "aggregateId");

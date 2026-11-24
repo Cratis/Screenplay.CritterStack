@@ -62,7 +62,9 @@ public class when_identity_configuration_depends_on_method_eligibility_character
         var evidence = CritterStackSource.EvidenceFor(method, _adapter, Project, EvidenceStrength.Exact, $"Explicit identity configuration for '{member.Name}'");
         var role = new ArtifactMemberRoleFact
         {
-            Id = new() { Value = $"marten-role-vector:configured-identity:{member.Name}" }, Subject = _key.Subject, Evidence = evidence,
+            Id = new() { Value = $"marten-role-vector:configured-identity:{member.Name}" },
+            Subject = _key.Subject,
+            Evidence = evidence,
             Definition = new()
             {
                 Member = new() { Artifact = _key, Name = WolverineSagaFacts.LowerFirst(member.Name) },

@@ -116,13 +116,17 @@ public class when_source_owners_compete_after_method_eligibility : Specification
 
     ArtifactSourcePlacementCandidateFact Candidate(ArtifactKey target, ArtifactKey owner, ArtifactSourcePlacementReason reason, Evidence evidence) => new()
     {
-        Id = new() { Value = $"owner-vector:{target.Subject.Value}:{owner.Subject.Value}" }, Subject = target.Subject, Evidence = evidence,
+        Id = new() { Value = $"owner-vector:{target.Subject.Value}:{owner.Subject.Value}" },
+        Subject = target.Subject,
+        Evidence = evidence,
         Definition = new() { Artifact = target, Owner = owner, Reason = reason, SliceKind = GenerationSliceKind.StateChange, Policy = new() }
     };
 
     RelationshipFact Production(ArtifactKey command, Evidence evidence) => new()
     {
-        Id = new() { Value = $"owner-vector:produces:{command.Subject.Value}" }, Subject = command.Subject, Evidence = evidence,
+        Id = new() { Value = $"owner-vector:produces:{command.Subject.Value}" },
+        Subject = command.Subject,
+        Evidence = evidence,
         Definition = new() { Key = new() { Source = command.Subject, Kind = RelationshipKind.Produces, Target = _event.Subject } }
     };
 

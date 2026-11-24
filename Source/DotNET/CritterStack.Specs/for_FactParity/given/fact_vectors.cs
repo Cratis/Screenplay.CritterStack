@@ -22,7 +22,9 @@ static class fact_vectors
         compilation.GetDiagnostics().Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
         return new()
         {
-            Name = "FactParity", ProjectPath = "/workspace/FactParity/FactParity.csproj", SourceRoot = "/workspace",
+            Name = "FactParity",
+            ProjectPath = "/workspace/FactParity/FactParity.csproj",
+            SourceRoot = "/workspace",
             SourceContext = DotNetSourcePaths.Create(
                 "FactParity/FactParity",
                 new() { Version = 1, DisplayRoot = DotNetSourceDisplayRoot.Workspace, CasePolicy = DotNetSourcePathCasePolicy.Ordinal },
@@ -30,7 +32,8 @@ static class fact_vectors
                 {
                     SyntaxTree = tree, ProjectRelativePath = Path.GetFileName(tree.FilePath), WorkspaceRelativePath = $"FactParity/{Path.GetFileName(tree.FilePath)}"
                 })]),
-            Compilation = compilation, AuthoredSyntaxTrees = trees.ToHashSet()
+            Compilation = compilation,
+            AuthoredSyntaxTrees = trees.ToHashSet()
         };
     }
 
@@ -38,7 +41,8 @@ static class fact_vectors
 
     internal static ArtifactKey Key(DotNetProjectCompilation project, INamedTypeSymbol type, ArtifactKind kind) => new()
     {
-        Subject = project.SubjectForType(type), Kind = kind
+        Subject = project.SubjectForType(type),
+        Kind = kind
     };
 
     internal static Evidence Evidence(DotNetProjectCompilation project, ISymbol symbol, AdapterIdentity adapter, EvidenceStrength strength = EvidenceStrength.Exact) =>
@@ -46,7 +50,9 @@ static class fact_vectors
 
     internal static ArtifactDeclarationFact Declaration(ArtifactKey key, INamedTypeSymbol type, Evidence evidence, string suffix = "declaration") => new()
     {
-        Id = new() { Value = $"{evidence.Adapter.Id}:{key.Subject.Value}:{suffix}" }, Subject = key.Subject, Evidence = evidence,
+        Id = new() { Value = $"{evidence.Adapter.Id}:{key.Subject.Value}:{suffix}" },
+        Subject = key.Subject,
+        Evidence = evidence,
         Definition = new() { Artifact = key, Name = type.Name, File = evidence.Source?.Path }
     };
 
@@ -58,7 +64,9 @@ static class fact_vectors
 
     internal static ArtifactMemberRoleFact Role(ArtifactKey key, string member, Evidence evidence, string suffix = "role") => new()
     {
-        Id = new() { Value = $"{evidence.Adapter.Id}:{key.Subject.Value}:{member}:{suffix}" }, Subject = key.Subject, Evidence = evidence,
+        Id = new() { Value = $"{evidence.Adapter.Id}:{key.Subject.Value}:{member}:{suffix}" },
+        Subject = key.Subject,
+        Evidence = evidence,
         Definition = new() { Member = new() { Artifact = key, Name = member }, Role = ArtifactMemberRoleKind.EventSourceIdentifier }
     };
 
@@ -69,8 +77,12 @@ static class fact_vectors
         var evidence = Evidence(project, method, WolverineAdapter);
         var warning = new GenerationDiagnostic
         {
-            Code = WolverineDiagnosticCodes.FailureStageConditionOmitted, Severity = GenerationDiagnosticSeverity.Warning,
-            Outcome = GenerationDiagnosticOutcome.Unsupported, Message = "Failure-only source observation", Subject = CritterStackMethodFacts.SubjectFor(project, method), Source = evidence.Source
+            Code = WolverineDiagnosticCodes.FailureStageConditionOmitted,
+            Severity = GenerationDiagnosticSeverity.Warning,
+            Outcome = GenerationDiagnosticOutcome.Unsupported,
+            Message = "Failure-only source observation",
+            Subject = CritterStackMethodFacts.SubjectFor(project, method),
+            Source = evidence.Source
         };
         return Contribution(WolverineAdapter, [CritterStackMethodFacts.FailureOnly(CritterStackMethodFacts.Observe(project, method), evidence, warning)]);
     }
