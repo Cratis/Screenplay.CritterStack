@@ -29,7 +29,7 @@ public class when_compiled_query_diagnostics_are_projected_to_an_entry_point : S
         _method = DotNetMethodIdentity.SubjectFor(project, method);
         _query = contribution.Facts.OfType<ArtifactFact>().Single(fact => fact.Definition.Key.Kind == ArtifactKind.Query && fact.Definition.Name == "Nested").Definition.Key;
         var bridge = given.diagnostic_parity.Identity("compiled-query-bridge");
-        _methodDiagnostics = MartenCompiledQueryDiscovery.Discover(method, _method, project, bridge, new CritterStackSubjectResolver(context)).Diagnostics;
+        _methodDiagnostics = MartenCompiledQueryDiscovery.Observe(method, _method, project, bridge).Diagnostics;
 
         // Payload support must survive eligibility selection; classifications are provenance-only.
         var diagnostics = new AdapterContribution

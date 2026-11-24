@@ -17,12 +17,15 @@ public class when_compiled_query_members_share_names_with_endpoint_parameters : 
     GeneratedScreenplayDefinition _forward = null!;
     GeneratedScreenplayDefinition _reverse = null!;
     AdapterContribution _inputs = null!;
+    MartenCompiledQueryObservations _observed = null!;
 
     void Because()
     {
         var plan = Type(Project, "Vector.StudentsByName");
         var endpoint = Type(Project, "Vector.StudentEndpoints").GetMembers("Search").OfType<IMethodSymbol>().Single();
         var method = DotNetMethodIdentity.SubjectFor(Project, endpoint);
+        var bridge = new WolverineMartenScreenplayAdapter().Identity;
+        _observed = MartenCompiledQueryDiscovery.Observe(endpoint, method, Project, bridge);
         _query = new() { Subject = new() { Value = $"{method.Value}:query" }, Kind = ArtifactKind.Query };
         var evidence = Evidence(Project, endpoint, WolverineAdapter);
         _compatibility = CompatibilityDefinition(Contribution, _query);
@@ -52,20 +55,20 @@ public class when_compiled_query_members_share_names_with_endpoint_parameters : 
         var resultType = Type(Project, "Vector.StudentResult");
         var resultKey = Key(Project, resultType, ArtifactKind.ReadModel);
         var declaration = Project.SubjectForType(plan);
-        var members = new[] { "Name", "Tag", "Take" }.Select(name => plan.GetMembers(name).Single()).ToArray();
-        _inputs = Contribution(MartenAdapter,
+        var execution = _observed.Links.Single();
+        _inputs = Contribution(bridge,
         [
             new ArtifactUsageDeclarationFact
             {
-                Id = new() { Value = "input-vector:mapping" }, Subject = declaration, Evidence = Evidence(Project, plan, MartenAdapter),
+                Id = new() { Value = "input-vector:mapping" }, Subject = declaration, Evidence = execution.Evidence,
                 Definition = new() { Declaration = declaration, Artifact = resultKey }
             },
             new MethodArtifactUsageFact
             {
-                Id = new() { Value = "input-vector:usage" }, Subject = method, Evidence = Evidence(Project, plan, MartenAdapter),
+                Id = new() { Value = "input-vector:usage" }, Subject = method, Evidence = execution.Evidence,
                 Definition = new() { Method = method, Declaration = declaration, Kind = RelationshipKind.Reads, ExecutionOrder = 0 }
             },
-            .. members.SelectMany((member, order) => ObserveMember(member, declaration, order)),
+            .. MartenCompiledQueryDiscovery.InputFacts(execution.Plan.PlanType, declaration, new([Project]), Evidence(Project, plan, bridge)),
             .. Surface(Project, resultType, resultKey, MartenAdapter),
             new RelationshipFact
             {
@@ -85,23 +88,9 @@ public class when_compiled_query_members_share_names_with_endpoint_parameters : 
     [Fact] void should_retain_every_input_observation() => _inputs.Facts.OfType<DeclarationInputMemberTypeUseFact>().Count().ShouldEqual(3);
     [Fact] void should_verify_both_atomic_orders() => _forward.Diagnostics.Concat(_reverse.Diagnostics).Where(_ => _.Severity == GenerationDiagnosticSeverity.Error).Select(_ => $"{_.Code}: {_.Message}").ShouldBeEmpty();
 
-    IReadOnlyList<GenerationFact> ObserveMember(ISymbol symbol, SubjectId declaration, int order)
-    {
-        var type = symbol is IPropertySymbol property ? property.Type : ((IFieldSymbol)symbol).Type;
-        var member = new DeclarationMemberKey { Declaration = declaration, Name = $"{char.ToLowerInvariant(symbol.Name[0])}{symbol.Name[1..]}" };
-        var evidence = Evidence(Project, symbol, MartenAdapter);
-        return
-        [
-            new DeclarationInputMemberDeclarationFact
-            {
-                Id = new() { Value = $"input-vector:{symbol.Name}:declaration" }, Subject = declaration, Evidence = evidence,
-                Definition = new() { Member = member, DeclarationOrder = order }
-            },
-            new DeclarationInputMemberTypeUseFact
-            {
-                Id = new() { Value = $"input-vector:{symbol.Name}:type" }, Subject = declaration, Evidence = evidence,
-                Definition = new() { Member = member, Type = DotNetTypeShapes.TypeUseFor(type, new([Project])) }
-            }
-        ];
-    }
+    [Fact] void should_observe_the_executed_plan_from_source() => _observed.Links.Single().Plan.PlanType.Name.ShouldEqual("StudentsByName");
+    [Fact] void should_observe_the_exact_document_type_from_the_compiled_interface() => _observed.Links.Single().Plan.DocumentType.Name.ShouldEqual("Student");
+    [Fact] void should_observe_the_projected_result_type_from_the_compiled_interface() => _observed.Links.Single().Plan.OutputType.ToDisplayString().ShouldContain("StudentResult");
+    [Fact] void should_not_report_flow_uncertainty_for_a_proven_execution() => _observed.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_preserve_the_integration_producer_on_observed_usages() => _observed.Links.Single().Evidence.Adapter.ShouldEqual(_inputs.Adapter);
 }

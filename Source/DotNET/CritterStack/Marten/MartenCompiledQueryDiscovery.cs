@@ -25,7 +25,7 @@ sealed record MartenCompiledQueryDiscoveryResult(
     IReadOnlyList<MartenCompiledQueryLink> Links,
     IReadOnlyList<GenerationDiagnostic> Diagnostics);
 
-static class MartenCompiledQueryDiscovery
+internal static partial class MartenCompiledQueryDiscovery
 {
     static readonly HashSet<string> _executionMethods = ["Query", "QueryAsync", "QueryByPlan", "QueryByPlanAsync"];
     static readonly HashSet<string> _executionOwners =
@@ -41,8 +41,25 @@ static class MartenCompiledQueryDiscovery
         AdapterIdentity adapter,
         CritterStackSubjectResolver subjects)
     {
+        var observed = Observe(entryPoint, entryPointSubject, project, adapter);
+        return new(
+            [.. observed.Links.Select(link => new MartenCompiledQueryLink(
+                link.Plan.PlanType,
+                link.Plan.DocumentType,
+                link.Plan.OutputType,
+                ParametersOf(link.Plan.PlanType, subjects),
+                link.Evidence))],
+            observed.Diagnostics);
+    }
+
+    public static MartenCompiledQueryObservations Observe(
+        IMethodSymbol entryPoint,
+        SubjectId entryPointSubject,
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter)
+    {
         var entry = new QueryEntry(entryPoint, entryPointSubject);
-        var context = new QueryContext(project, adapter, subjects);
+        var context = new QueryContext(project, adapter);
         var run = new DiscoveryRun(entry, context);
         foreach (var syntaxReference in entryPoint.DeclaringSyntaxReferences)
         {
@@ -60,6 +77,21 @@ static class MartenCompiledQueryDiscovery
         InvocationExpressionSyntax invocation,
         SemanticModel semanticModel,
         out MartenCompiledQueryPlan plan)
+    {
+        if (!TryObserve(invocation, semanticModel, out var observed))
+        {
+            plan = null!;
+            return false;
+        }
+
+        plan = new(observed.PlanType, observed.DocumentType, observed.OutputType, ParametersOf(observed.PlanType));
+        return true;
+    }
+
+    public static bool TryObserve(
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel,
+        out MartenCompiledQueryObservation plan)
     {
         plan = null!;
         if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
@@ -84,8 +116,7 @@ static class MartenCompiledQueryDiscovery
         plan = new(
             planType,
             documentType,
-            compiledInterface.TypeArguments[1],
-            ParametersOf(planType));
+            compiledInterface.TypeArguments[1]);
         return true;
     }
 
@@ -99,6 +130,17 @@ static class MartenCompiledQueryDiscovery
     {
         var boundary = ExecutableBoundaryOf(invocation, declaration);
         return boundary is null || IsProvenBoundary(boundary, declaration, semanticModel, []);
+    }
+
+    public static IReadOnlyList<ISymbol> ParameterSymbolsOf(INamedTypeSymbol planType)
+    {
+        var members = new List<ISymbol>();
+        for (var current = planType; current is not null; current = current.BaseType)
+        {
+            members.AddRange(current.GetMembers().Where(IsReadableParameter));
+        }
+
+        return [.. members.Distinct(SymbolEqualityComparer.Default).OrderBy(_ => _.Name, StringComparer.Ordinal)];
     }
 
     static INamedTypeSymbol? SourceDocumentTypeOf(INamedTypeSymbol compiledInterface) =>
@@ -124,7 +166,7 @@ static class MartenCompiledQueryDiscovery
     }
 
     static GenerationDiagnostic UnprovenFlowDiagnostic(
-        MartenCompiledQueryPlan plan,
+        MartenCompiledQueryObservation plan,
         InvocationExpressionSyntax invocation,
         QueryEntry entry,
         DotNetProjectCompilation project) => new()
@@ -137,15 +179,12 @@ static class MartenCompiledQueryDiscovery
             Subject = entry.Subject
         };
 
-    static MartenCompiledQueryLink LinkFor(
-        MartenCompiledQueryPlan plan,
+    static MartenCompiledQueryExecution LinkFor(
+        MartenCompiledQueryObservation plan,
         InvocationExpressionSyntax invocation,
         QueryEntry entry,
         QueryContext context) => new(
-            plan.PlanType,
-            plan.DocumentType,
-            plan.OutputType,
-            ParametersOf(plan.PlanType, context.Subjects),
+            plan,
             new Evidence
             {
                 Adapter = context.Adapter,
@@ -232,26 +271,14 @@ static class MartenCompiledQueryDiscovery
         return implementation is IMethodSymbol method && method.Locations.Any(IsAuthoredSourceLocation);
     }
 
-    static IReadOnlyList<PropertyDefinition> ParametersOf(INamedTypeSymbol planType, CritterStackSubjectResolver? subjects = null)
-    {
-        var members = new List<ISymbol>();
-        for (var current = planType; current is not null; current = current.BaseType)
+    static IReadOnlyList<PropertyDefinition> ParametersOf(INamedTypeSymbol planType, CritterStackSubjectResolver? subjects = null) =>
+    [
+        .. ParameterSymbolsOf(planType).Select(_ => new PropertyDefinition
         {
-            members.AddRange(current.GetMembers().Where(IsReadableParameter));
-        }
-
-        return
-        [
-            .. members
-                .Distinct(SymbolEqualityComparer.Default)
-                .OrderBy(_ => _.Name, StringComparer.Ordinal)
-                .Select(_ => new PropertyDefinition
-                {
-                    Name = LowerFirst(_.Name),
-                    Type = subjects?.TypeReferenceFor(TypeOf(_)) ?? DotNetTypeShapes.TypeReferenceFor(TypeOf(_))
-                })
-        ];
-    }
+            Name = LowerFirst(_.Name),
+            Type = subjects?.TypeReferenceFor(TypeOf(_)) ?? DotNetTypeShapes.TypeReferenceFor(TypeOf(_))
+        })
+    ];
 
     static bool IsReadableParameter(ISymbol member)
     {
@@ -359,7 +386,7 @@ static class MartenCompiledQueryDiscovery
 
     sealed class DiscoveryRun(QueryEntry entry, QueryContext context)
     {
-        public List<MartenCompiledQueryLink> Links { get; } = [];
+        public List<MartenCompiledQueryExecution> Links { get; } = [];
 
         public List<GenerationDiagnostic> Diagnostics { get; } = [];
 
@@ -368,7 +395,7 @@ static class MartenCompiledQueryDiscovery
             var semanticModel = context.Project.Compilation.GetSemanticModel(declaration.SyntaxTree);
             foreach (var invocation in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
-                if (!TryResolve(invocation, semanticModel, out var plan))
+                if (!TryObserve(invocation, semanticModel, out var plan))
                 {
                     continue;
                 }
@@ -389,6 +416,5 @@ static class MartenCompiledQueryDiscovery
 
     sealed record QueryContext(
         DotNetProjectCompilation Project,
-        AdapterIdentity Adapter,
-        CritterStackSubjectResolver Subjects);
+        AdapterIdentity Adapter);
 }

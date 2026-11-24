@@ -124,7 +124,7 @@ static class MartenDocumentFacts
         IMethodSymbol method,
         SemanticModel semanticModel)
     {
-        if (!MartenCompiledQueryDiscovery.TryResolve(invocation, semanticModel, out var plan))
+        if (!MartenCompiledQueryDiscovery.TryObserve(invocation, semanticModel, out var plan))
         {
             return;
         }
