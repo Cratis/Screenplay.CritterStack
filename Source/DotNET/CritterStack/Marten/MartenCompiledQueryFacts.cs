@@ -31,6 +31,13 @@ sealed class MartenCompiledQueryFacts(
         return new() { Adapter = adapter, Facts = _facts, Diagnostics = [] };
     }
 
+    static MethodDeclarationExecutionDefinition InputExecutionFor(Site site) => new()
+    {
+        Method = site.MethodSubject,
+        Declaration = site.Declaration,
+        ExecutionOrder = site.ExecutionOrder
+    };
+
     IEnumerable<Site> Observe(IMethodSymbol method)
     {
         var observation = MartenCompiledQueryDiscovery.Observe(method, CritterStackMethodFacts.SubjectFor(project, method), project, adapter);
@@ -59,6 +66,7 @@ sealed class MartenCompiledQueryFacts(
         return new()
         {
             Method = method,
+            MethodSubject = CritterStackMethodFacts.SubjectFor(project, method),
             Plan = plan,
             Declaration = DeclarationFor(plan),
             Document = context.SubjectForType(plan.DocumentType)!,
@@ -135,49 +143,38 @@ sealed class MartenCompiledQueryFacts(
         }
     }
 
-    void EmitInputExecution(Site site)
+    void EmitInputExecution(Site site) => EmitSupportedFact(site, new MethodDeclarationExecutionFact
     {
-        var method = CritterStackMethodFacts.SubjectFor(project, site.Method);
-        var fact = new MethodDeclarationExecutionFact
-        {
-            Id = new() { Value = $"{adapter.Id}:compiled-query-input-execution:{method.Value}:{site.Invocation.SpanStart}" },
-            Subject = method,
-            Evidence = site.Evidence,
-            Definition = new()
-            {
-                Method = method,
-                Declaration = site.Declaration,
-                ExecutionOrder = site.ExecutionOrder
-            }
-        };
-        _facts.Add(fact);
-        _facts.Add(CritterStackMethodFacts.Support(fact, [CritterStackMethodFacts.Observe(project, site.Method)]));
-    }
+        Id = new() { Value = $"{adapter.Id}:compiled-query-input-execution:{site.MethodSubject.Value}:{site.Invocation.SpanStart}" },
+        Subject = site.MethodSubject,
+        Evidence = site.Evidence,
+        Definition = InputExecutionFor(site)
+    });
 
-    void EmitUsage(Site site)
+    void EmitUsage(Site site) => EmitSupportedFact(site, new MethodArtifactUsageFact
     {
-        var method = CritterStackMethodFacts.SubjectFor(project, site.Method);
-        var fact = new MethodArtifactUsageFact
+        Id = new() { Value = BackendOccurrenceKeys.FactId($"{adapter.Id}:compiled-query-execution:{site.MethodSubject.Value}:{site.Invocation.SpanStart}", site.Target.Scope) },
+        Subject = site.MethodSubject,
+        Evidence = site.Evidence,
+        Definition = new()
         {
-            Id = new() { Value = BackendOccurrenceKeys.FactId($"{adapter.Id}:compiled-query-execution:{method.Value}:{site.Invocation.SpanStart}", site.Target.Scope) },
-            Subject = method,
-            Evidence = site.Evidence,
-            Definition = new()
-            {
-                Method = method,
-                Declaration = site.Declaration,
-                Kind = RelationshipKind.Reads,
-                ExecutionOrder = site.ExecutionOrder,
-                TargetScope = site.Target.Scope
-            }
-        };
+            Method = site.MethodSubject,
+            Declaration = site.Declaration,
+            Kind = RelationshipKind.Reads,
+            ExecutionOrder = site.ExecutionOrder,
+            TargetScope = site.Target.Scope
+        }
+    });
+
+    void EmitSupportedFact(Site site, GenerationFact fact)
+    {
         _facts.Add(fact);
         _facts.Add(CritterStackMethodFacts.Support(fact, [CritterStackMethodFacts.Observe(project, site.Method)]));
     }
 
     void EmitDiagnostic(Site site, FactId declaration, GenerationDiagnostic diagnostic)
     {
-        var method = CritterStackMethodFacts.SubjectFor(project, site.Method);
+        var method = site.MethodSubject;
         var fact = new MethodDiagnosticProjectionFact
         {
             Id = new() { Value = $"{adapter.Id}:compiled-query-flow:{method.Value}:{site.Invocation.SpanStart}" },
@@ -191,13 +188,13 @@ sealed class MartenCompiledQueryFacts(
                 Diagnostic = diagnostic with { Facts = [declaration] }
             }
         };
-        _facts.Add(fact);
-        _facts.Add(CritterStackMethodFacts.Support(fact, [CritterStackMethodFacts.Observe(project, site.Method)]));
+        EmitSupportedFact(site, fact);
     }
 
     sealed record Site
     {
         public required IMethodSymbol Method { get; init; }
+        public required SubjectId MethodSubject { get; init; }
         public required MartenCompiledQueryObservation Plan { get; init; }
         public required SubjectId Declaration { get; init; }
         public required SubjectId Document { get; init; }
