@@ -315,19 +315,18 @@ internal static partial class WolverineFacts
 
         scope.Diagnostics.AddRange(validationAuthorization.AuthorizationDiagnostics(endpoint.Method, querySubject));
 
-        var (model, isCollection, isOptional) = WolverineReturnTypes.QueryModel(endpoint.Method.ReturnType);
-        if (model is null || !IsQueryModel(model, project))
+        var observation = ObserveQuery(project, endpoint);
+        if (observation is null)
         {
             return;
         }
 
+        var (model, isCollection, isOptional) = observation.Result;
         var evidence = MethodEvidence(endpoint.Method, project, scope.Adapter, EvidenceStrength.Exact, $"Wolverine HTTP {endpoint.Verb} endpoint");
         var compiledQueryDiscovery = MartenCompiledQueryDiscovery.Discover(endpoint.Method, querySubject, project, scope.Adapter, scope.Subjects);
         var compiledQueries = compiledQueryDiscovery.Links;
         scope.Diagnostics.AddRange(compiledQueryDiscovery.Diagnostics);
-        var queryName = endpoint.Method.ContainingType.Name.EndsWith("Endpoints", StringComparison.Ordinal)
-            ? endpoint.Method.Name
-            : endpoint.Method.ContainingType.Name.Replace("Endpoint", string.Empty, StringComparison.Ordinal);
+        var queryName = observation.Name;
         var compatibilityPlacement = CritterStackSourcePlacement.CompatibilityPlacement(
             project,
             scope.Options,
@@ -349,9 +348,6 @@ internal static partial class WolverineFacts
         AddPersistenceBoundReads(scope, querySubject, endpoint.Method, aggregateParameter: null, unscopedSource: true);
         AddResolvedCompoundStageConsequences(scope, querySubject, endpoint.Method, stages);
     }
-
-    static bool IsQueryModel(INamedTypeSymbol model, DotNetProjectCompilation project) =>
-        IsSourceType(model) && !WolverineSagaTypes.IsSagaState(model, project);
 
     static void AddQueryFacts(
         WolverineFactScope scope,
