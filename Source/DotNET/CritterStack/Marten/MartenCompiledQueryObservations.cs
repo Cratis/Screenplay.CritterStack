@@ -3,6 +3,7 @@
 
 using Cratis.Screenplay.Generation;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.CritterStack.Screenplay.Marten;
 
@@ -11,8 +12,19 @@ sealed record MartenCompiledQueryObservation(
     INamedTypeSymbol DocumentType,
     ITypeSymbol OutputType);
 
-sealed record MartenCompiledQueryExecution(MartenCompiledQueryObservation Plan, Evidence Evidence);
+sealed record MartenCompiledQueryExecution(MartenCompiledQueryObservation Plan, Evidence Evidence)
+{
+    public required InvocationExpressionSyntax Invocation { get; init; }
+}
+
+sealed record MartenCompiledQueryUnprovenFlow(
+    MartenCompiledQueryObservation Plan,
+    InvocationExpressionSyntax Invocation,
+    GenerationDiagnostic Diagnostic);
 
 sealed record MartenCompiledQueryObservations(
     IReadOnlyList<MartenCompiledQueryExecution> Links,
-    IReadOnlyList<GenerationDiagnostic> Diagnostics);
+    IReadOnlyList<GenerationDiagnostic> Diagnostics)
+{
+    public IReadOnlyList<MartenCompiledQueryUnprovenFlow> UnprovenFlows { get; init; } = [];
+}

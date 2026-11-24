@@ -70,7 +70,7 @@ internal static partial class MartenCompiledQueryDiscovery
             }
         }
 
-        return new(run.Links, run.Diagnostics);
+        return new(run.Links, run.Diagnostics) { UnprovenFlows = run.UnprovenFlows };
     }
 
     public static bool TryResolve(
@@ -191,7 +191,8 @@ internal static partial class MartenCompiledQueryDiscovery
                 Strength = EvidenceStrength.Exact,
                 Source = CritterStackSource.RangeForProject(invocation.GetLocation(), context.Project),
                 Explanation = $"Marten compiled query '{plan.PlanType.Name}' is executed by application query entry point '{entry.Method.ContainingType.Name}.{entry.Method.Name}'"
-            });
+            })
+        { Invocation = invocation };
 
     static bool IsSourceDocumentType(INamedTypeSymbol documentType) =>
         documentType.TypeKind != TypeKind.Error && documentType.Locations.Any(_ => _.IsInSource);
@@ -390,6 +391,8 @@ internal static partial class MartenCompiledQueryDiscovery
 
         public List<GenerationDiagnostic> Diagnostics { get; } = [];
 
+        public List<MartenCompiledQueryUnprovenFlow> UnprovenFlows { get; } = [];
+
         public void Visit(MethodDeclarationSyntax declaration)
         {
             var semanticModel = context.Project.Compilation.GetSemanticModel(declaration.SyntaxTree);
@@ -406,7 +409,9 @@ internal static partial class MartenCompiledQueryDiscovery
                 }
                 else
                 {
-                    Diagnostics.Add(UnprovenFlowDiagnostic(plan, invocation, entry, context.Project));
+                    var diagnostic = UnprovenFlowDiagnostic(plan, invocation, entry, context.Project);
+                    Diagnostics.Add(diagnostic);
+                    UnprovenFlows.Add(new(plan, invocation, diagnostic));
                 }
             }
         }

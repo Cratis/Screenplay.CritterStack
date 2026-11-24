@@ -7,24 +7,38 @@ using Microsoft.CodeAnalysis;
 
 namespace Cratis.CritterStack.Screenplay.Marten;
 
+sealed record MartenCompiledQueryInputOwner(SubjectId Declaration, BackendScopeKey? Scope = null);
+
 internal static partial class MartenCompiledQueryDiscovery
 {
+    public static AdapterContribution EmitFacts(
+        DotNetProjectCompilation project,
+        DotNetAnalysisContext context,
+        AdapterIdentity adapter,
+        MartenBackendOwnershipResolver ownership) => new MartenCompiledQueryFacts(project, context, adapter, ownership).Emit();
+
     public static IReadOnlyList<GenerationFact> InputFacts(
         INamedTypeSymbol planType,
         SubjectId declaration,
+        DotNetAnalysisContext context,
+        Evidence evidence) => InputFacts(planType, new MartenCompiledQueryInputOwner(declaration), context, evidence);
+
+    public static IReadOnlyList<GenerationFact> InputFacts(
+        INamedTypeSymbol planType,
+        MartenCompiledQueryInputOwner owner,
         DotNetAnalysisContext context,
         Evidence evidence)
     {
         var members = ParameterSymbolsOf(planType)
             .GroupBy(member => LowerFirst(member.Name), StringComparer.Ordinal)
             .Select(group => group.First());
-        return [.. members.SelectMany((symbol, order) => InputMemberFacts(symbol, order, new(declaration, context, evidence)))];
+        return [.. members.SelectMany((symbol, order) => InputMemberFacts(symbol, order, new(owner, context, evidence)))];
     }
 
     static List<GenerationFact> InputMemberFacts(ISymbol symbol, int order, InputContext context)
     {
-        var member = new DeclarationMemberKey { Declaration = context.Declaration, Name = LowerFirst(symbol.Name) };
-        var prefix = $"{context.Evidence.Adapter.Id}:compiled-query-input:{context.Declaration.Value}:{order}:{symbol.Name}";
+        var member = new DeclarationMemberKey { Declaration = context.Declaration, Scope = context.Owner.Scope, Name = LowerFirst(symbol.Name) };
+        var prefix = BackendOccurrenceKeys.FactId($"{context.Evidence.Adapter.Id}:compiled-query-input:{context.Declaration.Value}:{order}:{symbol.Name}", context.Owner.Scope);
         var typeUse = new DeclarationInputMemberTypeUseFact
         {
             Id = new() { Value = $"{prefix}:type" },
@@ -57,5 +71,8 @@ internal static partial class MartenCompiledQueryDiscovery
         return facts;
     }
 
-    sealed record InputContext(SubjectId Declaration, DotNetAnalysisContext Analysis, Evidence Evidence);
+    sealed record InputContext(MartenCompiledQueryInputOwner Owner, DotNetAnalysisContext Analysis, Evidence Evidence)
+    {
+        public SubjectId Declaration => Owner.Declaration;
+    }
 }

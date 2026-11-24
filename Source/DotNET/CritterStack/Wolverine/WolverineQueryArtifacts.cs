@@ -20,7 +20,8 @@ sealed class WolverineQueryArtifacts(
         List<GenerationFact> facts =
         [
             Declaration(key, query.Name, evidence.Source?.Path, evidence),
-            .. WolverineFacts.QueryMemberFacts(query.Endpoint.Method, key, context, evidence)
+            .. WolverineFacts.QueryMemberFacts(query.Endpoint.Method, key, context, evidence),
+            .. EntryPoint(query, key, evidence)
         ];
         List<CritterStackPlacementIntent> placements =
         [
@@ -59,6 +60,29 @@ sealed class WolverineQueryArtifacts(
         Source = evidence.Source,
         Subject = query.Subject
     };
+
+    IReadOnlyList<GenerationFact> EntryPoint(WolverineQueryObservation query, ArtifactKey key, Evidence evidence)
+    {
+        var method = DotNetMethodIdentity.SubjectFor(project, query.Endpoint.Method);
+        var prefix = $"{adapter.Id}:query-entry:{method.Value}";
+        return
+        [
+            new EntryPointFact
+            {
+                Id = new() { Value = prefix },
+                Subject = method,
+                Evidence = evidence,
+                Definition = new() { Method = method, Artifact = key }
+            },
+            new EntryPointInputTransferFact
+            {
+                Id = new() { Value = $"{prefix}:inputs" },
+                Subject = method,
+                Evidence = evidence,
+                Definition = new() { Method = method, Artifact = key, Kind = RelationshipKind.Reads }
+            }
+        ];
+    }
 
     WolverineDiscoveryResult EmitResult(WolverineQueryObservation query, BackendOwnership ownership, Evidence evidence)
     {
