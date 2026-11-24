@@ -77,9 +77,9 @@ public class a_method_supported_document_identity_application : Specification
             AuthoredSyntaxTrees = new HashSet<SyntaxTree> { tree }
         };
         Context = new([Project]);
-        Document = compilation.GetTypeByMetadataName("IdentityParity.Document")!;
-        Configure = compilation.GetTypeByMetadataName("IdentityParity.Configuration")!.GetMembers("Configure").OfType<IMethodSymbol>().Single();
-        Failure = compilation.GetTypeByMetadataName("IdentityParity.SaveDocumentHandler")!.GetMembers("OnException").OfType<IMethodSymbol>().Single();
+        Document = compilation.GetTypeByMetadataName("IdentityParity.Document");
+        Configure = compilation.GetTypeByMetadataName("IdentityParity.Configuration").GetMembers("Configure").OfType<IMethodSymbol>().Single();
+        Failure = compilation.GetTypeByMetadataName("IdentityParity.SaveDocumentHandler").GetMembers("OnException").OfType<IMethodSymbol>().Single();
         CompatibilityMarten = new MartenScreenplayAdapter().Analyze(Context, new());
         CompatibilityCombined = new CritterStackScreenplayAdapter().Analyze(Context, new());
     }
