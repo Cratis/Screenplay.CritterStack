@@ -63,11 +63,17 @@ internal static partial class WolverineCompoundStages
         IMethodSymbol handler,
         ITypeSymbol requestType,
         WolverineFactScope scope,
+        bool isHttpEndpoint = false) => StagesFor(handler, requestType, new WolverineCompoundStageSource(scope.Project, scope.MiddlewareRegistrations), isHttpEndpoint);
+
+    public static IReadOnlyList<WolverineCompoundStage> StagesFor(
+        IMethodSymbol handler,
+        ITypeSymbol requestType,
+        WolverineCompoundStageSource source,
         bool isHttpEndpoint = false)
     {
-        var project = scope.Project;
+        var project = source.Project;
         var stages = CandidatesFor(handler.ContainingType, project, isHttpEndpoint).ToList();
-        foreach (var application in WolverinePolicyDiscovery.MiddlewareFor(handler, project, scope.MiddlewareRegistrations, isHttpEndpoint))
+        foreach (var application in WolverinePolicyDiscovery.MiddlewareFor(handler, project, source.MiddlewareRegistrations, isHttpEndpoint))
         {
             stages.AddRange(CandidatesFor(application.Type, project, isHttpEndpoint)
                 .Select(_ => _ with { Source = application.Source, IsExplicit = true }));
