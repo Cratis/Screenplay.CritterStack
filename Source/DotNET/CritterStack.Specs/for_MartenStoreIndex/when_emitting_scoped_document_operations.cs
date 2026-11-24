@@ -32,19 +32,21 @@ public class when_emitting_scoped_document_operations : given.a_marten_store_sco
         """;
 
     AdapterContribution _contribution = null!;
-    ArtifactFact[] _artifacts = [];
+    GeneratedScreenplayDefinition _result = null!;
+    ArtifactKey[] _artifacts = [];
 
     void Because()
     {
         _contribution = Analyze(ProjectFor(Source));
-        _artifacts = [.. _contribution.Facts.OfType<ArtifactFact>()];
+        _result = new ScreenplayDefinitionGenerator().Generate([_contribution], new() { Domain = "StoreScope" });
+        _artifacts = [.. _result.Graph.Artifacts.Select(artifact => artifact.Key)];
     }
 
-    [Fact] void should_keep_two_document_occurrences() => _artifacts.Count(fact => fact.Definition.Key.Kind == ArtifactKind.Document).ShouldEqual(2);
-    [Fact] void should_not_change_document_type_subjects() => _artifacts.Where(fact => fact.Definition.Key.Kind == ArtifactKind.Document).Select(fact => fact.Subject).Distinct().Count().ShouldEqual(1);
-    [Fact] void should_not_merge_equal_event_model_names() => _artifacts.Where(fact => fact.Definition.Key.Kind == ArtifactKind.Document).Select(fact => fact.Definition.Key.Scope.Store).Distinct().Count().ShouldEqual(2);
-    [Fact] void should_keep_payload_concepts_unscoped() => _artifacts.Where(fact => fact.Definition.Key.Kind == ArtifactKind.Concept).All(fact => fact.Definition.Key.Scope is null).ShouldBeTrue();
+    [Fact] void should_keep_two_document_occurrences() => _artifacts.Count(artifact => artifact.Kind == ArtifactKind.Document).ShouldEqual(2);
+    [Fact] void should_not_change_document_type_subjects() => _artifacts.Where(artifact => artifact.Kind == ArtifactKind.Document).Select(artifact => artifact.Subject).Distinct().Count().ShouldEqual(1);
+    [Fact] void should_not_merge_equal_event_model_names() => _artifacts.Where(artifact => artifact.Kind == ArtifactKind.Document).Select(artifact => artifact.Scope.Store).Distinct().Count().ShouldEqual(2);
+    [Fact] void should_keep_payload_concepts_unscoped() => _artifacts.Where(artifact => artifact.Kind == ArtifactKind.Concept).All(artifact => artifact.Scope is null).ShouldBeTrue();
     [Fact] void should_drop_only_the_unowned_operation() => _contribution.Diagnostics.Count(diagnostic => diagnostic.Code == GenerationDiagnosticCodes.UnknownBackendScope && diagnostic.Source is not null).ShouldEqual(1);
-    [Fact] void should_resolve_relationship_endpoints_without_orphans() => _contribution.Facts.OfType<RelationshipFact>().All(fact => _artifacts.Any(artifact => artifact.Subject == fact.Definition.Key.Source && artifact.Definition.Key.Scope == fact.Definition.Key.SourceScope) && _artifacts.Any(artifact => artifact.Subject == fact.Definition.Key.Target && artifact.Definition.Key.Scope == fact.Definition.Key.TargetScope)).ShouldBeTrue();
+    [Fact] void should_resolve_relationship_endpoints_without_orphans() => _contribution.Facts.OfType<RelationshipFact>().All(fact => _artifacts.Contains(new() { Subject = fact.Definition.Key.Source, Kind = ArtifactKind.Handler, Scope = fact.Definition.Key.SourceScope }) && _artifacts.Contains(new() { Subject = fact.Definition.Key.Target, Kind = ArtifactKind.Document, Scope = fact.Definition.Key.TargetScope })).ShouldBeTrue();
     [Fact] void should_use_compilable_operations() => ProjectFor(Source).Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
 }

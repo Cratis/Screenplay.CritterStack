@@ -14,11 +14,9 @@ public class when_identity_configuration_depends_on_method_eligibility : given.a
     GeneratedScreenplayDefinition _reversed = null!;
     GeneratedScreenplayDefinition _reversedFacts = null!;
     AdapterContribution _members = null!;
-    ArtifactKey _key = null!;
 
     void Because()
     {
-        _key = new() { Subject = Project.SubjectForType(Document), Kind = ArtifactKind.Document };
         _members = ObserveMembers();
         var classification = ClassifyFailure();
         var generator = new ScreenplayDefinitionGenerator();
@@ -32,9 +30,9 @@ public class when_identity_configuration_depends_on_method_eligibility : given.a
     [Fact] void should_keep_the_last_configuration_without_a_peer_classifier() => CompatibilityIdentifiers(CompatibilityMarten).ShouldEqual("last");
     [Fact] void should_fall_back_to_the_previous_configuration_when_the_last_method_is_failure_only() => CompatibilityIdentifiers(CompatibilityCombined).ShouldEqual("first");
     [Fact] void should_retain_the_compatibility_failure_warning() => CompatibilityCombined.Diagnostics.Count(_ => _.Code == WolverineDiagnosticCodes.FailureStageConditionOmitted).ShouldEqual(1);
-    [Fact] void should_observe_both_configured_role_alternatives() => _members.Facts.OfType<ArtifactMemberRoleSelectionFact>().Count().ShouldEqual(2);
+    [Fact] void should_observe_both_configured_role_alternatives() => Configurations().Length.ShouldEqual(2);
     [Fact] void should_not_assert_roles_before_selection() => _members.Facts.OfType<ArtifactMemberRoleFact>().ShouldBeEmpty();
-    [Fact] void should_support_each_role_by_its_exact_observing_method() => _members.Facts.OfType<MethodFactSupportFact>().Count().ShouldEqual(2);
+    [Fact] void should_support_each_role_by_its_exact_observing_method() => _members.Facts.OfType<MethodFactSupportFact>().Count(fact => Configurations().Any(configuration => configuration.Id == fact.Definition.Candidate)).ShouldEqual(2);
     [Fact] void should_verify_the_standalone_native_graph() => _standalone.IsSuccess.ShouldBeTrue();
     [Fact] void should_verify_the_classified_native_graph() => _classified.IsSuccess.ShouldBeTrue();
     [Fact] void should_select_the_last_configuration_without_a_peer_classifier() => NativeIdentifiers(_standalone).ShouldEqual(CompatibilityIdentifiers(CompatibilityMarten));
@@ -42,42 +40,15 @@ public class when_identity_configuration_depends_on_method_eligibility : given.a
     [Fact] void should_not_depend_on_contribution_order() => NativeIdentifiers(_reversed).ShouldEqual(NativeIdentifiers(_classified));
     [Fact] void should_not_depend_on_fact_order() => NativeIdentifiers(_reversedFacts).ShouldEqual(NativeIdentifiers(_classified));
 
+    ArtifactMemberRoleSelectionFact[] Configurations() => [.. _members.Facts.OfType<ArtifactMemberRoleSelectionFact>().Where(fact => fact.Definition.Priority == 1)];
+
     AdapterContribution ObserveMembers()
     {
-        var evidence = CritterStackSource.EvidenceFor(Document, _adapter, Project, EvidenceStrength.Exact, "Authored document declaration");
-        var facts = new List<GenerationFact>
-        {
-            new ArtifactDeclarationFact
-            {
-                Id = new() { Value = "marten-role-vector:document" }, Subject = _key.Subject, Evidence = evidence,
-                Definition = new() { Artifact = _key, Name = Document.Name, File = evidence.Source?.Path }
-            }
-        };
-        facts.AddRange(DotNetTypeUseFacts.Emit(Document, _key, Context, evidence));
-        facts.AddRange(ObserveIdentity("First", Configure));
-        facts.AddRange(ObserveIdentity("Last", Failure));
-        return new() { Adapter = _adapter, Facts = facts };
-    }
-
-    IReadOnlyList<GenerationFact> ObserveIdentity(string memberName, IMethodSymbol method)
-    {
-        var member = Document.GetMembers(memberName).OfType<IPropertySymbol>().Single();
-        var evidence = CritterStackSource.EvidenceFor(method, _adapter, Project, EvidenceStrength.Exact, $"Explicit identity configuration for '{member.Name}'");
-        var role = new ArtifactMemberRoleSelectionFact
-        {
-            Id = new() { Value = $"marten-role-vector:configured-identity:{member.Name}" },
-            Subject = _key.Subject,
-            Evidence = evidence,
-            Definition = new()
-            {
-                Artifact = _key,
-                Member = new() { Artifact = _key, Name = WolverineSagaFacts.LowerFirst(member.Name) },
-                Role = ArtifactMemberRoleKind.EventSourceIdentifier,
-                Priority = 1,
-                ObservationOrder = method.Locations.Single(_ => _.IsInSource).SourceSpan.Start
-            }
-        };
-        return [role, CritterStackMethodFacts.Support(role, [CritterStackMethodFacts.Observe(Project, method)])];
+        var subjects = new CritterStackSubjectResolver(Context);
+        var (_, ownership) = MartenStoreScopeDiscovery.DiscoverOwnership(Context, _adapter, subjects);
+        var observations = new MartenDocumentObservations(Project, _adapter, ownership).Discover();
+        var candidates = new MartenDocumentCandidates(Project, Context, subjects).Discover(observations);
+        return new() { Adapter = _adapter, Facts = candidates.Facts, Diagnostics = candidates.Diagnostics };
     }
 
     AdapterContribution ClassifyFailure()

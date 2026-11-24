@@ -408,7 +408,7 @@ public class a_marten_document_variants_application : Specification
         Contribution = new CritterStackScreenplayAdapter().Analyze(
             new DotNetAnalysisContext([project]),
             new DotNetAdapterOptions());
-        MartenOnlyContribution = new MartenScreenplayAdapter().Analyze(
+        MartenOnlyContribution = compatibility_marten.Analyze(
             new DotNetAnalysisContext([project]),
             new DotNetAdapterOptions());
         Identifiers =

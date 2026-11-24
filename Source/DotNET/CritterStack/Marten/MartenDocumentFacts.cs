@@ -6,13 +6,13 @@ using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
+using static Cratis.CritterStack.Screenplay.Marten.MartenDocumentMembers;
+using static Cratis.CritterStack.Screenplay.Marten.MartenDocumentSource;
+
 namespace Cratis.CritterStack.Screenplay.Marten;
 
 static class MartenDocumentFacts
 {
-    static readonly HashSet<string> _storeMethods = ["Insert", "Store"];
-    static readonly HashSet<string> _updateMethods = ["Update"];
-    static readonly HashSet<string> _deleteMethods = ["Delete", "DeleteWhere"];
     static readonly HashSet<string> _configurationMethods = ["For", "RegisterDocumentType"];
 
     public static MartenDiscoveryResult Discover(
@@ -25,19 +25,7 @@ static class MartenDocumentFacts
         IReadOnlySet<IMethodSymbol>? failureStageMethods = null)
     {
         var state = new DiscoveryState(project, adapter, subjects, projectedDocuments, ownership);
-        foreach (var tree in project.AuthoredSyntaxTrees.Where(_ => !DotNetGeneratedSource.IsGenerated(_)))
-        {
-            var semanticModel = project.Compilation.GetSemanticModel(tree);
-            foreach (var invocation in DotNetSource.AuthoredInvocationsIn(tree.GetRoot(), project))
-            {
-                if (IsInFailureStage(invocation, semanticModel, failureStageMethods))
-                {
-                    continue;
-                }
-
-                ObserveInvocation(state, invocation, semanticModel, includeIntegrationApis);
-            }
-        }
+        ObserveSource(state, includeIntegrationApis, failureStageMethods);
 
         foreach (var (key, observed) in state.Documents.OrderBy(_ => _.Key.Subject.Value, StringComparer.Ordinal))
         {
@@ -46,17 +34,39 @@ static class MartenDocumentFacts
 
         state.Diagnostics.AddRange(state.Documents
             .OrderBy(_ => _.Key.Subject.Value, StringComparer.Ordinal)
-            .Select(_ => new GenerationDiagnostic
-            {
-                Code = MartenDiagnosticCodes.DocumentModelOmitted,
-                Severity = GenerationDiagnosticSeverity.Information,
-                Outcome = GenerationDiagnosticOutcome.Unsupported,
-                Message = $"Marten document '{_.Value.Type.Name}' is persisted, queried, or explicitly configured, but the current Screenplay language has no ordinary document-state declaration",
-                Source = _.Value.RegistrationEvidence.Source,
-                Subject = _.Key.Subject
-            }));
+            .Select(_ => OmissionDiagnostic(_.Key.Subject, _.Value)));
 
         return new(state.Facts, state.Diagnostics, []);
+    }
+
+    static GenerationDiagnostic OmissionDiagnostic(SubjectId subject, DocumentObservation observed) => new()
+    {
+        Code = MartenDiagnosticCodes.DocumentModelOmitted,
+        Severity = GenerationDiagnosticSeverity.Information,
+        Outcome = GenerationDiagnosticOutcome.Unsupported,
+        Message = $"Marten document '{observed.Type.Name}' is persisted, queried, or explicitly configured, but the current Screenplay language has no ordinary document-state declaration",
+        Source = observed.RegistrationEvidence.Source,
+        Subject = subject
+    };
+
+    static void ObserveSource(DiscoveryState state, bool includeIntegrationApis, IReadOnlySet<IMethodSymbol>? failureStageMethods)
+    {
+        foreach (var tree in state.Project.AuthoredSyntaxTrees.Where(_ => !DotNetGeneratedSource.IsGenerated(_)))
+        {
+            ObserveTree(state, tree, includeIntegrationApis, failureStageMethods);
+        }
+    }
+
+    static void ObserveTree(DiscoveryState state, SyntaxTree tree, bool includeIntegrationApis, IReadOnlySet<IMethodSymbol>? failureStageMethods)
+    {
+        var semanticModel = state.Project.Compilation.GetSemanticModel(tree);
+        foreach (var invocation in DotNetSource.AuthoredInvocationsIn(tree.GetRoot(), state.Project))
+        {
+            if (!IsInFailureStage(invocation, semanticModel, failureStageMethods))
+            {
+                ObserveInvocation(state, invocation, semanticModel, includeIntegrationApis);
+            }
+        }
     }
 
     static bool IsInFailureStage(
@@ -69,20 +79,18 @@ static class MartenDocumentFacts
             return false;
         }
 
-        for (var symbol = semanticModel.GetEnclosingSymbol(invocation.SpanStart); symbol is not null; symbol = symbol.ContainingSymbol)
-        {
-            if (symbol is not IMethodSymbol method)
-            {
-                continue;
-            }
+        return ContainingMethods(semanticModel.GetEnclosingSymbol(invocation.SpanStart)).Any(failureStageMethods.Contains);
+    }
 
-            if (failureStageMethods.Contains(method))
+    static IEnumerable<IMethodSymbol> ContainingMethods(ISymbol? enclosing)
+    {
+        for (var symbol = enclosing; symbol is not null; symbol = symbol.ContainingSymbol)
+        {
+            if (symbol is IMethodSymbol method)
             {
-                return true;
+                yield return method;
             }
         }
-
-        return false;
     }
 
     static void ObserveInvocation(
@@ -173,10 +181,6 @@ static class MartenDocumentFacts
         AddHandlerFactsWhenInMethod(state, new(invocation, documentSubject, evidence, ownership), kind, semanticModel);
     }
 
-    static bool IsObservedUsage(RelationshipKind? kind, IMethodSymbol method, InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>
-        !IsIgnoredUsage(kind, invocation, semanticModel) &&
-        (kind is not null || _configurationMethods.Contains(method.Name));
-
     static void AddHandlerFactsWhenInMethod(
         DiscoveryState state,
         DocumentUsageSite site,
@@ -206,11 +210,6 @@ static class MartenDocumentFacts
             "Marten document operation ownership cannot be proved"));
         return false;
     }
-
-    static bool IsIgnoredUsage(RelationshipKind? kind, InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>
-        (kind is RelationshipKind.Stores or RelationshipKind.Updates or RelationshipKind.Deletes &&
-         IsInEventProjection(invocation, semanticModel)) ||
-        (kind is not null && IsInUnresolvedCustomProcessor(invocation, semanticModel));
 
     static void AddHandlerFacts(DiscoveryState state, HandlerUsage usage, RelationshipKind kind)
     {
@@ -247,15 +246,7 @@ static class MartenDocumentFacts
             : properties.SingleOrDefault(_ => SymbolEqualityComparer.Default.Equals(_.Member, identityMember));
         if (identityMember is not null && identityProperty is null)
         {
-            state.Diagnostics.Add(new GenerationDiagnostic
-            {
-                Code = MartenDiagnosticCodes.DocumentIdentityUnresolved,
-                Severity = GenerationDiagnosticSeverity.Warning,
-                Outcome = GenerationDiagnosticOutcome.Unsupported,
-                Message = $"Marten identity member '{identityMember.ContainingType?.Name}.{identityMember.Name}' cannot be represented uniquely in the emitted '{observed.Type.Name}' document property shape",
-                Source = observed.IdentityEvidence?.Source ?? observed.RegistrationEvidence.Source,
-                Subject = subject
-            });
+            state.Diagnostics.Add(UnrepresentedIdentityDiagnostic(subject, observed, identityMember));
         }
 
         state.Facts.Add(new MartenArtifactFact
@@ -270,6 +261,16 @@ static class MartenDocumentFacts
         }.ToFact(observed.Ownership));
     }
 
+    static GenerationDiagnostic UnrepresentedIdentityDiagnostic(SubjectId subject, DocumentObservation observed, ISymbol identityMember) => new()
+    {
+        Code = MartenDiagnosticCodes.DocumentIdentityUnresolved,
+        Severity = GenerationDiagnosticSeverity.Warning,
+        Outcome = GenerationDiagnosticOutcome.Unsupported,
+        Message = $"Marten identity member '{identityMember.ContainingType?.Name}.{identityMember.Name}' cannot be represented uniquely in the emitted '{observed.Type.Name}' document property shape",
+        Source = observed.IdentityEvidence?.Source ?? observed.RegistrationEvidence.Source,
+        Subject = subject
+    };
+
     static void ObserveIdentityConfiguration(
         DiscoveryState state,
         InvocationExpressionSyntax invocation,
@@ -283,13 +284,7 @@ static class MartenDocumentFacts
             return;
         }
 
-        var evidence = new Evidence
-        {
-            Adapter = state.Adapter,
-            Strength = EvidenceStrength.Configured,
-            Source = CritterStackSource.RangeForProject(invocation.GetLocation(), state.Project),
-            Explanation = $"Marten document identity configured through Schema.For<{documentType.Name}>().Identity(...)"
-        };
+        var evidence = IdentityEvidence(state.Project, state.Adapter, invocation, documentType);
         var subject = state.Subjects.SubjectForType(state.Project, documentType);
         var ownership = state.Ownership.ForInvocation(state.Project, invocation);
         if (!RequireOwnership(state, invocation, ownership))
@@ -322,181 +317,16 @@ static class MartenDocumentFacts
         }
     }
 
-    static ISymbol? ResolveIdentityMember(
-        InvocationExpressionSyntax invocation,
-        SemanticModel semanticModel,
-        INamedTypeSymbol documentType)
-    {
-        if (invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression is not LambdaExpressionSyntax lambda ||
-            lambda.ExpressionBody is null)
-        {
-            return null;
-        }
-
-        var expression = Unwrap(lambda.ExpressionBody);
-        if (expression is not MemberAccessExpressionSyntax memberAccess)
-        {
-            return null;
-        }
-
-        if (Unwrap(memberAccess.Expression) is not IdentifierNameSyntax identifier ||
-            !string.Equals(identifier.Identifier.ValueText, LambdaParameterName(lambda), StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        var member = semanticModel.GetSymbolInfo(memberAccess).Symbol;
-        return member is IPropertySymbol or IFieldSymbol && IsMemberOfDocumentType(member, documentType)
-            ? member
-            : null;
-    }
-
-    static ExpressionSyntax Unwrap(ExpressionSyntax expression)
-    {
-        while (true)
-        {
-            expression = expression switch
+    static IReadOnlyList<DocumentProperty> DocumentPropertiesOf(INamedTypeSymbol documentType) =>
+    [
+        .. PropertiesOf(documentType).Select(_ => new DocumentProperty(
+            _,
+            new PropertyDefinition
             {
-                ParenthesizedExpressionSyntax parenthesized => parenthesized.Expression,
-                CastExpressionSyntax cast => cast.Expression,
-                _ => expression
-            };
-            if (expression is not (ParenthesizedExpressionSyntax or CastExpressionSyntax))
-            {
-                return expression;
-            }
-        }
-    }
-
-    static string? LambdaParameterName(LambdaExpressionSyntax lambda) => lambda switch
-    {
-        SimpleLambdaExpressionSyntax simple => simple.Parameter.Identifier.ValueText,
-        ParenthesizedLambdaExpressionSyntax { ParameterList.Parameters.Count: 1 } parenthesized =>
-            parenthesized.ParameterList.Parameters[0].Identifier.ValueText,
-        _ => null
-    };
-
-    static bool IsMemberOfDocumentType(ISymbol member, INamedTypeSymbol documentType)
-    {
-        for (var current = documentType; current is not null; current = current.BaseType)
-        {
-            if (SymbolEqualityComparer.Default.Equals(member.ContainingType, current))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    static IReadOnlyList<DocumentProperty> DocumentPropertiesOf(INamedTypeSymbol documentType)
-    {
-        var properties = new List<IPropertySymbol>();
-        for (var current = documentType; current is not null; current = current.BaseType)
-        {
-            properties.AddRange(current.GetMembers()
-                .OfType<IPropertySymbol>()
-                .Where(_ => !_.IsStatic &&
-                            !_.IsIndexer &&
-                            _.DeclaredAccessibility == Accessibility.Public &&
-                            _.GetMethod?.DeclaredAccessibility == Accessibility.Public &&
-                            properties.TrueForAll(existing => !string.Equals(existing.Name, _.Name, StringComparison.Ordinal)))
-                .OrderBy(SourceOrder)
-                .ThenBy(_ => _.Name, StringComparer.Ordinal));
-        }
-
-        return
-        [
-            .. properties.Select(_ => new DocumentProperty(
-                _,
-                new PropertyDefinition
-                {
-                    Name = LowerFirst(_.Name),
-                    Type = DotNetTypeShapes.TypeReferenceFor(_.Type)
-                }))
-        ];
-    }
-
-    static ISymbol? ConventionalIdentityMember(INamedTypeSymbol documentType)
-    {
-        var members = MembersOf(documentType).ToArray();
-        var attributedProperty = members.OfType<IPropertySymbol>().FirstOrDefault(HasIdentityAttribute);
-        var attributedField = members.OfType<IFieldSymbol>().FirstOrDefault(HasIdentityAttribute);
-        var idProperty = members.OfType<IPropertySymbol>().FirstOrDefault(_ => string.Equals(_.Name, "Id", StringComparison.OrdinalIgnoreCase));
-        var idField = members.OfType<IFieldSymbol>().FirstOrDefault(_ => string.Equals(_.Name, "Id", StringComparison.OrdinalIgnoreCase));
-        return (ISymbol?)attributedProperty ?? (ISymbol?)attributedField ?? (ISymbol?)idProperty ?? idField;
-    }
-
-    static IEnumerable<ISymbol> MembersOf(INamedTypeSymbol type)
-    {
-        for (var current = type; current is not null; current = current.BaseType)
-        {
-            foreach (var member in current.GetMembers().Where(_ => !_.IsStatic))
-            {
-                yield return member;
-            }
-        }
-    }
-
-    static bool HasIdentityAttribute(ISymbol member) => member.GetAttributes().Any(_ =>
-        _.AttributeClass is not null &&
-        DotNetSubjectIds.MetadataName(_.AttributeClass) == WellKnownTypes.JasperFxIdentityAttribute);
-
-    static int SourceOrder(ISymbol member) => member.Locations
-        .Where(_ => _.IsInSource)
-        .Select(_ => _.SourceSpan.Start)
-        .DefaultIfEmpty(int.MaxValue)
-        .Min();
-
-    static bool IsIdentityConfiguration(IMethodSymbol method)
-    {
-        var candidate = method.ReducedFrom ?? method;
-        return candidate.Name == "Identity" &&
-               DotNetSubjectIds.MetadataName(candidate.ContainingType.OriginalDefinition) == WellKnownTypes.MartenDocumentMappingExpression;
-    }
-
-    static Evidence UsageEvidence(
-        DotNetProjectCompilation project,
-        AdapterIdentity adapter,
-        InvocationExpressionSyntax invocation,
-        string methodName) => new()
-        {
-            Adapter = adapter,
-            Strength = EvidenceStrength.Exact,
-            Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
-            Explanation = $"Marten document usage through {methodName}"
-        };
-
-    static RelationshipKind? RelationshipKindFor(string methodName)
-    {
-        if (MartenSessionReadDiscovery.IsDocumentReadMethod(methodName)) return RelationshipKind.Reads;
-        if (_storeMethods.Contains(methodName)) return RelationshipKind.Stores;
-        if (_updateMethods.Contains(methodName)) return RelationshipKind.Updates;
-        if (_deleteMethods.Contains(methodName)) return RelationshipKind.Deletes;
-        return null;
-    }
-
-    static INamedTypeSymbol? DocumentTypeFrom(
-        IMethodSymbol method,
-        InvocationExpressionSyntax invocation,
-        SemanticModel semanticModel)
-        => MartenSessionReadDiscovery.DocumentTypeFrom(method, invocation, semanticModel);
-
-    static bool IsMarten(IMethodSymbol method, bool includeIntegrationApis) => MartenSessionReadDiscovery.IsMarten(method, includeIntegrationApis);
-
-    static bool IsInEventProjection(
-        InvocationExpressionSyntax invocation,
-        SemanticModel semanticModel) =>
-        semanticModel.GetEnclosingSymbol(invocation.SpanStart) is IMethodSymbol containingMethod &&
-        DotNetSymbols.IsOrInheritsFrom(containingMethod.ContainingType, WellKnownTypes.MartenEventProjection);
-
-    static bool IsInUnresolvedCustomProcessor(
-        InvocationExpressionSyntax invocation,
-        SemanticModel semanticModel) =>
-        semanticModel.GetEnclosingSymbol(invocation.SpanStart) is IMethodSymbol containingMethod &&
-        MartenConfigurationDiscovery.IsUnresolvedProcessorType(containingMethod.ContainingType);
-
-    static bool IsSourceType(INamedTypeSymbol type) => type.TypeKind != TypeKind.Error && type.Locations.Any(_ => _.IsInSource);
+                Name = LowerFirst(_.Name),
+                Type = DotNetTypeShapes.TypeReferenceFor(_.Type)
+            }))
+    ];
 
     static string LowerFirst(string value) => value.Length == 0
         ? value

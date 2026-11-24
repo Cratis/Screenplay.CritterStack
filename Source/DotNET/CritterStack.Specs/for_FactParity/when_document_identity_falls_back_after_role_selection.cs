@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.CritterStack.Screenplay.given;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 using static Cratis.CritterStack.Screenplay.for_FactParity.given.fact_vectors;
 
@@ -57,90 +56,18 @@ public class when_document_identity_falls_back_after_role_selection : Specificat
     void Add(string expected, IdentityInput input)
     {
         var project = Project(Source(input.Attributed, input.Expression, input.FailureOnly, input.Shape));
-        var document = Type(project, "FactParity.Document");
-        var key = Key(project, document, ArtifactKind.Document);
-        var evidence = Evidence(project, document, MartenAdapter, EvidenceStrength.Exact);
-        var facts = new List<GenerationFact> { Declaration(key, document, evidence) };
-        facts.AddRange(DotNetTypeUseFacts.EmitWithSurface(document, key, new([project]), evidence, DotNetMemberOriginPolicy.AllOrigins, DotNetMemberSurfaceScope.Inherited));
-        var baselineEvidence = InvocationEvidence(project, "Store");
-        facts.Add(Selection(key, baselineEvidence, new(BaselineMember(input), 0, BaselineDiagnostics(key, input.Shape, baselineEvidence))));
+        var context = new DotNetAnalysisContext([project]);
+        var subjects = new CritterStackSubjectResolver(context);
+        var (_, ownership) = MartenStoreScopeDiscovery.DiscoverOwnership(context, MartenAdapter, subjects);
+        var observations = new MartenDocumentObservations(project, MartenAdapter, ownership).Discover();
+        var candidates = new MartenDocumentCandidates(project, context, subjects).Discover(observations);
+        var contribution = new AdapterContribution { Adapter = MartenAdapter, Facts = candidates.Facts, Diagnostics = candidates.Diagnostics };
         var methodType = Type(project, input.FailureOnly ? "FactParity.SaveDocumentHandler" : "FactParity.Configuration");
         var method = methodType.GetMembers(input.FailureOnly ? "OnException" : "Configure").OfType<IMethodSymbol>().Single();
-        facts.AddRange(ConfiguredSelection(project, key, method, input.Expression));
-        var contribution = Contribution(MartenAdapter, facts);
         var peer = input.FailureOnly ? Failure(project, method) : Contribution(WolverineAdapter, []);
-        var compatibility = new CritterStackScreenplayAdapter().Analyze(new([project]), new());
+        var compatibility = new CritterStackScreenplayAdapter().Analyze(context, new());
+        var key = Key(project, Type(project, "FactParity.Document"), ArtifactKind.Document);
         _vectors.Add(new(key, expected, compatibility, Generate(contribution, peer), Generate(peer, contribution)));
-    }
-
-    static string? BaselineMember(IdentityInput input) => input.Shape switch
-    {
-        IdentityShape.Private or IdentityShape.Field or IdentityShape.Hidden => null,
-        IdentityShape.Inherited => "inheritedKey",
-        _ => input.Attributed ? "first" : "id"
-    };
-
-    static IReadOnlyList<GenerationFact> ConfiguredSelection(DotNetProjectCompilation project, ArtifactKey key, IMethodSymbol method, string? expression)
-    {
-        if (expression is null) return [];
-        var evidence = InvocationEvidence(project, "Identity");
-        var diagnostics = expression == "document.Last" ? [] : new[] { Unresolved(key, evidence) };
-        var configured = Selection(key, evidence, new(expression == "document.Last" ? "last" : null, 1, diagnostics));
-        return [configured, CritterStackMethodFacts.Support(configured, [CritterStackMethodFacts.Observe(project, method)])];
-    }
-
-    static ArtifactMemberRoleSelectionFact Selection(ArtifactKey key, Evidence evidence, IdentityAlternative alternative) => new()
-    {
-        Id = new() { Value = $"identity-selection:{key.Subject.Value}:{alternative.Priority}" },
-        Subject = key.Subject,
-        Evidence = evidence,
-        Definition = new()
-        {
-            Artifact = key,
-            Member = alternative.Member is null ? null : new() { Artifact = key, Name = alternative.Member },
-            Role = ArtifactMemberRoleKind.EventSourceIdentifier,
-            Priority = alternative.Priority,
-            ObservationOrder = 0,
-            Diagnostics = alternative.Diagnostics
-        }
-    };
-
-    static GenerationDiagnostic Unresolved(ArtifactKey key, Evidence evidence) => new()
-    {
-        Code = MartenDiagnosticCodes.DocumentIdentityUnresolved,
-        Severity = GenerationDiagnosticSeverity.Warning,
-        Outcome = GenerationDiagnosticOutcome.Unknown,
-        Message = "Marten identity configuration for 'Document' is not a direct member expression and cannot be resolved safely",
-        Subject = key.Subject,
-        Source = evidence.Source
-    };
-
-    static IReadOnlyList<GenerationDiagnostic> BaselineDiagnostics(ArtifactKey key, IdentityShape shape, Evidence evidence)
-    {
-        var member = shape switch
-        {
-            IdentityShape.Private => "Document.PrivateKey",
-            IdentityShape.Field => "Document.FieldKey",
-            IdentityShape.Hidden => "BaseDocument.First",
-            _ => null
-        };
-        return member is null ? [] : [Unresolved(key, evidence) with
-        {
-            Outcome = GenerationDiagnosticOutcome.Unsupported,
-            Message = $"Marten identity member '{member}' cannot be represented uniquely in the emitted 'Document' document property shape"
-        }];
-    }
-
-    static Evidence InvocationEvidence(DotNetProjectCompilation project, string name)
-    {
-        var invocation = project.AuthoredSyntaxTrees.Single().GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>()
-            .Single(_ => _.Expression is MemberAccessExpressionSyntax member && member.Name.Identifier.ValueText == name);
-        return new()
-        {
-            Adapter = MartenAdapter,
-            Strength = EvidenceStrength.Exact,
-            Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project)
-        };
     }
 
     static string[] IdentityDiagnostics(IEnumerable<GenerationDiagnostic> diagnostics) =>
@@ -212,8 +139,6 @@ public class when_document_identity_falls_back_after_role_selection : Specificat
     }
 
     sealed record IdentityInput(bool Attributed = false, string? Expression = null, bool FailureOnly = false, IdentityShape Shape = IdentityShape.Ordinary);
-
-    sealed record IdentityAlternative(string? Member, int Priority, IReadOnlyList<GenerationDiagnostic> Diagnostics);
 
     sealed record IdentityVector(ArtifactKey Key, string Expected, AdapterContribution Compatibility, GeneratedScreenplayDefinition Forward, GeneratedScreenplayDefinition Reverse);
 }

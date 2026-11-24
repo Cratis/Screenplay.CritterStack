@@ -16,7 +16,11 @@ static class EnumConceptFacts
     public static AdapterContribution AddTo(DotNetAnalysisContext context, AdapterContribution contribution)
     {
         var artifacts = contribution.Facts.OfType<ArtifactFact>().ToArray();
-        var referencedSubjects = ConceptTypeReferenceBinder.ReferencedSubjects(context, artifacts);
+        var referencedSubjects = ConceptTypeReferenceBinder.ReferencedSubjects(context, artifacts)
+            .Concat(contribution.Facts.OfType<ArtifactMemberTypeUseFact>()
+                .Select(fact => fact.Definition.Type.ObservedTypeSubject)
+                .OfType<SubjectId>())
+            .ToHashSet();
         var concepts = artifacts
             .Where(_ => _.Definition.Key.Kind == ArtifactKind.Concept)
             .Select(_ => _.Subject)

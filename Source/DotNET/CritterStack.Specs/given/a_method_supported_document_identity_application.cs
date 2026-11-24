@@ -80,7 +80,7 @@ public class a_method_supported_document_identity_application : Specification
         Document = compilation.GetTypeByMetadataName("IdentityParity.Document");
         Configure = compilation.GetTypeByMetadataName("IdentityParity.Configuration").GetMembers("Configure").OfType<IMethodSymbol>().Single();
         Failure = compilation.GetTypeByMetadataName("IdentityParity.SaveDocumentHandler").GetMembers("OnException").OfType<IMethodSymbol>().Single();
-        CompatibilityMarten = new MartenScreenplayAdapter().Analyze(Context, new());
+        CompatibilityMarten = compatibility_marten.Analyze(Context, new());
         CompatibilityCombined = new CritterStackScreenplayAdapter().Analyze(Context, new());
     }
 

@@ -84,13 +84,9 @@ public sealed class MartenScreenplayAdapter : IDescribedDotNetScreenplayAdapter,
         {
             var subjectCheckpoint = subjects.Checkpoint();
             var marten = MartenFacts.Discover(project, options, Identity, subjects, stores);
-            var documents = MartenDocumentFacts.Discover(
-                project,
-                Identity,
-                subjects,
-                marten.Documents,
-                ownership,
-                includeIntegrationApis: false);
+            var observations = new MartenDocumentObservations(project, Identity, ownership)
+                .Discover(MartenProjectionDiscovery.Discover(project, Identity, stores));
+            var documents = new MartenDocumentCandidates(project, context, subjects).Discover(observations);
             if (subjects.HasBlockingDiagnosticsSince(subjectCheckpoint))
             {
                 continue;

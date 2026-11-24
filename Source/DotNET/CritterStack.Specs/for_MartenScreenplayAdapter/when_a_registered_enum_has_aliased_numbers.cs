@@ -24,7 +24,7 @@ public class when_a_registered_enum_has_aliased_numbers : Screenplay.given.an_en
     [Fact] void should_report_the_numbering_once() => _marten.Diagnostics.Count(_ => _.Code == CritterStackDiagnosticCodes.EnumNumbersNotPreserved).ShouldEqual(1);
     [Fact] void should_not_contribute_a_marten_concept() => _marten.Facts.OfType<ArtifactFact>().Any(_ => _.Definition.Key.Kind == ArtifactKind.Concept).ShouldBeFalse();
     [Fact] void should_not_contribute_a_representation() => _marten.Facts.OfType<ConceptRepresentationFact>().ShouldBeEmpty();
-    [Fact] void should_not_reference_a_concept_from_the_document() => _marten.Facts.OfType<ArtifactFact>().Single(_ => _.Definition.Key.Kind == ArtifactKind.Document).Definition.Properties.Single(_ => _.Name == "priority").Type.Subject.ShouldBeNull();
+    [Fact] void should_not_reference_a_concept_from_the_document() => _martenFirst.Graph.Artifacts.Single(_ => _.Key.Kind == ArtifactKind.Document).Variants.Single().Definition.Properties.Single(_ => _.Name == "priority").Type.Subject.ShouldBeNull();
     [Fact] void should_not_contribute_a_concept_from_the_compatibility_adapter() => _critter.Facts.OfType<ArtifactFact>().Any(_ => _.Definition.Key.Kind == ArtifactKind.Concept).ShouldBeFalse();
     [Fact] void should_not_declare_the_concept_when_marten_comes_first() => _martenFirst.Source.ShouldNotContain("concept Priority");
     [Fact] void should_not_declare_the_concept_when_marten_comes_last() => _critterFirst.Source.ShouldNotContain("concept Priority");

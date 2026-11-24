@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.CritterStack.Screenplay.given;
+
 using static Cratis.CritterStack.Screenplay.for_FactParity.given.fact_vectors;
 
 namespace Cratis.CritterStack.Screenplay.for_FactParity;
@@ -37,7 +39,7 @@ public class when_document_registration_evidence_competes : Specification
         _reverse = Generate(peer, declarations);
         _classified = Generate(declarations, classifier);
         _classifiedReverse = Generate(classifier, declarations);
-        _compatibilityFile = CompatibilityDefinition(new MartenScreenplayAdapter().Analyze(new([project]), new()), _key).File;
+        _compatibilityFile = CompatibilityDefinition(compatibility_marten.Analyze(new([project]), new()), _key).File;
     }
 
     [Fact] void should_locate_the_compatibility_declaration_at_the_authored_type() => _compatibilityFile.ShouldEqual("FactParity/Document.cs");

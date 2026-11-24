@@ -45,14 +45,7 @@ static class MartenEventProjectionFacts
         CritterStackSubjectResolver subjects,
         ProjectionRegistration registration)
     {
-        var scan = new OperationScan(project, adapter, registration.Projection!);
-        foreach (var tree in project.Compilation.SyntaxTrees.Where(_ => !DotNetGeneratedSource.IsGenerated(_)))
-        {
-            var semanticModel = project.Compilation.GetSemanticModel(tree);
-            scan.CollectConventionalOperations(tree, semanticModel);
-            scan.CollectInvocationOperations(tree, semanticModel);
-        }
-
+        var scan = SourceOperations(project, adapter, registration.Projection!);
         var exactOperations = scan.Operations
             .GroupBy(_ => new OperationKey(
                 subjects.SubjectForType(project, _.EventType),
@@ -66,6 +59,36 @@ static class MartenEventProjectionFacts
             .ThenBy(_ => _.Kind)
             .ToArray();
         return BuildResult(project, subjects, registration, new(exactOperations, scan.TeardownTypes));
+    }
+
+    public static IReadOnlyList<MartenDocumentObservation> ObserveDocuments(
+        DotNetProjectCompilation project,
+        AdapterIdentity adapter,
+        ProjectionRegistration registration) =>
+    [
+        .. SourceOperations(project, adapter, registration.Projection!).Operations.Select(operation => new MartenDocumentObservation
+        {
+            Type = operation.DocumentType,
+            Evidence = operation.Evidence,
+            Ownership = registration.Ownership,
+            Site = operation.Site,
+            Order = 0,
+            Preference = OmissionDiagnosticEvidencePreference.UseSite,
+            Method = operation.Method
+        })
+    ];
+
+    static OperationScan SourceOperations(DotNetProjectCompilation project, AdapterIdentity adapter, INamedTypeSymbol projection)
+    {
+        var scan = new OperationScan(project, adapter, projection);
+        foreach (var tree in project.Compilation.SyntaxTrees.Where(_ => !DotNetGeneratedSource.IsGenerated(_)))
+        {
+            var semanticModel = project.Compilation.GetSemanticModel(tree);
+            scan.CollectConventionalOperations(tree, semanticModel);
+            scan.CollectInvocationOperations(tree, semanticModel);
+        }
+
+        return scan;
     }
 
     static MartenEventProjectionResult BuildResult(
@@ -355,7 +378,11 @@ static class MartenEventProjectionFacts
         INamedTypeSymbol EventType,
         INamedTypeSymbol DocumentType,
         RelationshipKind Kind,
-        Evidence Evidence);
+        Evidence Evidence)
+    {
+        public required IMethodSymbol Method { get; init; }
+        public required string Site { get; init; }
+    }
 
     sealed record ProjectionFactScope(
         DotNetProjectCompilation Project,
@@ -415,7 +442,11 @@ static class MartenEventProjectionFacts
                 eventType,
                 documentType,
                 RelationshipKind.Stores,
-                CritterStackSource.EvidenceFor(method, adapter, project, EvidenceStrength.Exact, $"Marten EventProjection {method.Name} returns the '{documentType.Name}' document for '{eventType.Name}'"));
+                CritterStackSource.EvidenceFor(method, adapter, project, EvidenceStrength.Exact, $"Marten EventProjection {method.Name} returns the '{documentType.Name}' document for '{eventType.Name}'"))
+            {
+                Method = method,
+                Site = MartenDocumentSource.SiteFor(declaration, project)
+            };
         }
 
         void CollectInvocation(InvocationExpressionSyntax invocation, IMethodSymbol method, SemanticModel semanticModel)
@@ -459,7 +490,11 @@ static class MartenEventProjectionFacts
                     Strength = EvidenceStrength.Exact,
                     Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
                     Explanation = $"Marten EventProjection '{eventType.Name}' operation uses IDocumentOperations.{method.Name} for '{documentType.Name}'"
-                }));
+                })
+            {
+                Method = containingMethod,
+                Site = MartenDocumentSource.SiteFor(invocation, project)
+            });
         }
 
         bool IsConventionalProjectionMethod(IMethodSymbol method) =>

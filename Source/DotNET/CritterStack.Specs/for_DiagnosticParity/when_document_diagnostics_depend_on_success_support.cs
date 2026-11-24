@@ -3,6 +3,8 @@
 
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
+using compatibility_marten = Cratis.CritterStack.Screenplay.given.compatibility_marten;
+
 namespace Cratis.CritterStack.Screenplay.for_DiagnosticParity;
 
 /// <summary>
@@ -74,7 +76,7 @@ public class when_document_diagnostics_depend_on_success_support : given.a_wolve
         project.Compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
         var context = new DotNetAnalysisContext([project]);
         var combined = Analyze(project);
-        var marten = new MartenScreenplayAdapter().Analyze(context, new DotNetAdapterOptions());
+        var marten = compatibility_marten.Analyze(context, new DotNetAdapterOptions());
         var methods = project.Compilation.GetTypeByMetadataName("Diagnostics.RegisterHandler").GetMembers().OfType<IMethodSymbol>().Where(method => method.Name == "Handle" || method.Name == "OnException").ToArray();
         var success = DotNetMethodIdentity.SubjectFor(project, methods.Single(method => method.Name == "Handle"));
         var failure = DotNetMethodIdentity.SubjectFor(project, methods.Single(method => method.Name == "OnException"));
