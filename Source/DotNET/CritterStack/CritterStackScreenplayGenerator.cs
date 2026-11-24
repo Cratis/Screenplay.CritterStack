@@ -109,6 +109,9 @@ public sealed class CritterStackScreenplayGenerator(
         CritterStackScreenplayOptions options,
         bool useCompatibilityPlacement)
     {
+        var hasCombinedAdapter = adapters.Any(adapter => adapter is CritterStackScreenplayAdapter);
+        RejectOverlappingCoverage(hasCombinedAdapter);
+
         var context = new DotNetAnalysisContext(projects);
         var adapterOptions = new DotNetAdapterOptions
         {
@@ -116,6 +119,18 @@ public sealed class CritterStackScreenplayGenerator(
             Module = options.Module,
             NamespaceSegmentsToSkip = options.NamespaceSegmentsToSkip
         };
+        var generationOptions = new ScreenplayGenerationOptions
+        {
+            Domain = options.Domain ?? (projects.Count == 1 ? projects[0].Name : "Application")
+        };
+        if (!hasCombinedAdapter && adapters.Any(adapter => adapter is IDescribedDotNetScreenplayAdapter))
+        {
+            var roster = adapters.Select(adapter => adapter is IDescribedDotNetScreenplayAdapter described
+                ? DotNetAdapterRegistration.For(described)
+                : DotNetAdapterRegistration.ForLegacy(adapter));
+            return generator.Generate(DotNetAdapterRunner.Run(roster, context, adapterOptions), generationOptions);
+        }
+
         var implementations = options.FollowAuthoredAbstractions ? new AuthoredImplementationManifest(context) : null;
         var contributions = adapters
             .Where(_ => _.CanAnalyze(context))
@@ -124,10 +139,14 @@ public sealed class CritterStackScreenplayGenerator(
                 : adapter.Analyze(context, adapterOptions))
             .ToArray();
         var boundContributions = ConceptTypeReferenceBinder.WithoutMissingConcepts(ConceptTypeReferenceBinder.Bind(context, contributions));
-        var domain = options.Domain ?? (projects.Count == 1 ? projects[0].Name : "Application");
+        return generator.Generate(boundContributions, generationOptions);
+    }
 
-        return generator.Generate(
-            boundContributions,
-            new ScreenplayGenerationOptions { Domain = domain });
+    void RejectOverlappingCoverage(bool hasCombinedAdapter)
+    {
+        if (hasCombinedAdapter && adapters.Any(adapter => adapter is MartenScreenplayAdapter or WolverineScreenplayAdapter or WolverineMartenScreenplayAdapter))
+        {
+            throw new OverlappingCritterStackAdapters();
+        }
     }
 }

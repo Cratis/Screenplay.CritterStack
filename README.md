@@ -53,6 +53,10 @@ var generator = new CritterStackScreenplayGenerator(adapters);
 var result = generator.Generate(projects, options);
 ```
 
+For an explicit roster containing described adapters and no combined `CritterStackScreenplayAdapter`, the facade uses `DotNetAdapterRegistration.For` for described adapters and `ForLegacy` only for legacy participants. The shared runner rejects duplicate adapter IDs before probing or analyzing those registrations, even when their versions differ, while unrelated registrations can still run. The generated result retains the admitted snapshot in `AdapterRun`; reversing the roster does not resolve conflicts or choose a winner. Each generation run creates fresh admission state.
+
+The combined adapter cannot be registered alongside an atomic Marten, Wolverine, or Wolverine–Marten adapter: the facade raises `OverlappingCritterStackAdapters` before any adapter callbacks. Hosts invoking the shared runner directly must avoid the same overlapping coverage themselves; the identities differ, so duplicate-ID rejection cannot detect it. The parameterless facade and all-legacy compatibility rosters retain their existing generation path.
+
 The existing `(IDotNetScreenplayAdapter, ScreenplayDefinitionGenerator)` constructor remains available for hosts that supply one adapter and their own shared pipeline.
 
 Shared generation infrastructure lives in [`Cratis/Screenplay.Generation`](https://github.com/Cratis/Screenplay.Generation). Cratis CLI owns `MSBuildWorkspace`, project/host selection, output, and the source context supplied for each selected project. The host must map its exact authored `Project.Documents` syntax trees and choose the stable project identity, display root, and case policy; adapters consume that context and do not infer source identity from physical Roslyn paths.
