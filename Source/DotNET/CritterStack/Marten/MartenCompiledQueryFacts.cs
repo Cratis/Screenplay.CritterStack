@@ -15,7 +15,6 @@ sealed class MartenCompiledQueryFacts(
     MartenBackendOwnershipResolver ownership)
 {
     readonly List<GenerationFact> _facts = [];
-    readonly List<GenerationDiagnostic> _diagnostics = [];
 
     public AdapterContribution Emit()
     {
@@ -29,7 +28,7 @@ sealed class MartenCompiledQueryFacts(
             EmitDeclaration([.. group]);
         }
 
-        return new() { Adapter = adapter, Facts = _facts, Diagnostics = _diagnostics };
+        return new() { Adapter = adapter, Facts = _facts, Diagnostics = [] };
     }
 
     IEnumerable<Site> Observe(IMethodSymbol method)
@@ -80,7 +79,7 @@ sealed class MartenCompiledQueryFacts(
         var site = sites[0];
         if (!site.Ownership.CanEmit)
         {
-            _diagnostics.AddRange(sites.Select(item => item.Ownership.Diagnostic(CritterStackMethodFacts.SubjectFor(project, item.Method), item.Evidence.Source, "Marten-backed handler ownership cannot be proved")));
+            EmitUnownedInputs(sites);
             return;
         }
 
@@ -111,6 +110,48 @@ sealed class MartenCompiledQueryFacts(
                 EmitUsage(item);
             }
         }
+    }
+
+    void EmitUnownedInputs(Site[] sites)
+    {
+        var executions = sites.Where(site => site.Diagnostic is null).ToArray();
+        if (executions.Length == 0)
+        {
+            return;
+        }
+
+        var site = executions[0];
+        var inputs = MartenCompiledQueryDiscovery.InputFacts(site.Plan.PlanType, new MartenCompiledQueryInputOwner(site.Declaration), context, site.Evidence);
+        var alternatives = executions.Select(item => CritterStackMethodFacts.Observe(project, item.Method)).DistinctBy(alternative => alternative.Method).ToArray();
+        foreach (var fact in inputs)
+        {
+            _facts.Add(fact);
+            _facts.Add(CritterStackMethodFacts.Support(fact, alternatives));
+        }
+
+        foreach (var execution in executions)
+        {
+            EmitInputExecution(execution);
+        }
+    }
+
+    void EmitInputExecution(Site site)
+    {
+        var method = CritterStackMethodFacts.SubjectFor(project, site.Method);
+        var fact = new MethodDeclarationExecutionFact
+        {
+            Id = new() { Value = $"{adapter.Id}:compiled-query-input-execution:{method.Value}:{site.Invocation.SpanStart}" },
+            Subject = method,
+            Evidence = site.Evidence,
+            Definition = new()
+            {
+                Method = method,
+                Declaration = site.Declaration,
+                ExecutionOrder = site.ExecutionOrder
+            }
+        };
+        _facts.Add(fact);
+        _facts.Add(CritterStackMethodFacts.Support(fact, [CritterStackMethodFacts.Observe(project, site.Method)]));
     }
 
     void EmitUsage(Site site)

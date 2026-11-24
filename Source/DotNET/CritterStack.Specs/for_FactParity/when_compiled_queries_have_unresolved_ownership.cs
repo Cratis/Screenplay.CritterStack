@@ -53,11 +53,18 @@ public class when_compiled_queries_have_unresolved_ownership : application
         _contribution = MartenCompiledQueryDiscovery.EmitFacts(project, context, MartenAdapter, ownership);
     }
 
-    [Fact] void should_not_invent_an_artifact_occurrence() => _contribution.Facts.ShouldBeEmpty();
-    [Fact] void should_report_one_ownership_diagnostic_instead_of_throwing() => _contribution.Diagnostics.Count.ShouldEqual(1);
-    [Fact] void should_identify_the_unknown_backend_scope() => _contribution.Diagnostics.Single().Code.ShouldEqual(GenerationDiagnosticCodes.UnknownBackendScope);
-    [Fact] void should_keep_the_error_severity() => _contribution.Diagnostics.Single().Severity.ShouldEqual(GenerationDiagnosticSeverity.Error);
-    [Fact] void should_keep_the_unknown_outcome() => _contribution.Diagnostics.Single().Outcome.ShouldEqual(GenerationDiagnosticOutcome.Unknown);
-    [Fact] void should_locate_the_owning_method() => _contribution.Diagnostics.Single().Subject.ShouldEqual(_method);
-    [Fact] void should_preserve_the_exact_execution_source_range() => _contribution.Diagnostics.Single().Source.ShouldEqual(_invocation);
+    [Fact] void should_not_invent_an_artifact_occurrence() => _contribution.Facts.OfType<ArtifactDeclarationFact>().ShouldBeEmpty();
+    [Fact] void should_not_map_the_unresolved_declaration_to_a_document() => _contribution.Facts.OfType<ArtifactUsageDeclarationFact>().ShouldBeEmpty();
+    [Fact] void should_not_assert_an_artifact_usage() => _contribution.Facts.OfType<MethodArtifactUsageFact>().ShouldBeEmpty();
+    [Fact] void should_not_emit_relationships() => _contribution.Facts.OfType<RelationshipFact>().ShouldBeEmpty();
+    [Fact] void should_leave_ownership_diagnostics_to_their_owning_producers() => _contribution.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_emit_one_input_only_execution() => _contribution.Facts.OfType<MethodDeclarationExecutionFact>().Count().ShouldEqual(1);
+    [Fact] void should_locate_the_owning_method() => Execution.Definition.Method.ShouldEqual(_method);
+    [Fact] void should_preserve_the_exact_execution_source_range() => Execution.Evidence.Source.ShouldEqual(_invocation);
+    [Fact] void should_keep_the_input_execution_neutral() => new[] { Execution.Definition.SourceScope, Execution.Definition.TargetScope }.ShouldEachConformTo(scope => scope is null);
+    [Fact] void should_preserve_the_proved_execution_order() => Execution.Definition.ExecutionOrder.ShouldEqual(0);
+    [Fact] void should_preserve_the_input_declaration() => _contribution.Facts.OfType<DeclarationInputMemberDeclarationFact>().Single().Definition.Member.Name.ShouldEqual("id");
+    [Fact] void should_preserve_the_input_type() => _contribution.Facts.OfType<DeclarationInputMemberTypeUseFact>().Single().Definition.Type.Name.ShouldEqual("Int");
+
+    MethodDeclarationExecutionFact Execution => _contribution.Facts.OfType<MethodDeclarationExecutionFact>().Single();
 }

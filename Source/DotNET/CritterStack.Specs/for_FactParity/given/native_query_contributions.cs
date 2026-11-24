@@ -55,13 +55,14 @@ sealed record native_query_contributions(AdapterContribution Compatibility, Adap
         var owner = ownership.ForMethod(project, method);
         if (!owner.CanEmit)
         {
-            return new(
-                [],
-                [owner.Diagnostic(
-                DotNetMethodIdentity.SubjectFor(project, method),
-                CritterStackSource.EvidenceFor(method, WolverineAdapter, project, EvidenceStrength.Exact).Source,
-                "Marten-backed handler ownership cannot be proved")],
-                []);
+            var surface = emitter.Emit(query, owner);
+            return surface with
+            {
+                Diagnostics = [.. surface.Diagnostics, owner.Diagnostic(
+                    DotNetMethodIdentity.SubjectFor(project, method),
+                    CritterStackSource.EvidenceFor(method, WolverineAdapter, project, EvidenceStrength.Exact).Source,
+                    "Marten-backed handler ownership cannot be proved")]
+            };
         }
 
         var reads = new MartenSessionReadDiscovery(project, WolverineAdapter, ownership).Discover(method, owner);
