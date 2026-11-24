@@ -24,7 +24,7 @@ sealed class MartenCompiledQueryFacts(
             .Where(method => method.MethodKind == MethodKind.Ordinary)
             .SelectMany(Observe)
             .ToArray();
-        foreach (var group in sites.GroupBy(site => (site.Declaration, site.Target, site.Ownership)))
+        foreach (var group in sites.GroupBy(site => (site.Declaration, site.Ownership)))
         {
             EmitDeclaration([.. group]);
         }
@@ -62,7 +62,7 @@ sealed class MartenCompiledQueryFacts(
             Method = method,
             Plan = plan,
             Declaration = DeclarationFor(plan),
-            Target = BackendOccurrenceKeys.Artifact(context.SubjectForType(plan.DocumentType)!, ArtifactKind.Document, owner),
+            Document = context.SubjectForType(plan.DocumentType)!,
             Ownership = owner,
             Invocation = invocation,
             Evidence = evidence
@@ -159,8 +159,9 @@ sealed class MartenCompiledQueryFacts(
         public required IMethodSymbol Method { get; init; }
         public required MartenCompiledQueryObservation Plan { get; init; }
         public required SubjectId Declaration { get; init; }
-        public required ArtifactKey Target { get; init; }
+        public required SubjectId Document { get; init; }
         public required BackendOwnership Ownership { get; init; }
+        public ArtifactKey Target => BackendOccurrenceKeys.Artifact(Document, ArtifactKind.Document, Ownership);
         public required InvocationExpressionSyntax Invocation { get; init; }
         public required Evidence Evidence { get; init; }
         public int? ExecutionOrder { get; init; }
