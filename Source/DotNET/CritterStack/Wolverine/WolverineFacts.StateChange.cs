@@ -336,13 +336,11 @@ internal static partial class WolverineFacts
         CritterStackSubjectResolver subjects,
         IEnumerable<PropertyDefinition>? compiledParameters = null)
     {
-        var included = method.Parameters
-            .Where(_ => !IsInfrastructureParameter(_.Type) && !IsSourceType(_.Type))
-            .ToArray();
+        var included = QueryParameterSymbols(method);
 
         // Authored enum parameters are kept as properties, but they never take the identifier
         // from the first non-enum parameter that was chosen before enums were admitted.
-        var identifier = included.FirstOrDefault(_ => !IsAuthoredEnum(_.Type));
+        var identifier = QueryIdentifier(included);
         var endpointParameters = included
             .Select(parameter => new PropertyDefinition
             {
