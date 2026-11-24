@@ -6,8 +6,8 @@ using Cratis.CritterStack.Screenplay.given;
 
 namespace Cratis.CritterStack.Screenplay.for_MartenScreenplayAdapter;
 
-/// <summary>Characterizes the generic artifact diagnostic source gap tracked by Cratis/Screenplay.Generation#136.</summary>
-public class when_comparing_with_the_compatibility_adapter_characterizes_artifact_diagnostic_source_gap : given.a_marten_adapter_context
+/// <summary>Preserves complete artifact diagnostic parity after Cratis/Screenplay.Generation#136.</summary>
+public class when_comparing_with_the_compatibility_adapter : given.a_marten_adapter_context
 {
     AdapterContribution _marten = null!;
     AdapterContribution _compatibility = null!;
@@ -28,8 +28,8 @@ public class when_comparing_with_the_compatibility_adapter_characterizes_artifac
     [Fact] void should_keep_the_same_marten_artifacts() => Artifacts(_native).ShouldEqual(Artifacts(_legacy));
     [Fact] void should_keep_the_same_marten_relationships() => Relationships(_marten).ShouldEqual(Relationships(_compatibility));
     [Fact] void should_keep_the_same_generated_source() => _native.Source.ShouldEqual(_legacy.Source);
-    [Fact] void should_keep_all_other_diagnostic_fields_at_parity() => DiagnosticMeaning(_native).ShouldEqual(DiagnosticMeaning(_legacy));
-    [Fact] void should_characterize_the_native_artifact_warning_at_the_property() => DocumentOmission(_native).Source.ShouldEqual(Range(2, 30, 36));
+    [Fact] void should_keep_complete_diagnostic_parity() => diagnostic_parity.Meaning(_native.Diagnostics).ShouldEqual(diagnostic_parity.Meaning(_legacy.Diagnostics));
+    [Fact] void should_locate_the_native_artifact_warning_at_the_store_occurrence() => DocumentOmission(_native).Source.ShouldEqual(Range(5, 83, 105));
     [Fact] void should_keep_the_compatibility_artifact_warning_at_the_store_occurrence() => DocumentOmission(_legacy).Source.ShouldEqual(Range(5, 83, 105));
 
     static GenerationDiagnostic DocumentOmission(GeneratedScreenplayDefinition result) =>
@@ -37,10 +37,6 @@ public class when_comparing_with_the_compatibility_adapter_characterizes_artifac
 
     static bool IsDocumentOmission(GenerationDiagnostic diagnostic) =>
         diagnostic.Code == "GEN0004" && diagnostic.Subject?.Value == "dotnet://Students/Students/Students.Student";
-
-    static string[] DiagnosticMeaning(GeneratedScreenplayDefinition result) =>
-        diagnostic_parity.Meaning(result.Diagnostics.Select(diagnostic =>
-            IsDocumentOmission(diagnostic) ? diagnostic with { Source = null } : diagnostic));
 
     static SourceRange Range(int line, int start, int end) => new()
     {
