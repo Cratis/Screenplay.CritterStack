@@ -191,16 +191,15 @@ internal static partial class WolverineFacts
         WolverineValidationAuthorizationDiscoveryResult validationAuthorization)
     {
         var endpoints = new List<HttpEndpoint>();
-        foreach (var (type, method) in CandidateMethods(scope.Project))
+        foreach (var entry in ObserveEntryPoints(scope.Project, policy))
         {
-            var endpoint = EndpointFor(method);
-            if (endpoint is not null)
+            if (entry.Endpoint is { } endpoint)
             {
                 endpoints.Add(endpoint);
             }
-            else if (IsHandler(type, method, policy))
+            else
             {
-                AnalyzeWithSlicePattern(scope, method, null, owned => AnalyzeHandler(owned, method, validationAuthorization));
+                AnalyzeWithSlicePattern(scope, entry.Method, null, owned => AnalyzeHandler(owned, entry.Method, validationAuthorization));
             }
         }
 
@@ -223,21 +222,6 @@ internal static partial class WolverineFacts
             AnalyzeWithSlicePattern(scope, endpoint.Method, endpoint, owned => AnalyzeEndpoint(owned, endpoint, validationAuthorization, handledCommands));
         }
     }
-
-    static IEnumerable<(INamedTypeSymbol Type, IMethodSymbol Method)> CandidateMethods(DotNetProjectCompilation project)
-    {
-        var catalog = new DotNetArtifactCatalog(project.Compilation);
-        foreach (var type in catalog.Types.Where(_ => IsCandidateType(_, project)))
-        {
-            foreach (var method in type.GetMembers().OfType<IMethodSymbol>().Where(_ => IsPublicSourceMethod(_, project) && !IsIgnored(_)))
-            {
-                yield return (type, method);
-            }
-        }
-    }
-
-    static bool IsCandidateType(INamedTypeSymbol type, DotNetProjectCompilation project) =>
-        IsPublicSourceType(type, project) && !IsIgnored(type) && !WolverineSagaFacts.IsSagaType(type, project);
 
     static void AnalyzeWithSlicePattern(WolverineFactScope scope, IMethodSymbol method, HttpEndpoint? endpoint, Action<WolverineFactScope> analyze)
     {
