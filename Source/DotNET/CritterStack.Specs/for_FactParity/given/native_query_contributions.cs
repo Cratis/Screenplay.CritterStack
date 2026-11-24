@@ -12,13 +12,14 @@ sealed record native_query_contributions(AdapterContribution Compatibility, Adap
         var project = WithSourceContext(source);
         var context = new DotNetAnalysisContext([project]);
         var subjects = new CritterStackSubjectResolver(context);
-        var (_, ownership) = MartenStoreScopeDiscovery.DiscoverOwnership(context, MartenAdapter, subjects);
-        var compiled = MartenCompiledQueryDiscovery.EmitFacts(project, context, MartenAdapter, ownership);
-        var documents = new MartenScreenplayAdapter().Analyze(context, new());
+        var marten = new MartenScreenplayAdapter();
+        var (_, ownership) = MartenStoreScopeDiscovery.DiscoverOwnership(context, marten.Descriptor.Identity, subjects);
+        var compiled = MartenCompiledQueryDiscovery.EmitFacts(project, context, marten.Descriptor.Identity, ownership);
+        var documents = marten.Analyze(context, new());
         return new(
             new CritterStackScreenplayAdapter().Analyze(context, new()),
             documents with { Facts = [.. documents.Facts, .. compiled.Facts], Diagnostics = [.. documents.Diagnostics, .. compiled.Diagnostics] },
-            WolverineFactsFor(project, context));
+            WolverineFactsFor(project, context, ownership));
     }
 
     static DotNetProjectCompilation WithSourceContext(DotNetProjectCompilation project) => project with
@@ -34,17 +35,36 @@ sealed record native_query_contributions(AdapterContribution Compatibility, Adap
             })])
     };
 
-    static AdapterContribution WolverineFactsFor(DotNetProjectCompilation project, DotNetAnalysisContext context)
+    static AdapterContribution WolverineFactsFor(DotNetProjectCompilation project, DotNetAnalysisContext context, MartenBackendOwnershipResolver ownership)
     {
         var emitter = WolverineFacts.QueryArtifacts(project, context, new(), WolverineAdapter);
         var emitted = WolverineFacts.ObserveEntryPoints(project, new(true, true, []))
             .Where(entry => entry.Endpoint is { IsQuery: true })
             .Select(entry => WolverineFacts.ObserveQuery(project, entry.Endpoint!))
             .OfType<WolverineQueryObservation>()
-            .Select(query => emitter.Emit(query, BackendOwnership.Legacy))
+            .Select(query => EmitQuery(query, project, ownership, emitter))
             .ToArray();
         List<GenerationDiagnostic> diagnostics = [.. emitted.SelectMany(result => result.Diagnostics)];
         var placement = CritterStackSourcePlacement.Derive(context, new(), emitted.SelectMany(result => result.Placements!), diagnostics);
         return new() { Adapter = WolverineAdapter, Facts = [.. emitted.SelectMany(result => result.Facts), .. placement], Diagnostics = diagnostics };
+    }
+
+    static WolverineDiscoveryResult EmitQuery(WolverineQueryObservation query, DotNetProjectCompilation project, MartenBackendOwnershipResolver ownership, WolverineQueryArtifacts emitter)
+    {
+        var method = query.Endpoint.Method;
+        var owner = ownership.ForMethod(project, method);
+        if (!owner.CanEmit)
+        {
+            return new(
+                [],
+                [owner.Diagnostic(
+                DotNetMethodIdentity.SubjectFor(project, method),
+                CritterStackSource.EvidenceFor(method, WolverineAdapter, project, EvidenceStrength.Exact).Source,
+                "Marten-backed handler ownership cannot be proved")],
+                []);
+        }
+
+        var reads = new MartenSessionReadDiscovery(project, WolverineAdapter, ownership).Discover(method, owner);
+        return emitter.Emit(query, WolverineFacts.QueryResultOwnership(owner, reads));
     }
 }

@@ -8,16 +8,19 @@ namespace Cratis.CritterStack.Screenplay.Wolverine;
 
 internal static partial class WolverineFacts
 {
-    static BackendOwnership QueryResultOwnership(WolverineFactScope scope, IReadOnlyList<MartenSessionRead> reads)
+    public static BackendOwnership QueryResultOwnership(BackendOwnership fallback, IReadOnlyList<MartenSessionRead> reads)
     {
         var ownerships = reads.Select(read => read.Ownership).Distinct().ToArray();
         return ownerships.Length switch
         {
-            0 => scope.Ownership,
+            0 => fallback,
             1 => ownerships[0],
             _ => BackendOwnership.Conflict
         };
     }
+
+    static BackendOwnership QueryResultOwnership(WolverineFactScope scope, IReadOnlyList<MartenSessionRead> reads) =>
+        QueryResultOwnership(scope.Ownership, reads);
 
     static void AddSessionQueryReads(WolverineFactScope scope, SubjectId querySubject, IReadOnlyList<MartenSessionRead> reads)
     {

@@ -79,7 +79,7 @@ sealed class MartenSessionReadDiscovery(
         }
 
         var isCompiled = MartenCompiledQueryDiscovery.IsCompiledQueryExecution(method);
-        var plan = MartenCompiledQueryDiscovery.TryResolve(invocation, model, out var resolved) ? resolved : null;
+        var plan = MartenCompiledQueryDiscovery.TryObserve(invocation, model, out var resolved) ? resolved : null;
         var documentType = isCompiled ? plan?.DocumentType : DocumentTypeFrom(method, invocation, model);
         return new(
             documentType,
