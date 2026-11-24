@@ -11,7 +11,7 @@ namespace Cratis.CritterStack.Screenplay.Wolverine;
 /// Separates command member declarations from identifier selection, then joins them into the
 /// compatibility property list used by the legacy aggregate command fact.
 /// </summary>
-internal static class WolverineCommandMembers
+internal static partial class WolverineCommandMembers
 {
     /// <summary>
     /// Describes the declared members of a command type without any persistence role.
