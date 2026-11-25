@@ -87,6 +87,7 @@ public sealed class MartenScreenplayAdapter : IDescribedDotNetScreenplayAdapter,
             var observations = new MartenDocumentObservations(project, Identity, ownership)
                 .Discover(MartenProjectionDiscovery.Discover(project, Identity, stores));
             var documents = new MartenDocumentCandidates(project, context, subjects).Discover(observations);
+            var reads = new MartenSessionReadFacts(project, Identity, subjects, ownership).Emit(observations);
             if (subjects.HasBlockingDiagnosticsSince(subjectCheckpoint))
             {
                 continue;
@@ -94,6 +95,7 @@ public sealed class MartenScreenplayAdapter : IDescribedDotNetScreenplayAdapter,
 
             facts.AddRange(marten.Facts);
             facts.AddRange(documents.Facts);
+            facts.AddRange(reads);
             diagnostics.AddRange(marten.Diagnostics);
             diagnostics.AddRange(documents.Diagnostics);
             placements.AddRange(marten.Placements ?? []);

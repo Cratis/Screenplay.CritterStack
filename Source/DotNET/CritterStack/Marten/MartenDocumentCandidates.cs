@@ -138,11 +138,11 @@ sealed class MartenDocumentCandidates(DotNetProjectCompilation project, DotNetAn
         if (observation.Method is not { } method || observation.Relationship is not { } kind) return;
         if (!observation.HandlerOwnership.CanEmit)
         {
-            _diagnostics.Add(observation.HandlerOwnership.Diagnostic(CritterStackMethodFacts.SubjectFor(project, method), observation.Evidence.Source, "Marten document operation ownership cannot be proved"));
+            _diagnostics.Add(observation.HandlerOwnership.Diagnostic(DotNetMethodIdentity.SubjectFor(project, method), observation.Evidence.Source, "Marten document operation ownership cannot be proved"));
             return;
         }
 
-        var methodSubject = CritterStackMethodFacts.SubjectFor(project, method);
+        var methodSubject = DotNetMethodIdentity.SubjectFor(project, method);
         AddSupported(
             new ArtifactDeclarationFact
             {
