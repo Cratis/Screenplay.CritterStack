@@ -148,7 +148,7 @@ public class when_compiled_query_execution_has_multiple_store_owners : applicati
             var expected = expectedScope.Single(diagnostic => diagnostic.Subject == store);
             var actual = actualScope.Single(diagnostic => diagnostic.Subject == store);
             ScopeMeaning(actual).ShouldEqual(ScopeMeaning(expected));
-            Coordinates(expected.Source).ShouldEqual(name == "Primary" ? [23, 5, 24, 114] : [25, 5, 26, 141]);
+            Coordinates(expected.Source).ShouldEqual(name == "Primary" ? [17, 9, 17, 74] : [18, 9, 18, 89]);
 
             // Aligning the real producer removes gap12's diagnostic delta; invocation evidence remains exact.
             Coordinates(actual.Source).ShouldEqual(Coordinates(expected.Source));

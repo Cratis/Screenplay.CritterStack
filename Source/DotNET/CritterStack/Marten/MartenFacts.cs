@@ -20,15 +20,17 @@ static class MartenFacts
         DotNetAdapterOptions options,
         AdapterIdentity adapter,
         CritterStackSubjectResolver subjects,
-        MartenStoreIndex stores)
+        MartenStoreIndex stores) => Discover(new(project, options, adapter, subjects), stores);
+
+    public static MartenDiscoveryResult Discover(MartenCollectedFacts collected, MartenStoreIndex stores)
     {
+        var (project, adapter, subjects) = (collected.Project, collected.Adapter, collected.Subjects);
         if (project.Compilation.GetTypeByMetadataName(WellKnownTypes.MartenStoreOptions) is null &&
             project.Compilation.GetTypeByMetadataName(WellKnownTypes.MartenDocumentStore) is null)
         {
             return new([], [], []);
         }
 
-        var collected = new MartenCollectedFacts(project, options, adapter, subjects);
         var registrations = MartenProjectionDiscovery.Discover(project, adapter, stores);
         var configuration = MartenConfigurationDiscovery.Discover(project, adapter, subjects, registrations);
         collected.Facts.AddRange(configuration.Facts);

@@ -83,7 +83,7 @@ public sealed class MartenScreenplayAdapter : IDescribedDotNetScreenplayAdapter,
         foreach (var project in context.Projects)
         {
             var subjectCheckpoint = subjects.Checkpoint();
-            var marten = MartenFacts.Discover(project, options, Identity, subjects, stores);
+            var marten = MartenFacts.Discover(new MartenCollectedFacts(project, options, Identity, subjects) { NativeContext = context }, stores);
             var observations = new MartenDocumentObservations(project, Identity, ownership)
                 .Discover(MartenProjectionDiscovery.Discover(project, Identity, stores));
             var documents = new MartenDocumentCandidates(project, context, subjects).Discover(observations);

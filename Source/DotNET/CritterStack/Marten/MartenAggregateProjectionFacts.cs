@@ -31,6 +31,8 @@ sealed class MartenCollectedFacts(
 
     public BackendOwnership Ownership { get; init; } = BackendOwnership.Legacy;
 
+    public DotNetAnalysisContext? NativeContext { get; init; }
+
     public List<GenerationFact> Facts { get; init; } = [];
 
     public List<GenerationDiagnostic> Diagnostics { get; init; } = [];
@@ -42,6 +44,7 @@ sealed class MartenCollectedFacts(
     public MartenCollectedFacts WithOwnership(BackendOwnership ownership) => new(Project, Options, Adapter, Subjects)
     {
         Ownership = ownership,
+        NativeContext = NativeContext,
         Facts = Facts,
         Diagnostics = Diagnostics,
         Documents = Documents,
@@ -113,16 +116,16 @@ static class MartenAggregateProjectionFacts
         var (project, subjects) = (collected.Project, collected.Subjects);
         var eventSubject = subjects.SubjectForType(project, site.EventType);
         var suffix = site.IdSuffix is null ? string.Empty : $":{site.IdSuffix}";
-        collected.Facts.Add(new MartenArtifactFact
+        new MartenSourceArtifact
         {
             Id = $"marten:event:{eventSubject.Value}{suffix}",
             Subject = eventSubject,
             Kind = ArtifactKind.Event,
             Name = site.EventType.Name,
             File = MartenSourceFiles.FileOf(site.EventType, project),
-            Properties = DotNetTypeShapes.PropertiesOf(site.EventType),
+            SourceType = site.EventType,
             Evidence = site.Evidence
-        }.ToFact(collected.Ownership));
+        }.AddTo(collected);
         collected.Placements.Add(new(
             collected.PlacementId($"marten:placement:event:{eventSubject.Value}:{modelSubject.Value}{suffix}"),
             collected.Key(eventSubject, ArtifactKind.Event),
@@ -180,16 +183,16 @@ static class MartenAggregateProjectionFacts
         var model = registration.Model;
         foreach (var (idPrefix, kind) in new[] { ("read-model", ArtifactKind.ReadModel), ("aggregate", ArtifactKind.Aggregate) })
         {
-            collected.Facts.Add(new MartenArtifactFact
+            new MartenSourceArtifact
             {
                 Id = $"marten:{idPrefix}:{scope.ModelSubject.Value}",
                 Subject = scope.ModelSubject,
                 Kind = kind,
                 Name = model.Name,
                 File = scope.File,
-                Properties = DotNetTypeShapes.PropertiesOf(model),
+                SourceType = model,
                 Evidence = registration.Evidence
-            }.ToFact(collected.Ownership));
+            }.AddTo(collected);
         }
 
         collected.Placements.Add(new(
@@ -202,7 +205,7 @@ static class MartenAggregateProjectionFacts
 
     static void AddReducerFacts(MartenCollectedFacts collected, ProjectionRegistration registration, AggregateScope scope)
     {
-        collected.Facts.Add(new MartenArtifactFact
+        new MartenSourceArtifact
         {
             Id = $"marten:reducer:{scope.ProjectionSubject.Value}",
             Subject = scope.ProjectionSubject,
@@ -210,7 +213,7 @@ static class MartenAggregateProjectionFacts
             Name = registration.Projection?.Name ?? $"{registration.Model.Name}Snapshot",
             File = MartenSourceFiles.FileOf(scope.Projection, collected.Project) ?? scope.File,
             Evidence = registration.Evidence
-        }.ToFact(collected.Ownership));
+        }.AddTo(collected);
         collected.Placements.Add(new(
             collected.PlacementId($"marten:placement:reducer:{scope.ProjectionSubject.Value}"),
             collected.Key(scope.ProjectionSubject, ArtifactKind.Reducer),

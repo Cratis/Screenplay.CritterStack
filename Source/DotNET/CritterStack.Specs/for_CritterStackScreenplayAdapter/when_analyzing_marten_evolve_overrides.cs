@@ -7,8 +7,8 @@ public class when_analyzing_marten_evolve_overrides : given.a_marten_evolve_appl
 {
     AdapterContribution _contribution = null!;
 
-    IEnumerable<string> Events => _contribution.Facts.OfType<ArtifactFact>()
-        .Where(_ => _.Definition.Key.Kind == ArtifactKind.Event).Select(_ => _.Definition.Name);
+    IEnumerable<string> Events => _contribution.Facts.OfType<ArtifactDeclarationFact>()
+        .Where(_ => _.Definition.Artifact.Kind == ArtifactKind.Event).Select(_ => _.Definition.Name);
 
     void Because() => _contribution = new MartenScreenplayAdapter().Analyze(Context, new DotNetAdapterOptions());
 
