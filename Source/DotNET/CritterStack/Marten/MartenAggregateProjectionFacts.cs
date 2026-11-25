@@ -41,11 +41,11 @@ sealed class MartenCollectedFacts(
 
     public List<CritterStackPlacementIntent> Placements { get; init; } = [];
 
-    public MartenCollectedFacts WithOwnership(BackendOwnership ownership) => new(Project, Options, Adapter, Subjects)
+    public MartenCollectedFacts WithOwnership(BackendOwnership ownership, List<GenerationFact>? facts = null) => new(Project, Options, Adapter, Subjects)
     {
         Ownership = ownership,
         NativeContext = NativeContext,
-        Facts = Facts,
+        Facts = facts ?? Facts,
         Diagnostics = Diagnostics,
         Documents = Documents,
         Placements = Placements

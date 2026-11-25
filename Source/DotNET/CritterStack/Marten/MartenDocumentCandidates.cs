@@ -65,15 +65,14 @@ sealed class MartenDocumentCandidates(DotNetProjectCompilation project, DotNetAn
         var prefix = BackendOccurrenceKeys.FactId($"{first.Evidence.Adapter.Id}:document:{artifact.Subject.Value}", artifact.Scope);
         foreach (var fact in Declarations(artifact, properties, first, prefix))
         {
-            _facts.Add(fact);
-            if (observations.All(observation => observation.Method is not null))
-            {
-                _facts.Add(CritterStackMethodFacts.Support(
-                    fact,
-                    [.. observations
-                        .Select(observation => CritterStackMethodFacts.Observe(project, observation.Method!, observation.Ownership.Scope))
-                        .DistinctBy(alternative => alternative.Method)]));
-            }
+            AddSupported(fact, observations);
+        }
+
+        // Compatibility seeds documents from ordered projection operations before scanning ordinary uses.
+        var projected = observations.Where(observation => observation.IsProjected).OrderBy(observation => observation.Order).FirstOrDefault();
+        if (projected is not null)
+        {
+            AddSupported(Omission(artifact, projected, prefix), observations);
         }
 
         var identity = new MartenDocumentIdentityFacts(artifact, properties);
@@ -81,7 +80,10 @@ sealed class MartenDocumentCandidates(DotNetProjectCompilation project, DotNetAn
         {
             AddSupported(identity.For(observation, orderLimit), observation);
             var unresolved = identity.UnresolvedDiagnostic(observation);
-            AddSupported(Omission(artifact, observation, prefix), observation, unresolved is null ? [] : [unresolved]);
+            if (projected is null || observation.Preference != OmissionDiagnosticEvidencePreference.UseSite)
+            {
+                AddSupported(Omission(artifact, observation, prefix), observation, unresolved is null ? [] : [unresolved]);
+            }
             AddRelationship(artifact, observation, prefix);
         }
     }
@@ -176,6 +178,19 @@ sealed class MartenDocumentCandidates(DotNetProjectCompilation project, DotNetAn
                 }
             },
             observation);
+    }
+
+    void AddSupported(GenerationFact fact, IReadOnlyList<MartenDocumentObservation> observations)
+    {
+        _facts.Add(fact);
+        if (observations.All(observation => observation.Method is not null))
+        {
+            _facts.Add(CritterStackMethodFacts.Support(
+                fact,
+                [.. observations
+                    .Select(observation => CritterStackMethodFacts.Observe(project, observation.Method!, observation.Ownership.Scope))
+                    .DistinctBy(alternative => alternative.Method)]));
+        }
     }
 
     void AddSupported(GenerationFact fact, MartenDocumentObservation observation, IReadOnlyList<GenerationDiagnostic>? diagnostics = null)

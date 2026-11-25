@@ -39,12 +39,9 @@ static class MartenEventProjectionFacts
     ];
     static readonly string[] _eventWrapperTypes = ["JasperFx.Events.IEvent`1", "Marten.Events.IEvent`1"];
 
-    public static MartenEventProjectionResult Discover(
-        DotNetProjectCompilation project,
-        AdapterIdentity adapter,
-        CritterStackSubjectResolver subjects,
-        ProjectionRegistration registration)
+    public static MartenEventProjectionResult Discover(MartenCollectedFacts collected, ProjectionRegistration registration)
     {
+        var (project, adapter, subjects) = (collected.Project, collected.Adapter, collected.Subjects);
         var scan = SourceOperations(project, adapter, registration.Projection!);
         var exactOperations = scan.Operations
             .GroupBy(_ => new OperationKey(
@@ -58,7 +55,7 @@ static class MartenEventProjectionFacts
             .ThenBy(_ => DotNetSubjectIds.MetadataName(_.DocumentType), StringComparer.Ordinal)
             .ThenBy(_ => _.Kind)
             .ToArray();
-        return BuildResult(project, subjects, registration, new(exactOperations, scan.TeardownTypes));
+        return BuildResult(collected, registration, new(exactOperations, scan.TeardownTypes));
     }
 
     public static IReadOnlyList<MartenDocumentObservation> ObserveDocuments(
@@ -66,16 +63,23 @@ static class MartenEventProjectionFacts
         AdapterIdentity adapter,
         ProjectionRegistration registration) =>
     [
-        .. SourceOperations(project, adapter, registration.Projection!).Operations.Select(operation => new MartenDocumentObservation
-        {
-            Type = operation.DocumentType,
-            Evidence = operation.Evidence,
-            Ownership = registration.Ownership,
-            Site = operation.Site,
-            Order = 0,
-            Preference = OmissionDiagnosticEvidencePreference.UseSite,
-            Method = operation.Method
-        })
+        .. SourceOperations(project, adapter, registration.Projection!).Operations
+            .OrderBy(operation => DotNetSubjectIds.MetadataName(operation.EventType), StringComparer.Ordinal)
+            .ThenBy(operation => DotNetSubjectIds.MetadataName(operation.DocumentType), StringComparer.Ordinal)
+            .ThenBy(operation => operation.Kind)
+            .ThenBy(operation => operation.Evidence.Source?.Path, StringComparer.Ordinal)
+            .ThenBy(operation => operation.Evidence.Source?.StartLine)
+            .Select((operation, order) => new MartenDocumentObservation
+            {
+                Type = operation.DocumentType,
+                Evidence = operation.Evidence,
+                Ownership = registration.Ownership,
+                Site = operation.Site,
+                Order = order,
+                Preference = OmissionDiagnosticEvidencePreference.UseSite,
+                IsProjected = true,
+                Method = operation.Method
+            })
     ];
 
     static OperationScan SourceOperations(DotNetProjectCompilation project, AdapterIdentity adapter, INamedTypeSymbol projection)
@@ -92,11 +96,11 @@ static class MartenEventProjectionFacts
     }
 
     static MartenEventProjectionResult BuildResult(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
+        MartenCollectedFacts collected,
         ProjectionRegistration registration,
         ExactOperations operations)
     {
+        var (project, subjects) = (collected.Project, collected.Subjects);
         var exactOperations = operations.Operations;
         var projection = registration.Projection!;
         var diagnostics = new List<GenerationDiagnostic>
@@ -109,20 +113,19 @@ static class MartenEventProjectionFacts
         }
 
         var projectionSubject = subjects.SubjectForType(project, projection);
-        var facts = new List<GenerationFact>
+        var local = collected.WithOwnership(registration.Ownership, []);
+        var facts = local.Facts;
+        new MartenSourceArtifact
         {
-            new MartenArtifactFact
-            {
-                Id = $"marten:event-projection:{projectionSubject.Value}",
-                Subject = projectionSubject,
-                Kind = ArtifactKind.Projection,
-                Name = projection.Name,
-                File = MartenSourceFiles.FileOf(projection, project),
-                Evidence = registration.Evidence
-            }.ToFact(registration.Ownership)
-        };
+            Id = $"marten:event-projection:{projectionSubject.Value}",
+            Subject = projectionSubject,
+            Kind = ArtifactKind.Projection,
+            Name = projection.Name,
+            File = MartenSourceFiles.FileOf(projection, project),
+            Evidence = registration.Evidence
+        }.AddTo(local);
 
-        var scope = new ProjectionFactScope(project, subjects, projectionSubject, registration.Ownership);
+        var scope = new ProjectionFactScope(local, projectionSubject);
         AddEventFacts(scope, facts, exactOperations);
         var documents = AddDocumentFacts(scope, facts, operations);
         AddOperationFacts(scope, facts, exactOperations);
@@ -140,16 +143,16 @@ static class MartenEventProjectionFacts
             var operation = eventGroup.First();
             var eventType = operation.EventType;
             var eventSubject = eventGroup.Key;
-            facts.Add(new MartenArtifactFact
+            new MartenSourceArtifact
             {
                 Id = $"marten:event:{eventSubject.Value}",
                 Subject = eventSubject,
                 Kind = ArtifactKind.Event,
                 Name = eventType.Name,
                 File = MartenSourceFiles.FileOf(eventType, project),
-                Properties = DotNetTypeShapes.PropertiesOf(eventType),
+                SourceType = eventType,
                 Evidence = operation.Evidence
-            }.ToFact(scope.Ownership));
+            }.AddTo(scope.Collected);
             facts.Add(new MartenRelationshipFact
             {
                 Id = $"marten:event-projection:consumes:{projectionSubject.Value}:{eventSubject.Value}",
@@ -384,11 +387,12 @@ static class MartenEventProjectionFacts
         public required string Site { get; init; }
     }
 
-    sealed record ProjectionFactScope(
-        DotNetProjectCompilation Project,
-        CritterStackSubjectResolver Subjects,
-        SubjectId ProjectionSubject,
-        BackendOwnership Ownership);
+    sealed record ProjectionFactScope(MartenCollectedFacts Collected, SubjectId ProjectionSubject)
+    {
+        public DotNetProjectCompilation Project => Collected.Project;
+        public CritterStackSubjectResolver Subjects => Collected.Subjects;
+        public BackendOwnership Ownership => Collected.Ownership;
+    }
 
     sealed record ExactOperations(
         EventDocumentOperation[] Operations,

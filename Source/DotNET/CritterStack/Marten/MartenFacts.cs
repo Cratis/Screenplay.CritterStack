@@ -95,7 +95,7 @@ static class MartenFacts
         switch (registration.Kind)
         {
             case ProjectionKind.Event:
-                var eventProjection = MartenEventProjectionFacts.Discover(project, adapter, subjects, registration);
+                var eventProjection = MartenEventProjectionFacts.Discover(collected, registration);
                 collected.Facts.AddRange(eventProjection.Facts);
                 collected.Diagnostics.AddRange(eventProjection.Diagnostics);
                 collected.Documents.AddRange(eventProjection.Documents);
@@ -110,7 +110,7 @@ static class MartenFacts
                 collected.Diagnostics.AddRange(multiStreamConfiguration.Diagnostics);
                 break;
             case ProjectionKind.Custom:
-                AddCustomProjectionFacts(project, subjects, registration, collected.Facts);
+                AddCustomProjectionFacts(collected, registration);
                 collected.Diagnostics.Add(CustomProjectionDiagnostic(project, subjects, registration));
                 return;
         }
@@ -118,15 +118,12 @@ static class MartenFacts
         MartenAggregateProjectionFacts.Add(collected, registration, multiStreamConfiguration);
     }
 
-    static void AddCustomProjectionFacts(
-        DotNetProjectCompilation project,
-        CritterStackSubjectResolver subjects,
-        ProjectionRegistration registration,
-        List<GenerationFact> facts)
+    static void AddCustomProjectionFacts(MartenCollectedFacts collected, ProjectionRegistration registration)
     {
+        var (project, subjects) = (collected.Project, collected.Subjects);
         var projection = registration.Projection!;
         var subject = subjects.SubjectForType(project, projection);
-        facts.Add(new MartenArtifactFact
+        new MartenSourceArtifact
         {
             Id = $"marten:custom-projection:{subject.Value}",
             Subject = subject,
@@ -134,7 +131,7 @@ static class MartenFacts
             Name = projection.Name,
             File = MartenSourceFiles.FileOf(projection, project),
             Evidence = registration.Evidence
-        }.ToFact(registration.Ownership));
+        }.AddTo(collected);
     }
 
     static GenerationDiagnostic MultiStreamDiagnostic(

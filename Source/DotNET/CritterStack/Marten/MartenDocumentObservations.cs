@@ -19,6 +19,7 @@ sealed record MartenDocumentObservation
     public required string Site { get; init; }
     public required long Order { get; init; }
     public required OmissionDiagnosticEvidencePreference Preference { get; init; }
+    public bool IsProjected { get; init; }
     public IMethodSymbol? Method { get; init; }
     public bool HasExplicitIdentity { get; init; }
     public ISymbol? IdentityMember { get; init; }

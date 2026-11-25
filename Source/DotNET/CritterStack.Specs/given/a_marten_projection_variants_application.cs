@@ -254,6 +254,7 @@ public class a_marten_projection_variants_application : Specification
     ];
 
     protected AdapterContribution Contribution = null!;
+    protected DotNetProjectCompilation Project = null!;
 
     void Establish()
     {
@@ -269,7 +270,7 @@ public class a_marten_projection_variants_application : Specification
             _references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
         compilation.GetDiagnostics().Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
-        var project = new DotNetProjectCompilation
+        Project = new DotNetProjectCompilation
         {
             Name = "Variants",
             ProjectPath = "/workspace/Variants/Variants.csproj",
@@ -278,7 +279,7 @@ public class a_marten_projection_variants_application : Specification
             AuthoredSyntaxTrees = new HashSet<SyntaxTree>(trees)
         };
         Contribution = new CritterStackScreenplayAdapter().Analyze(
-            new DotNetAnalysisContext([project]),
+            new DotNetAnalysisContext([Project]),
             new DotNetAdapterOptions());
     }
 }
