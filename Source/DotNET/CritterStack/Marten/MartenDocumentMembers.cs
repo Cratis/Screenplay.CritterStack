@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -10,6 +11,12 @@ namespace Cratis.CritterStack.Screenplay.Marten;
 static class MartenDocumentMembers
 {
     public static string PropertyName(string name) => name.Length == 0 ? name : char.ToLowerInvariant(name[0]) + name[1..];
+
+    public static bool IsRepresentableShape(IReadOnlyList<TypeUseShapeKind> shape) => shape is
+        [TypeUseShapeKind.Named] or
+        [TypeUseShapeKind.Optional, TypeUseShapeKind.Named] or
+        [TypeUseShapeKind.Collection, TypeUseShapeKind.Named] or
+        [TypeUseShapeKind.Optional, TypeUseShapeKind.Collection, TypeUseShapeKind.Named];
 
     public static ISymbol? ResolveIdentityMember(
         InvocationExpressionSyntax invocation,

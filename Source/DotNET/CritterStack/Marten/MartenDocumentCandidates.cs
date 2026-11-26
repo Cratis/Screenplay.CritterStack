@@ -103,6 +103,13 @@ sealed class MartenDocumentCandidates(DotNetProjectCompilation project, DotNetAn
         for (var order = 0; order < properties.Count; order++)
         {
             var property = properties[order];
+            var type = DotNetTypeShapes.TypeUseFor(property.Type, context);
+            if (!MartenDocumentMembers.IsRepresentableShape(type.Shape))
+            {
+                // Compatibility keeps such a member only inside an omitted document; Screenplay cannot represent its exact shape.
+                continue;
+            }
+
             var member = new ArtifactMemberKey { Artifact = artifact, Name = MartenDocumentMembers.PropertyName(property.Name) };
             var evidence = CritterStackSource.EvidenceFor(property, observation.Evidence.Adapter, project, EvidenceStrength.Exact, "Marten document property");
             facts.Add(new ArtifactMemberDeclarationFact
@@ -117,7 +124,7 @@ sealed class MartenDocumentCandidates(DotNetProjectCompilation project, DotNetAn
                 Id = new() { Value = $"{prefix}:type:{property.Name}" },
                 Subject = artifact.Subject,
                 Evidence = evidence,
-                Definition = new() { Member = member, Type = DotNetTypeShapes.TypeUseFor(property.Type, context) }
+                Definition = new() { Member = member, Type = type }
             };
             facts.Add(typeUse);
             if (typeUse.Definition.Type.ObservedTypeSubject is not null)
