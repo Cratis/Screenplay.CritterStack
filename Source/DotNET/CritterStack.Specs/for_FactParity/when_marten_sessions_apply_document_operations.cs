@@ -52,6 +52,10 @@ public class when_marten_sessions_apply_document_operations : given.a_marten_doc
                     session.DeleteWhere<Ledger>(_ => _.Id > 2);
                 }
             }
+            public static class Reading
+            {
+                public static Customer? Run(Marten.IQuerySession session) => session.Load<Customer>(1);
+            }
             public static class Dormant
             {
                 public static void Run(Marten.IDocumentSession session) => session.Insert(new Quote(2));
