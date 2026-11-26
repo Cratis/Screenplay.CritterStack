@@ -35,7 +35,47 @@ public abstract class a_native_http_command_comparison : Specification
         }
         """;
 
+    /// <summary>The Marten surface a delete endpoint needs, added after <see cref="Framework"/> by <see cref="CompareWithMarten"/>.</summary>
+    protected const string MartenFramework =
+        """
+        namespace Marten
+        {
+            public interface IDocumentStore;
+            public sealed class StoreOptions { public MartenRegistry Schema { get; } = new(); }
+            public sealed class MartenRegistry { public void For<T>() { } }
+            public interface IQuerySession { T? Load<T>(System.Guid id) where T : class; }
+            public interface IDocumentOperations : IQuerySession
+            {
+                void Store<T>(params T[] documents);
+                void Delete<T>(System.Guid id);
+                void Delete(object entity);
+            }
+            public interface IDocumentSession : IDocumentOperations;
+            public static class MartenServiceCollectionExtensions
+            {
+                public static void AddMartenStore<T>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<StoreOptions> configure) where T : class, IDocumentStore { }
+            }
+        }
+        namespace Wolverine.Marten
+        {
+            [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method, AllowMultiple = true)]
+            public class MartenStoreAttribute(System.Type storeType) : System.Attribute;
+        }
+        """;
+
     protected GeneratedScreenplayDefinition Expected { get; private set; } = null!;
+
+    /// <summary>Gets the real native Marten contribution composed with the native Wolverine contribution, Marten first.</summary>
+    protected GeneratedScreenplayDefinition Composed { get; private set; } = null!;
+
+    /// <summary>Gets the same composition with the Wolverine contribution first.</summary>
+    protected GeneratedScreenplayDefinition ComposedReverse { get; private set; } = null!;
+
+    /// <summary>Gets the public described roster, Marten first, admitting both real producers.</summary>
+    protected GeneratedScreenplayDefinition PublicComposed { get; private set; } = null!;
+
+    /// <summary>Gets the public described roster, Wolverine bridge first.</summary>
+    protected GeneratedScreenplayDefinition PublicComposedReverse { get; private set; } = null!;
 
     protected GeneratedScreenplayDefinition Public { get; private set; } = null!;
 
@@ -65,8 +105,40 @@ public abstract class a_native_http_command_comparison : Specification
         Public = new CritterStackScreenplayGenerator([bridge]).Generate([project], new CritterStackScreenplayOptions { Domain = "FactParity" });
     }
 
+    protected void CompareWithMarten(string application)
+    {
+        var project = WithSourceContext(Project($"{Framework}\n{MartenFramework}\n{application}"));
+        var context = new DotNetAnalysisContext([project]);
+        var bridge = new real_wolverine_descriptor_bridge();
+        var marten = new MartenScreenplayAdapter();
+        Native = bridge.Analyze(context, new());
+        Admission = AdapterContributionAdmission.Admit(bridge.Descriptor, Native);
+        ExpectedIdentity = bridge.Identity;
+
+        // Oracle and every native composition run the SAME snapshot pipeline, so the SDK's fact-disposition diagnostics are accounted
+        // identically on both sides and every diagnostic is compared in full.
+        var adapterOptions = new DotNetAdapterOptions();
+        var generation = new ScreenplayGenerationOptions { Domain = "FactParity" };
+        var generator = new ScreenplayDefinitionGenerator();
+        GeneratedScreenplayDefinition Snapshot(params DotNetAdapterRegistration[] roster) =>
+            generator.Generate(DotNetAdapterRunner.Run(roster, context, adapterOptions), generation);
+
+        // TEST-ONLY oracle snapshot (see Compare): the legacy contribution is wrapped unchanged through the shared helper.
+        var legacy = new CritterStackScreenplayAdapter();
+        var oracle = legacy.Analyze(context, adapterOptions);
+        Expected = generator.Generate(LegacyOracleSnapshot(bridge.Descriptor with { Identity = legacy.Identity }, oracle), generation);
+        Composed = Snapshot(DotNetAdapterRegistration.For(marten), DotNetAdapterRegistration.For(bridge));
+        ComposedReverse = Snapshot(DotNetAdapterRegistration.For(bridge), DotNetAdapterRegistration.For(marten));
+        var options = new CritterStackScreenplayOptions { Domain = "FactParity" };
+        PublicComposed = new CritterStackScreenplayGenerator([marten, bridge]).Generate([project], options);
+        PublicComposedReverse = new CritterStackScreenplayGenerator([bridge, marten]).Generate([project], options);
+        Public = PublicComposed;
+    }
+
     /// <summary>Gets a value indicating whether the real runner admitted every record of the public result, including the Wolverine execution.</summary>
     protected bool IsAdmitted => Admitted(Public, ExpectedIdentity);
+
+    protected bool Admitted(GeneratedScreenplayDefinition result) => Admitted(result, ExpectedIdentity);
 
     protected static bool Admitted(GeneratedScreenplayDefinition result, AdapterIdentity expected) =>
         result.AdapterRun is { Adapters.Length: > 0 } run
@@ -154,10 +226,10 @@ public abstract class a_native_http_command_comparison : Specification
         .SelectMany(definition => definition.Properties)
         .Select(property => property.Type);
 
-    protected string Relationships(GeneratedScreenplayDefinition result) =>
+    protected static string Relationships(GeneratedScreenplayDefinition result) =>
         JsonSerializer.Serialize(result.Graph.Relationships.SelectMany(relationship => relationship.Definitions));
 
-    protected string[] Diagnostics(GeneratedScreenplayDefinition result) => diagnostic_parity.Meaning(result.Diagnostics);
+    protected static string[] Diagnostics(GeneratedScreenplayDefinition result) => diagnostic_parity.Meaning(result.Diagnostics);
 
     protected IEnumerable<ArtifactDefinition> Commands(GeneratedScreenplayDefinition result) =>
         result.Graph.Artifacts.SelectMany(artifact => artifact.Variants).Select(variant => variant.Definition).Where(_ => _.Key.Kind == ArtifactKind.Command);
@@ -175,6 +247,7 @@ public abstract class a_native_http_command_comparison : Specification
             EntryPointFact => capability == GenerationFactCapability.EntryPoint,
             ArtifactDeclarationFact => capability == GenerationFactCapability.ArtifactDeclaration,
             ArtifactPlacementFact => capability == GenerationFactCapability.ArtifactPlacement,
+            RelationshipFact => capability == GenerationFactCapability.Relationship,
             _ => false
         });
 

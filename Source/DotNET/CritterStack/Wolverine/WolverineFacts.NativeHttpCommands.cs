@@ -36,6 +36,9 @@ internal static partial class WolverineFacts
         var placements = new List<CritterStackPlacementIntent>();
         var hasSourceContext = context.Projects.Any(_ => _.SourceContext is not null);
         var subjects = new CritterStackSubjectResolver(hasSourceContext ? context : null, context);
+
+        // Source observation only: the native Marten adapter owns the store facts and diagnostics.
+        var (_, ownership) = Marten.MartenStoreScopeDiscovery.DiscoverOwnership(context, adapter, subjects);
         foreach (var project in context.Projects)
         {
             if (project.Compilation.GetTypeByMetadataName(WellKnownTypes.WolverineOptions) is null)
@@ -55,6 +58,7 @@ internal static partial class WolverineFacts
                 Options = options,
                 Adapter = adapter,
                 Subjects = subjects,
+                Resolver = ownership,
                 MiddlewareRegistrations = registrations,
                 Facts = facts,
                 Placements = placements,
@@ -78,6 +82,7 @@ internal static partial class WolverineFacts
         HttpEndpoint endpoint,
         WolverineValidationAuthorizationDiscoveryResult validation)
     {
+        var owned = scope;
         scope = scope.WithOwnership(BackendOwnership.Legacy);
         if (EndpointStages(scope, endpoint).Count > 0)
         {
@@ -86,7 +91,17 @@ internal static partial class WolverineFacts
         }
 
         var command = DescribeEndpointCommand(scope, endpoint);
-        if (!IsEffectFreeEndpointCommand(scope, command))
+        var deletesDocuments = !IsEffectFreeEndpointCommand(scope, command) && IsDocumentDeleteEndpointCommand(scope, command);
+        if (deletesDocuments)
+        {
+            // Only document-delete commands take the source-proved backend ownership; effect-free commands stay Legacy.
+            scope = owned;
+            if (!scope.RequireOwnership(endpoint.Method))
+            {
+                return;
+            }
+        }
+        else if (!IsEffectFreeEndpointCommand(scope, command))
         {
             scope.Diagnostics.Add(NativeHttpCommandOmitted(scope, endpoint, "has persistence, state-input, bus, return or Marten consequences"));
             return;
@@ -106,6 +121,10 @@ internal static partial class WolverineFacts
             evidence));
         scope.Diagnostics.Add(NativeHttpMetadata(command));
         AddEndpointValidationDiagnostics(scope, command, validation);
+        if (deletesDocuments)
+        {
+            AddNativeDocumentDeletes(scope, EmissionFor(scope, command.CommandSubject, evidence), endpoint.Method);
+        }
     }
 
     static bool IsEffectFreeEndpointCommand(WolverineFactScope scope, EndpointCommand command)
