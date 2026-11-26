@@ -76,12 +76,14 @@ internal static partial class WolverineFacts
         scope = scope.WithOwnership(BackendOwnership.Legacy);
         if (EndpointStages(scope, endpoint).Count > 0)
         {
+            scope.Diagnostics.Add(NativeHttpCommandOmitted(scope, endpoint, "has compound-stage consequences"));
             return;
         }
 
         var command = DescribeEndpointCommand(scope, endpoint);
         if (!IsEffectFreeEndpointCommand(scope, command))
         {
+            scope.Diagnostics.Add(NativeHttpCommandOmitted(scope, endpoint, "has persistence, state-input, bus, return or Marten consequences"));
             return;
         }
 
@@ -106,12 +108,24 @@ internal static partial class WolverineFacts
         var shape = command.Shape;
         return HasNoPersistenceEffects(shape, scope.Project) &&
                !HasMartenOperations(scope, command.Endpoint.Method) &&
+               !command.Endpoint.Method.Parameters.Any(_ => IsStateInputParameter(_, scope.Project)) &&
                shape.Aggregate is null &&
                shape.StreamBindings.Count == 0 &&
                shape.BusConsequences.Count == 0 &&
                shape.OutgoingMessages.Count == 0 &&
                shape.ReturnConsequences.All(_ => _.Kind == WolverineReturnConsequenceKind.HttpResponse);
     }
+
+    // The native contribution is deliberately partial; every endpoint it cannot yet represent completely is reported, never silently dropped.
+    static GenerationDiagnostic NativeHttpCommandOmitted(WolverineFactScope scope, HttpEndpoint endpoint, string reason) => new()
+    {
+        Code = WolverineDiagnosticCodes.NativeHttpCommandOmitted,
+        Severity = GenerationDiagnosticSeverity.Warning,
+        Outcome = GenerationDiagnosticOutcome.Unsupported,
+        Message = $"HTTP {endpoint.Verb} endpoint '{endpoint.Method.ContainingType.Name}.{endpoint.Method.Name}' {reason} and is not yet emitted by the native Wolverine contribution",
+        Source = MethodEvidence(endpoint.Method, scope.Project, scope.Adapter, EvidenceStrength.Exact, "Wolverine HTTP endpoint").Source,
+        Subject = MethodSubject(scope.Project, endpoint.Method, "command")
+    };
 
     static ArtifactDeclarationFact NativeCommandDeclaration(WolverineFactScope scope, ArtifactKey key, EndpointCommand command) => new()
     {

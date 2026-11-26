@@ -28,4 +28,5 @@ public class when_consumers_filter_by_diagnostic_code : Specification
     [Fact] void should_expose_the_endpoint_idempotency_code_as_a_stable_constant() => _wolverineCodes.GetField(nameof(WolverineDiagnosticCodes.EndpointIdempotencyOmitted)).GetRawConstantValue().ShouldEqual("WOLVERINE0028");
     [Fact] void should_expose_the_authored_abstraction_code_as_a_stable_constant() => _wolverineCodes.GetField(nameof(WolverineDiagnosticCodes.AuthoredAbstractionUnresolved)).GetRawConstantValue().ShouldEqual("WOLVERINE0029");
     [Fact] void should_expose_the_natural_key_identity_code_as_a_stable_constant() => _wolverineCodes.GetField(nameof(WolverineDiagnosticCodes.NaturalKeyIdentityOmitted)).GetRawConstantValue().ShouldEqual("WOLVERINE0030");
+    [Fact] void should_expose_the_native_http_command_code_as_a_stable_constant() => _wolverineCodes.GetField(nameof(WolverineDiagnosticCodes.NativeHttpCommandOmitted)).GetRawConstantValue().ShouldEqual("WOLVERINE0031");
 }

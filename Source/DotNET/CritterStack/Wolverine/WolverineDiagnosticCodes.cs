@@ -161,4 +161,9 @@ public static class WolverineDiagnosticCodes
     /// An aggregate's natural-key identity could not be represented without guessing a stream identity.
     /// </summary>
     public const string NaturalKeyIdentityOmitted = "WOLVERINE0030";
+
+    /// <summary>
+    /// A Wolverine HTTP command endpoint is not yet emitted by the source-native contribution because it has consequences that contribution does not represent.
+    /// </summary>
+    public const string NativeHttpCommandOmitted = "WOLVERINE0031";
 }

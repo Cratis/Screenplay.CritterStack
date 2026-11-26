@@ -19,7 +19,13 @@ public abstract class a_native_http_command_comparison : Specification
         namespace Wolverine
         {
             public sealed class WolverineOptions;
+            public interface IMessageBus { System.Threading.Tasks.ValueTask PublishAsync<T>(T message); }
             public sealed class WolverineIgnoreAttribute : System.Attribute;
+        }
+        namespace Wolverine.Persistence.EventSourcing
+        {
+            [System.AttributeUsage(System.AttributeTargets.Parameter)]
+            public sealed class ReadModelAttribute : System.Attribute;
         }
         namespace Wolverine.Http
         {
@@ -61,14 +67,32 @@ public abstract class a_native_http_command_comparison : Specification
             })])
     };
 
-    // The native binder resolves a concept-bound enum use to TargetArtifactKind Concept where the compatibility reader leaves it null
-    // (same precedent as a_marten_concept_comparison); only that one field is normalized, and its exact shape is pinned separately.
-    protected string Artifacts(GeneratedScreenplayDefinition result) =>
-        JsonSerializer.Serialize(result.Graph.Artifacts.SelectMany(artifact => artifact.Variants).Select(variant => variant.Definition))
-            .Replace("\"TargetArtifactKind\":1", "\"TargetArtifactKind\":null", StringComparison.Ordinal);
+    // Same single exclusion as a_marten_concept_comparison (decision-gap10-enum-concept-kind.md, Revision 2026-11-24): native binds a concept-typed
+    // member to Concept; the compatibility reader leaves TargetArtifactKind null. Only that field is excluded; HasOnlyTheDocumentedConceptKindDelta pins its shape.
+    protected static string Artifacts(GeneratedScreenplayDefinition result) => JsonSerializer.Serialize(Definitions(result)
+        .Select(definition => definition with
+        {
+            Properties = [.. definition.Properties.Select(property => property with { Type = property.Type with { TargetArtifactKind = null } })]
+        })
+        .ToArray());
 
-    protected bool ConceptTargetsAreOnlyBoundSubjects(GeneratedScreenplayDefinition result) =>
-        Commands(result).SelectMany(_ => _.Properties).All(_ => _.Type.TargetArtifactKind is null || (_.Type.Subject is not null && _.Type.TargetArtifactKind == ArtifactKind.Concept));
+    protected static bool HasOnlyTheDocumentedConceptKindDelta(GeneratedScreenplayDefinition actual, GeneratedScreenplayDefinition expected) => Types(actual)
+        .Zip(Types(expected), (native, compatibility) => compatibility.TargetArtifactKind is null
+            ? native.TargetArtifactKind == (native.Subject is null ? null : ArtifactKind.Concept)
+            : native.TargetArtifactKind == compatibility.TargetArtifactKind)
+        .All(_ => _);
+
+    protected static bool NativeBindsConceptWhereCompatibilityIsNull(GeneratedScreenplayDefinition actual, GeneratedScreenplayDefinition expected) => Types(actual)
+        .Zip(Types(expected))
+        .Any(pair => pair.First.TargetArtifactKind == ArtifactKind.Concept && pair.Second.TargetArtifactKind is null);
+
+    static IEnumerable<ArtifactDefinition> Definitions(GeneratedScreenplayDefinition result) => result.Graph.Artifacts
+        .SelectMany(artifact => artifact.Variants)
+        .Select(variant => variant.Definition);
+
+    static IEnumerable<TypeReferenceDefinition> Types(GeneratedScreenplayDefinition result) => Definitions(result)
+        .SelectMany(definition => definition.Properties)
+        .Select(property => property.Type);
 
     protected string Relationships(GeneratedScreenplayDefinition result) =>
         JsonSerializer.Serialize(result.Graph.Relationships.SelectMany(relationship => relationship.Definitions));
