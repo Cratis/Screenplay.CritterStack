@@ -110,19 +110,27 @@ internal static partial class WolverineFacts
         var placement = EndpointPlacementFor(scope, command);
         var key = scope.Key(command.CommandSubject, ArtifactKind.Command);
         var evidence = command.Evidence;
-        scope.Facts.Add(NativeCommandDeclaration(scope, key, command));
-        scope.Facts.AddRange(NativeCommandMembers(context, key, command));
+
+        // Routes sharing a request type and backend share one artifact: declare it, its members and its placement once; each route keeps its own entry point.
+        var declaration = NativeCommandDeclaration(scope, key, command);
+        if (!scope.Facts.OfType<ArtifactDeclarationFact>().Any(_ => _.Id == declaration.Id))
+        {
+            scope.Facts.Add(declaration);
+            scope.Facts.AddRange(NativeCommandMembers(context, key, command));
+            scope.Placements.Add(new(
+                scope.PlacementId($"wolverine:placement:command:{command.CommandSubject.Value}"),
+                key,
+                placement.SourceOwner,
+                placement.Compatibility,
+                evidence));
+        }
+
         scope.Facts.Add(NativeCommandEntryPoint(scope, key, endpoint, evidence));
-        scope.Placements.Add(new(
-            scope.PlacementId($"wolverine:placement:command:{command.CommandSubject.Value}"),
-            key,
-            placement.SourceOwner,
-            placement.Compatibility,
-            evidence));
         scope.Diagnostics.Add(NativeHttpMetadata(command));
         AddEndpointValidationDiagnostics(scope, command, validation);
         if (deletesDocuments)
         {
+            AddStandaloneBoundaryDiagnostics(scope, endpoint.Method);
             AddNativeDocumentDeletes(scope, EmissionFor(scope, command.CommandSubject, evidence), endpoint.Method);
         }
     }

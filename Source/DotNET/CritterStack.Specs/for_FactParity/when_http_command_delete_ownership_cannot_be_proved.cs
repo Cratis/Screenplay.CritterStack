@@ -38,6 +38,7 @@ public class when_http_command_delete_ownership_cannot_be_proved : given.a_docum
     [Fact] void should_not_emit_an_optimistic_edge() => NativeDeletes.ShouldBeEmpty();
     [Fact] void should_not_report_an_unsupported_shape() => Native.Diagnostics.ShouldNotContain(_ => _.Code == WolverineFacts.NativeHttpCommandOmittedCode);
     [Fact] void should_report_the_ownership_diagnostic() => Native.Diagnostics.ShouldNotBeEmpty();
+    [Fact] void should_be_admitted_by_the_real_runner() => Composites.All(Admitted).ShouldBeTrue();
     [Fact] void should_match_artifacts_in_every_order() => AllArtifactsMatch().ShouldBeTrue();
     [Fact] void should_match_relationships_in_every_order() => AllRelationshipsMatch().ShouldBeTrue();
     [Fact] void should_match_full_diagnostics_in_every_order() => AllDiagnosticsMatch().ShouldBeTrue();
