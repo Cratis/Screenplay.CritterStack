@@ -19,12 +19,12 @@ static class MartenProjectionSideEffects
         ProjectionRegistration registration,
         bool sideEffectsEnabled)
     {
-        var (project, adapter, subjects) = (collected.Project, collected.Adapter, collected.Subjects);
+        var (project, subjects) = (collected.Project, collected.Subjects);
         var projection = registration.Projection ?? registration.Model;
         var projectionSubject = registration.Kind == ProjectionKind.Event
             ? subjects.SubjectForType(project, projection)
             : new SubjectId { Value = $"{subjects.SubjectForType(project, projection).Value}#reducer" };
-        var scan = new SideEffectScan(project, adapter, subjects, projection, projectionSubject, sideEffectsEnabled);
+        var scan = new SideEffectScan(collected.WithOwnership(collected.Ownership, []), projection, projectionSubject, sideEffectsEnabled);
 
         foreach (var tree in project.Compilation.SyntaxTrees
                      .Where(_ => project.AuthoredSyntaxTrees.Contains(_) && !DotNetGeneratedSource.IsGenerated(_))
@@ -41,16 +41,14 @@ static class MartenProjectionSideEffects
     }
 
     sealed class SideEffectScan(
-        DotNetProjectCompilation project,
-        AdapterIdentity adapter,
-        CritterStackSubjectResolver subjects,
+        MartenCollectedFacts collected,
         INamedTypeSymbol projection,
         SubjectId projectionSubject,
         bool sideEffectsEnabled)
     {
         readonly HashSet<string> _messageArtifactIds = [with(StringComparer.Ordinal)];
 
-        public List<GenerationFact> Facts { get; } = [];
+        public List<GenerationFact> Facts => collected.Facts;
 
         public List<GenerationDiagnostic> Diagnostics { get; } = [];
 
@@ -102,8 +100,8 @@ static class MartenProjectionSideEffects
             SymbolEqualityComparer.Default.Equals(containingMethod.ContainingType, projection);
 
         bool IsSendMyselfPayload(INamedTypeSymbol messageType) =>
-            project.Compilation.GetTypeByMetadataName(WellKnownTypes.WolverineSendMyself) is { } sendMyself &&
-            Wolverine.WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(sendMyself, project) &&
+            collected.Project.Compilation.GetTypeByMetadataName(WellKnownTypes.WolverineSendMyself) is { } sendMyself &&
+            Wolverine.WolverineSymbolAuthority.IsAuthoredOrMetadataSymbol(sendMyself, collected.Project) &&
             messageType.AllInterfaces.Any(contract => SymbolEqualityComparer.Default.Equals(contract, sendMyself)) &&
             !Wolverine.WolverineReturnConsequences.IsTimeoutMessage(messageType);
 
@@ -113,7 +111,7 @@ static class MartenProjectionSideEffects
             Severity = GenerationDiagnosticSeverity.Warning,
             Outcome = outcome,
             Message = message,
-            Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
+            Source = CritterStackSource.RangeForProject(invocation.GetLocation(), collected.Project),
             Subject = projectionSubject
         };
 
@@ -124,25 +122,25 @@ static class MartenProjectionSideEffects
                 : "This projection publishes a message as an inline side effect; side-effect option not observed in authored configuration";
             var evidence = new Evidence
             {
-                Adapter = adapter,
+                Adapter = collected.Adapter,
                 Strength = sideEffectsEnabled ? EvidenceStrength.Exact : EvidenceStrength.Conventional,
-                Source = CritterStackSource.RangeForProject(invocation.GetLocation(), project),
+                Source = CritterStackSource.RangeForProject(invocation.GetLocation(), collected.Project),
                 Explanation = explanation
             };
-            var messageSubject = subjects.SubjectForType(project, messageType);
+            var messageSubject = collected.Subjects.SubjectForType(collected.Project, messageType);
             var artifactId = $"wolverine:message:{messageSubject.Value}";
             if (_messageArtifactIds.Add(artifactId))
             {
-                Facts.Add(new MartenArtifactFact
+                new MartenSourceArtifact
                 {
                     Id = artifactId,
                     Subject = messageSubject,
                     Kind = ArtifactKind.Message,
                     Name = messageType.Name,
-                    File = MartenSourceFiles.FileOf(messageType, project),
-                    Properties = DotNetTypeShapes.PropertiesOf(messageType),
+                    File = MartenSourceFiles.FileOf(messageType, collected.Project),
+                    SourceType = messageType,
                     Evidence = evidence
-                }.ToFact());
+                }.AddTo(collected);
             }
 
             Facts.Add(new MartenRelationshipFact

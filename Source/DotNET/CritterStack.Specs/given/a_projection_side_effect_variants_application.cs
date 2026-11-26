@@ -104,6 +104,7 @@ public class a_projection_side_effect_variants_application : Specification
             .Select(_ => MetadataReference.CreateFromFile(_))
     ];
 
+    protected DotNetProjectCompilation Project = null!;
     protected AdapterContribution VariantContribution = null!;
 
     void Establish()
@@ -116,7 +117,7 @@ public class a_projection_side_effect_variants_application : Specification
             _references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
         compilation.GetDiagnostics().Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
-        var project = new DotNetProjectCompilation
+        Project = new DotNetProjectCompilation
         {
             Name = "SideEffectVariants",
             ProjectPath = "/workspace/SideEffectVariants/SideEffectVariants.csproj",
@@ -125,7 +126,7 @@ public class a_projection_side_effect_variants_application : Specification
             AuthoredSyntaxTrees = new HashSet<SyntaxTree> { frameworkTree, variantsTree }
         };
         VariantContribution = new CritterStackScreenplayAdapter().Analyze(
-            new DotNetAnalysisContext([project]),
+            new DotNetAnalysisContext([Project]),
             new DotNetAdapterOptions());
     }
 }
