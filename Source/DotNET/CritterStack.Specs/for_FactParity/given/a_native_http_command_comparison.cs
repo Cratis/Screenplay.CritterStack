@@ -80,28 +80,31 @@ public abstract class a_native_http_command_comparison : Specification
     protected static bool HasNoPlacementOrRelationshipDiagnostics(GeneratedScreenplayDefinition result) =>
         result.Diagnostics.All(diagnostic => diagnostic.Code is not ("GEN0004" or "GEN0039"));
 
-    static AdapterRunSnapshot LegacyOracleSnapshot(AdapterDescriptor descriptor, AdapterContribution contribution) => new()
+    protected static AdapterRunSnapshot LegacyOracleSnapshot(AdapterDescriptor descriptor, AdapterContribution contribution) =>
+        LegacyOracleSnapshot([(descriptor, contribution)]);
+
+    protected static AdapterRunSnapshot LegacyOracleSnapshot(IEnumerable<(AdapterDescriptor Descriptor, AdapterContribution Contribution)> contributions) => new()
     {
         Adapters =
         [
-            new AdapterRunRecord
+            .. contributions.Select(item => new AdapterRunRecord
             {
                 Considered = true,
                 Probed = true,
                 Executed = true,
-                Descriptor = descriptor,
+                Descriptor = item.Descriptor,
                 Probe = new AdapterProbeApplicable(),
                 Disposition = AdapterRunDisposition.Admitted,
                 Execution = new AdapterExecutionCompleted
                 {
                     Contribution = new AdapterContributionSnapshot
                     {
-                        Descriptor = descriptor,
-                        Facts = [.. contribution.Facts],
-                        Diagnostics = [.. contribution.Diagnostics]
+                        Descriptor = item.Descriptor,
+                        Facts = [.. item.Contribution.Facts],
+                        Diagnostics = [.. item.Contribution.Diagnostics]
                     }
                 }
-            }
+            })
         ]
     };
 
@@ -128,8 +131,10 @@ public abstract class a_native_http_command_comparison : Specification
         .ToArray());
 
     // Every artifact comparison runs the gap10 guard together with the exclusion above, as the Marten helper does.
-    protected bool ArtifactsMatchWithOnlyTheDocumentedDelta() =>
-        Artifacts(Public) == Artifacts(Expected) && HasOnlyTheDocumentedConceptKindDelta(Public, Expected);
+    protected bool ArtifactsMatchWithOnlyTheDocumentedDelta() => ArtifactsMatchWithOnlyTheDocumentedDelta(Public, Expected);
+
+    protected static bool ArtifactsMatchWithOnlyTheDocumentedDelta(GeneratedScreenplayDefinition actual, GeneratedScreenplayDefinition expected) =>
+        Artifacts(actual) == Artifacts(expected) && HasOnlyTheDocumentedConceptKindDelta(actual, expected);
 
     protected static bool HasOnlyTheDocumentedConceptKindDelta(GeneratedScreenplayDefinition actual, GeneratedScreenplayDefinition expected) => Types(actual)
         .Zip(Types(expected), (native, compatibility) => compatibility.TargetArtifactKind is null
@@ -174,7 +179,7 @@ public abstract class a_native_http_command_comparison : Specification
         });
 
     /// <summary>Exposes the real Wolverine descriptor, identity and probe; analysis is the native production fragment only.</summary>
-    sealed class real_wolverine_descriptor_bridge : IDescribedDotNetScreenplayAdapter, IDotNetScreenplayAdapter
+    protected sealed class real_wolverine_descriptor_bridge : IDescribedDotNetScreenplayAdapter, IDotNetScreenplayAdapter
     {
         readonly WolverineScreenplayAdapter _real = new();
 
