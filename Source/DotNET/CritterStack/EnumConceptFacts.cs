@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.CritterStack.Screenplay;
 
-static class EnumConceptFacts
+internal static partial class EnumConceptFacts
 {
     static readonly HashSet<string> _primitiveNames = new(["Bool", "Date", "DateTime", "Decimal", "Int", "String", "Uuid"], StringComparer.Ordinal);
 

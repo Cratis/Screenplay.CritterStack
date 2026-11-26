@@ -16,7 +16,7 @@ public class when_a_registered_enum_has_sparse_numbers : Screenplay.given.an_enu
         _result = new ScreenplayDefinitionGenerator().Generate([_contribution], new ScreenplayGenerationOptions { Domain = "Ordering" });
     }
 
-    [Fact] void should_keep_the_registered_concept() => _contribution.Facts.OfType<ArtifactFact>().Count(_ => _.Definition.Key.Kind == ArtifactKind.Concept).ShouldEqual(1);
+    [Fact] void should_keep_the_registered_concept() => _contribution.Facts.OfType<ArtifactDeclarationFact>().Count(_ => _.Definition.Artifact.Kind == ArtifactKind.Concept).ShouldEqual(1);
     [Fact] void should_carry_the_numbers() => _contribution.Facts.OfType<ConceptRepresentationFact>().Single().Definition.EnumerationNumbers.SequenceEqual([10, 20, 30]).ShouldBeTrue();
     [Fact] void should_not_report_a_numbering_warning() => _contribution.Diagnostics.Any(_ => _.Code == CritterStackDiagnosticCodes.EnumNumbersNotPreserved).ShouldBeFalse();
     [Fact] void should_emit_the_numbers() => _result.Source.ShouldContain("urgent = 10");

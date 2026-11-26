@@ -41,7 +41,15 @@ public sealed class MartenScreenplayAdapter : IDescribedDotNetScreenplayAdapter,
             GenerationFactCapability.Artifact,
             GenerationFactCapability.ArtifactPlacement,
             GenerationFactCapability.ConceptRepresentation,
-            GenerationFactCapability.Relationship
+            GenerationFactCapability.Relationship,
+            GenerationFactCapability.ArtifactDeclaration,
+            GenerationFactCapability.ArtifactMemberDeclaration,
+            GenerationFactCapability.ArtifactMemberTypeUse,
+            GenerationFactCapability.ArtifactMemberRoleSelection,
+            GenerationFactCapability.TypeUseBindingPolicy,
+            GenerationFactCapability.TypeUseTargetOmitted,
+            GenerationFactCapability.MethodFactSupport,
+            GenerationFactCapability.OccurrenceOmissionDiagnostic
         ]
     };
 
@@ -104,7 +112,7 @@ public sealed class MartenScreenplayAdapter : IDescribedDotNetScreenplayAdapter,
         diagnostics.AddRange(subjects.Diagnostics);
         facts.AddRange(CritterStackSourcePlacement.Derive(context, options, placements, diagnostics));
 
-        return EnumConceptFacts.AddTo(context, new AdapterContribution
+        return EnumConceptFacts.AddToNative(context, new AdapterContribution
         {
             Adapter = Identity,
             Facts = facts,

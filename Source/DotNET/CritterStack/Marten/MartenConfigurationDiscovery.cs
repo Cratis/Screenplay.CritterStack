@@ -51,16 +51,16 @@ static class MartenConfigurationDiscovery
     static readonly HashSet<string> _subscriptionRegistrationTypes = ["IEventStoreOptions", "EventStoreOptions", "ProjectionOptions"];
 
     public static MartenConfigurationDiscoveryResult Discover(
-        DotNetProjectCompilation project,
-        AdapterIdentity adapter,
-        CritterStackSubjectResolver subjects,
+        MartenCollectedFacts collected,
         IReadOnlyList<ProjectionRegistration> registrations)
     {
+        var (project, adapter, subjects) = (collected.Project, collected.Adapter, collected.Subjects);
+        var native = collected.NativeContext is not null;
         var facts = new List<GenerationFact>();
         var diagnostics = MartenConventionAlterationDiscovery.Discover(project, subjects)
             .Concat(MartenSessionListenerDiscovery.Discover(project, subjects))
             .ToList();
-        var scope = new ProjectScope(project, adapter, subjects, facts, diagnostics);
+        var scope = new ProjectScope(project, adapter, subjects, facts, diagnostics, native);
         var sideEffectsEnabled = false;
         var projections = registrations
             .Where(_ => _.Projection is not null)
@@ -148,7 +148,7 @@ static class MartenConfigurationDiscovery
 
         var subject = scope.Subjects.SubjectForType(scope.Project, type);
         var factId = $"marten:registered-value-type:{subject.Value}";
-        if (scope.Facts.OfType<ArtifactFact>().Any(_ => _.Id.Value == factId))
+        if (scope.Facts.Exists(_ => _.Id.Value == factId))
         {
             return;
         }
@@ -160,15 +160,29 @@ static class MartenConfigurationDiscovery
             Source = CritterStackSource.RangeForProject(site.Invocation.GetLocation(), scope.Project),
             Explanation = $"Marten registers '{type.Name}' as a value type"
         };
+        var file = CritterStackSource.EvidenceFor(type, scope.Adapter, scope.Project, EvidenceStrength.Exact).Source?.Path;
+        var key = new ArtifactKey { Subject = subject, Kind = ArtifactKind.Concept };
+        if (scope.Native)
+        {
+            scope.Facts.Add(new ArtifactDeclarationFact
+            {
+                Id = new FactId { Value = factId },
+                Subject = subject,
+                Definition = new ArtifactDeclarationDefinition { Artifact = key, Name = type.Name, File = file },
+                Evidence = evidence
+            });
+            return;
+        }
+
         scope.Facts.Add(new ArtifactFact
         {
             Id = new FactId { Value = factId },
             Subject = subject,
             Definition = new ArtifactDefinition
             {
-                Key = new ArtifactKey { Subject = subject, Kind = ArtifactKind.Concept },
+                Key = key,
                 Name = type.Name,
-                File = CritterStackSource.EvidenceFor(type, scope.Adapter, scope.Project, EvidenceStrength.Exact).Source?.Path
+                File = file
             },
             Evidence = evidence
         });
@@ -817,9 +831,12 @@ static class MartenConfigurationDiscovery
         AdapterIdentity adapter,
         CritterStackSubjectResolver subjects,
         List<GenerationFact> facts,
-        List<GenerationDiagnostic> diagnostics)
+        List<GenerationDiagnostic> diagnostics,
+        bool native)
     {
         public DotNetProjectCompilation Project { get; } = project;
+
+        public bool Native { get; } = native;
 
         public AdapterIdentity Adapter { get; } = adapter;
 
