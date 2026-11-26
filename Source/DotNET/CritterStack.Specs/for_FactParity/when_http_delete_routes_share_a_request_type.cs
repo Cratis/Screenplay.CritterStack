@@ -28,6 +28,7 @@ public class when_http_delete_routes_share_a_request_type : given.a_document_del
     [Fact] void should_emit_the_shared_command_once() => Commands(PublicComposed).Count().ShouldEqual(1);
     [Fact] void should_declare_the_shared_artifact_once() => Native.Facts.OfType<ArtifactDeclarationFact>().Count().ShouldEqual(1);
     [Fact] void should_not_repeat_any_fact_id() => Native.Facts.GroupBy(_ => _.Id).All(_ => _.Count() == 1).ShouldBeTrue();
+    [Fact] void should_emit_both_entry_points() => Native.Facts.OfType<EntryPointFact>().Count().ShouldEqual(2);
     [Fact] void should_emit_native_deletes_for_every_call() => NativeDeletes.Count().ShouldEqual(2);
     [Fact] void should_be_admitted_by_the_real_runner() => IsAdmitted.ShouldBeTrue();
     [Fact] void should_match_artifacts_in_every_order() => AllArtifactsMatch().ShouldBeTrue();

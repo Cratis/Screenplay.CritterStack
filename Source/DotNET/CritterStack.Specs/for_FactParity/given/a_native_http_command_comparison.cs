@@ -35,7 +35,7 @@ public abstract class a_native_http_command_comparison : Specification
         }
         """;
 
-    /// <summary>The Marten surface a delete endpoint needs, added after <see cref="Framework"/> by <see cref="CompareWithMarten"/>.</summary>
+    /// <summary>The Marten surface a delete endpoint needs, added after <see cref="Framework"/> by the Marten comparisons.</summary>
     protected const string MartenFramework =
         """
         namespace Marten
@@ -105,9 +105,21 @@ public abstract class a_native_http_command_comparison : Specification
         Public = new CritterStackScreenplayGenerator([bridge]).Generate([project], new CritterStackScreenplayOptions { Domain = "FactParity" });
     }
 
-    protected void CompareWithMarten(string application)
+    protected void CompareWithMarten(string application) =>
+        CompareWithMarten(Project($"{Framework}\n{MartenFramework}\n{application}"));
+
+    /// <summary>Compares an application spread over several source files; the framework surface lives in its own file so the application files share coordinates.</summary>
+    /// <param name="files">The application source files.</param>
+    protected void CompareWithMartenFiles(params string[] files) =>
+        CompareWithMarten(Project(
+        [
+            CSharpSyntaxTree.ParseText($"{Framework}\n{MartenFramework}", path: "/workspace/FactParity/Framework.cs"),
+            .. files.Select((source, index) => CSharpSyntaxTree.ParseText(source, path: $"/workspace/FactParity/Application{index}.cs"))
+        ]));
+
+    void CompareWithMarten(DotNetProjectCompilation compilation)
     {
-        var project = WithSourceContext(Project($"{Framework}\n{MartenFramework}\n{application}"));
+        var project = WithSourceContext(compilation);
         var context = new DotNetAnalysisContext([project]);
         var bridge = new real_wolverine_descriptor_bridge();
         var marten = new MartenScreenplayAdapter();

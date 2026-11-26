@@ -1,8 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.CritterStack.Screenplay.Marten;
 using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
+using Microsoft.CodeAnalysis;
 
 namespace Cratis.CritterStack.Screenplay.Wolverine;
 
@@ -38,7 +40,7 @@ internal static partial class WolverineFacts
         var subjects = new CritterStackSubjectResolver(hasSourceContext ? context : null, context);
 
         // Source observation only: the native Marten adapter owns the store facts and diagnostics.
-        var (_, ownership) = Marten.MartenStoreScopeDiscovery.DiscoverOwnership(context, adapter, subjects);
+        var (_, ownership) = MartenStoreScopeDiscovery.DiscoverOwnership(context, adapter, subjects);
         foreach (var project in context.Projects)
         {
             if (project.Compilation.GetTypeByMetadataName(WellKnownTypes.WolverineOptions) is null)
@@ -111,20 +113,21 @@ internal static partial class WolverineFacts
         var key = scope.Key(command.CommandSubject, ArtifactKind.Command);
         var evidence = command.Evidence;
 
-        // Routes sharing a request type and backend share one artifact: declare it, its members and its placement once; each route keeps its own entry point.
+        // Routes sharing a request type and backend share one artifact: only its declaration and members are emitted once. Everything per route
+        // (placement request, slice pattern, entry point, diagnostics) is evaluated for every route, exactly as the compatibility oracle does.
         var declaration = NativeCommandDeclaration(scope, key, command);
         if (!scope.Facts.OfType<ArtifactDeclarationFact>().Any(_ => _.Id == declaration.Id))
         {
             scope.Facts.Add(declaration);
             scope.Facts.AddRange(NativeCommandMembers(context, key, command));
-            scope.Placements.Add(new(
-                scope.PlacementId($"wolverine:placement:command:{command.CommandSubject.Value}"),
-                key,
-                placement.SourceOwner,
-                placement.Compatibility,
-                evidence));
         }
 
+        scope.Placements.Add(new(
+            scope.PlacementId($"wolverine:placement:command:{command.CommandSubject.Value}"),
+            key,
+            placement.SourceOwner,
+            placement.Compatibility,
+            evidence));
         scope.Facts.Add(NativeCommandEntryPoint(scope, key, endpoint, evidence));
         scope.Diagnostics.Add(NativeHttpMetadata(command));
         AddEndpointValidationDiagnostics(scope, command, validation);
@@ -187,7 +190,7 @@ internal static partial class WolverineFacts
         var method = DotNetMethodIdentity.SubjectFor(scope.Project, endpoint.Method);
         return new()
         {
-            Id = new() { Value = BackendOccurrenceKeys.FactId($"{scope.Adapter.Id}:command-entry:{method.Value}", key.Scope) },
+            Id = new() { Value = BackendOccurrenceKeys.FactId($"{scope.Adapter.Id}:command-entry:{method.Value}:{(endpoint.Method.Locations.FirstOrDefault() is { } location ? MartenDocumentSource.SiteFor(location, scope.Project) : "unknown")}", key.Scope) },
             Subject = method,
             Evidence = evidence,
             Definition = new() { Method = method, Artifact = key }

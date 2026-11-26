@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.CritterStack.Screenplay.Marten;
 using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
@@ -47,9 +48,8 @@ internal static partial class WolverineFacts
             }
 
             var documentSubject = emission.Subjects.SubjectForType(emission.Project, documentType);
-            var site = invocation.GetLocation().GetLineSpan().Span.Start;
             emission.Facts.Add(Relationship(
-                $"wolverine:deletes:{emission.SourceSubject.Value}:{documentSubject.Value}:{invocation.SpanStart}:{site.Line}:{site.Character}",
+                $"wolverine:deletes:{emission.SourceSubject.Value}:{documentSubject.Value}:{MartenDocumentSource.SiteFor(invocation, scope.Project)}",
                 emission.SourceSubject,
                 RelationshipKind.Deletes,
                 documentSubject,
