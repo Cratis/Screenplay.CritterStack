@@ -71,5 +71,7 @@ public class when_marten_sessions_have_store_owners : given.a_marten_document_ef
     [Fact] void should_preserve_printed_source_in_reverse_order() => Reverse.Source.ShouldEqual(Expected.Source);
     [Fact] void should_preserve_verification_status() => Native.IsSuccess.ShouldEqual(Expected.IsSuccess);
     [Fact] void should_preserve_verification_status_in_reverse_order() => Reverse.IsSuccess.ShouldEqual(Expected.IsSuccess);
+    [Fact] void should_admit_every_marten_fact_in_the_public_roster() => Public.Diagnostics.ShouldNotContain(_ => _.Code == "DOTNETADAPTER007");
+    [Fact] void should_print_the_same_source_in_the_public_roster() => Public.Source.ShouldEqual(Native.Source);
     [Fact] void should_not_emit_compatibility_document_artifacts() => Contribution.Facts.OfType<ArtifactFact>().Where(fact => fact.Definition.Key.Kind != ArtifactKind.Concept).ShouldBeEmpty();
 }

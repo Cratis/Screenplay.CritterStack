@@ -83,7 +83,12 @@ public abstract class a_marten_document_effects_comparison : Specification
         Expected = Generate(contributions.Compatibility);
         Native = Generate(contributions.Marten, contributions.Wolverine);
         Reverse = Generate(contributions.Wolverine, contributions.Marten);
+        Public = new CritterStackScreenplayGenerator([new MartenScreenplayAdapter(), new WolverineScreenplayAdapter(), new WolverineMartenScreenplayAdapter()])
+            .Generate([project], new CritterStackScreenplayOptions { Domain = "FactParity" });
     }
+
+    protected GeneratedScreenplayDefinition Public { get; private set; } = null!;
+
 
     protected static string Artifacts(GeneratedScreenplayDefinition result) => JsonSerializer.Serialize(Definitions(result));
 

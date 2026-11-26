@@ -84,6 +84,8 @@ public class a_marten_concept_comparison : Specification
 
     protected bool IsEqual(GeneratedScreenplayDefinition actual) => IsEqual(actual, Expected);
 
+    protected bool BindsConceptWhereCompatibilityIsNull(GeneratedScreenplayDefinition actual) => NativeBindsConceptWhereCompatibilityIsNull(actual, Expected);
+
     protected bool IsEqualWithVogen(GeneratedScreenplayDefinition actual) => IsEqual(actual, ExpectedWithVogen);
 
     static bool IsEqual(GeneratedScreenplayDefinition actual, GeneratedScreenplayDefinition expected) =>
@@ -148,24 +150,30 @@ public class a_marten_concept_comparison : Specification
         PublicVogenThenMarten = new CritterStackScreenplayGenerator([new VogenConceptScreenplayAdapter(), new MartenScreenplayAdapter(), new WolverineScreenplayAdapter(), new WolverineMartenScreenplayAdapter()]).Generate([project], options);
     }
 
-    // Accepted metadata delta: decision-gap10-enum-concept-kind.md, Revision 2026-11-24. Native binds subject-bearing types to concepts; the oracle leaves the discriminator null.
-    static bool HasOnlyAcceptedDiscriminatorDeltas(GeneratedScreenplayDefinition actual, GeneratedScreenplayDefinition expected) => Types(actual)
-        .Zip(Types(expected))
-        .All(pair => pair.First.TargetArtifactKind == pair.Second.TargetArtifactKind ||
-            (pair.Second.TargetArtifactKind is null && pair.First.TargetArtifactKind == ArtifactKind.Concept && pair.First.Subject is not null));
-
-    static IEnumerable<TypeReferenceDefinition> Types(GeneratedScreenplayDefinition result) => Definitions(result)
-        .SelectMany(definition => definition.Properties)
-        .Select(property => property.Type);
-
     static IEnumerable<ArtifactDefinition> Definitions(GeneratedScreenplayDefinition result) => result.Graph.Artifacts
         .SelectMany(artifact => artifact.Variants)
         .Select(variant => variant.Definition);
 
     static bool WholeGraphMatches(GeneratedScreenplayDefinition actual, GeneratedScreenplayDefinition expected) =>
         Artifacts(actual) == Artifacts(expected) &&
-        HasOnlyAcceptedDiscriminatorDeltas(actual, expected) &&
+        HasOnlyTheDocumentedConceptKindDelta(actual, expected) &&
         Relationships(actual) == Relationships(expected);
+
+    // Documented, accepted difference (decision-gap10-enum-concept-kind.md, Revision 2026-11-24): native binds a concept-typed member to Concept;
+    // the compatibility reader leaves TargetArtifactKind null. Only that one field is excluded below; this check pins its exact shape.
+    protected static bool HasOnlyTheDocumentedConceptKindDelta(GeneratedScreenplayDefinition actual, GeneratedScreenplayDefinition expected) => Types(actual)
+        .Zip(Types(expected), (native, compatibility) => compatibility.TargetArtifactKind is null
+            ? native.TargetArtifactKind == (native.Subject is null ? null : ArtifactKind.Concept)
+            : native.TargetArtifactKind == compatibility.TargetArtifactKind)
+        .All(_ => _);
+
+    protected static bool NativeBindsConceptWhereCompatibilityIsNull(GeneratedScreenplayDefinition actual, GeneratedScreenplayDefinition expected) => Types(actual)
+        .Zip(Types(expected))
+        .Any(pair => pair.First.TargetArtifactKind == ArtifactKind.Concept && pair.Second.TargetArtifactKind is null);
+
+    static IEnumerable<TypeReferenceDefinition> Types(GeneratedScreenplayDefinition result) => Definitions(result)
+        .SelectMany(definition => definition.Properties)
+        .Select(property => property.Type);
 
     static string Artifacts(GeneratedScreenplayDefinition result) => JsonSerializer.Serialize(Definitions(result)
         .Select(definition => definition with

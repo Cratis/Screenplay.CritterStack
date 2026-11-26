@@ -22,6 +22,12 @@ static class MartenDocumentMembers
     public static TypeUseDefinition TypeUseFor(ITypeSymbol type, DotNetAnalysisContext context)
     {
         var reference = DotNetTypeShapes.TypeReferenceFor(type, context);
+        if (reference.Name.Length == 0)
+        {
+            // The compatibility projection cannot name the element of a nested collection; keep the exact observation, which is admissible.
+            return DotNetTypeShapes.TypeUseFor(type, context);
+        }
+
         List<TypeUseShapeKind> shape = [];
         if (reference.IsOptional)
         {
