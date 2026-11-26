@@ -15,6 +15,11 @@ namespace Cratis.CritterStack.Screenplay.Wolverine;
 internal static partial class WolverineFacts
 {
     /// <summary>
+    /// Internal, deliberately not a public stable code: reports that this still-incomplete producer did not emit an endpoint.
+    /// </summary>
+    internal const string NativeHttpCommandOmittedCode = "WOLVERINE0031";
+
+    /// <summary>
     /// Emits the native facts of every effect-free HTTP command endpoint in the context.
     /// </summary>
     /// <param name="context">The analysis context.</param>
@@ -119,7 +124,7 @@ internal static partial class WolverineFacts
     // The native contribution is deliberately partial; every endpoint it cannot yet represent completely is reported, never silently dropped.
     static GenerationDiagnostic NativeHttpCommandOmitted(WolverineFactScope scope, HttpEndpoint endpoint, string reason) => new()
     {
-        Code = WolverineDiagnosticCodes.NativeHttpCommandOmitted,
+        Code = NativeHttpCommandOmittedCode,
         Severity = GenerationDiagnosticSeverity.Warning,
         Outcome = GenerationDiagnosticOutcome.Unsupported,
         Message = $"HTTP {endpoint.Verb} endpoint '{endpoint.Method.ContainingType.Name}.{endpoint.Method.Name}' {reason} and is not yet emitted by the native Wolverine contribution",

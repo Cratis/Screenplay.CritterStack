@@ -32,7 +32,7 @@ public class when_effect_free_http_commands_use_request_records : given.a_native
 
     [Fact] void should_emit_every_command() => Commands(Public).Count().ShouldEqual(3);
     [Fact] void should_emit_identifier_roles_from_wolverine_evidence() => Native.Facts.OfType<ArtifactMemberRoleFact>().ShouldNotBeEmpty();
-    [Fact] void should_match_artifacts() => Artifacts(Public).ShouldEqual(Artifacts(Expected));
+    [Fact] void should_match_artifacts() => ArtifactsMatchWithOnlyTheDocumentedDelta().ShouldBeTrue();
     [Fact] void should_match_relationships() => Relationships(Public).ShouldEqual(Relationships(Expected));
     [Fact] void should_match_identifier_flags() => Identifiers(Public).ShouldEqual(Identifiers(Expected));
     [Fact] void should_match_printed_source() => Public.Source.ShouldEqual(Expected.Source);

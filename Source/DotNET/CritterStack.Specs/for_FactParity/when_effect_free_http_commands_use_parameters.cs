@@ -28,7 +28,7 @@ public class when_effect_free_http_commands_use_parameters : given.a_native_http
 
     [Fact] void should_emit_every_command() => Commands(Public).Count().ShouldEqual(2);
     [Fact] void should_emit_parameter_members() => Native.Facts.OfType<ArtifactMemberDeclarationFact>().ShouldNotBeEmpty();
-    [Fact] void should_match_artifacts() => Artifacts(Public).ShouldEqual(Artifacts(Expected));
+    [Fact] void should_match_artifacts() => ArtifactsMatchWithOnlyTheDocumentedDelta().ShouldBeTrue();
     [Fact] void should_match_relationships() => Relationships(Public).ShouldEqual(Relationships(Expected));
     [Fact] void should_match_identifier_flags() => Identifiers(Public).ShouldEqual(Identifiers(Expected));
     [Fact] void should_match_printed_source() => Public.Source.ShouldEqual(Expected.Source);

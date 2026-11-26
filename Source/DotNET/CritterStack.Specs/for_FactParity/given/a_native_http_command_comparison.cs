@@ -76,6 +76,10 @@ public abstract class a_native_http_command_comparison : Specification
         })
         .ToArray());
 
+    // Every artifact comparison runs the gap10 guard together with the exclusion above, as the Marten helper does.
+    protected bool ArtifactsMatchWithOnlyTheDocumentedDelta() =>
+        Artifacts(Public) == Artifacts(Expected) && HasOnlyTheDocumentedConceptKindDelta(Public, Expected);
+
     protected static bool HasOnlyTheDocumentedConceptKindDelta(GeneratedScreenplayDefinition actual, GeneratedScreenplayDefinition expected) => Types(actual)
         .Zip(Types(expected), (native, compatibility) => compatibility.TargetArtifactKind is null
             ? native.TargetArtifactKind == (native.Subject is null ? null : ArtifactKind.Concept)

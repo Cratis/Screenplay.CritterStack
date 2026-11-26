@@ -35,7 +35,7 @@ public class when_http_commands_have_consequences_the_native_path_does_not_emit 
     [Fact] void should_emit_only_the_complete_simple_command() => Commands(Public).Select(_ => _.Name).ToArray().ShouldEqual(["Simple"]);
     [Fact]
     void should_report_each_other_endpoint_as_unsupported() =>
-        Native.Diagnostics.Count(_ => _.Code == WolverineDiagnosticCodes.NativeHttpCommandOmitted && _.Outcome == GenerationDiagnosticOutcome.Unsupported).ShouldEqual(2);
+        Native.Diagnostics.Count(_ => _.Code == WolverineFacts.NativeHttpCommandOmittedCode && _.Outcome == GenerationDiagnosticOutcome.Unsupported).ShouldEqual(2);
     [Fact] void should_not_emit_facts_for_the_state_input_endpoint() => Native.Facts.Any(_ => _.Subject.Value.Contains("PostState")).ShouldBeFalse();
     [Fact] void should_not_claim_parity_with_the_compatibility_commands() => Commands(Expected).Count().ShouldBeGreaterThan(1);
 }
