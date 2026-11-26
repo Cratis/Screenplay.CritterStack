@@ -24,7 +24,16 @@ sealed class WolverineScreenplayAdapter : IDescribedDotNetScreenplayAdapter, IDo
         CompatibleGenerationVersions = new GenerationVersionRange { MinimumInclusive = new Version(0, 23, 0) },
         RequiredHostCapabilities = CritterStackAdapterDescriptors.HostCapabilities,
         RequiredApiCapabilities = [CritterStackAdapterApiCapabilities.WolverineApplication],
-        EmittedFactCapabilities = CritterStackAdapterDescriptors.EmittedFacts
+        EmittedFactCapabilities =
+        [
+            .. CritterStackAdapterDescriptors.EmittedFacts,
+            GenerationFactCapability.ArtifactDeclaration,
+            GenerationFactCapability.ArtifactMemberDeclaration,
+            GenerationFactCapability.ArtifactMemberTypeUse,
+            GenerationFactCapability.ArtifactMemberRole,
+            GenerationFactCapability.TypeUseBindingPolicy,
+            GenerationFactCapability.EntryPoint
+        ]
     };
 
     public bool CanAnalyze(DotNetAnalysisContext context) => Probe(context) is AdapterProbeApplicable;
