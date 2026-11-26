@@ -5,12 +5,12 @@ using System.Text.Json;
 using static Cratis.CritterStack.Screenplay.for_FactParity.given.fact_vectors;
 using diagnostic_parity = Cratis.CritterStack.Screenplay.given.diagnostic_parity;
 
-namespace Cratis.CritterStack.Screenplay.for_FactParity;
+namespace Cratis.CritterStack.Screenplay.for_FactParity.given;
 
 /// <summary>
 /// Compares the native Marten document effects, in either contribution order, to the compatibility oracle with full diagnostics.
 /// </summary>
-public abstract class when_marten_document_effects_are_compared : Specification
+public abstract class a_marten_document_effects_comparison : Specification
 {
     protected const string Framework =
         """
@@ -78,29 +78,14 @@ public abstract class when_marten_document_effects_are_compared : Specification
     protected void Compare(string application)
     {
         var project = Project($"{Framework}\n{application}");
-        var contributions = given.native_query_contributions.Observe(project);
+        var contributions = native_query_contributions.Observe(project);
         Contribution = contributions.Marten;
         Expected = Generate(contributions.Compatibility);
         Native = Generate(contributions.Marten, contributions.Wolverine);
         Reverse = Generate(contributions.Wolverine, contributions.Marten);
     }
 
-    [Fact] void should_preserve_every_artifact_definition() => Artifacts(Native).ShouldEqual(Artifacts(Expected));
-    [Fact] void should_preserve_every_artifact_definition_in_reverse_order() => Artifacts(Reverse).ShouldEqual(Artifacts(Expected));
-    [Fact] void should_preserve_every_relationship_definition() => Relationships(Native).ShouldEqual(Relationships(Expected));
-    [Fact] void should_preserve_every_relationship_definition_in_reverse_order() => Relationships(Reverse).ShouldEqual(Relationships(Expected));
-    [Fact] void should_preserve_complete_diagnostics() => Diagnostics(Native).ShouldEqual(Diagnostics(Expected));
-    [Fact] void should_preserve_complete_diagnostics_in_reverse_order() => Diagnostics(Reverse).ShouldEqual(Diagnostics(Expected));
-    [Fact] void should_preserve_printed_source() => Native.Source.ShouldEqual(Expected.Source);
-    [Fact] void should_preserve_printed_source_in_reverse_order() => Reverse.Source.ShouldEqual(Expected.Source);
-    [Fact] void should_preserve_verification_status() => Native.IsSuccess.ShouldEqual(Expected.IsSuccess);
-    [Fact] void should_not_emit_compatibility_document_artifacts() => Contribution.Facts.OfType<ArtifactFact>().Where(fact => fact.Definition.Key.Kind != ArtifactKind.Concept).ShouldBeEmpty();
-
-    protected static string Artifacts(GeneratedScreenplayDefinition result) => JsonSerializer.Serialize(Definitions(result)
-        .Select(definition => definition with
-        {
-            Properties = [.. definition.Properties.Select(property => property with { Type = property.Type with { TargetArtifactKind = null } })]
-        }));
+    protected static string Artifacts(GeneratedScreenplayDefinition result) => JsonSerializer.Serialize(Definitions(result));
 
     protected static string Relationships(GeneratedScreenplayDefinition result) =>
         JsonSerializer.Serialize(result.Graph.Relationships.SelectMany(relationship => relationship.Definitions));

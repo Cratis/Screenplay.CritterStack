@@ -88,6 +88,7 @@ public class a_marten_concept_comparison : Specification
 
     static bool IsEqual(GeneratedScreenplayDefinition actual, GeneratedScreenplayDefinition expected) =>
         Concepts(actual) == Concepts(expected) &&
+        WholeGraphMatches(actual, expected) &&
         diagnostic_parity.Meaning(actual.Diagnostics).SequenceEqual(diagnostic_parity.Meaning(expected.Diagnostics)) &&
         actual.Source == expected.Source &&
         actual.IsSuccess == expected.IsSuccess;
@@ -137,13 +138,45 @@ public class a_marten_concept_comparison : Specification
         var vogen = new VogenConceptScreenplayAdapter().Analyze(analysis, adapterOptions);
         var compatibility = new CritterStackScreenplayAdapter().Analyze(analysis, adapterOptions);
         Expected = new ScreenplayDefinitionGenerator().Generate([compatibility], generation);
-        ExpectedWithVogen = new ScreenplayDefinitionGenerator().Generate([compatibility, vogen], generation);
+
+        // Compatibility composes an independent concept as the public generator does: bind member types to contributed concepts, then drop missing ones.
+        ExpectedWithVogen = new ScreenplayDefinitionGenerator().Generate(ConceptTypeReferenceBinder.WithoutMissingConcepts(ConceptTypeReferenceBinder.Bind(analysis, [compatibility, vogen])), generation);
         MartenOnly = new ScreenplayDefinitionGenerator().Generate(marten, generation);
         MartenThenVogen = new ScreenplayDefinitionGenerator().Generate([.. marten, vogen], generation);
         VogenThenMarten = new ScreenplayDefinitionGenerator().Generate([vogen, .. marten], generation);
         PublicMartenThenVogen = new CritterStackScreenplayGenerator([new MartenScreenplayAdapter(), new WolverineScreenplayAdapter(), new WolverineMartenScreenplayAdapter(), new VogenConceptScreenplayAdapter()]).Generate([project], options);
         PublicVogenThenMarten = new CritterStackScreenplayGenerator([new VogenConceptScreenplayAdapter(), new MartenScreenplayAdapter(), new WolverineScreenplayAdapter(), new WolverineMartenScreenplayAdapter()]).Generate([project], options);
     }
+
+    // Accepted metadata delta: decision-gap10-enum-concept-kind.md, Revision 2026-11-24. Native binds subject-bearing types to concepts; the oracle leaves the discriminator null.
+    static bool HasOnlyAcceptedDiscriminatorDeltas(GeneratedScreenplayDefinition actual, GeneratedScreenplayDefinition expected) => Types(actual)
+        .Zip(Types(expected))
+        .All(pair => pair.First.TargetArtifactKind == pair.Second.TargetArtifactKind ||
+            (pair.Second.TargetArtifactKind is null && pair.First.TargetArtifactKind == ArtifactKind.Concept && pair.First.Subject is not null));
+
+    static IEnumerable<TypeReferenceDefinition> Types(GeneratedScreenplayDefinition result) => Definitions(result)
+        .SelectMany(definition => definition.Properties)
+        .Select(property => property.Type);
+
+    static IEnumerable<ArtifactDefinition> Definitions(GeneratedScreenplayDefinition result) => result.Graph.Artifacts
+        .SelectMany(artifact => artifact.Variants)
+        .Select(variant => variant.Definition);
+
+    static bool WholeGraphMatches(GeneratedScreenplayDefinition actual, GeneratedScreenplayDefinition expected) =>
+        Artifacts(actual) == Artifacts(expected) &&
+        HasOnlyAcceptedDiscriminatorDeltas(actual, expected) &&
+        Relationships(actual) == Relationships(expected);
+
+    static string Artifacts(GeneratedScreenplayDefinition result) => JsonSerializer.Serialize(Definitions(result)
+        .Select(definition => definition with
+        {
+            Properties = [.. definition.Properties.Select(property => property with { Type = property.Type with { TargetArtifactKind = null } })]
+        })
+        .ToArray());
+
+    static string Relationships(GeneratedScreenplayDefinition result) => JsonSerializer.Serialize(result.Graph.Relationships
+        .SelectMany(relationship => relationship.Definitions)
+        .ToArray());
 
     static string Concepts(GeneratedScreenplayDefinition result) => JsonSerializer.Serialize(result.Graph.Artifacts
         .Where(artifact => artifact.Key.Kind == ArtifactKind.Concept)

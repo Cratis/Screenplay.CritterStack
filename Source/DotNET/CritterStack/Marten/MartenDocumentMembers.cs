@@ -12,11 +12,30 @@ static class MartenDocumentMembers
 {
     public static string PropertyName(string name) => name.Length == 0 ? name : char.ToLowerInvariant(name[0]) + name[1..];
 
-    public static bool IsRepresentableShape(IReadOnlyList<TypeUseShapeKind> shape) => shape is
-        [TypeUseShapeKind.Named] or
-        [TypeUseShapeKind.Optional, TypeUseShapeKind.Named] or
-        [TypeUseShapeKind.Collection, TypeUseShapeKind.Named] or
-        [TypeUseShapeKind.Optional, TypeUseShapeKind.Collection, TypeUseShapeKind.Named];
+    /// <summary>
+    /// Projects the compatibility type reference of a document member as a type use, so the member keeps exactly the
+    /// name, subject, optionality and collection flags the compatibility reader reports.
+    /// </summary>
+    /// <param name="type">The member type.</param>
+    /// <param name="context">The analysis context resolving source subjects.</param>
+    /// <returns>The type use.</returns>
+    public static TypeUseDefinition TypeUseFor(ITypeSymbol type, DotNetAnalysisContext context)
+    {
+        var reference = DotNetTypeShapes.TypeReferenceFor(type, context);
+        List<TypeUseShapeKind> shape = [];
+        if (reference.IsOptional)
+        {
+            shape.Add(TypeUseShapeKind.Optional);
+        }
+
+        if (reference.IsCollection)
+        {
+            shape.Add(TypeUseShapeKind.Collection);
+        }
+
+        shape.Add(TypeUseShapeKind.Named);
+        return new() { Name = reference.Name, ObservedTypeSubject = reference.Subject, Shape = shape };
+    }
 
     public static ISymbol? ResolveIdentityMember(
         InvocationExpressionSyntax invocation,
