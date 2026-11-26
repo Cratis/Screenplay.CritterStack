@@ -109,12 +109,12 @@ public abstract class a_native_http_command_comparison : Specification
         CompareWithMarten(Project($"{Framework}\n{MartenFramework}\n{application}"));
 
     /// <summary>Compares an application spread over several source files; the framework surface lives in its own file so the application files share coordinates.</summary>
-    /// <param name="files">The application source files.</param>
-    protected void CompareWithMartenFiles(params string[] files) =>
+    /// <param name="files">The application source files with the physical path each is parsed under.</param>
+    protected void CompareWithMartenFiles(params (string Source, string Path)[] files) =>
         CompareWithMarten(Project(
         [
             CSharpSyntaxTree.ParseText($"{Framework}\n{MartenFramework}", path: "/workspace/FactParity/Framework.cs"),
-            .. files.Select((source, index) => CSharpSyntaxTree.ParseText(source, path: $"/workspace/FactParity/Application{index}.cs"))
+            .. files.Select(file => CSharpSyntaxTree.ParseText(file.Source, path: file.Path))
         ]));
 
     void CompareWithMarten(DotNetProjectCompilation compilation)

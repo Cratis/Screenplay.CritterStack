@@ -19,27 +19,28 @@ public class when_http_delete_routes_share_coordinates_across_files : given.a_do
         """
         namespace FactParity
         {
-            public static class RemoveFirstEndpoint
+            public static partial class RemoveEndpoints
             {
                 [Wolverine.Http.WolverineDelete("/documents")]
-                public static void Delete(RemoveDocument command, Marten.IDocumentSession session) => session.Delete<Document>(command.Id);
+                public static void Delete(RemoveDocument command, Marten.IDocumentSession session, byte a) => session.Delete<Document>(command.Id);
             }
         }
         """;
 
-    const string SecondFile =
-        """
-        namespace FactParity
-        {
-            public static class RemoveSecondEndpoint
-            {
-                [Wolverine.Http.WolverineDelete("/documents")]
-                public static void Delete(RemoveDocument command, Marten.IDocumentSession session) => session.Delete<Document>(command.Id);
-            }
-        }
-        """;
+    // Identical text except the same-length parameter type, so the method and the invocation have identical spans in both files.
+    static readonly string _secondFile = FirstFile.Replace("byte a", "long a");
 
-    void Because() => CompareWithMartenFiles(Types, FirstFile, SecondFile);
+    void Because() => CompareWithMartenFiles(
+        (Types, "/workspace/FactParity/Types.cs"),
+        (FirstFile, "/workspace/FactParity/FirstEndpoints.cs"),
+        (_secondFile, "/workspace/FactParity/SecondEndpoints.cs"));
+
+    IEnumerable<EntryPointFact> EntryPoints => Native.Facts.OfType<EntryPointFact>();
+
+    [Fact] void should_use_identical_spans_in_both_files() => FirstFile.IndexOf("session.Delete", StringComparison.Ordinal).ShouldEqual(_secondFile.IndexOf("session.Delete", StringComparison.Ordinal));
+    [Fact] void should_use_distinct_host_file_identities() => EntryPoints.Select(_ => _.Evidence.Source?.FileIdentity).Distinct().Count().ShouldEqual(2);
+    [Fact] void should_give_the_entry_points_different_fact_ids() => EntryPoints.Select(_ => _.Id).Distinct().Count().ShouldEqual(2);
+    [Fact] void should_give_the_deletes_different_fact_ids() => NativeDeletes.Select(_ => _.Id).Distinct().Count().ShouldEqual(2);
 
     [Fact] void should_emit_the_shared_command_once() => Commands(PublicComposed).Count().ShouldEqual(1);
     [Fact] void should_emit_a_delete_for_each_site() => NativeDeletes.Count().ShouldEqual(2);

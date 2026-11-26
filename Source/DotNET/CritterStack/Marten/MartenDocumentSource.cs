@@ -12,10 +12,8 @@ static class MartenDocumentSource
 {
     static readonly HashSet<string> _configurationMethods = ["For", "RegisterDocumentType"];
 
-    public static string SiteFor(SyntaxNode syntax, DotNetProjectCompilation project) => SiteFor(syntax.GetLocation(), project);
-
-    public static string SiteFor(Location location, DotNetProjectCompilation project) =>
-        $"{Uri.EscapeDataString(CritterStackSource.RangeForProject(location, project)?.Path ?? string.Empty)}:{location.SourceSpan.Start}:{location.SourceSpan.Length}";
+    public static string SiteFor(SyntaxNode syntax, DotNetProjectCompilation project) =>
+        $"{Uri.EscapeDataString(CritterStackSource.RangeForProject(syntax.GetLocation(), project)?.Path ?? string.Empty)}:{syntax.SpanStart}:{syntax.Span.Length}";
 
     public static bool IsObservedUsage(RelationshipKind? kind, IMethodSymbol method, InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>
         !IsIgnoredUsage(kind, invocation, semanticModel) &&

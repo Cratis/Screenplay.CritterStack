@@ -190,11 +190,18 @@ internal static partial class WolverineFacts
         var method = DotNetMethodIdentity.SubjectFor(scope.Project, endpoint.Method);
         return new()
         {
-            Id = new() { Value = BackendOccurrenceKeys.FactId($"{scope.Adapter.Id}:command-entry:{method.Value}:{(endpoint.Method.Locations.FirstOrDefault() is { } location ? MartenDocumentSource.SiteFor(location, scope.Project) : "unknown")}", key.Scope) },
+            Id = new() { Value = BackendOccurrenceKeys.FactId($"{scope.Adapter.Id}:command-entry:{method.Value}:{(endpoint.Method.Locations.FirstOrDefault() is { } location ? InvocationSite(location, scope.Project) : "unknown")}", key.Scope) },
             Subject = method,
             Evidence = evidence,
             Definition = new() { Method = method, Artifact = key }
         };
+    }
+
+    // Native invocation-site identity: the host file identity the Generation SDK models for the source file, plus the span. It is independent of the display root.
+    static string InvocationSite(Location location, DotNetProjectCompilation project)
+    {
+        var source = CritterStackSource.RangeForProject(location, project);
+        return $"{Uri.EscapeDataString(source?.FileIdentity?.ToString() ?? source?.Path ?? string.Empty)}:{location.SourceSpan.Start}:{location.SourceSpan.Length}";
     }
 
     static GenerationDiagnostic NativeHttpMetadata(EndpointCommand command) => new()
