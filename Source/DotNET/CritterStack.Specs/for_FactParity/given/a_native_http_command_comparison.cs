@@ -71,7 +71,7 @@ public abstract class a_native_http_command_comparison : Specification
     protected static bool Admitted(GeneratedScreenplayDefinition result, AdapterIdentity expected) =>
         result.AdapterRun is { Adapters.Length: > 0 } run
         && run.Adapters.Any(record => record.Descriptor.Identity == expected && record.Executed)
-        && run.Adapters.All(record => record.Disposition == AdapterRunDisposition.Admitted && record.Execution is AdapterExecutionCompleted)
+        && run.Adapters.All(record => record.Considered && record.Probed && record.Disposition == AdapterRunDisposition.Admitted && record.Execution is AdapterExecutionCompleted)
         && result.Diagnostics.All(diagnostic => diagnostic.Code != "DOTNETADAPTER007");
 
     /// <summary>Determines whether the result carries neither an unplaced-artifact nor an omitted-relationship diagnostic.</summary>

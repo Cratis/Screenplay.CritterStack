@@ -24,6 +24,18 @@ public class when_http_command_admission_evidence_is_missing_or_rejected : given
     [Fact] void should_accept_the_real_admitted_run() => IsAdmitted.ShouldBeTrue();
 
     [Fact]
+    void should_reject_a_missing_snapshot() =>
+        Admitted(Public with { AdapterRun = null }, ExpectedIdentity).ShouldBeFalse();
+
+    [Fact]
+    void should_reject_a_record_that_was_not_considered() =>
+        Admitted(Public with { AdapterRun = Public.AdapterRun with { Adapters = [.. Public.AdapterRun.Adapters.Select(_ => _ with { Considered = false })] } }, ExpectedIdentity).ShouldBeFalse();
+
+    [Fact]
+    void should_reject_a_record_that_was_not_probed() =>
+        Admitted(Public with { AdapterRun = Public.AdapterRun with { Adapters = [.. Public.AdapterRun.Adapters.Select(_ => _ with { Probed = false })] } }, ExpectedIdentity).ShouldBeFalse();
+
+    [Fact]
     void should_reject_an_empty_roster() =>
         Admitted(Public with { AdapterRun = Public.AdapterRun with { Adapters = [] } }, ExpectedIdentity).ShouldBeFalse();
 
