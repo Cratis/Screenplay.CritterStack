@@ -43,6 +43,8 @@ public abstract class a_native_http_command_comparison : Specification
 
     protected AdapterContributionAdmissionResult Admission { get; private set; } = null!;
 
+    protected AdapterIdentity ExpectedIdentity { get; private set; } = null!;
+
     protected void Compare(string application)
     {
         var project = WithSourceContext(Project($"{Framework}\n{application}"));
@@ -50,9 +52,58 @@ public abstract class a_native_http_command_comparison : Specification
         var bridge = new real_wolverine_descriptor_bridge();
         Native = bridge.Analyze(context, new());
         Admission = AdapterContributionAdmission.Admit(bridge.Descriptor, Native);
-        Expected = Generate(new CritterStackScreenplayAdapter().Analyze(context, new()));
+        ExpectedIdentity = bridge.Identity;
+
+        // TEST-ONLY oracle snapshot. The legacy oracle is not runner-admissible (its marten:/wolverine: fact ids lack the producer prefix), so its
+        // unchanged contribution is wrapped into an admitted snapshot through the public AdapterRuns API and generated through the same snapshot
+        // overload as the native side. This does not prove legacy runner admission; facts and diagnostics are not modified.
+        var legacy = new CritterStackScreenplayAdapter();
+        var oracle = legacy.Analyze(context, new());
+        Expected = new ScreenplayDefinitionGenerator().Generate(
+            LegacyOracleSnapshot(bridge.Descriptor with { Identity = legacy.Identity }, oracle),
+            new() { Domain = "FactParity" });
         Public = new CritterStackScreenplayGenerator([bridge]).Generate([project], new CritterStackScreenplayOptions { Domain = "FactParity" });
     }
+
+    /// <summary>Gets a value indicating whether the real runner admitted every record of the public result, including the Wolverine execution.</summary>
+    protected bool IsAdmitted => Admitted(Public, ExpectedIdentity);
+
+    protected static bool Admitted(GeneratedScreenplayDefinition result, AdapterIdentity expected) =>
+        result.AdapterRun is { Adapters.Length: > 0 } run
+        && run.Adapters.Any(record => record.Descriptor.Identity == expected && record.Executed)
+        && run.Adapters.All(record => record.Disposition == AdapterRunDisposition.Admitted && record.Execution is AdapterExecutionCompleted)
+        && result.Diagnostics.All(diagnostic => diagnostic.Code != "DOTNETADAPTER007");
+
+    /// <summary>Determines whether the result carries neither an unplaced-artifact nor an omitted-relationship diagnostic.</summary>
+    /// <param name="result">The generated result to inspect.</param>
+    /// <returns>True when neither diagnostic is present.</returns>
+    protected static bool HasNoPlacementOrRelationshipDiagnostics(GeneratedScreenplayDefinition result) =>
+        result.Diagnostics.All(diagnostic => diagnostic.Code is not ("GEN0004" or "GEN0039"));
+
+    static AdapterRunSnapshot LegacyOracleSnapshot(AdapterDescriptor descriptor, AdapterContribution contribution) => new()
+    {
+        Adapters =
+        [
+            new AdapterRunRecord
+            {
+                Considered = true,
+                Probed = true,
+                Executed = true,
+                Descriptor = descriptor,
+                Probe = new AdapterProbeApplicable(),
+                Disposition = AdapterRunDisposition.Admitted,
+                Execution = new AdapterExecutionCompleted
+                {
+                    Contribution = new AdapterContributionSnapshot
+                    {
+                        Descriptor = descriptor,
+                        Facts = [.. contribution.Facts],
+                        Diagnostics = [.. contribution.Diagnostics]
+                    }
+                }
+            }
+        ]
+    };
 
     static DotNetProjectCompilation WithSourceContext(DotNetProjectCompilation project) => project with
     {

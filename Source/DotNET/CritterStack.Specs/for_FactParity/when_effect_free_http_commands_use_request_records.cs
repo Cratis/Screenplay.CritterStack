@@ -39,6 +39,9 @@ public class when_effect_free_http_commands_use_request_records : given.a_native
     [Fact] void should_match_status() => Public.IsSuccess.ShouldEqual(Expected.IsSuccess);
     [Fact] void should_match_full_diagnostics() => Diagnostics(Public).ShouldEqual(Diagnostics(Expected));
     [Fact] void should_be_admitted_by_the_real_descriptor() => Admission.Diagnostics.ShouldNotContain(_ => _.Code == AdapterContributionAdmissionDiagnosticCode.UndeclaredFactCapability);
+    [Fact] void should_be_admitted_by_the_real_runner() => IsAdmitted.ShouldBeTrue();
+    [Fact] void should_have_no_placement_or_relationship_diagnostics_natively() => HasNoPlacementOrRelationshipDiagnostics(Public).ShouldBeTrue();
+    [Fact] void should_have_no_placement_or_relationship_diagnostics_in_the_oracle() => HasNoPlacementOrRelationshipDiagnostics(Expected).ShouldBeTrue();
     [Fact]
     void should_declare_every_emitted_kind_nonvacuously() =>
         new[]

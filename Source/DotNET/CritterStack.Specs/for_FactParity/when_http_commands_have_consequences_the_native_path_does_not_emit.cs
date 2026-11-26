@@ -37,5 +37,6 @@ public class when_http_commands_have_consequences_the_native_path_does_not_emit 
     void should_report_each_other_endpoint_as_unsupported() =>
         Native.Diagnostics.Count(_ => _.Code == WolverineFacts.NativeHttpCommandOmittedCode && _.Outcome == GenerationDiagnosticOutcome.Unsupported).ShouldEqual(2);
     [Fact] void should_not_emit_facts_for_the_state_input_endpoint() => Native.Facts.Any(_ => _.Subject.Value.Contains("PostState")).ShouldBeFalse();
+    [Fact] void should_still_be_admitted_by_the_real_runner() => IsAdmitted.ShouldBeTrue();
     [Fact] void should_not_claim_parity_with_the_compatibility_commands() => Commands(Expected).Count().ShouldBeGreaterThan(1);
 }
