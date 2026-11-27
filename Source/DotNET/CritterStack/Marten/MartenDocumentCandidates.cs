@@ -128,7 +128,7 @@ sealed class MartenDocumentCandidates(DotNetProjectCompilation project, DotNetAn
                     Id = new() { Value = $"{typeUse.Id.Value}:binding" },
                     Subject = artifact.Subject,
                     Evidence = evidence,
-                    Definition = new() { TypeUse = typeUse.Id, Policy = TypeUseBindingPolicyKind.ConceptOnlyWithUnboundFallback }
+                    Definition = new() { TypeUse = typeUse.Id, Policy = TypeUseBindingPolicyKind.ConceptOnlyWithUnboundFallbackAndMissingConceptDiagnostic }
                 });
             }
         }

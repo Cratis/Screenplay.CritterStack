@@ -34,5 +34,9 @@ public class when_native_marten_concepts_compete_with_independent_concepts : giv
     [Fact] void should_declare_the_independent_concept_in_the_public_vogen_then_marten_roster() => PublicVogenThenMarten.Source.ShouldContain("concept Status : Uuid");
     [Fact] void should_preserve_the_marten_then_vogen_roster() => IsEqualWithVogen(MartenThenVogen).ShouldBeTrue();
     [Fact] void should_preserve_the_vogen_then_marten_roster() => IsEqualWithVogen(VogenThenMarten).ShouldBeTrue();
+    [Fact] void should_admit_the_independent_concept_producer_in_both_orders() => new[] { MartenThenVogen, VogenThenMarten }.ShouldEachConformTo(result => Admitted(result.AdapterRun.Adapters.Single(record => record.Descriptor.Identity == new VogenConceptScreenplayAdapter().Identity)));
+    [Fact] void should_not_report_a_missing_concept_in_either_order() => new[] { ExpectedWithVogen, MartenThenVogen, VogenThenMarten }.ShouldEachConformTo(result => Warnings(result, "GEN0016") == 0);
+    [Fact] void should_match_all_marten_then_vogen_diagnostics() => AssertDiagnosticsMatch(MartenThenVogen, ExpectedWithVogen);
+    [Fact] void should_match_all_vogen_then_marten_diagnostics() => AssertDiagnosticsMatch(VogenThenMarten, ExpectedWithVogen);
     [Fact] void should_report_the_enum_yield_once() => Warnings(MartenThenVogen, CritterStackDiagnosticCodes.EnumConceptNameConflict).ShouldEqual(Warnings(Expected, CritterStackDiagnosticCodes.EnumConceptNameConflict));
 }

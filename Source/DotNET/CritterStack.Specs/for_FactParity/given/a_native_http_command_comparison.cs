@@ -167,30 +167,8 @@ public abstract class a_native_http_command_comparison : Specification
     protected static AdapterRunSnapshot LegacyOracleSnapshot(AdapterDescriptor descriptor, AdapterContribution contribution) =>
         LegacyOracleSnapshot([(descriptor, contribution)]);
 
-    protected static AdapterRunSnapshot LegacyOracleSnapshot(IEnumerable<(AdapterDescriptor Descriptor, AdapterContribution Contribution)> contributions) => new()
-    {
-        Adapters =
-        [
-            .. contributions.Select(item => new AdapterRunRecord
-            {
-                Considered = true,
-                Probed = true,
-                Executed = true,
-                Descriptor = item.Descriptor,
-                Probe = new AdapterProbeApplicable(),
-                Disposition = AdapterRunDisposition.Admitted,
-                Execution = new AdapterExecutionCompleted
-                {
-                    Contribution = new AdapterContributionSnapshot
-                    {
-                        Descriptor = item.Descriptor,
-                        Facts = [.. item.Contribution.Facts],
-                        Diagnostics = [.. item.Contribution.Diagnostics]
-                    }
-                }
-            })
-        ]
-    };
+    protected static AdapterRunSnapshot LegacyOracleSnapshot(IEnumerable<(AdapterDescriptor Descriptor, AdapterContribution Contribution)> contributions) =>
+        legacy_oracle_snapshot.Create(contributions);
 
     static DotNetProjectCompilation WithSourceContext(DotNetProjectCompilation project) => project with
     {

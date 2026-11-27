@@ -89,13 +89,25 @@ public class a_marten_concept_comparison : Specification
     protected bool IsEqualWithVogen(GeneratedScreenplayDefinition actual) => IsEqual(actual, ExpectedWithVogen);
 
     static bool IsEqual(GeneratedScreenplayDefinition actual, GeneratedScreenplayDefinition expected) =>
+        OutputMatches(actual, expected) && diagnostic_parity.Meaning(actual.Diagnostics).SequenceEqual(diagnostic_parity.Meaning(expected.Diagnostics));
+
+    protected static bool OutputMatches(GeneratedScreenplayDefinition actual, GeneratedScreenplayDefinition expected) =>
         Concepts(actual) == Concepts(expected) &&
         WholeGraphMatches(actual, expected) &&
-        diagnostic_parity.Meaning(actual.Diagnostics).SequenceEqual(diagnostic_parity.Meaning(expected.Diagnostics)) &&
         actual.Source == expected.Source &&
         actual.IsSuccess == expected.IsSuccess;
 
+    protected static void AssertDiagnosticsMatch(GeneratedScreenplayDefinition actual, GeneratedScreenplayDefinition expected) =>
+        diagnostic_parity.Meaning(actual.Diagnostics).ShouldEqual(diagnostic_parity.Meaning(expected.Diagnostics));
+
     protected int Warnings(GeneratedScreenplayDefinition result, string code) => result.Diagnostics.Count(_ => _.Code == code);
+
+    protected void AssertSingleMissingStatusDiagnostic(GeneratedScreenplayDefinition actual, GeneratedScreenplayDefinition expected)
+    {
+        var subject = Project.SubjectForType(Project.Compilation.GetTypeByMetadataName("Ordering.Status"));
+        int Count(GeneratedScreenplayDefinition result) => result.Diagnostics.Count(_ => _.Code == "GEN0016" && _.Subject == subject);
+        (Subject: subject.Value, Oracle: Count(expected), Native: Count(actual)).ShouldEqual((subject.Value, 1, 1));
+    }
 
     protected void Compare()
     {
@@ -136,18 +148,43 @@ public class a_marten_concept_comparison : Specification
         var analysis = new DotNetAnalysisContext([project]);
         var adapterOptions = new DotNetAdapterOptions();
         var generation = new ScreenplayGenerationOptions { Domain = "Ordering" };
-        var marten = new[] { new MartenScreenplayAdapter().Analyze(analysis, adapterOptions) };
-        var vogen = new VogenConceptScreenplayAdapter().Analyze(analysis, adapterOptions);
-        var compatibility = new CritterStackScreenplayAdapter().Analyze(analysis, adapterOptions);
-        Expected = new ScreenplayDefinitionGenerator().Generate([compatibility], generation);
+        var marten = new MartenScreenplayAdapter();
+        var vogen = new VogenConceptScreenplayAdapter();
+        var legacy = new CritterStackScreenplayAdapter();
+        var compatibility = legacy.Analyze(analysis, adapterOptions);
+        var legacyDescriptor = marten.Descriptor with { Identity = legacy.Identity };
+        var generator = new ScreenplayDefinitionGenerator();
+        Expected = generator.Generate(legacy_oracle_snapshot.Create([(legacyDescriptor, compatibility)]), generation);
 
-        // Compatibility composes an independent concept as the public generator does: bind member types to contributed concepts, then drop missing ones.
-        ExpectedWithVogen = new ScreenplayDefinitionGenerator().Generate(ConceptTypeReferenceBinder.WithoutMissingConcepts(ConceptTypeReferenceBinder.Bind(analysis, [compatibility, vogen])), generation);
-        MartenOnly = new ScreenplayDefinitionGenerator().Generate(marten, generation);
-        MartenThenVogen = new ScreenplayDefinitionGenerator().Generate([.. marten, vogen], generation);
-        VogenThenMarten = new ScreenplayDefinitionGenerator().Generate([vogen, .. marten], generation);
-        PublicMartenThenVogen = new CritterStackScreenplayGenerator([new MartenScreenplayAdapter(), new WolverineScreenplayAdapter(), new WolverineMartenScreenplayAdapter(), new VogenConceptScreenplayAdapter()]).Generate([project], options);
-        PublicVogenThenMarten = new CritterStackScreenplayGenerator([new VogenConceptScreenplayAdapter(), new MartenScreenplayAdapter(), new WolverineScreenplayAdapter(), new WolverineMartenScreenplayAdapter()]).Generate([project], options);
+        // Keep the public compatibility composition, then take a test-only snapshot without changing its facts.
+        var composed = ConceptTypeReferenceBinder.WithoutMissingConcepts(
+            ConceptTypeReferenceBinder.Bind(analysis, [compatibility, vogen.Analyze(analysis, adapterOptions)]));
+        ExpectedWithVogen = generator.Generate(legacy_oracle_snapshot.Create([(legacyDescriptor, composed[0]), (vogen.Descriptor, composed[1])]), generation);
+        MartenOnly = new CritterStackScreenplayGenerator([marten]).Generate([project], options);
+        MartenThenVogen = new CritterStackScreenplayGenerator([marten, vogen]).Generate([project], options);
+        VogenThenMarten = new CritterStackScreenplayGenerator([vogen, marten]).Generate([project], options);
+        PublicMartenThenVogen = new CritterStackScreenplayGenerator([marten, new WolverineScreenplayAdapter(), new WolverineMartenScreenplayAdapter(), vogen]).Generate([project], options);
+        PublicVogenThenMarten = new CritterStackScreenplayGenerator([vogen, marten, new WolverineScreenplayAdapter(), new WolverineMartenScreenplayAdapter()]).Generate([project], options);
+
+        AssertRoster(MartenOnly, marten.Identity);
+        AssertRoster(MartenThenVogen, marten.Identity, vogen.Identity);
+        AssertRoster(VogenThenMarten, marten.Identity, vogen.Identity);
+    }
+
+    protected static bool Admitted(AdapterRunRecord record) =>
+        record is { Considered: true, Probed: true, Executed: true, Disposition: AdapterRunDisposition.Admitted, Probe: AdapterProbeApplicable, Execution: AdapterExecutionCompleted };
+
+    static void AssertRoster(GeneratedScreenplayDefinition result, AdapterIdentity marten, AdapterIdentity? vogen = null)
+    {
+        result.AdapterRun.ShouldNotBeNull();
+        var records = result.AdapterRun.Adapters;
+        records.Length.ShouldEqual(vogen is null ? 1 : 2);
+        Admitted(records.Single(_ => _.Descriptor.Identity == marten)).ShouldBeTrue();
+        if (vogen is not null)
+        {
+            var record = records.Single(_ => _.Descriptor.Identity == vogen);
+            (Admitted(record) || record is { Considered: true, Probed: true, Executed: false, Disposition: AdapterRunDisposition.NotApplicable, Probe: AdapterProbeNotApplicable, Execution: AdapterExecutionNotRun }).ShouldBeTrue();
+        }
     }
 
     static IEnumerable<ArtifactDefinition> Definitions(GeneratedScreenplayDefinition result) => result.Graph.Artifacts

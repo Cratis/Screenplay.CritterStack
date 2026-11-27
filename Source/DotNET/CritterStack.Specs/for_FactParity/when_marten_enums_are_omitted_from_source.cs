@@ -16,5 +16,6 @@ public class when_marten_enums_are_omitted_from_source : given.a_marten_concept_
     [Fact] void should_preserve_the_marten_then_vogen_roster() => IsEqualWithVogen(MartenThenVogen).ShouldBeTrue();
     [Fact] void should_preserve_the_vogen_then_marten_roster() => IsEqualWithVogen(VogenThenMarten).ShouldBeTrue();
     [Fact] void should_report_the_omission_once() => Warnings(MartenOnly, CritterStackDiagnosticCodes.FlagsEnumOmitted).ShouldEqual(Warnings(Expected, CritterStackDiagnosticCodes.FlagsEnumOmitted));
+    [Fact] void should_not_report_a_missing_unregistered_concept() => new[] { Expected, ExpectedWithVogen, MartenOnly, MartenThenVogen, VogenThenMarten }.ShouldEachConformTo(result => Warnings(result, "GEN0016") == 0);
     [Fact] void should_not_invent_a_concept() => MartenOnly.Source.ShouldNotContain("concept Status");
 }
