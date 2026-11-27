@@ -105,8 +105,9 @@ public class a_marten_concept_comparison : Specification
     protected void AssertSingleMissingStatusDiagnostic(GeneratedScreenplayDefinition actual, GeneratedScreenplayDefinition expected)
     {
         var subject = Project.SubjectForType(Project.Compilation.GetTypeByMetadataName("Ordering.Status"));
-        int Count(GeneratedScreenplayDefinition result) => result.Diagnostics.Count(_ => _.Code == "GEN0016" && _.Subject == subject);
-        (Subject: subject.Value, Oracle: Count(expected), Native: Count(actual)).ShouldEqual((subject.Value, 1, 1));
+        int Count(GeneratedScreenplayDefinition result) => result.Diagnostics.Count(_ => _.Code == GenerationDiagnosticCodes.MissingConceptReference && _.Subject == subject);
+        Count(expected).ShouldEqual(1);
+        Count(actual).ShouldEqual(1);
     }
 
     protected void Compare()

@@ -21,5 +21,7 @@ public class when_a_registered_non_enum_concept_is_used : given.a_marten_concept
     [Fact] void should_match_all_marten_only_diagnostics() => AssertDiagnosticsMatch(MartenOnly, Expected);
     [Fact] void should_match_all_marten_then_vogen_diagnostics() => AssertDiagnosticsMatch(MartenThenVogen, ExpectedWithVogen);
     [Fact] void should_match_all_vogen_then_marten_diagnostics() => AssertDiagnosticsMatch(VogenThenMarten, ExpectedWithVogen);
-    [Fact] void should_preserve_the_output_in_all_rosters() => (OutputMatches(MartenOnly, Expected) && OutputMatches(MartenThenVogen, ExpectedWithVogen) && OutputMatches(VogenThenMarten, ExpectedWithVogen)).ShouldBeTrue();
+    [Fact] void should_preserve_the_output_with_only_marten() => OutputMatches(MartenOnly, Expected).ShouldBeTrue();
+    [Fact] void should_preserve_the_output_with_marten_then_vogen() => OutputMatches(MartenThenVogen, ExpectedWithVogen).ShouldBeTrue();
+    [Fact] void should_preserve_the_output_with_vogen_then_marten() => OutputMatches(VogenThenMarten, ExpectedWithVogen).ShouldBeTrue();
 }
