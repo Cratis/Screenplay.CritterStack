@@ -11,6 +11,13 @@ namespace Cratis.CritterStack.Screenplay.Wolverine;
 
 internal static partial class WolverineFacts
 {
+    enum DocumentCallSupport
+    {
+        Unsupported,
+        WithoutEntryPoint,
+        WithEntryPoint
+    }
+
     static void EmitNativeDeleteHandler(
         WolverineFactScope scope,
         DotNetAnalysisContext context,
@@ -18,23 +25,24 @@ internal static partial class WolverineFacts
         WolverineValidationAuthorizationDiscoveryResult validation)
     {
         var request = RequestParameter(method, scope.Project);
-        if (request?.Type is not INamedTypeSymbol requestType || !IsDirectDeleteEntryPoint(scope, method, requestType))
+        if (request?.Type is not INamedTypeSymbol requestType || !IsStandaloneHandler(scope, method, requestType))
         {
             return;
         }
 
-        var shape = DiscoverStateChangeShape(method, request, requestType, scope, isHttpEndpoint: false);
-        if (!HasOnlyDocumentEffects(scope.Project, shape))
+        var support = DeleteHandlerSupport(scope, method);
+        if (support == DocumentCallSupport.Unsupported ||
+            !HasOnlyDocumentEffects(scope.Project, DiscoverStateChangeShape(method, request, requestType, scope, isHttpEndpoint: false)))
         {
             return;
         }
 
-        AnalyzeWithSlicePattern(scope, method, null, owned => AddNativeDeleteHandlerFacts(owned, context, new(method, requestType), validation));
+        var handler = new NativeDeleteHandler(method, requestType, support == DocumentCallSupport.WithEntryPoint);
+        AnalyzeWithSlicePattern(scope, method, null, owned => AddNativeDeleteHandlerFacts(owned, context, handler, validation));
     }
 
-    static bool IsDirectDeleteEntryPoint(WolverineFactScope scope, IMethodSymbol method, INamedTypeSymbol requestType) =>
+    static bool IsStandaloneHandler(WolverineFactScope scope, IMethodSymbol method, INamedTypeSymbol requestType) =>
         !WolverineSagaTypes.IsSagaState(requestType, scope.Project) &&
-        HasDirectMartenDeleteAndOnlyDocumentCalls(scope, method) &&
         WolverineCompoundStages.StagesFor(method, requestType, scope).Count == 0;
 
     static bool HasOnlyDocumentEffects(DotNetProjectCompilation project, StateChangeShape shape) =>
@@ -42,40 +50,58 @@ internal static partial class WolverineFacts
         shape.Aggregate is null && shape.BusConsequences.Count == 0 && shape.OutgoingMessages.Count == 0 &&
         shape.ReturnConsequences.Count == 0 && !shape.Method.Parameters.Any(parameter => IsStateInputParameter(parameter, project));
 
-    static bool HasDirectMartenDeleteAndOnlyDocumentCalls(WolverineFactScope scope, IMethodSymbol method)
+    static DocumentCallSupport DeleteHandlerSupport(WolverineFactScope scope, IMethodSymbol method)
     {
         var deletes = DocumentDeletes(method, scope.Project).Select(delete => delete.Invocation).ToHashSet();
-        return deletes.Count > 0 && WolverineMethodSyntax.Declarations(method, scope.Project).All(declaration =>
-            declaration.Declaration.DescendantNodes().OfType<InvocationExpressionSyntax>().All(invocation =>
-                IsSupportedDeleteHandlerCall(invocation, declaration.SemanticModel, method, deletes.Contains(invocation))));
+        if (deletes.Count == 0) return DocumentCallSupport.Unsupported;
+
+        var support = DocumentCallSupport.WithEntryPoint;
+        foreach (var (declaration, model) in WolverineMethodSyntax.Declarations(method, scope.Project))
+        {
+            foreach (var invocation in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            {
+                var call = ClassifyDocumentCall(invocation, model, deletes.Contains(invocation));
+                if (call == DocumentCallSupport.Unsupported) return call;
+                if (call == DocumentCallSupport.WithoutEntryPoint) support = call;
+            }
+        }
+
+        return support;
     }
 
-    // Marten observes ordinary writes, entity deletes and predicates. Only typed Delete calls produce a command edge.
-    static bool IsSupportedDeleteHandlerCall(
-        InvocationExpressionSyntax invocation,
-        SemanticModel model,
-        IMethodSymbol handler,
-        bool hasCommandEdge)
+    static DocumentCallSupport ClassifyDocumentCall(InvocationExpressionSyntax invocation, SemanticModel model, bool hasCommandEdge)
     {
-        if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol called || !IsPersistenceNamespace(called)) return true;
-        return MartenDocumentSource.IsMarten(called, includeIntegrationApis: false) &&
-            (IsSupportedDeleteCall(called, hasCommandEdge) || IsDirectDocumentWrite(invocation, model, called, handler));
+        if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol called || !IsPersistenceNamespace(called)) return DocumentCallSupport.WithEntryPoint;
+        if (!MartenDocumentSource.IsMarten(called, includeIntegrationApis: false)) return DocumentCallSupport.Unsupported;
+
+        // An entry point would lift the method-level read onto the command, which only has a delete edge on the compatibility path.
+        if (IsDocumentLoad(called)) return DocumentCallSupport.WithoutEntryPoint;
+
+        return IsSupportedDeleteCall(called, hasCommandEdge) || IsDocumentSessionCall(called, invocation, model)
+            ? DocumentCallSupport.WithEntryPoint
+            : DocumentCallSupport.Unsupported;
     }
 
     static bool IsSupportedDeleteCall(IMethodSymbol called, bool hasCommandEdge) =>
         called.Name == "DeleteWhere" || (called.Name == "Delete" && (hasCommandEdge || !called.IsGenericMethod));
 
-    static bool IsDirectDocumentWrite(InvocationExpressionSyntax invocation, SemanticModel model, IMethodSymbol called, IMethodSymbol handler) =>
+    // Marten owns ordinary writes (including lambdas and generated targets); a session save adds no command edge.
+    static bool IsDocumentSessionCall(IMethodSymbol called, InvocationExpressionSyntax invocation, SemanticModel model) =>
+        !called.IsStatic && IsDocumentOperationsType(called.ContainingType) &&
+        (called.Name == "SaveChangesAsync" || IsDocumentWrite(called, invocation, model));
+
+    static bool IsDocumentWrite(IMethodSymbol called, InvocationExpressionSyntax invocation, SemanticModel model) =>
         MartenDocumentSource.RelationshipKindFor(called.Name) is RelationshipKind.Stores or RelationshipKind.Updates &&
-        IsInstanceDocumentCall(called) &&
-        SymbolEqualityComparer.Default.Equals(handler, model.GetEnclosingSymbol(invocation.SpanStart)) &&
-        HasAuthoredDocument(called, invocation, model);
+        MartenDocumentSource.DocumentTypeFrom(called, invocation, model) is { DeclaringSyntaxReferences.Length: > 0 };
 
-    static bool IsInstanceDocumentCall(IMethodSymbol called) => !called.IsStatic && IsDocumentOperationsType(called.ContainingType);
+    static bool IsDocumentLoad(IMethodSymbol called) =>
+        !called.IsStatic && called.Name == "Load" && IsQuerySessionType(called.ContainingType);
 
-    static bool HasAuthoredDocument(IMethodSymbol called, InvocationExpressionSyntax invocation, SemanticModel model) =>
-        MartenDocumentSource.DocumentTypeFrom(called, invocation, model) is { } document &&
-        DotNetSource.AuthoredDeclarationsOf(document).Any(reference => !DotNetGeneratedSource.IsGenerated(reference.SyntaxTree));
+    static bool IsQuerySessionType(INamedTypeSymbol type) =>
+        IsQuerySessionContract(type) || type.AllInterfaces.Any(IsQuerySessionContract);
+
+    static bool IsQuerySessionContract(INamedTypeSymbol type) =>
+        string.Equals(DotNetSubjectIds.MetadataName(type), "Marten.IQuerySession", StringComparison.Ordinal);
 
     static bool IsDocumentOperationsType(INamedTypeSymbol type) =>
         IsDocumentOperationsContract(type) || type.AllInterfaces.Any(IsDocumentOperationsContract);
@@ -93,7 +119,7 @@ internal static partial class WolverineFacts
         NativeDeleteHandler handler,
         WolverineValidationAuthorizationDiscoveryResult validation)
     {
-        var (method, requestType) = handler;
+        var (method, requestType, emitsEntryPoint) = handler;
         if (!scope.RequireOwnership(method))
         {
             return;
@@ -112,12 +138,16 @@ internal static partial class WolverineFacts
 
         var placement = CritterStackSourcePlacement.CompatibilityPlacement(project, scope.Options, requestType.Name, requestType.Name, GenerationSliceKind.StateChange);
         scope.Placements.Add(new(scope.PlacementId($"wolverine:placement:command:{subject.Value}"), key, null, placement, evidence));
-        scope.Facts.Add(NativeCommandEntryPoint(scope, key, method, evidence));
+        if (emitsEntryPoint)
+        {
+            scope.Facts.Add(NativeCommandEntryPoint(scope, key, method, evidence));
+        }
+
         scope.Diagnostics.AddRange(validation.ValidationDiagnostics(method, requestType, subject, isHttpEndpoint: false));
         AddStandaloneBoundaryDiagnostics(scope, method);
         AddNativeDocumentDeletes(scope, EmissionFor(scope, subject, evidence), method);
         AddHandlerChainConfigurationDiagnostics(scope, subject, method);
     }
 
-    sealed record NativeDeleteHandler(IMethodSymbol Method, INamedTypeSymbol RequestType);
+    sealed record NativeDeleteHandler(IMethodSymbol Method, INamedTypeSymbol RequestType, bool EmitsEntryPoint);
 }

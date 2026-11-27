@@ -71,7 +71,11 @@ public abstract class a_native_http_command_comparison : Specification
                 void DeleteWhere<T>(System.Linq.Expressions.Expression<System.Func<T, bool>> expression) where T : notnull;
                 void DeleteObjects(System.Collections.Generic.IEnumerable<object> documents);
             }
-            public interface IDocumentSession : IDocumentOperations { Events.IEventStoreOperations Events { get; } }
+            public interface IDocumentSession : IDocumentOperations
+            {
+                Events.IEventStoreOperations Events { get; }
+                System.Threading.Tasks.Task SaveChangesAsync(System.Threading.CancellationToken token = default);
+            }
             public static class MartenServiceCollectionExtensions
             {
                 public static void AddMartenStore<T>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<StoreOptions> configure) where T : class, IDocumentStore { }
@@ -154,7 +158,8 @@ public abstract class a_native_http_command_comparison : Specification
             CSharpSyntaxTree.ParseText($"{Framework}\n{MartenFramework}", path: "/workspace/FactParity/Framework.cs"),
             .. files.Select(file => CSharpSyntaxTree.ParseText(file.Source, path: file.Path))
         ]);
-        CompareWithMarten(WithDisplayRoot(project, displayRoot));
+        var authored = project.AuthoredSyntaxTrees.Where(tree => !DotNetGeneratedSource.IsGenerated(tree)).ToHashSet();
+        CompareWithMarten(WithDisplayRoot(project with { AuthoredSyntaxTrees = authored }, displayRoot));
     }
 
     void CompareWithMarten(DotNetProjectCompilation compilation)
