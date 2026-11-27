@@ -11,6 +11,13 @@ namespace Cratis.CritterStack.Screenplay.Wolverine;
 
 internal static partial class WolverineFacts
 {
+    // Marten declares every async LINQ terminal on Marten.QueryableExtensions.
+    static readonly HashSet<string> _queryTerminals =
+    [
+        "ToListAsync", "FirstAsync", "FirstOrDefaultAsync", "SingleAsync", "SingleOrDefaultAsync",
+        "AnyAsync", "CountAsync", "LongCountAsync", "SumAsync", "MinAsync", "MaxAsync", "AverageAsync"
+    ];
+
     enum DocumentCallSupport
     {
         Unsupported,
@@ -92,13 +99,9 @@ internal static partial class WolverineFacts
     static bool IsMartenQueryTerminal(IMethodSymbol called, InvocationExpressionSyntax invocation, SemanticModel model) =>
         called.ReducedFrom is { } extension && IsQueryTerminal(extension) && IsSessionQueryChain(invocation, model);
 
-    static bool IsQueryTerminal(IMethodSymbol extension) => DotNetSubjectIds.MetadataName(extension.ContainingType) switch
-    {
-        "Marten.QueryableExtensions" => extension.Name == "ToListAsync",
-        "JasperFx.Events.Documents.DocumentQueryableExtensions" => string.Equals(extension.Name, "FirstOrDefaultAsync", StringComparison.Ordinal) ||
-            string.Equals(extension.Name, "CountAsync", StringComparison.Ordinal),
-        _ => false
-    };
+    static bool IsQueryTerminal(IMethodSymbol extension) =>
+        string.Equals(DotNetSubjectIds.MetadataName(extension.ContainingType), "Marten.QueryableExtensions", StringComparison.Ordinal) &&
+        _queryTerminals.Contains(extension.Name);
 
     static bool IsSessionQueryChain(InvocationExpressionSyntax invocation, SemanticModel model)
     {

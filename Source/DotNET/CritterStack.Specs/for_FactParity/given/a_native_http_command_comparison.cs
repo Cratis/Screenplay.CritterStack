@@ -94,14 +94,13 @@ public abstract class a_native_http_command_comparison : Specification
             public static class QueryableExtensions
             {
                 public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<T>> ToListAsync<T>(this System.Linq.IQueryable<T> query, System.Threading.CancellationToken token = default) => throw new System.NotSupportedException();
-            }
-        }
-        namespace JasperFx.Events.Documents
-        {
-            public static class DocumentQueryableExtensions
-            {
+                public static System.Threading.Tasks.Task<T> FirstAsync<T>(this System.Linq.IQueryable<T> query, System.Threading.CancellationToken token = default) => throw new System.NotSupportedException();
                 public static System.Threading.Tasks.Task<T?> FirstOrDefaultAsync<T>(this System.Linq.IQueryable<T> query, System.Threading.CancellationToken token = default) => throw new System.NotSupportedException();
+                public static System.Threading.Tasks.Task<T> SingleAsync<T>(this System.Linq.IQueryable<T> query, System.Threading.CancellationToken token = default) => throw new System.NotSupportedException();
+                public static System.Threading.Tasks.Task<T?> SingleOrDefaultAsync<T>(this System.Linq.IQueryable<T> query, System.Threading.CancellationToken token = default) => throw new System.NotSupportedException();
                 public static System.Threading.Tasks.Task<int> CountAsync<T>(this System.Linq.IQueryable<T> query, System.Threading.CancellationToken token = default) => throw new System.NotSupportedException();
+                public static System.Threading.Tasks.Task<long> LongCountAsync<T>(this System.Linq.IQueryable<T> query, System.Threading.CancellationToken token = default) => throw new System.NotSupportedException();
+                public static System.Threading.Tasks.Task<bool> AnyAsync<T>(this System.Linq.IQueryable<T> query, System.Threading.CancellationToken token = default) => throw new System.NotSupportedException();
             }
         }
         namespace JasperFx.Events

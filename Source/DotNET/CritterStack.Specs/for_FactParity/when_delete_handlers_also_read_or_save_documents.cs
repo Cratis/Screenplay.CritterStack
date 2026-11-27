@@ -14,6 +14,9 @@ public class when_delete_handlers_also_read_or_save_documents : given.a_document
     [InlineData("await session.Query<Document>().Where(item => item.Id == command.Id).ToListAsync();", true)]
     [InlineData("await session.Query<Document>().Where(item => item.Id == command.Id).FirstOrDefaultAsync();", true)]
     [InlineData("await session.Query<Document>().Where(item => item.Id == command.Id).CountAsync();", true)]
+    [InlineData("await session.Query<Document>().Where(item => item.Id == command.Id).AnyAsync();", true)]
+    [InlineData("await session.Query<Document>().Where(item => item.Id == command.Id).FirstAsync();", true)]
+    [InlineData("await session.Query<Document>().Where(item => item.Id == command.Id).SingleOrDefaultAsync();", true)]
     [InlineData("await session.Events.LoadAsync<RecordAdded>(command.Id);", true)]
     [InlineData("session.SaveChanges();", false)]
     [InlineData("session.Load<Document>(command.Id); session.Store(new Document(command.Id));", false)]
@@ -24,7 +27,6 @@ public class when_delete_handlers_also_read_or_save_documents : given.a_document
             namespace FactParity
             {
                 using System.Linq;
-                using JasperFx.Events.Documents;
                 using Marten;
 
                 public sealed record Document(System.Guid Id);
