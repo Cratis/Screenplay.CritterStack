@@ -11,6 +11,10 @@ public class when_delete_handlers_also_read_or_save_documents : given.a_document
     [InlineData("session.LoadMany<Document>(command.Id);", false)]
     [InlineData("await session.LoadManyAsync<Document>(command.Id);", true)]
     [InlineData("session.Query<Document>();", false)]
+    [InlineData("await session.Query<Document>().Where(item => item.Id == command.Id).ToListAsync();", true)]
+    [InlineData("await session.Query<Document>().Where(item => item.Id == command.Id).FirstOrDefaultAsync();", true)]
+    [InlineData("await session.Query<Document>().Where(item => item.Id == command.Id).CountAsync();", true)]
+    [InlineData("await session.Events.LoadAsync<RecordAdded>(command.Id);", true)]
     [InlineData("session.SaveChanges();", false)]
     [InlineData("session.Load<Document>(command.Id); session.Store(new Document(command.Id));", false)]
     void should_match_compatibility_in_both_adapter_orders(string operation, bool isAsync)
@@ -19,8 +23,13 @@ public class when_delete_handlers_also_read_or_save_documents : given.a_document
         CompareHandlers($$"""
             namespace FactParity
             {
+                using System.Linq;
+                using JasperFx.Events.Documents;
+                using Marten;
+
                 public sealed record Document(System.Guid Id);
                 public sealed record DeleteDocument(System.Guid Id);
+                public sealed record RecordAdded(System.Guid Id);
 
                 public static class DeleteHandler
                 {
@@ -33,14 +42,16 @@ public class when_delete_handlers_also_read_or_save_documents : given.a_document
             }
             """);
 
+        ComparedProject.Compilation.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
         AllAdmitted().ShouldBeTrue();
-        var request = DocumentSubject("DeleteDocument");
-        Declared(Native, ArtifactKind.Command).Select(key => key.Subject).ShouldEqual([request]);
-        Outgoing(Native, request).ShouldEqual([Operation(request, RelationshipKind.Deletes, DocumentSubject("Document"))]);
         AllArtifactsMatch().ShouldBeTrue();
         AllRelationshipsMatch().ShouldBeTrue();
         AssertDiagnosticsMatch();
         AllSourcesMatch().ShouldBeTrue();
         AllStatusesMatch().ShouldBeTrue();
+        var request = DocumentSubject("DeleteDocument");
+        Declared(Native, ArtifactKind.Command).Select(key => key.Subject).ShouldEqual([request]);
+        Outgoing(Native, request).ShouldEqual([Operation(request, RelationshipKind.Deletes, DocumentSubject("Document"))]);
     }
 }

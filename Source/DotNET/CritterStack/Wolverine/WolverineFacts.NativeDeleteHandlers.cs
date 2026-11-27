@@ -71,15 +71,51 @@ internal static partial class WolverineFacts
     static DocumentCallSupport ClassifyDocumentCall(InvocationExpressionSyntax invocation, SemanticModel model, bool hasCommandEdge)
     {
         if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol called || !IsPersistenceNamespace(called)) return DocumentCallSupport.WithEntryPoint;
-        if (!MartenDocumentSource.IsMarten(called, includeIntegrationApis: false)) return DocumentCallSupport.Unsupported;
 
         // An entry point would lift the method-level read onto the command, which only has a delete edge on the compatibility path.
-        if (MartenSessionReadDiscovery.IsDocumentReadMethod(called.Name)) return DocumentCallSupport.WithoutEntryPoint;
+        if (IsDocumentSessionRead(called) || IsMartenQueryTerminal(called, invocation, model)) return DocumentCallSupport.WithoutEntryPoint;
 
-        return IsSupportedDeleteCall(called, hasCommandEdge) || IsDocumentSessionCall(called, invocation, model)
+        return IsEventByIdLoad(called) || IsSupportedMartenCall(called, invocation, model, hasCommandEdge)
             ? DocumentCallSupport.WithEntryPoint
             : DocumentCallSupport.Unsupported;
     }
+
+    static bool IsDocumentSessionRead(IMethodSymbol called) =>
+        MartenSessionReadDiscovery.IsDocumentReadMethod(called.Name) &&
+        (string.Equals(DotNetSubjectIds.MetadataName(called.ContainingType), "Marten.IQuerySession", StringComparison.Ordinal) ||
+         IsDocumentOperationsContract(called.ContainingType));
+
+    // Loading an event by ID is not a document read or a stream effect in the compatibility producer.
+    static bool IsEventByIdLoad(IMethodSymbol called) =>
+        called.Name == "LoadAsync" && DotNetSubjectIds.MetadataName(called.ContainingType) == "JasperFx.Events.IQueryEventStore";
+
+    static bool IsMartenQueryTerminal(IMethodSymbol called, InvocationExpressionSyntax invocation, SemanticModel model) =>
+        called.ReducedFrom is { } extension && IsQueryTerminal(extension) && IsSessionQueryChain(invocation, model);
+
+    static bool IsQueryTerminal(IMethodSymbol extension) => DotNetSubjectIds.MetadataName(extension.ContainingType) switch
+    {
+        "Marten.QueryableExtensions" => extension.Name == "ToListAsync",
+        "JasperFx.Events.Documents.DocumentQueryableExtensions" => string.Equals(extension.Name, "FirstOrDefaultAsync", StringComparison.Ordinal) ||
+            string.Equals(extension.Name, "CountAsync", StringComparison.Ordinal),
+        _ => false
+    };
+
+    static bool IsSessionQueryChain(InvocationExpressionSyntax invocation, SemanticModel model)
+    {
+        while (invocation.Expression is MemberAccessExpressionSyntax { Expression: InvocationExpressionSyntax receiver } &&
+               model.GetSymbolInfo(receiver).Symbol is IMethodSymbol method)
+        {
+            if (IsDocumentSessionRead(method)) return method.Name == "Query";
+            if (method.ReducedFrom is not { } extension || DotNetSubjectIds.MetadataName(extension.ContainingType) != "System.Linq.Queryable") return false;
+            invocation = receiver;
+        }
+
+        return false;
+    }
+
+    static bool IsSupportedMartenCall(IMethodSymbol called, InvocationExpressionSyntax invocation, SemanticModel model, bool hasCommandEdge) =>
+        MartenDocumentSource.IsMarten(called, includeIntegrationApis: false) &&
+        (IsSupportedDeleteCall(called, hasCommandEdge) || IsDocumentSessionCall(called, invocation, model));
 
     static bool IsSupportedDeleteCall(IMethodSymbol called, bool hasCommandEdge) =>
         called.Name == "DeleteWhere" || (called.Name == "Delete" && (hasCommandEdge || !called.IsGenericMethod));

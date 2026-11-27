@@ -89,10 +89,36 @@ public abstract class a_native_http_command_comparison : Specification
                 public static void AddMartenStore<T>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<StoreOptions> configure) where T : class, IDocumentStore { }
             }
         }
-        namespace JasperFx.Events { public class StreamAction; }
+        namespace Marten
+        {
+            public static class QueryableExtensions
+            {
+                public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<T>> ToListAsync<T>(this System.Linq.IQueryable<T> query, System.Threading.CancellationToken token = default) => throw new System.NotSupportedException();
+            }
+        }
+        namespace JasperFx.Events.Documents
+        {
+            public static class DocumentQueryableExtensions
+            {
+                public static System.Threading.Tasks.Task<T?> FirstOrDefaultAsync<T>(this System.Linq.IQueryable<T> query, System.Threading.CancellationToken token = default) => throw new System.NotSupportedException();
+                public static System.Threading.Tasks.Task<int> CountAsync<T>(this System.Linq.IQueryable<T> query, System.Threading.CancellationToken token = default) => throw new System.NotSupportedException();
+            }
+        }
+        namespace JasperFx.Events
+        {
+            public class StreamAction;
+            public interface IEvent<T>;
+            public interface IQueryEventStore
+            {
+                System.Threading.Tasks.Task<IEvent<T>?> LoadAsync<T>(System.Guid id, System.Threading.CancellationToken token = default) where T : class;
+            }
+        }
         namespace Marten.Events
         {
-            public interface IEventStoreOperations { JasperFx.Events.StreamAction Append(System.Guid stream, params object[] events); }
+            public interface IEventStoreOperations : JasperFx.Events.IQueryEventStore
+            {
+                JasperFx.Events.StreamAction Append(System.Guid stream, params object[] events);
+            }
         }
         namespace Wolverine.Marten
         {
