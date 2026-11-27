@@ -66,16 +66,30 @@ internal static partial class WolverineFacts
                 Placements = placements,
                 Diagnostics = diagnostics
             };
-            foreach (var entry in ObserveEntryPoints(project, discovery.Policy).Where(_ => _.Endpoint is { IsQuery: false }))
-            {
-                var endpoint = entry.Endpoint!;
-                AnalyzeWithSlicePattern(scope, endpoint.Method, endpoint, owned => EmitNativeHttpCommand(owned, context, endpoint, validation));
-            }
+            EmitNativeCommands(scope, context, discovery.Policy, validation);
         }
 
         diagnostics.AddRange(subjects.Diagnostics);
         facts.AddRange(CritterStackSourcePlacement.Derive(context, options, placements, diagnostics));
         return EnumConceptFacts.AddTo(context, new AdapterContribution { Adapter = adapter, Facts = facts, Diagnostics = diagnostics });
+    }
+
+    static void EmitNativeCommands(
+        WolverineFactScope scope,
+        DotNetAnalysisContext context,
+        WolverineHandlerDiscoveryPolicy policy,
+        WolverineValidationAuthorizationDiscoveryResult validation)
+    {
+        var entries = ObserveEntryPoints(scope.Project, policy);
+        foreach (var entry in entries.Where(entry => entry.Endpoint is null))
+        {
+            EmitNativeDeleteHandler(scope, context, entry.Method, validation);
+        }
+
+        foreach (var endpoint in entries.Select(entry => entry.Endpoint).OfType<HttpEndpoint>().Where(endpoint => !endpoint.IsQuery))
+        {
+            AnalyzeWithSlicePattern(scope, endpoint.Method, endpoint, owned => EmitNativeHttpCommand(owned, context, endpoint, validation));
+        }
     }
 
     static void EmitNativeHttpCommand(
@@ -115,7 +129,7 @@ internal static partial class WolverineFacts
 
         // Routes sharing a request type and backend share one artifact: only its declaration and members are emitted once. Everything per route
         // (placement request, slice pattern, entry point, diagnostics) is evaluated for every route, exactly as the compatibility oracle does.
-        var declaration = NativeCommandDeclaration(scope, key, command);
+        var declaration = NativeCommandDeclaration(scope, key, command.CommandName, evidence);
         if (!scope.Facts.OfType<ArtifactDeclarationFact>().Any(_ => _.Id == declaration.Id))
         {
             scope.Facts.Add(declaration);
@@ -128,7 +142,7 @@ internal static partial class WolverineFacts
             placement.SourceOwner,
             placement.Compatibility,
             evidence));
-        scope.Facts.Add(NativeCommandEntryPoint(scope, key, endpoint, evidence));
+        scope.Facts.Add(NativeCommandEntryPoint(scope, key, endpoint.Method, evidence));
         scope.Diagnostics.Add(NativeHttpMetadata(command));
         AddEndpointValidationDiagnostics(scope, command, validation);
         if (deletesDocuments)
@@ -162,12 +176,12 @@ internal static partial class WolverineFacts
         Subject = MethodSubject(scope.Project, endpoint.Method, "command")
     };
 
-    static ArtifactDeclarationFact NativeCommandDeclaration(WolverineFactScope scope, ArtifactKey key, EndpointCommand command) => new()
+    static ArtifactDeclarationFact NativeCommandDeclaration(WolverineFactScope scope, ArtifactKey key, string name, Evidence evidence) => new()
     {
         Id = new() { Value = BackendOccurrenceKeys.FactId($"{scope.Adapter.Id}:command-artifact:{key.Subject.Value}:{key.Kind}", key.Scope) },
         Subject = key.Subject,
-        Evidence = command.Evidence,
-        Definition = new() { Artifact = key, Name = command.CommandName, File = command.Evidence.Source?.Path }
+        Evidence = evidence,
+        Definition = new() { Artifact = key, Name = name, File = evidence.Source?.Path }
     };
 
     static IReadOnlyList<GenerationFact> NativeCommandMembers(DotNetAnalysisContext context, ArtifactKey key, EndpointCommand command)
@@ -177,20 +191,24 @@ internal static partial class WolverineFacts
             return QueryMemberFacts(command.Endpoint.Method, key, context, command.Evidence);
         }
 
-        var members = WolverineCommandMembers.DeclareNative(commandType, key, context, command.Evidence);
-        var identity = WolverineCommandMembers.IdentifyNative(
-            new WolverineCommandIdentityInput(commandType, null, [], false, null),
-            key,
-            command.Evidence);
+        return NativeTypedCommandMembers(context, key, commandType, command.Evidence);
+    }
+
+    static IReadOnlyList<GenerationFact> NativeTypedCommandMembers(
+        DotNetAnalysisContext context, ArtifactKey key, INamedTypeSymbol commandType, Evidence evidence)
+    {
+        var members = WolverineCommandMembers.DeclareNative(commandType, key, context, evidence);
+        var identity = WolverineCommandMembers.IdentifyNative(new(commandType, null, [], false, null), key, evidence);
         return identity is null ? members : [.. members, identity];
     }
 
-    static EntryPointFact NativeCommandEntryPoint(WolverineFactScope scope, ArtifactKey key, HttpEndpoint endpoint, Evidence evidence)
+    static EntryPointFact NativeCommandEntryPoint(WolverineFactScope scope, ArtifactKey key, IMethodSymbol entry, Evidence evidence)
     {
-        var method = DotNetMethodIdentity.SubjectFor(scope.Project, endpoint.Method);
+        var method = DotNetMethodIdentity.SubjectFor(scope.Project, entry);
+        var site = entry.Locations.FirstOrDefault() is { } location ? InvocationSite(location, scope.Project) : "unknown";
         return new()
         {
-            Id = new() { Value = BackendOccurrenceKeys.FactId($"{scope.Adapter.Id}:command-entry:{method.Value}:{(endpoint.Method.Locations.FirstOrDefault() is { } location ? InvocationSite(location, scope.Project) : "unknown")}", key.Scope) },
+            Id = new() { Value = BackendOccurrenceKeys.FactId($"{scope.Adapter.Id}:command-entry:{method.Value}:{site}", key.Scope) },
             Subject = method,
             Evidence = evidence,
             Definition = new() { Method = method, Artifact = key }

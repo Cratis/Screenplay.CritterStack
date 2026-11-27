@@ -49,6 +49,7 @@ public abstract class a_native_http_command_comparison : Specification
                 void Store<T>(params T[] documents);
                 void Delete<T>(System.Guid id);
                 void Delete(object entity);
+                void DeleteWhere<T>(System.Linq.Expressions.Expression<System.Func<T, bool>> predicate);
             }
             public interface IDocumentSession : IDocumentOperations;
             public static class MartenServiceCollectionExtensions
