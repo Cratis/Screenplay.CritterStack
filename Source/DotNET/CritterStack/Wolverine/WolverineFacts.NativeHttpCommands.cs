@@ -148,6 +148,7 @@ internal static partial class WolverineFacts
         if (deletesDocuments)
         {
             AddStandaloneBoundaryDiagnostics(scope, endpoint.Method);
+            AddConsistentAggregateDiagnostics(scope, command.Shape);
             AddNativeDocumentDeletes(scope, EmissionFor(scope, command.CommandSubject, evidence), endpoint.Method);
         }
     }

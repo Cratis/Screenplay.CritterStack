@@ -19,7 +19,12 @@ public abstract class a_native_http_command_comparison : Specification
         namespace Wolverine
         {
             public sealed class WolverineOptions;
-            public interface IMessageBus { System.Threading.Tasks.ValueTask PublishAsync<T>(T message); }
+            public class DeliveryOptions;
+            public interface IMessageBus
+            {
+                System.Threading.Tasks.ValueTask PublishAsync<T>(T message);
+                System.Threading.Tasks.ValueTask SendAsync<T>(T message, DeliveryOptions? options = null);
+            }
             public sealed class WolverineIgnoreAttribute : System.Attribute;
         }
         namespace Wolverine.Persistence.EventSourcing
@@ -46,16 +51,27 @@ public abstract class a_native_http_command_comparison : Specification
             public interface IQuerySession { T? Load<T>(System.Guid id) where T : class; }
             public interface IDocumentOperations : IQuerySession
             {
-                void Store<T>(params T[] documents);
-                void Delete<T>(System.Guid id);
-                void Delete(object entity);
-                void DeleteWhere<T>(System.Linq.Expressions.Expression<System.Func<T, bool>> predicate);
+                void Store<T>(System.Collections.Generic.IEnumerable<T> entities) where T : notnull;
+                void Store<T>(params T[] entities) where T : notnull;
+                void Delete<T>(T entity) where T : notnull;
+                void Delete<T>(int id) where T : notnull;
+                void Delete<T>(long id) where T : notnull;
+                void Delete<T>(object id) where T : notnull;
+                void Delete<T>(System.Guid id) where T : notnull;
+                void Delete<T>(string id) where T : notnull;
+                void DeleteWhere<T>(System.Linq.Expressions.Expression<System.Func<T, bool>> expression) where T : notnull;
+                void DeleteObjects(System.Collections.Generic.IEnumerable<object> documents);
             }
-            public interface IDocumentSession : IDocumentOperations;
+            public interface IDocumentSession : IDocumentOperations { Events.IEventStoreOperations Events { get; } }
             public static class MartenServiceCollectionExtensions
             {
                 public static void AddMartenStore<T>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<StoreOptions> configure) where T : class, IDocumentStore { }
             }
+        }
+        namespace JasperFx.Events { public class StreamAction; }
+        namespace Marten.Events
+        {
+            public interface IEventStoreOperations { JasperFx.Events.StreamAction Append(System.Guid stream, params object[] events); }
         }
         namespace Wolverine.Marten
         {

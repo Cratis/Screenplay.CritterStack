@@ -18,7 +18,7 @@ public class when_http_commands_delete_documents_without_a_store : given.a_docum
                 public static void Delete(RemoveDocument command, Marten.IDocumentSession session)
                 {
                     session.Delete<Document>(command.Id);
-                    session.Delete<Document>(command.Id);
+                    session.Delete(new Document(command.Id, "Example"));
                 }
             }
             public static class RemoveByIdEndpoint

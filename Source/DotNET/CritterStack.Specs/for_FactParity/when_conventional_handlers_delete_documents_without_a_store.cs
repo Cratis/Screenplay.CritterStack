@@ -8,8 +8,15 @@ public class when_conventional_handlers_delete_documents_without_a_store : given
 {
     const string Application =
         """
+        namespace JasperFx.Events.Aggregation
+        {
+            [System.AttributeUsage(System.AttributeTargets.Class)]
+            public class BoundaryAggregateAttribute : System.Attribute;
+        }
         namespace FactParity
         {
+            [JasperFx.Events.Aggregation.BoundaryAggregate]
+            public sealed class MarkerOnly;
             public sealed record Refund(System.Guid Id);
             public sealed record Archive(int Id);
             public sealed record Quote(int Id);
@@ -17,7 +24,7 @@ public class when_conventional_handlers_delete_documents_without_a_store : given
             public sealed record Fail(System.Guid Id);
             public static class RemoveHandler
             {
-                public static void Handle(Remove message, Marten.IDocumentOperations operations)
+                public static void Handle(Remove message, MarkerOnly marker, Marten.IDocumentOperations operations)
                 {
                     operations.Delete<Refund>(message.Id);
                     operations.Delete(new Archive(1));
@@ -40,8 +47,9 @@ public class when_conventional_handlers_delete_documents_without_a_store : given
 
     [Fact] void should_declare_only_the_discovered_command() => Commands(PublicComposed).Single().Name.ShouldEqual("Remove");
     [Fact] void should_emit_one_entry_point() => EntryPoints.Count().ShouldEqual(1);
-    [Fact] void should_emit_one_command_delete_for_each_typed_id_delete() => NativeDeletes.Count().ShouldEqual(2);
-    [Fact] void should_give_repeated_deletes_distinct_fact_ids() => NativeDeletes.Select(fact => fact.Id).Distinct().Count().ShouldEqual(2);
+    [Fact] void should_emit_deletes_for_id_and_generic_entity_calls_but_not_predicates() => NativeDeletes.Count().ShouldEqual(3);
+    [Fact] void should_give_repeated_deletes_distinct_fact_ids() => NativeDeletes.Select(fact => fact.Id).Distinct().Count().ShouldEqual(3);
+    [Fact] void should_report_the_standalone_boundary() => Native.Diagnostics.Count(diagnostic => diagnostic.Code == WolverineDiagnosticCodes.DcbBoundaryOmitted).ShouldEqual(1);
     [Fact] void should_leave_ownership_unscoped() => NativeDeletes.All(fact => fact.Definition.Key.SourceScope is null && fact.Definition.Key.TargetScope is null).ShouldBeTrue();
     [Fact] void should_be_admitted_in_both_orders() => AllAdmitted().ShouldBeTrue();
     [Fact] void should_match_artifacts_in_both_orders() => AllArtifactsMatch().ShouldBeTrue();

@@ -42,8 +42,8 @@ public class when_http_delete_commands_have_other_consequences : given.a_native_
                     session.Delete<Document>(command.Id);
                     session.Store(new Document(command.Id));
                 }
-                [Wolverine.Http.WolverineDelete("/object")]
-                public static void DeleteObject(RemoveWhere command, Marten.IDocumentSession session) => session.Delete(new Document(command.Id));
+                [Wolverine.Http.WolverineDelete("/where")]
+                public static void DeleteWhere(RemoveWhere command, Marten.IDocumentSession session) => session.DeleteWhere<Document>(document => document.Id == command.Id);
             }
         }
         """;
@@ -55,7 +55,7 @@ public class when_http_delete_commands_have_other_consequences : given.a_native_
     [Fact]
     void should_report_each_other_endpoint_once() =>
         Native.Diagnostics.Count(_ => _.Code == WolverineFacts.NativeHttpCommandOmittedCode && _.Outcome == GenerationDiagnosticOutcome.Unsupported).ShouldEqual(4);
-    [Fact] void should_not_emit_partial_facts_for_unsupported_endpoints() => Native.Facts.Any(_ => _.Subject.Value.Contains("DeleteNotify") || _.Subject.Value.Contains("DeleteRead") || _.Subject.Value.Contains("DeleteStore") || _.Subject.Value.Contains("DeleteObject")).ShouldBeFalse();
+    [Fact] void should_not_emit_partial_facts_for_unsupported_endpoints() => Native.Facts.Any(_ => _.Subject.Value.Contains("DeleteNotify") || _.Subject.Value.Contains("DeleteRead") || _.Subject.Value.Contains("DeleteStore") || _.Subject.Value.Contains("DeleteWhere")).ShouldBeFalse();
     [Fact] void should_still_be_admitted_by_the_real_descriptor() => IsAdmitted.ShouldBeTrue();
     [Fact] void should_not_claim_parity_with_the_compatibility_commands() => Commands(Expected).Count().ShouldBeGreaterThan(1);
 }
