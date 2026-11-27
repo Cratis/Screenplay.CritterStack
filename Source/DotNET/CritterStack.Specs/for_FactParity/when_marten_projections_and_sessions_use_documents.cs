@@ -19,6 +19,7 @@ public class when_marten_projections_and_sessions_use_documents : given.a_marten
             public sealed record Shapes(
                 int Id,
                 int[] Array,
+                int[][] Jagged,
                 System.Collections.Generic.List<System.Collections.Generic.List<int>> Nested,
                 System.Collections.Generic.IEnumerable<int?> Sequence,
                 int?[] NullableElements,
@@ -53,7 +54,7 @@ public class when_marten_projections_and_sessions_use_documents : given.a_marten
                     session.Store(new Ledger(2));
                     session.Update(new Entry(3));
                     session.Insert(new Balance(1));
-                    session.Store(new Shapes(1, [], [], [], [], null, null, new(), null, null));
+                    session.Store(new Shapes(1, [], [], [], [], [], null, null, new(), null, null));
                     session.Store(new NullableIdentity(null, "a"));
                     session.Store(new CollectionIdentity([]));
                 }

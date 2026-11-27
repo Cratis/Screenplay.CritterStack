@@ -18,29 +18,17 @@ static class MartenDocumentMembers
     /// </summary>
     /// <param name="type">The member type.</param>
     /// <param name="context">The analysis context resolving source subjects.</param>
-    /// <returns>The type use.</returns>
-    public static TypeUseDefinition TypeUseFor(ITypeSymbol type, DotNetAnalysisContext context)
+    /// <param name="member">The artifact member the type use describes.</param>
+    /// <returns>The member type use definition.</returns>
+    public static ArtifactMemberTypeUseDefinition TypeUseFor(ITypeSymbol type, DotNetAnalysisContext context, ArtifactMemberKey member)
     {
-        var reference = DotNetTypeShapes.TypeReferenceFor(type, context);
-        if (reference.Name.Length == 0)
+        // An array of arrays has no printable element name; the legacy reference is requested explicitly, with the array origins read from the symbols.
+        if (DotNetTypeUseCompatibility.TryCreateLegacyJaggedArrayMember(type, context, member, out var jagged))
         {
-            // The compatibility projection cannot name the element of a nested collection; keep the exact observation, which is admissible.
-            return DotNetTypeShapes.TypeUseFor(type, context);
+            return jagged;
         }
 
-        List<TypeUseShapeKind> shape = [];
-        if (reference.IsOptional)
-        {
-            shape.Add(TypeUseShapeKind.Optional);
-        }
-
-        if (reference.IsCollection)
-        {
-            shape.Add(TypeUseShapeKind.Collection);
-        }
-
-        shape.Add(TypeUseShapeKind.Named);
-        return new() { Name = reference.Name, ObservedTypeSubject = reference.Subject, Shape = shape };
+        return new() { Member = member, Type = TypeUseFor(type, context) };
     }
 
     public static ISymbol? ResolveIdentityMember(
@@ -103,6 +91,30 @@ static class MartenDocumentMembers
         var candidate = method.ReducedFrom ?? method;
         return candidate.Name == "Identity" &&
                DotNetSubjectIds.MetadataName(candidate.ContainingType.OriginalDefinition) == WellKnownTypes.MartenDocumentMappingExpression;
+    }
+
+    static TypeUseDefinition TypeUseFor(ITypeSymbol type, DotNetAnalysisContext context)
+    {
+        var reference = DotNetTypeShapes.TypeReferenceFor(type, context);
+        if (reference.Name.Length == 0)
+        {
+            // Any other shape the compatibility projection cannot name stays the exact observation, which keeps its ordinary unsupported-shape diagnostic.
+            return DotNetTypeShapes.TypeUseFor(type, context);
+        }
+
+        List<TypeUseShapeKind> shape = [];
+        if (reference.IsOptional)
+        {
+            shape.Add(TypeUseShapeKind.Optional);
+        }
+
+        if (reference.IsCollection)
+        {
+            shape.Add(TypeUseShapeKind.Collection);
+        }
+
+        shape.Add(TypeUseShapeKind.Named);
+        return new() { Name = reference.Name, ObservedTypeSubject = reference.Subject, Shape = shape };
     }
 
     static ExpressionSyntax Unwrap(ExpressionSyntax expression)
