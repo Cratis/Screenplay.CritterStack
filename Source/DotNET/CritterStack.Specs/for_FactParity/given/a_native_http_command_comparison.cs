@@ -53,6 +53,8 @@ public abstract class a_native_http_command_comparison : Specification
             {
                 void Store<T>(System.Collections.Generic.IEnumerable<T> entities) where T : notnull;
                 void Store<T>(params T[] entities) where T : notnull;
+                void Insert<T>(params T[] documents);
+                void Update<T>(params T[] documents);
                 void Delete<T>(T entity) where T : notnull;
                 void Delete<T>(int id) where T : notnull;
                 void Delete<T>(long id) where T : notnull;
@@ -98,6 +100,14 @@ public abstract class a_native_http_command_comparison : Specification
 
     protected AdapterContribution Native { get; private set; } = null!;
 
+    protected AdapterContribution NativeMarten { get; private set; } = null!;
+
+    protected AdapterContribution Oracle { get; private set; } = null!;
+
+    protected DotNetProjectCompilation ComparedProject { get; private set; } = null!;
+
+    protected AdapterIdentity MartenIdentity { get; private set; } = null!;
+
     protected AdapterContributionAdmissionResult Admission { get; private set; } = null!;
 
     protected AdapterIdentity ExpectedIdentity { get; private set; } = null!;
@@ -128,11 +138,17 @@ public abstract class a_native_http_command_comparison : Specification
     /// <summary>Compares an application spread over several source files; the framework surface lives in its own file so the application files share coordinates.</summary>
     /// <param name="files">The application source files with the physical path each is parsed under.</param>
     protected void CompareWithMartenFiles(params (string Source, string Path)[] files) =>
-        CompareWithMarten(Project(
+        CompareWithMartenFiles(DotNetSourceDisplayRoot.Workspace, files);
+
+    protected void CompareWithMartenFiles(DotNetSourceDisplayRoot displayRoot, params (string Source, string Path)[] files)
+    {
+        var project = Project(
         [
             CSharpSyntaxTree.ParseText($"{Framework}\n{MartenFramework}", path: "/workspace/FactParity/Framework.cs"),
             .. files.Select(file => CSharpSyntaxTree.ParseText(file.Source, path: file.Path))
-        ]));
+        ]);
+        CompareWithMarten(WithDisplayRoot(project, displayRoot));
+    }
 
     void CompareWithMarten(DotNetProjectCompilation compilation)
     {
@@ -140,6 +156,9 @@ public abstract class a_native_http_command_comparison : Specification
         var context = new DotNetAnalysisContext([project]);
         var bridge = new real_wolverine_descriptor_bridge();
         var marten = new MartenScreenplayAdapter();
+        ComparedProject = project;
+        MartenIdentity = marten.Identity;
+        NativeMarten = marten.Analyze(context, new());
         Native = bridge.Analyze(context, new());
         Admission = AdapterContributionAdmission.Admit(bridge.Descriptor, Native);
         ExpectedIdentity = bridge.Identity;
@@ -154,8 +173,8 @@ public abstract class a_native_http_command_comparison : Specification
 
         // TEST-ONLY oracle snapshot (see Compare): the legacy contribution is wrapped unchanged through the shared helper.
         var legacy = new CritterStackScreenplayAdapter();
-        var oracle = legacy.Analyze(context, adapterOptions);
-        Expected = generator.Generate(LegacyOracleSnapshot(bridge.Descriptor with { Identity = legacy.Identity }, oracle), generation);
+        Oracle = legacy.Analyze(context, adapterOptions);
+        Expected = generator.Generate(LegacyOracleSnapshot(bridge.Descriptor with { Identity = legacy.Identity }, Oracle), generation);
         Composed = Snapshot(DotNetAdapterRegistration.For(marten), DotNetAdapterRegistration.For(bridge));
         ComposedReverse = Snapshot(DotNetAdapterRegistration.For(bridge), DotNetAdapterRegistration.For(marten));
         var options = new CritterStackScreenplayOptions { Domain = "FactParity" };
@@ -187,11 +206,15 @@ public abstract class a_native_http_command_comparison : Specification
     protected static AdapterRunSnapshot LegacyOracleSnapshot(IEnumerable<(AdapterDescriptor Descriptor, AdapterContribution Contribution)> contributions) =>
         legacy_oracle_snapshot.Create(contributions);
 
-    static DotNetProjectCompilation WithSourceContext(DotNetProjectCompilation project) => project with
+    static DotNetProjectCompilation WithSourceContext(DotNetProjectCompilation project) => project.SourceContext is null
+        ? WithDisplayRoot(project, DotNetSourceDisplayRoot.Workspace)
+        : project;
+
+    static DotNetProjectCompilation WithDisplayRoot(DotNetProjectCompilation project, DotNetSourceDisplayRoot displayRoot) => project with
     {
-        SourceContext = project.SourceContext ?? DotNetSourcePaths.Create(
+        SourceContext = DotNetSourcePaths.Create(
             $"{project.Name}/{project.Name}",
-            new() { Version = 1, DisplayRoot = DotNetSourceDisplayRoot.Workspace, CasePolicy = DotNetSourcePathCasePolicy.Ordinal },
+            new() { Version = 1, DisplayRoot = displayRoot, CasePolicy = DotNetSourcePathCasePolicy.Ordinal },
             [.. project.AuthoredSyntaxTrees.Select(tree => new DotNetSourceDocument
             {
                 SyntaxTree = tree,

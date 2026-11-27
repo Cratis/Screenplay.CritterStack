@@ -24,7 +24,7 @@ internal static partial class WolverineFacts
         }
 
         var shape = DiscoverStateChangeShape(method, request, requestType, scope, isHttpEndpoint: false);
-        if (!IsDeleteOnlyHandler(scope.Project, shape))
+        if (!HasOnlyDocumentEffects(scope.Project, shape))
         {
             return;
         }
@@ -34,28 +34,58 @@ internal static partial class WolverineFacts
 
     static bool IsDirectDeleteEntryPoint(WolverineFactScope scope, IMethodSymbol method, INamedTypeSymbol requestType) =>
         !WolverineSagaTypes.IsSagaState(requestType, scope.Project) &&
-        HasDirectMartenDeletes(scope, method) &&
+        HasDirectMartenDeleteAndOnlyDocumentCalls(scope, method) &&
         WolverineCompoundStages.StagesFor(method, requestType, scope).Count == 0;
 
-    static bool IsDeleteOnlyHandler(DotNetProjectCompilation project, StateChangeShape shape) =>
+    static bool HasOnlyDocumentEffects(DotNetProjectCompilation project, StateChangeShape shape) =>
         !HasEventSourcingShape(shape) && HasNoProducedEvents(shape) && !shape.AppendDiscovery.HasDirectWrite &&
         shape.Aggregate is null && shape.BusConsequences.Count == 0 && shape.OutgoingMessages.Count == 0 &&
         shape.ReturnConsequences.Count == 0 && !shape.Method.Parameters.Any(parameter => IsStateInputParameter(parameter, project));
 
-    static bool HasDirectMartenDeletes(WolverineFactScope scope, IMethodSymbol method)
+    static bool HasDirectMartenDeleteAndOnlyDocumentCalls(WolverineFactScope scope, IMethodSymbol method)
     {
         var deletes = DocumentDeletes(method, scope.Project).Select(delete => delete.Invocation).ToHashSet();
         return deletes.Count > 0 && WolverineMethodSyntax.Declarations(method, scope.Project).All(declaration =>
             declaration.Declaration.DescendantNodes().OfType<InvocationExpressionSyntax>().All(invocation =>
-                declaration.SemanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol called ||
-                ClassifyDeleteHandlerCall(called, deletes.Contains(invocation))));
+                IsSupportedDeleteHandlerCall(invocation, declaration.SemanticModel, method, deletes.Contains(invocation))));
     }
 
-    // Entity and predicate deletes are observed by Marten. Only typed Delete calls produce a Wolverine command edge.
-    static bool ClassifyDeleteHandlerCall(IMethodSymbol called, bool hasCommandEdge) =>
-        !IsPersistenceNamespace(called) ||
-        (MartenDocumentSource.IsMarten(called, includeIntegrationApis: false) &&
-         (hasCommandEdge || (called.Name == "Delete" && !called.IsGenericMethod) || called.Name == "DeleteWhere"));
+    // Marten observes ordinary writes, entity deletes and predicates. Only typed Delete calls produce a command edge.
+    static bool IsSupportedDeleteHandlerCall(
+        InvocationExpressionSyntax invocation,
+        SemanticModel model,
+        IMethodSymbol handler,
+        bool hasCommandEdge)
+    {
+        if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol called || !IsPersistenceNamespace(called)) return true;
+        return MartenDocumentSource.IsMarten(called, includeIntegrationApis: false) &&
+            (IsSupportedDeleteCall(called, hasCommandEdge) || IsDirectDocumentWrite(invocation, model, called, handler));
+    }
+
+    static bool IsSupportedDeleteCall(IMethodSymbol called, bool hasCommandEdge) =>
+        called.Name == "DeleteWhere" || (called.Name == "Delete" && (hasCommandEdge || !called.IsGenericMethod));
+
+    static bool IsDirectDocumentWrite(InvocationExpressionSyntax invocation, SemanticModel model, IMethodSymbol called, IMethodSymbol handler) =>
+        MartenDocumentSource.RelationshipKindFor(called.Name) is RelationshipKind.Stores or RelationshipKind.Updates &&
+        IsInstanceDocumentCall(called) &&
+        SymbolEqualityComparer.Default.Equals(handler, model.GetEnclosingSymbol(invocation.SpanStart)) &&
+        HasAuthoredDocument(called, invocation, model);
+
+    static bool IsInstanceDocumentCall(IMethodSymbol called) => !called.IsStatic && IsDocumentOperationsType(called.ContainingType);
+
+    static bool HasAuthoredDocument(IMethodSymbol called, InvocationExpressionSyntax invocation, SemanticModel model) =>
+        MartenDocumentSource.DocumentTypeFrom(called, invocation, model) is { } document &&
+        DotNetSource.AuthoredDeclarationsOf(document).Any(reference => !DotNetGeneratedSource.IsGenerated(reference.SyntaxTree));
+
+    static bool IsDocumentOperationsType(INamedTypeSymbol type) =>
+        IsDocumentOperationsContract(type) || type.AllInterfaces.Any(IsDocumentOperationsContract);
+
+    static bool IsDocumentOperationsContract(INamedTypeSymbol type)
+    {
+        var name = DotNetSubjectIds.MetadataName(type);
+        return string.Equals(name, "Marten.IDocumentOperations", StringComparison.Ordinal) ||
+            string.Equals(name, "Marten.IDocumentSession", StringComparison.Ordinal);
+    }
 
     static void AddNativeDeleteHandlerFacts(
         WolverineFactScope scope,

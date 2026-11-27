@@ -20,9 +20,35 @@ public abstract class a_document_delete_handler_comparison : a_native_http_comma
     protected void CompareHandlers(string application) => CompareWithMarten($"{WolverineProbeSource}\n{application}");
 
     protected void CompareHandlerFiles(params (string Source, string Path)[] files) =>
-        CompareWithMartenFiles([(WolverineProbeSource, "/workspace/FactParity/WolverineProbe.cs"), .. files]);
+        CompareHandlerFiles(DotNetSourceDisplayRoot.Workspace, files);
 
-    protected bool AllAdmitted() => Composites.All(Admitted);
+    protected void CompareHandlerFiles(DotNetSourceDisplayRoot displayRoot, params (string Source, string Path)[] files) =>
+        CompareWithMartenFiles(displayRoot, [(WolverineProbeSource, "/workspace/FactParity/WolverineProbe.cs"), .. files]);
+
+    protected bool AllAdmitted() => Composites.All(result =>
+        Admitted(result) && result.AdapterRun is { Adapters.Length: 2 } run &&
+        run.Adapters.Count(record => record.Descriptor.Identity == MartenIdentity) == 1 &&
+        run.Adapters.All(record => record is { Executed: true, Probe: AdapterProbeApplicable }));
+
+    protected SubjectId DocumentSubject(string name) => ComparedProject.SubjectForType(fact_vectors.Type(ComparedProject, $"FactParity.{name}"));
+
+    protected SubjectId MethodSubject(string type, string name = "Handle") => DotNetMethodIdentity.SubjectFor(
+        ComparedProject, fact_vectors.Type(ComparedProject, $"FactParity.{type}").GetMembers(name).OfType<IMethodSymbol>().Single());
+
+    protected static IEnumerable<RelationshipKey> Outgoing(AdapterContribution contribution, SubjectId source) => contribution.Facts
+        .OfType<RelationshipFact>().Select(fact => fact.Definition.Key).Where(key => key.Source == source);
+
+    protected static IEnumerable<ArtifactKey> Declared(AdapterContribution contribution, ArtifactKind kind) => contribution.Facts
+        .OfType<ArtifactDeclarationFact>().Select(fact => fact.Definition.Artifact).Where(key => key.Kind == kind);
+
+    protected static RelationshipKey Operation(SubjectId source, RelationshipKind kind, SubjectId target, BackendScopeKey? scope = null) => new()
+    {
+        Source = source,
+        Target = target,
+        Kind = kind,
+        SourceScope = scope,
+        TargetScope = scope
+    };
 
     protected bool AllArtifactsMatch() => Composites.All(actual => ExactArtifacts(actual) == ExactArtifacts(Expected));
 
@@ -40,6 +66,6 @@ public abstract class a_document_delete_handler_comparison : a_native_http_comma
 
     protected bool AllStatusesMatch() => Composites.All(actual => actual.IsSuccess == Expected.IsSuccess);
 
-    static string ExactArtifacts(GeneratedScreenplayDefinition result) => JsonSerializer.Serialize(
+    protected static string ExactArtifacts(GeneratedScreenplayDefinition result) => JsonSerializer.Serialize(
         result.Graph.Artifacts.SelectMany(artifact => artifact.Variants).Select(variant => variant.Definition));
 }

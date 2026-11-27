@@ -17,7 +17,6 @@ public class when_conventional_delete_handlers_have_other_consequences : given.a
             public sealed record RemoveAndSend(System.Guid Id);
             public sealed record RemoveAndAppend(System.Guid Id);
             public sealed record RemoveWithStage(System.Guid Id);
-            public sealed record RemoveAndStore(System.Guid Id);
 
             public static class CascadeHandler
             {
@@ -48,22 +47,14 @@ public class when_conventional_delete_handlers_have_other_consequences : given.a
                 public static void Handle(RemoveWithStage command, Marten.IDocumentSession session) => session.Delete<Document>(command.Id);
                 public static Cascaded After(RemoveWithStage command) => new Cascaded(command.Id);
             }
-            public static class StoreHandler
-            {
-                public static void Handle(RemoveAndStore command, Marten.IDocumentSession session)
-                {
-                    session.Delete<Document>(command.Id);
-                    session.Store(new Document(command.Id));
-                }
-            }
         }
         """;
 
     void Because() => CompareHandlers(Application);
 
     [Fact]
-    void should_leave_all_five_commands_on_the_compatibility_path() => Commands(Expected).Select(command => command.Name).Order().ToArray()
-        .ShouldEqual(["RemoveAndAppend", "RemoveAndCascade", "RemoveAndSend", "RemoveAndStore", "RemoveWithStage"]);
+    void should_leave_all_four_commands_on_the_compatibility_path() => Commands(Expected).Select(command => command.Name).Order().ToArray()
+        .ShouldEqual(["RemoveAndAppend", "RemoveAndCascade", "RemoveAndSend", "RemoveWithStage"]);
     [Fact] void should_emit_no_partial_native_facts() => Native.Facts.ShouldBeEmpty();
     [Fact] void should_emit_no_partial_native_diagnostics() => Native.Diagnostics.ShouldBeEmpty();
     [Fact] void should_emit_no_partial_commands_in_either_order() => Composites.SelectMany(Commands).ShouldBeEmpty();
