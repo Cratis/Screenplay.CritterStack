@@ -55,15 +55,14 @@ internal static partial class WolverineFacts
         var deletes = DocumentDeletes(method, scope.Project).Select(delete => delete.Invocation).ToHashSet();
         if (deletes.Count == 0) return DocumentCallSupport.Unsupported;
 
+        var calls = WolverineMethodSyntax.Declarations(method, scope.Project).SelectMany(declaration =>
+            declaration.Declaration.DescendantNodes().OfType<InvocationExpressionSyntax>()
+                .Select(invocation => ClassifyDocumentCall(invocation, declaration.SemanticModel, deletes.Contains(invocation))));
         var support = DocumentCallSupport.WithEntryPoint;
-        foreach (var (declaration, model) in WolverineMethodSyntax.Declarations(method, scope.Project))
+        foreach (var call in calls)
         {
-            foreach (var invocation in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
-            {
-                var call = ClassifyDocumentCall(invocation, model, deletes.Contains(invocation));
-                if (call == DocumentCallSupport.Unsupported) return call;
-                if (call == DocumentCallSupport.WithoutEntryPoint) support = call;
-            }
+            if (call == DocumentCallSupport.Unsupported) return call;
+            if (call == DocumentCallSupport.WithoutEntryPoint) support = call;
         }
 
         return support;
@@ -75,7 +74,7 @@ internal static partial class WolverineFacts
         if (!MartenDocumentSource.IsMarten(called, includeIntegrationApis: false)) return DocumentCallSupport.Unsupported;
 
         // An entry point would lift the method-level read onto the command, which only has a delete edge on the compatibility path.
-        if (IsDocumentLoad(called)) return DocumentCallSupport.WithoutEntryPoint;
+        if (MartenSessionReadDiscovery.IsDocumentReadMethod(called.Name)) return DocumentCallSupport.WithoutEntryPoint;
 
         return IsSupportedDeleteCall(called, hasCommandEdge) || IsDocumentSessionCall(called, invocation, model)
             ? DocumentCallSupport.WithEntryPoint
@@ -88,20 +87,15 @@ internal static partial class WolverineFacts
     // Marten owns ordinary writes (including lambdas and generated targets); a session save adds no command edge.
     static bool IsDocumentSessionCall(IMethodSymbol called, InvocationExpressionSyntax invocation, SemanticModel model) =>
         !called.IsStatic && IsDocumentOperationsType(called.ContainingType) &&
-        (called.Name == "SaveChangesAsync" || IsDocumentWrite(called, invocation, model));
+        (IsSessionSave(called.Name) || IsDocumentWrite(called, invocation, model));
+
+    static bool IsSessionSave(string name) =>
+        string.Equals(name, "SaveChanges", StringComparison.Ordinal) ||
+        string.Equals(name, "SaveChangesAsync", StringComparison.Ordinal);
 
     static bool IsDocumentWrite(IMethodSymbol called, InvocationExpressionSyntax invocation, SemanticModel model) =>
         MartenDocumentSource.RelationshipKindFor(called.Name) is RelationshipKind.Stores or RelationshipKind.Updates &&
         MartenDocumentSource.DocumentTypeFrom(called, invocation, model) is { DeclaringSyntaxReferences.Length: > 0 };
-
-    static bool IsDocumentLoad(IMethodSymbol called) =>
-        !called.IsStatic && called.Name == "Load" && IsQuerySessionType(called.ContainingType);
-
-    static bool IsQuerySessionType(INamedTypeSymbol type) =>
-        IsQuerySessionContract(type) || type.AllInterfaces.Any(IsQuerySessionContract);
-
-    static bool IsQuerySessionContract(INamedTypeSymbol type) =>
-        string.Equals(DotNetSubjectIds.MetadataName(type), "Marten.IQuerySession", StringComparison.Ordinal);
 
     static bool IsDocumentOperationsType(INamedTypeSymbol type) =>
         IsDocumentOperationsContract(type) || type.AllInterfaces.Any(IsDocumentOperationsContract);

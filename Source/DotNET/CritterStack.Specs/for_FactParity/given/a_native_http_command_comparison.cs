@@ -55,7 +55,14 @@ public abstract class a_native_http_command_comparison : Specification
                     public DocumentMappingExpression<T> Identity(System.Linq.Expressions.Expression<System.Func<T, object>> member) => this;
                 }
             }
-            public interface IQuerySession { T? Load<T>(System.Guid id) where T : class; }
+            public interface IQuerySession
+            {
+                T? Load<T>(System.Guid id) where T : class;
+                System.Threading.Tasks.Task<T?> LoadAsync<T>(System.Guid id, System.Threading.CancellationToken token = default) where T : class;
+                System.Collections.Generic.IReadOnlyList<T> LoadMany<T>(params System.Guid[] ids) where T : class;
+                System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<T>> LoadManyAsync<T>(params System.Guid[] ids) where T : class;
+                System.Linq.IQueryable<T> Query<T>();
+            }
             public interface IDocumentOperations : IQuerySession
             {
                 void Store<T>(System.Collections.Generic.IEnumerable<T> entities) where T : notnull;
@@ -74,6 +81,7 @@ public abstract class a_native_http_command_comparison : Specification
             public interface IDocumentSession : IDocumentOperations
             {
                 Events.IEventStoreOperations Events { get; }
+                void SaveChanges();
                 System.Threading.Tasks.Task SaveChangesAsync(System.Threading.CancellationToken token = default);
             }
             public static class MartenServiceCollectionExtensions
