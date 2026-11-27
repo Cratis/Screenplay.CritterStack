@@ -47,7 +47,14 @@ public abstract class a_native_http_command_comparison : Specification
         {
             public interface IDocumentStore;
             public sealed class StoreOptions { public MartenRegistry Schema { get; } = new(); }
-            public sealed class MartenRegistry { public void For<T>() { } }
+            public sealed class MartenRegistry
+            {
+                public DocumentMappingExpression<T> For<T>() => new();
+                public sealed class DocumentMappingExpression<T>
+                {
+                    public DocumentMappingExpression<T> Identity(System.Linq.Expressions.Expression<System.Func<T, object>> member) => this;
+                }
+            }
             public interface IQuerySession { T? Load<T>(System.Guid id) where T : class; }
             public interface IDocumentOperations : IQuerySession
             {

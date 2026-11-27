@@ -58,7 +58,7 @@ sealed class MartenDocumentObservations(
     static bool IsObservedTarget(DocumentTarget target, IMethodSymbol method, InvocationExpressionSyntax invocation, SemanticModel model) =>
         IsIdentityConfiguration(method) || target.Compiled || IsObservedUsage(RelationshipKindFor(method.Name), method, invocation, model);
 
-    static string WriteSite(InvocationExpressionSyntax invocation, SourceRange? source) =>
+    static string ObservationSite(InvocationExpressionSyntax invocation, SourceRange? source) =>
         $"{Uri.EscapeDataString(source?.FileIdentity?.ToString() ?? source?.Path ?? string.Empty)}:{invocation.SpanStart}:{invocation.Span.Length}";
 
     IEnumerable<MartenDocumentObservation> ObserveInvocations(long order)
@@ -112,7 +112,7 @@ sealed class MartenDocumentObservations(
             Type = type,
             Evidence = evidence,
             Ownership = ownership.ForInvocation(project, invocation, containingMethod),
-            Site = ObservationSite(invocation, relationship, evidence.Source),
+            Site = ObservationSite(invocation, evidence.Source),
             Order = order,
             Preference = PreferenceFor(method),
             Method = containingMethod,
@@ -122,11 +122,6 @@ sealed class MartenDocumentObservations(
             HandlerOwnership = containingMethod is null ? BackendOwnership.Legacy : ownership.ForMethod(project, containingMethod)
         };
     }
-
-    string ObservationSite(InvocationExpressionSyntax invocation, RelationshipKind? relationship, SourceRange? source) =>
-        relationship is RelationshipKind.Stores or RelationshipKind.Updates or RelationshipKind.Deletes
-            ? WriteSite(invocation, source)
-            : SiteFor(invocation, project);
 
     sealed record DocumentTarget(INamedTypeSymbol? Type, bool Compiled);
 }
